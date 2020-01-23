@@ -25,3 +25,23 @@ The base web UI is written in ReactJS (repo coming soon) to enable powerful, res
 
 ## Contributing
 As this project is in its early stages, we are in need of contributors. Much work is to be done from design to coding to documentation; all of these areas require special attention and will benefit from your input. Feel free to make suggestions, open issues and submit pull requests to improve the platform. 
+
+Git Flow is used to keep track of branches and the various stages of development
+that they represent.
+
+| Branch Pattern | Purpose |
+|-----|-----|
+|master|Contains release history|
+|release|Contains a specific release version (e.g. `release/1.0.0`)|
+|develop|Contains "next release" actively in development|
+|feature|Contains work for a specific feature (e.g. `feature/do-something`)|
+|bugfix|Contain fixes for a bug (e.g. `bugfix/uh-oh`)|
+
+Run `git flow init` to enable Git Flow when you clone this repository and accept all of the default values for the
+branch names. All commits should be done via a branch and submitted in a pull request.
+
+The standard flow from feature to release should look like:
+
+    feature -> develop -> master -> release
+
+where each arrow represents a pull request and merge.
