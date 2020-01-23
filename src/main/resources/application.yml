@@ -1,0 +1,21 @@
+spring:
+  profiles:
+    active: dev
+
+---
+
+spring:
+  profiles: dev
+  environment: development
+
+---
+
+spring:
+  profiles: qa
+  environment: qa
+
+---
+
+spring:
+  profiles: prod
+  environment: production
