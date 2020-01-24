@@ -21,7 +21,7 @@ The goal is to offer this platform as a pre-packaged distributable application t
 ## Tech Stack
 The core business logic layer is written in Java 8 using the Spring framework. Spring provides a plethora of useful libraries for server processing, data abstraction and API creation. The web API is documented with RAML which is then implemented via Spring.
 
-The base web UI is written in ReactJS (repo coming soon) to enable powerful, responsive client-side functionality. However, as mentioned in Architecture, the platform is designed to be extended easily. The web API provides all the core functionality in a format that can be implemented by other UI frameworks and languages and mobile applications.
+The base web UI is written in ReactJS ([OpenBooksUI](https://github.com/berryman17/OpenBooksUI)) to enable powerful, responsive client-side functionality. However, as mentioned in Architecture, the platform is designed to be extended easily. The web API provides all the core functionality in a format that can be implemented by other UI frameworks and languages and mobile applications.
 
 ## Contributing
 As this project is in its early stages, we are in need of contributors. Much work is to be done from design to coding to documentation; all of these areas require special attention and will benefit from your input. Feel free to make suggestions, open issues and submit pull requests to improve the platform. 
