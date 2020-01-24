@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/berryman17/OpenBooks.svg?branch=develop)](https://travis-ci.com/berryman17/OpenBooks)
+
 # OpenBooks
 
 An open-source small business accounting platform designed to provide powerful accounting functionality in a user friendly format.
