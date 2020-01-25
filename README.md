@@ -1,4 +1,11 @@
+[![Open Source Love](https://badges.frapsoft.com/os/v1/open-source.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
+[![Open Source Helpers](https://www.codetriage.com/berryman17/openbooks/badges/users.svg)](https://www.codetriage.com/berryman17/openbooks)
+
 [![Build Status](https://travis-ci.com/berryman17/OpenBooks.svg?branch=develop)](https://travis-ci.com/berryman17/OpenBooks)
+[![GitHub version](https://badge.fury.io/gh/berryman17%2FOpenBooks.svg)](https://badge.fury.io/gh/berryman17%2FOpenBooks)
+[![Coverage Status](https://coveralls.io/repos/github/berryman17/OpenBooks/badge.svg?branch=develop)](https://coveralls.io/github/berryman17/OpenBooks?branch=develop)
+[![codebeat badge](https://codebeat.co/badges/e0e05c0e-5d64-48e9-bc0f-c9c71e48b3bc)](https://codebeat.co/projects/github-com-berryman17-openbooks-master)
+
 
 # OpenBooks
 
@@ -12,6 +19,7 @@ The source is licensed under GPLv3 to ensure it remains open to anyone that want
 | Double Entry Accounting | Expense/Revenue Tracking | Invoicing |
 | Bank Import/Reconciliation | Reports | Financial Statements |
 | Web/Mobile Apps | Dashboards | Open API |
+| Customers/Vendors |||
 
 ## Architecture
 This platform is separated into several distinct layers to ensure it can be exended and deployed in many different environments.
