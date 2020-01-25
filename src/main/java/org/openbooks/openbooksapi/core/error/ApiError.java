@@ -7,6 +7,12 @@ import org.springframework.http.HttpStatus;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+//TODO clean the fields up a bit, some info is redundant or
+// shouldn't be exposed to clients
+/**
+ * Error object for API error responses
+ *
+ */
 public class ApiError {
 
    private HttpStatus status;

@@ -6,8 +6,11 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+
 @Repository
 public interface AccountRepository extends JpaRepository<Account, Long> {
 
-	public List<Account> findByAccountNumber(String accountNumber);
+    public List<Account> findByAccountNumber(String accountNumber);
+
+
 }
