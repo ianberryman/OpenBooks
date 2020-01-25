@@ -12,6 +12,7 @@ The source is licensed under GPLv3 to ensure it remains open to anyone that want
 | Double Entry Accounting | Expense/Revenue Tracking | Invoicing |
 | Bank Import/Reconciliation | Reports | Financial Statements |
 | Web/Mobile Apps | Dashboards | Open API |
+| Customers/Vendors |||
 
 ## Architecture
 This platform is separated into several distinct layers to ensure it can be exended and deployed in many different environments.
