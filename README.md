@@ -11,6 +11,8 @@
 
 An open-source small business accounting platform designed to provide powerful accounting functionality in a user friendly format.
 
+[![OpenBooks UI Concept](https://i.ibb.co/LJSfsn1/Open-Books-concept-01-25-2020.png "OpenBooks UI Concept")](https://github.com/berryman17/OpenBooksUI)
+
 The source is licensed under GPLv3 to ensure it remains open to anyone that wants to modify or extend it. 
 
 ## Core Functionality
