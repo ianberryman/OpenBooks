@@ -3,18 +3,18 @@ package org.openbooks.openbooksapi.core.model;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.repository.CrudRepository;
+public interface Journal<E extends AccountingEntry> {
 
-public interface Journal {
+    E commitAccountingEntry(E entry);
 
-    public CrudRepository<Transaction, String> getTransactionRepository();
+    E updateAccountingEntry(E entry);
 
-    public Transaction commitTransaction(Transaction transaction);
+    List<E> getAccountingEntries();
 
-    public Transaction updateTransaction(Transaction transaction);
+    Optional<E> getAccountingEntryById(Long entryId);
 
-    public List<Transaction> getTransactionsForAccount(Long accountId);
+    List<Transaction> getTransactionsForAccount(Account account);
 
-    public Optional<Transaction> getTransactionById(Long id);
+    Optional<Transaction> getTransactionById(Long id);
 }
 

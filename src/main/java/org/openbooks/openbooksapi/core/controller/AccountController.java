@@ -31,7 +31,7 @@ public class AccountController {
 
     @GetMapping("/accounts/{id}/transactions")
     public List<Transaction> getTransactionsForAccount(@PathVariable Long id) {
-        return coa.getTransactionsForAccount(id);
+        return coa.getTransactionsForAccount(coa.getAccountById(id).get());
     }
 
     @PostMapping("/accounts")

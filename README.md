@@ -57,3 +57,5 @@ The standard flow from feature to release should look like:
     feature -> develop -> master -> release
 
 where each arrow represents a pull request and merge.
+
+You can run the project by cloning and running: `mvn spring-boot:run`

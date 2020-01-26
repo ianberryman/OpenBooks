@@ -3,10 +3,11 @@ package org.openbooks.openbooksapi.core.controller;
 import org.openbooks.openbooksapi.core.model.Journal;
 import org.openbooks.openbooksapi.core.model.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
 
-import javax.persistence.EntityExistsException;
+import java.util.Optional;
 
 @RestController
 public class TransactionController {
@@ -15,11 +16,12 @@ public class TransactionController {
     private Journal journal;
 
     @GetMapping("/transactions/{id}")
-    public Transaction getTransactionById(@PathVariable Long id) {
-        return journal.getTransactionById(id).get();
+    public Optional<Transaction> getTransactionById(@PathVariable Long id) {
+
+        return journal.getTransactionById(id);
     }
 
-    @PostMapping("/transactions")
+/*    @PostMapping("/transactions")
     public ResponseEntity<Transaction> createTransaction(@RequestBody Transaction transaction) {
         // throw error if transaction exists
         if (!transaction.idIsNull() && journal.getTransactionById(transaction.getId()).isPresent()) {
@@ -37,5 +39,5 @@ public class TransactionController {
 
         // persist updates and return updated object
         return ResponseEntity.ok().body(journal.updateTransaction(transaction));
-    }
+    }*/
 }

@@ -14,7 +14,7 @@ public interface ChartOfAccounts {
 
     public Optional<Account> getAccountById(Long id);
 
-    public List<Transaction> getTransactionsForAccount(Long id);
+    public List<Transaction> getTransactionsForAccount(Account account);
 
     public List<Account> getAccountsByAccountNumber(String accountNumber);
 

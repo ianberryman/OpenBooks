@@ -1,13 +1,8 @@
 package org.openbooks.openbooksapi.core.model;
 
+import javax.persistence.*;
 import java.math.BigDecimal;
-
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.PrePersist;
+import java.util.List;
 
 @Entity
 public class Account {
@@ -17,34 +12,15 @@ public class Account {
     @Column(updatable = false, insertable = false)
     private Long id;
 
-    @Column
     private String accountNumber;
 
     @Column(updatable = false)
     private BigDecimal balance;
 
+    @OneToMany(mappedBy = "account")
+    private List<Transaction> transactionList;
 
     public Account() {}
-
-    public Account(String accountNumber) {
-        this.accountNumber = accountNumber;
-    }
-
-    public Account(String accountNumber, BigDecimal balance) {
-        this.accountNumber = accountNumber;
-        this.balance = balance;
-    }
-
-    public Account(Long id, String accountNumber) {
-        this.id = id;
-        this.accountNumber = accountNumber;
-    }
-
-    public Account(Long id, String accountNumber, BigDecimal balance) {
-        this.id = id;
-        this.accountNumber = accountNumber;
-        this.balance = balance;
-    }
 
     @PrePersist
     private void prePersist() {

@@ -1,8 +1,8 @@
 package org.openbooks.openbooksapi.core.model;
 
+import org.openbooks.openbooksapi.core.repository.DoubleEntryAccountingEntryRepository;
 import org.openbooks.openbooksapi.core.repository.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.repository.CrudRepository;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
@@ -11,49 +11,64 @@ import java.util.List;
 import java.util.Optional;
 
 
-public class DoubleEntryJournal implements Journal {
+public class DoubleEntryJournal implements Journal<DoubleEntryAccountingEntry> {
 
     @Autowired
     private TransactionRepository tranRepo;
+
+    @Autowired
+    private DoubleEntryAccountingEntryRepository entryRepo;
 
     @PersistenceContext
     private EntityManager entityMgr;
 
     @Override
-    public CrudRepository<Transaction, String> getTransactionRepository() {
-        // TODO Auto-generated method stub
-        return null;
-    }
+    public DoubleEntryAccountingEntry commitAccountingEntry(DoubleEntryAccountingEntry entry) {
+        // set the account for each transaction
+        entry.getTransactionList().forEach(tran -> {
+            Account parent = entityMgr.getReference(Account.class, tran.getAccountId());
+            tran.setAccount(parent);
+        });
 
-    @Override
-    public Transaction commitTransaction(Transaction transaction) {
-        Account parent = entityMgr.getReference(Account.class, transaction.getAccountId());
-        transaction.setAccount(parent);
-
-        return tranRepo.save(transaction);
+        // return new object
+        return entryRepo.save(entry);
     }
 
     @Transactional
     @Override
-    public Transaction updateTransaction(Transaction transaction) {
-        Account parent = entityMgr.getReference(Account.class, transaction.getAccountId());
-        transaction.setAccount(parent);
+    public DoubleEntryAccountingEntry updateAccountingEntry(DoubleEntryAccountingEntry entry) {
+        // update the account for each transaction
+        entry.getTransactionList().forEach(tran -> {
+            Account parent = entityMgr.getReference(Account.class, tran.getAccountId());
+            tran.setAccount(parent);
+        });
 
-        entityMgr.refresh(tranRepo.saveAndFlush(transaction));
-        return tranRepo.getOne(transaction.getId());
+        // refresh entity and return updated object
+        entityMgr.refresh(entryRepo.saveAndFlush(entry));
+        return entryRepo.getOne(entry.getId());
+    }
+
+    @Transactional
+    @Override
+    public List<DoubleEntryAccountingEntry> getAccountingEntries() {
+        return entryRepo.findAll();
     }
 
     @Override
-    public List<Transaction> getTransactionsForAccount(Long accountId) {
-        return tranRepo.findAllByAccountId(accountId);
+    public Optional<DoubleEntryAccountingEntry> getAccountingEntryById(Long entryId) {
+        return entryRepo.findById(entryId);
+    }
+
+
+
+    @Override
+    public List<Transaction> getTransactionsForAccount(Account account) {
+        return tranRepo.findAllByAccount(account);
     }
 
     @Override
     public Optional<Transaction> getTransactionById(Long id) {
         return tranRepo.findById(id);
     }
-
-
-
 }
 

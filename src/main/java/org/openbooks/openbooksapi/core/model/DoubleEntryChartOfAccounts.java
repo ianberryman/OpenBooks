@@ -36,8 +36,8 @@ public class DoubleEntryChartOfAccounts implements ChartOfAccounts {
     }
 
     @Override
-    public List<Transaction> getTransactionsForAccount(Long id) {
-        return journal.getTransactionsForAccount(id);
+    public List<Transaction> getTransactionsForAccount(Account account) {
+        return journal.getTransactionsForAccount(account);
     }
 
     @Override
