@@ -1,7 +1,9 @@
 package org.openbooks.openbooksapi.core.controller;
 
+import net.bytebuddy.implementation.bind.MethodDelegationBinder;
 import org.openbooks.openbooksapi.core.model.Account;
-import org.openbooks.openbooksapi.core.model.ChartOfAccounts;
+import org.openbooks.openbooksapi.core.model.ChartOfAccountsService;
+import org.openbooks.openbooksapi.core.model.CompanyService;
 import org.openbooks.openbooksapi.core.model.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +17,10 @@ import java.util.Optional;
 public class AccountController {
 
     @Autowired
-    private ChartOfAccounts coa;
+    private ChartOfAccountsService coa;
+
+    @Autowired
+    private CompanyService companies;
 
     @GetMapping("/accounts")
     public List<Account> getAccounts(@RequestParam Optional<String> accountNumber) {
@@ -36,9 +41,9 @@ public class AccountController {
 
     @PostMapping("/accounts")
     public ResponseEntity<Account> createAccount(@RequestBody Account account) {
-        System.out.println(account.getId());
         // throw error if account exists
-        if (!account.idIsNull() && coa.getAccountById(account.getId()).isPresent()) {
+        //if (!account.idIsNull() && coa.getAccountById(account.getId()).isPresent()) {
+        if(!account.idIsNull() && coa.accountExists(account)) {
             throw new EntityExistsException("Account with ID " + account.getId() + " already exists");
         }
 
@@ -50,7 +55,7 @@ public class AccountController {
     @PutMapping("/accounts")
     public ResponseEntity<Account> updateAccount(@RequestBody Account account) {
         // check if id exists, will throw error if account doesn't exist
-        getAccountById(account.getId());
+        coa.accountExists(account);
 
         // update Account and return new object data
         return ResponseEntity.ok().body(coa.updateAccount(account));

@@ -63,12 +63,12 @@ public class RestErrorHandler extends ResponseEntityExceptionHandler {
      * @param ex
      * @return {@link ResponseEntity}
      */
-    @ExceptionHandler(Exception.class)
+    /*@ExceptionHandler(Exception.class)
     protected ResponseEntity<Object> handleGenericException(Exception ex) {
 
         String error = "System error";
         return buildResponseEntity(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, error, ex));
-    }
+    }*/
 
 
 }

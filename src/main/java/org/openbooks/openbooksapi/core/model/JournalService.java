@@ -3,7 +3,7 @@ package org.openbooks.openbooksapi.core.model;
 import java.util.List;
 import java.util.Optional;
 
-public interface Journal<E extends AccountingEntry> {
+public interface JournalService<E extends AccountingEntry> {
 
     E commitAccountingEntry(E entry);
 

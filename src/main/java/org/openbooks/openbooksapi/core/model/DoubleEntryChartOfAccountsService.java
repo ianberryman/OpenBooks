@@ -9,13 +9,16 @@ import javax.persistence.PersistenceContext;
 import java.util.List;
 import java.util.Optional;
 
-public class DoubleEntryChartOfAccounts implements ChartOfAccounts {
+public class DoubleEntryChartOfAccountsService implements ChartOfAccountsService {
 
     @Autowired
     private AccountRepository accountRepo;
 
     @Autowired
-    private Journal journal;
+    private JournalService journal;
+
+    @Autowired
+    private CompanyService companies;
 
     @PersistenceContext
     private EntityManager entityMgr;
@@ -36,6 +39,11 @@ public class DoubleEntryChartOfAccounts implements ChartOfAccounts {
     }
 
     @Override
+    public boolean accountExists(Account account) {
+        return accountRepo.existsById(account.getId());
+    }
+
+    @Override
     public List<Transaction> getTransactionsForAccount(Account account) {
         return journal.getTransactionsForAccount(account);
     }
@@ -47,12 +55,15 @@ public class DoubleEntryChartOfAccounts implements ChartOfAccounts {
 
     @Override
     public Account createAccount(Account account) {
+        companies.getCompanyById(account.companyId).get().addAccount(account);
+
         return accountRepo.save(account);
     }
 
     @Transactional
     @Override
     public Account updateAccount(Account account) {
+        companies.getCompanyById(account.companyId).get().addAccount(account);
         // retrieve fields from DB where updatable = false
         entityMgr.refresh(accountRepo.saveAndFlush(account));
         // return new data

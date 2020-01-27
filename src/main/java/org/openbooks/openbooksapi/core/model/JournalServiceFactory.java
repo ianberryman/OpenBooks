@@ -6,27 +6,23 @@ import org.openbooks.openbooksapi.core.SystemOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/**
- * Creates and returns {@link ChartOfAccounts} instances
- * based on a global {@link SystemOptions}.
- *
- */
 @Component
-public class ChartOfAccountsFactory {
+public class JournalServiceFactory {
 	private static final Logger logger = LogManager.getLogger();
-
+	
 	@Autowired
 	private SystemOptions options;
 	
-	public ChartOfAccountsFactory() {}
+	public JournalServiceFactory() {}
 	
-	public ChartOfAccounts build() {
+	public JournalService build() {
 		switch(options.getBookkeepingMethod()) {
 		case DOUBLE_ENTRY:
-			return new DoubleEntryChartOfAccounts();
+			return new DoubleEntryJournalService();
 		default:
-			logger.error("Invalid PersistenceProvider");
+			logger.error("Invalid BookkeepingMethod");
 			return null;
 		}
+		
 	}
 }

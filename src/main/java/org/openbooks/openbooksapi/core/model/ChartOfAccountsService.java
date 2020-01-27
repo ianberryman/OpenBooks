@@ -6,13 +6,15 @@ import java.util.List;
 import java.util.Optional;
 
 
-public interface ChartOfAccounts {
+public interface ChartOfAccountsService {
 
     public AccountRepository getAccountsRepository();
 
     public List<Account> getAccounts();
 
     public Optional<Account> getAccountById(Long id);
+
+    boolean accountExists(Account account);
 
     public List<Transaction> getTransactionsForAccount(Account account);
 

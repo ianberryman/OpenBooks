@@ -4,18 +4,19 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import javax.persistence.*;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity(name = "ACCOUNTING_ENTRY")
 @Table(name = "ACCOUNTING_ENTRY")
 public class DoubleEntryAccountingEntry implements AccountingEntry {
 
-    @OneToMany(mappedBy = "accountingEntry",fetch = FetchType.EAGER)
-    private List<Transaction> transactionList;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToMany(mappedBy = "accountingEntry",fetch = FetchType.EAGER,cascade = CascadeType.PERSIST)
+    private List<Transaction> transactionList = new ArrayList<>();
 
     @Override
     public Long getId() {

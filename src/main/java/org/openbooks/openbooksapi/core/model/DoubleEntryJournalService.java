@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 
-public class DoubleEntryJournal implements Journal<DoubleEntryAccountingEntry> {
+public class DoubleEntryJournalService implements JournalService<DoubleEntryAccountingEntry> {
 
     @Autowired
     private TransactionRepository tranRepo;
@@ -26,8 +26,9 @@ public class DoubleEntryJournal implements Journal<DoubleEntryAccountingEntry> {
     public DoubleEntryAccountingEntry commitAccountingEntry(DoubleEntryAccountingEntry entry) {
         // set the account for each transaction
         entry.getTransactionList().forEach(tran -> {
-            Account parent = entityMgr.getReference(Account.class, tran.getAccountId());
+            Account parent = entityMgr.getReference(Account.class, tran.accountId);
             tran.setAccount(parent);
+            tran.setAccountingEntry(entry);
         });
 
         // return new object
@@ -39,7 +40,7 @@ public class DoubleEntryJournal implements Journal<DoubleEntryAccountingEntry> {
     public DoubleEntryAccountingEntry updateAccountingEntry(DoubleEntryAccountingEntry entry) {
         // update the account for each transaction
         entry.getTransactionList().forEach(tran -> {
-            Account parent = entityMgr.getReference(Account.class, tran.getAccountId());
+            Account parent = entityMgr.getReference(Account.class, tran.accountId);
             tran.setAccount(parent);
         });
 

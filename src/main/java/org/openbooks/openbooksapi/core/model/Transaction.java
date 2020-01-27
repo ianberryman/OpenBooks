@@ -30,16 +30,26 @@ public class Transaction {
     @JsonIgnore
     private Account account;
 
-    /*@Column(name = "ACCOUNT_ID", updatable = false, insertable = false)
-    private Long accountId;*/
+    /**
+     * Public accessor used to set accountingEntry
+     * during creation and updates. NOTE: the getters/
+     * setters below don't retrieve/modify this property.
+     */
+    @Transient
+    public Long accountId;
 
     @ManyToOne
-    @JoinColumn(name = "ACCOUNTING_ENTRY_ID")
+    @JoinColumn(name = "ACCOUNTING_ENTRY_ID", updatable = false)
     @JsonIgnore
     private DoubleEntryAccountingEntry accountingEntry;
 
-    /*@Column(name = "ACCOUNTING_ENTRY_ID", updatable = false, insertable = false)
-    private Long accountingEntryId;*/
+    /**
+     * Public accessor used to set accountingEntry
+     * during creation and updates. NOTE: the getters/
+     * setters below don't retrieve/modify this property.
+     */
+    @Transient
+    public Long accountingEntryId;
 
     private BigDecimal amount;
 
@@ -70,27 +80,17 @@ public class Transaction {
         return account.getId();
     }
 
-    /*public void setAccountId(Long accountId) {
-        this.accountId = accountId;
-    }*/
-
     public DoubleEntryAccountingEntry parentAccountingEntry() {
         return accountingEntry;
     }
 
     public void setAccountingEntry(DoubleEntryAccountingEntry accountingEntry) {
         this.accountingEntry = accountingEntry;
-
-        //this.accountingEntryId = accountingEntry.getId();
     }
 
     public Long getAccountingEntryId() {
         return accountingEntry.getId();
     }
-
-    /*public void setAccountingEntryId(Long accountingEntryId) {
-        this.accountingEntryId = accountingEntryId;
-    }*/
 
     public BigDecimal getAmount() {
         return amount;

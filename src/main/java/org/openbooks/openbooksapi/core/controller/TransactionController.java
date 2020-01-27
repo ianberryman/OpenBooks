@@ -1,6 +1,6 @@
 package org.openbooks.openbooksapi.core.controller;
 
-import org.openbooks.openbooksapi.core.model.Journal;
+import org.openbooks.openbooksapi.core.model.JournalService;
 import org.openbooks.openbooksapi.core.model.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +13,7 @@ import java.util.Optional;
 public class TransactionController {
 
     @Autowired
-    private Journal journal;
+    private JournalService journal;
 
     @GetMapping("/transactions/{id}")
     public Optional<Transaction> getTransactionById(@PathVariable Long id) {
