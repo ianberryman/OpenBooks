@@ -4,15 +4,15 @@ import javax.annotation.PostConstruct;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.openbooks.openbooksapi.core.model.ChartOfAccounts;
-import org.openbooks.openbooksapi.core.model.Journal;
+import org.openbooks.openbooksapi.core.model.ChartOfAccountsService;
+import org.openbooks.openbooksapi.core.model.JournalService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
  * Contains options used to bootstrap the factories
- * that create {@link Journal}s and {@link ChartOfAccounts}
+ * that create {@link JournalService}s and {@link ChartOfAccountsService}
  *
  */
 @Component
