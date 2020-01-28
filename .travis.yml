@@ -5,3 +5,7 @@ install:
   - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V
 after_success:
   - mvn clean test jacoco:report coveralls:report
+deploy:
+  provider: heroku
+  api_key:
+    secure: "ejUocFCxw3L11pGhHfwl7uBc6PO+gu+d0rT0Bd2yMN61dW/JZiBu8MI1RtUPWgDL2e/1SqIBtjxp+A0+yEpM6SOgL3o4+DHAl1maA+amcwtxFwbHzdT63pPVITSEt9LcXgFwHom+YORvsRIpce1W+EZYbNVdF2OaxnwXpeuyxlriE3NlwOzXwBug9goGZm+Epp9Tb3vty0+5B7g54TRmLbZh7HuG1dubHtYBdhDQy+uKJRen9IaZbnerxdkgW5IsGcdqkgnQjdQ1KgSEF0bD5pDAUCEuZyo+ZMrgVTG99rm0lptvpqHe2H25LFQ7dJfVQM4FTyj2Ghro3CMPuIoSyfEPTYUs4YOYGmrHFKTFsmhIwMPYqek68QQH/kboU2+ocpSHvXtufpLO6STJmv1YflAOdCvhkXpM6gdBN9/Hu6XhewlfJ4f572D4SLbN0Herry4WzsAWdmG19BXyYbso+mfb4UgLFKNxQIm+pZZee51L/veANT80TGE78m4xwazmuKxMsrUv0+QIfKu0ZCdsSI2IKI8YVtLyMD1P70vr9menh4o0ebdpeUBCJcGBGNaVCAhpRCi1KRBJrKXdqm2tGQRMq74FFDmp4cGq4MMKSTyNgVAjQ2zMj3YmgnP/vvpxMiC6NWKw7LmQPGpFiwQ1XweL6DB7oRwv87XZUFvisCg="
