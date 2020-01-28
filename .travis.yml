@@ -1,13 +1,13 @@
 language: java
 jdk:
- - openjdk8
+- openjdk8
 install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V
+- mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V
 after_success:
-  - mvn clean test jacoco:report coveralls:report
+- mvn clean test jacoco:report coveralls:report
 deploy:
   provider: heroku
   app: openbooks-api
-  on: "feature/implement-double-entry-system"
+  on: feature/implement-double-entry-system
   api_key:
-    secure: fBIZQig4lNzmFbXnkBV59jabVK0CvnYiZeR+BwACj9qLLnsGZOkPSIoto1apFNNR9S0+FU/3Pw9Sjbp13z0dggd2mfFEWVVanQ84a3JckXUhT/GvHOV6vgDXvWDz2UPnvOvbf6oQn0q2Vsj3B6bZ2AKSHL/G7emyGaQBIYZ16YYH0seJ6oQtX4dd5yMKwDaJ2MHTrs7LY+LBaK+oiDC+6kputvhFUt5g1d2oZx4gGa/ipC6mIoHC0/C/gGKSE2S/v0K7PQ+LEJvDSdM/s6S04S88Dq+fEABYtgekVz6omgu1pvKiUuzQ31UHg8Z3IdMYocA6PrGKArYIT0sMxLwsXTJmCYgbRG3wkFCuBzlOekzoB5E4d/xJMWr0DCOCGPtLoI/7K+RWVr5MXCm/0PvY0gnzavtP7XStNDtoCx19/tFVytSplidLNqsTex5wHvUYMbGGGtLdxIjTJFJkRUCvkh0QgF0+83bShLrmEaMXG5hq9h6xnYU8qC6q3IqIgPYx0zvkohREoRo/vzuzr0d/lW9j7RKhnE34p+UzEAgOhFL0M2Lcuez6o6ubkMHc1qs1pxXeJ+hl+hm6zKkfmXpZqyg1ZvFciCoSpiZB5/tZttP7//qMmE+1G4LWEUd8Ih3wVT16Mt3bbTWIpkOQW5P/QtKGWArfWy09QqkcyLPGBoU=
+    secure: oyaZJngPMTWiBxKX8kdBAKItoYYC2rX7jriJgRaTOk9P8C2mpufA8+1BYrDeSWTl13dCYICEneCrKQ2Z1ypjgrAc2ObXd4nI6u1YBkFb8U3CsfD0YP9TpQVMK9lHnWo1/lrWisHFkE/l0WDbRQO9JBQ+vRXTGt2CmT0YXvT8v4G7wnekYA6ZlxgRaqDItpVYWP1L9UDWR+10dIQvFZlxGx1w43JhxzpaD48roRChYSgoXXgCxqoHYnMxujAdNlmH+uf07K2nPTuG4EncF2sAYOU56uNxTnUHkuAgpaGZYH8i+glGMMUfx6226i1DlnI541TWfyJM7c3RZTyArkgfeCZWXTrrvtqRRcq0g2KUCrmHZVr5k8Wr95P/SOmIXNautVf4yNNHxJ2KWFEY02YVtJ9A8H4G4/AxWVv4W4I0fGSVsOom0iYuBkDWr75Uf4V94Iko85M4jyZR7lrUDEUb+8BKHxcuVcBQJv9VcMdHraJWSGZXm3HFBgERcIFySCakoMIR4VU96xXmfbxqzilO2gzQwM+7bj+Zie77gC65D0mSXt2f56FxVHTkclsyI0tbNbxCMYJHPO4TvRex4RK9CFUmL6+EQGMrEXXCa+DFsRUuE0srDp6JZRYXhaWa1SsAU9gTBTjRu1oDGGUc91R78Q332D5Bh7KfFG2Kpu8/EK0=
