@@ -54,6 +54,11 @@ public class DoubleEntryChartOfAccountsService implements ChartOfAccountsService
     }
 
     @Override
+    public List<Account> getAccountsByCompany(Company company) {
+        return accountRepo.findByCompany(company);
+    }
+
+    @Override
     public Account createAccount(Account account) {
         companies.getCompanyById(account.companyId).get().addAccount(account);
 

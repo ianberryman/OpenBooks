@@ -1,5 +1,6 @@
 package org.openbooks.openbooksapi.core.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.persistence.*;
@@ -15,7 +16,8 @@ public class Company {
     @JsonProperty("name")
     private String companyName;
 
-    @OneToMany(mappedBy = "company", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "company")
+    @JsonIgnore
     private List<Account> accountList;
 
     public void addAccount(Account account) {
@@ -48,5 +50,13 @@ public class Company {
 
     public void setCompanyName(String companyName) {
         this.companyName = companyName;
+    }
+
+    public List<Account> getAccountList() {
+        return accountList;
+    }
+
+    public void setAccountList(List<Account> accountList) {
+        this.accountList = accountList;
     }
 }

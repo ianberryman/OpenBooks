@@ -15,18 +15,12 @@ public class DoubleEntryAccountingEntry implements AccountingEntry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String entryName;
+
+    private String notes;
+
     @OneToMany(mappedBy = "accountingEntry",fetch = FetchType.EAGER,cascade = CascadeType.PERSIST)
     private List<Transaction> transactionList = new ArrayList<>();
-
-    @Override
-    public Long getId() {
-        return id;
-    }
-
-    @Override
-    public void setId(Long id) {
-        this.id = id;
-    }
 
     /**
      * Returns true if the child transactions add up to zero,
@@ -53,6 +47,32 @@ public class DoubleEntryAccountingEntry implements AccountingEntry {
 
         // return true if balance is zero
         return balance.equals(BigDecimal.ZERO);
+    }
+
+    @Override
+    public Long getId() {
+        return id;
+    }
+
+    @Override
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getEntryName() {
+        return entryName;
+    }
+
+    public void setEntryName(String entryName) {
+        this.entryName = entryName;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
     @Override

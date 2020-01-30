@@ -1,6 +1,7 @@
 package org.openbooks.openbooksapi.core.repository;
 
 import org.openbooks.openbooksapi.core.model.Account;
+import org.openbooks.openbooksapi.core.model.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,5 +13,5 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     public List<Account> findByAccountNumber(String accountNumber);
 
-
+    public List<Account> findByCompany(Company company);
 }

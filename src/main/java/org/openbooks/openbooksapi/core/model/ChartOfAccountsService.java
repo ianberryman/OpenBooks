@@ -20,6 +20,8 @@ public interface ChartOfAccountsService {
 
     public List<Account> getAccountsByAccountNumber(String accountNumber);
 
+    public List<Account> getAccountsByCompany(Company company);
+
     public Account createAccount(Account account);
 
     public Account updateAccount(Account account);

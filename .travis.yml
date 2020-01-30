@@ -12,4 +12,4 @@ deploy:
   app: openbooks-api
   on:
     repo: berryman17/OpenBooks
-    branch: feature/implement-double-entry-system
+    branch: develop
