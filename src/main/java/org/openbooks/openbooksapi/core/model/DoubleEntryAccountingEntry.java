@@ -33,20 +33,21 @@ public class DoubleEntryAccountingEntry implements AccountingEntry {
     @JsonIgnore
     @Override
     public boolean isBalanced() {
+        if(transactionList.size() < 2) return false;
+
         BigDecimal balance = BigDecimal.ZERO;
 
         // loop through transaction list and adjust balance based on type
-        transactionList.forEach(
-                transaction -> {
-                    if (transaction.getTransactionType().equals(TransactionType.CREDIT)) {
-                        balance.subtract(transaction.getAmount());
-                    } else if (transaction.getTransactionType().equals(TransactionType.DEBIT)) {
-                        balance.add(transaction.getAmount());
-                    }
-                });
+        for(Transaction transaction : transactionList) {
+            if (transaction.getTransactionType().equals(TransactionType.CREDIT)) {
+                balance = balance.subtract(transaction.getAmount());
+            } else if (transaction.getTransactionType().equals(TransactionType.DEBIT)) {
+                balance = balance.add(transaction.getAmount());
+            }
+        }
 
         // return true if balance is zero
-        return balance.equals(BigDecimal.ZERO);
+        return balance.compareTo(BigDecimal.ZERO) == 0;
     }
 
     @Override

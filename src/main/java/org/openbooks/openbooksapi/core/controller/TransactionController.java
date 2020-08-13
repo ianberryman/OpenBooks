@@ -21,6 +21,10 @@ public class TransactionController {
         return journal.getTransactionById(id);
     }
 
+    /*
+     * All transaction creation and updating should be handled by the parent
+     * {@link AccountingEntry} to ensure data integrity
+     */
 /*    @PostMapping("/transactions")
     public ResponseEntity<Transaction> createTransaction(@RequestBody Transaction transaction) {
         // throw error if transaction exists

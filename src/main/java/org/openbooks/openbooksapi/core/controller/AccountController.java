@@ -1,6 +1,5 @@
 package org.openbooks.openbooksapi.core.controller;
 
-import net.bytebuddy.implementation.bind.MethodDelegationBinder;
 import org.openbooks.openbooksapi.core.model.Account;
 import org.openbooks.openbooksapi.core.model.ChartOfAccountsService;
 import org.openbooks.openbooksapi.core.model.CompanyService;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
+@RequestMapping("/accounts")
 public class AccountController {
 
     @Autowired
@@ -22,24 +22,24 @@ public class AccountController {
     @Autowired
     private CompanyService companies;
 
-    @GetMapping("/accounts")
+    @GetMapping
     public List<Account> getAccounts(@RequestParam Optional<String> accountNumber) {
         return accountNumber.isPresent()
                 ? coa.getAccountsByAccountNumber(accountNumber.get())
                 : coa.getAccounts();
     }
 
-    @GetMapping("/accounts/{id}")
+    @GetMapping("/{id}")
     public Account getAccountById(@PathVariable Long id) {
         return coa.getAccountById(id).get();
     }
 
-    @GetMapping("/accounts/{id}/transactions")
+    @GetMapping("/{id}/transactions")
     public List<Transaction> getTransactionsForAccount(@PathVariable Long id) {
         return coa.getTransactionsForAccount(coa.getAccountById(id).get());
     }
 
-    @PostMapping("/accounts")
+    @PostMapping
     public ResponseEntity<Account> createAccount(@RequestBody Account account) {
         // throw error if account exists
         //if (!account.idIsNull() && coa.getAccountById(account.getId()).isPresent()) {
@@ -52,7 +52,7 @@ public class AccountController {
         return ResponseEntity.created(null).body(newAccount);
     }
 
-    @PutMapping("/accounts")
+    @PutMapping
     public ResponseEntity<Account> updateAccount(@RequestBody Account account) {
         // check if id exists, will throw error if account doesn't exist
         coa.accountExists(account);
@@ -62,7 +62,7 @@ public class AccountController {
     }
 
 
-    @DeleteMapping("/accounts/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<ActionResponse> deleteAccount(@PathVariable Long id) {
         coa.deleteAccount(id);
 

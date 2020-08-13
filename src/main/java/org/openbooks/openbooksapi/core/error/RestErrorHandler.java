@@ -53,8 +53,13 @@ public class RestErrorHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(EntityExistsException.class)
     protected ResponseEntity<Object> handleEntityExistsException(EntityExistsException ex) {
-
         String error = "Item with that ID already exists";
+        return buildResponseEntity(new ApiError(HttpStatus.CONFLICT, error, ex));
+    }
+
+    @ExceptionHandler(UnbalancedAccountingEntryException.class)
+    protected ResponseEntity<Object> handleUnbalancedAccountingEntryException(UnbalancedAccountingEntryException ex) {
+        String error = "Accounting entry is unbalanced and can't be saved";
         return buildResponseEntity(new ApiError(HttpStatus.CONFLICT, error, ex));
     }
 

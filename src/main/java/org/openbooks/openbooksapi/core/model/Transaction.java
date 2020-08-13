@@ -56,6 +56,21 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     private TransactionType transactionType;
 
+    public Transaction() {}
+
+    public Transaction(BigDecimal amount, TransactionType transactionType) {
+        this.amount = amount;
+        this.transactionType = transactionType;
+    }
+
+    public Transaction(Account account, DoubleEntryAccountingEntry accountingEntry,
+                       BigDecimal amount, TransactionType transactionType) {
+        this.account = account;
+        this.accountingEntry = accountingEntry;
+        this.amount = amount;
+        this.transactionType = transactionType;
+    }
+
     public Long getId() {
         return id;
     }
