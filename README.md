@@ -1,6 +1,17 @@
+[![Open Source Love](https://badges.frapsoft.com/os/v1/open-source.svg?v=102)](https://github.com/ellerbrock/open-source-badge/)
+[![Open Source Helpers](https://www.codetriage.com/berryman17/openbooks/badges/users.svg)](https://www.codetriage.com/berryman17/openbooks)
+
+[![Build Status](https://travis-ci.com/berryman17/OpenBooks.svg?branch=develop)](https://travis-ci.com/berryman17/OpenBooks)
+[![GitHub version](https://badge.fury.io/gh/berryman17%2FOpenBooks.svg)](https://badge.fury.io/gh/berryman17%2FOpenBooks)
+[![Coverage Status](https://coveralls.io/repos/github/berryman17/OpenBooks/badge.svg?branch=develop)](https://coveralls.io/github/berryman17/OpenBooks?branch=develop)
+[![codebeat badge](https://codebeat.co/badges/e0e05c0e-5d64-48e9-bc0f-c9c71e48b3bc)](https://codebeat.co/projects/github-com-berryman17-openbooks-master)
+
+
 # OpenBooks
 
 An open-source small business accounting platform designed to provide powerful accounting functionality in a user friendly format.
+
+[![OpenBooks UI Concept](https://i.ibb.co/LJSfsn1/Open-Books-concept-01-25-2020.png "OpenBooks UI Concept")](https://github.com/berryman17/OpenBooksUI)
 
 The source is licensed under GPLv3 to ensure it remains open to anyone that wants to modify or extend it. 
 
@@ -10,6 +21,7 @@ The source is licensed under GPLv3 to ensure it remains open to anyone that want
 | Double Entry Accounting | Expense/Revenue Tracking | Invoicing |
 | Bank Import/Reconciliation | Reports | Financial Statements |
 | Web/Mobile Apps | Dashboards | Open API |
+| Customers/Vendors | Mileage Tracking ||
 
 ## Architecture
 This platform is separated into several distinct layers to ensure it can be exended and deployed in many different environments.
@@ -21,7 +33,29 @@ The goal is to offer this platform as a pre-packaged distributable application t
 ## Tech Stack
 The core business logic layer is written in Java 8 using the Spring framework. Spring provides a plethora of useful libraries for server processing, data abstraction and API creation. The web API is documented with RAML which is then implemented via Spring.
 
-The base web UI is written in ReactJS (repo coming soon) to enable powerful, responsive client-side functionality. However, as mentioned in Architecture, the platform is designed to be extended easily. The web API provides all the core functionality in a format that can be implemented by other UI frameworks and languages and mobile applications.
+The base web UI is written in ReactJS ([OpenBooksUI](https://github.com/berryman17/OpenBooksUI)) to enable powerful, responsive client-side functionality. However, as mentioned in Architecture, the platform is designed to be extended easily. The web API provides all the core functionality in a format that can be implemented by other UI frameworks and languages and mobile applications.
 
 ## Contributing
 As this project is in its early stages, we are in need of contributors. Much work is to be done from design to coding to documentation; all of these areas require special attention and will benefit from your input. Feel free to make suggestions, open issues and submit pull requests to improve the platform. 
+
+Git Flow is used to keep track of branches and the various stages of development
+that they represent.
+
+| Branch Pattern | Purpose |
+|-----|-----|
+|master|Contains release history|
+|release|Contains a specific release version (e.g. `release/1.0.0`)|
+|develop|Contains "next release" actively in development|
+|feature|Contains work for a specific feature (e.g. `feature/do-something`)|
+|bugfix|Contain fixes for a bug (e.g. `bugfix/uh-oh`)|
+
+Run `git flow init` to enable Git Flow when you clone this repository and accept all of the default values for the
+branch names. All commits should be done via a branch and submitted in a pull request.
+
+The standard flow from feature to release should look like:
+
+    feature -> develop -> master -> release
+
+where each arrow represents a pull request and merge.
+
+You can run the project by cloning and running: `mvn spring-boot:run`
