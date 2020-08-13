@@ -1,0 +1,15 @@
+language: java
+jdk:
+- openjdk8
+install:
+- mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V
+after_success:
+- mvn clean test jacoco:report coveralls:report
+deploy:
+  provider: heroku
+  api_key:
+    secure: VBra/r4QZc+dkht4+m8nvOzwe19OS3yKKJ0qozA4hagtLnOBBj2WieOdiY1Pfmdxr4IKABAbWPM9PPVYNGXqCS0v1gx+wX/lTYzRTsjOo6Mabfnwnd7FIePy77dqJ+cjL9ML1U82dOa1UIYb1SPTDS9HHmi5+m3Is5mHf1j0VVbEayaa9wwuOHkahfNO41dZx8ziPd86jOMjo3KKYwye/zIK5GCtAP5q+fmWCTrjuiosr5mL/w4keQDqqKrTQO2Uq+NY6QDQPQ70iMRjAKBSD+SDSus9pGQn+Iwsyyd/+FAojTAn8zfqxr7dWfYOsD/YNUtqmACk7Wee7rCV+7mZ3JOsQz7cAJfCkMVMqvTSouQBmUtaWB8n9qpetaKirOj5dvzBzx3waI4DoZGb2KMx3Ym24w+VyZ2CM9PYqsmODVGfICk2cPgMbQZI2Ob0/FRyNjiQ7F8WR+By9ogvfTG0884ngAXrrCc1WYh+xfXqRQjYIjo/WrOr0rVpDdEEndpGa3cD+BEvu1dq293wsgEfSKa36TX2ZRxiYVNLcdJuVbY75IQfsMMehXW8mIt8yPfLMUOCrkPRvYtZVgnV7zoctrhHn1rhfQCojli9HtXMXhVLvd0QHC00KQmh/erfHr0iAQiGZio/CQme9Qx3PzEKkQsu84Ng9Jdq5mxu2aYKviM=
+  app: openbooks-api
+  on:
+    repo: berryman17/OpenBooks
+    branch: develop
