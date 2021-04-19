@@ -1,0 +1,526 @@
+#%RAML 1.0
+title: OpenBooks API
+baseUri: https://openbooks.com/api/{version}
+version: v1
+mediaType: application/json
+protocols:
+  - HTTPS
+
+uses:
+  OpenBooks: libraries/openbooks-lib.raml
+
+/users:
+  description: |
+    Only accessible by users with Admin or Manager role. If
+    Manager, only users in assigned companies will be accessible.
+  get:
+    description: Returns a list of users with access to this API
+    responses:
+      200:
+        body:
+          application/json:
+            type: OpenBooks.User[]
+  post:
+    body:
+      application/json:
+        type: OpenBooks.User
+    responses:
+      201:
+        body:
+          application/json:
+            type: OpenBooks.User
+  /{userId}:
+    get:
+      responses:
+        200:
+          body:
+            application/json:
+              type: OpenBooks.User
+    put:
+      body:
+        application/json:
+          type: OpenBooks.User
+      responses:
+        200:
+          body:
+            application/json:
+              type: OpenBooks.User
+    delete:
+      responses:
+        200:
+          body:
+            application/json:
+              example: |
+                {
+                  "message": "User deleted successfully"
+                }
+    /permissions:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.UserPermission[]
+
+/companies:
+  get:
+    responses:
+      200:
+        body:
+          application/json:
+            type: OpenBooks.Company[]
+  post:
+    description: Create a new company. Only accessible by Admins and Managers
+    body:
+      application/json:
+        type: OpenBooks.Company
+    responses:
+      201:
+        body:
+          application/json:
+            type: OpenBooks.Company
+  /{companyId}:
+    get:
+      responses:
+        200:
+          body:
+            application/json:
+              type: OpenBooks.Company
+    put:
+      description: Update a company. Only accessible by Admins and Managers
+      body:
+        application/json:
+          type: OpenBooks.Company
+      responses:
+        200:
+          body:
+            application/json:
+              type: OpenBooks.Company
+    delete:
+      description: Delete a company. Only accessible by Admins and Managers
+      responses:
+        200:
+          body:
+            application/json:
+              example: |
+                {
+                  "message": "Company deleted successfully"
+                }
+    /customers:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: (OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer)[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer
+      /{customerId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer
+        put:
+          body:
+            application/json:
+              type: OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.ConsumerCustomer | OpenBooks.BusinessCustomer
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Customer deleted successfully"
+                    }
+        /contacts:
+          description: Returns all contact people for thiss customer
+          get:
+            responses:
+              200:
+                body:
+                  application/json:
+                    type: OpenBooks.ContactPerson[]
+          post:
+            body:
+              application/json:
+                type: OpenBooks.ContactPerson
+            responses:
+              201:
+                body:
+                  application/json:
+                    type: OpenBooks.ContactPerson
+
+          /{contactId}:
+            get:
+              responses:
+                200:
+                  body:
+                    application/json:
+                      type: OpenBooks.ContactPerson
+            put:
+              body:
+                application/json:
+                  type: OpenBooks.ContactPerson
+              responses:
+                200:
+                  body:
+                    application/json:
+                      type: OpenBooks.ContactPerson
+            delete:
+              responses:
+                200:
+                  body:
+                    application/json:
+                      example: |
+                        {
+                          "message": "Contact deleted successfully"
+                        }
+        /invoices:
+          get:
+            responses:
+              200:
+                body:
+                  application/json:
+                    type: OpenBooks.Invoice[]
+    /vendors:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Vendor[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Vendor
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Vendor
+      /{vendorId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Vendor
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Vendor
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Vendor
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Vendor deleted successfully"
+                    }
+        /contacts:
+          description: Returns all contact people for thiss customer
+          get:
+            responses:
+              200:
+                body:
+                  application/json:
+                    type: OpenBooks.ContactPerson[]
+          post:
+            body:
+              application/json:
+                type: OpenBooks.ContactPerson
+            responses:
+              201:
+                body:
+                  application/json:
+                    type: OpenBooks.ContactPerson
+
+          /{contactId}:
+            get:
+              responses:
+                200:
+                  body:
+                    application/json:
+                      type: OpenBooks.ContactPerson
+            put:
+              body:
+                application/json:
+                  type: OpenBooks.ContactPerson
+              responses:
+                200:
+                  body:
+                    application/json:
+                      type: OpenBooks.ContactPerson
+            delete:
+              responses:
+                200:
+                  body:
+                    application/json:
+                      example: |
+                        {
+                          "message": "Contact deleted successfully"
+                        }
+        /bills:
+          get:
+            responses:
+              200:
+                body:
+                  application/json:
+                    type: OpenBooks.Bill[]
+    /bills:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Bill[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Bill
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.Bill
+      /{billId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Bill
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Bill
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Bill
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                     "message": "Bill deleted successfully"
+                    }
+    /entries:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.AccountingEntry[]
+      /{entryId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.AccountingEntry
+        put:
+          body:
+            application/json:
+              type: OpenBooks.AccountingEntry
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.AccountingEntry
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Entry deleted successfully"
+                    }
+    /accounts:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Account[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Account
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.Account
+      /{accountId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Account
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Account
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Account
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Account deleted successfully"
+                    }
+
+    /mileage:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Mileage[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Mileage
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.Mileage
+
+      /{mileageId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Mileage
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Mileage
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Mileage
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Mileage
+    /invoices:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Invoice[]
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Invoice
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.Invoice
+      /{invoiceId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Invoice
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Invoice
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Invoice
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Invoice deleted successfully"
+                    }
+    /reports:
+      get:
+        responses:
+          200:
+            body:
+              application/json:
+                type: OpenBooks.Report
+      post:
+        body:
+          application/json:
+            type: OpenBooks.Report
+        responses:
+          201:
+            body:
+              application/json:
+                type: OpenBooks.Report
+      /{reportId}:
+        get:
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Report
+        put:
+          body:
+            application/json:
+              type: OpenBooks.Report
+          responses:
+            200:
+              body:
+                application/json:
+                  type: OpenBooks.Report
+        delete:
+          responses:
+            200:
+              body:
+                application/json:
+                  example: |
+                    {
+                      "message": "Report deleted successfully"
+                    }
