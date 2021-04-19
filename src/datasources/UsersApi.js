@@ -2,10 +2,6 @@ const { DataSource } = require('apollo-datasource');
 const db = require('./db');
 
 
-const queries = {
-    getUsers: "SELECT HEX(Id) as Id, FirstName, LastName, Email, UserRole FROM user"
-}
-
 class UsersApi extends DataSource {
     constructor() {
         super();
@@ -16,8 +12,8 @@ class UsersApi extends DataSource {
     }
 
     async getUsers() {
-        const [rows, fields] = await db.execute(queries.getUsers);
-        return rows;
+        const result = await db`SELECT id, first_name, last_name, email, user_role FROM user`;
+        return result;
     }
 }
 

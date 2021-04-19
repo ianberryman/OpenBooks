@@ -37,7 +37,7 @@ const typeDefs = gql `
   type Query {
     users: [User]
     accounts: [Account]
-    account(id: String): Account!
+    account(id: String): Account
   }
 `;
 module.exports = typeDefs;
