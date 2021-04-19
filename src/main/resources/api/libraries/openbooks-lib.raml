@@ -1,0 +1,227 @@
+#%RAML 1.0 Library
+
+types:
+  User:
+    description: An end-user with access to this API
+    type: object
+    properties:
+      id?: number
+      firstName: string
+      lastName: string
+      email: string
+      cellPhone: string
+      workPhone: string
+      role: UserRole
+
+  UserRole:
+    description: |
+      A role assigning certain permissions to an API user.
+      Roles:
+        + Admin: Have access to create other users
+        and manage all companies. Should be used sparingly.
+        + Manager: Have access to manage certain companies and
+        Bookkeepers as assigned by an Admin
+        + Bookkeeper: Have access to manage certain companies
+        as assigned by a Manager or Admin.
+    type: string
+    enum:
+      - Admin
+      - Manager
+      - Bookkeeper
+
+  # TODO Define a user permissions model
+  UserPermission:
+    description: |
+      Describes a permission that can be assigned to a user.
+      For example, a user might be able to assign bookkeepers
+      to a company or might be able to manage transactions for
+      a particular company.
+    type: object
+    properties:
+      id?: number
+
+  Company:
+    description: A company that requires bookkeeping
+    type: object
+    properties:
+      id?: number
+      name: string
+      taxId: string
+      taxIdType:
+        type: string
+        enum:
+          - SSN
+          - EIN
+      address: Address
+      website: string
+
+  ConsumerCustomer:
+    description: |
+      A consumer customer of a company that buys
+      goods or services (i.e. income)
+    type: object
+    properties:
+      id?: number
+      customerType:
+        type: string
+        enum:
+          - consumer
+      firstName: string
+      lastName: string
+      address: Address
+      email: string
+      phone: string
+
+  BusinessCustomer:
+    description: |
+      A business customer of a company that buys
+      goods or services (i.e. income)
+    type: object
+    properties:
+      id?: number
+      customerType:
+        type: string
+        enum:
+          - business
+      name: string
+      website: string
+      address: Address
+      primaryContact:
+        description: The primary contact person for this customer
+        type: ContactPerson
+
+  Address:
+    description: A physical address
+    type: object
+    properties:
+      id?: number
+      addressLine1: string
+      addressLine2: string
+      city: string
+      state: string
+      zipcode: string
+      country:
+        description: ISO 3166 country code
+        type: string
+        minLength: 2
+        maxLength: 2
+
+  ContactPerson:
+    description: Details for a contact person of a customer or vendor
+    type: object
+    properties:
+      id?: number
+      firstName: string
+      lastName: string
+      address: Address | nil
+      email: string
+      phone: string
+      isPrimary:
+        description: Only one contact per customer can be primary
+        type: boolean
+
+  Vendor:
+    description: |
+      A vendor of a company that provides goods
+      or services (i.e. expenses)
+    type: object
+    properties:
+      id?: number
+      name: string
+      website: string
+      address: Address
+      primaryContact:
+        description: The primary contact person for this customer
+        type: ContactPerson
+
+  Bill:
+    description: |
+      A bill for some good or service that a company
+      must pay
+    type: object
+    properties:
+      id?: number
+      vendorId: number
+      vendorName: string
+      dueDate: date-only
+      amountDue: number
+
+  AccountingEntry:
+    description: |
+      A double-entry accounting entry that represents
+      a transaction performed by a company
+    type: object
+    properties:
+      id?: number
+      postedDate: date-only
+
+
+  Account:
+    description: An account in a company's chart of accounts
+    type: object
+    properties:
+      id?: number
+      name: string
+      accountType:
+        type: string
+        enum:
+          - income
+          - expense
+          - asset
+          - liability
+          - equity
+      balance: number
+      isDefault:
+        description: |
+          Indicates if this account was system created.
+          User created accounts would result in a false isDefault.
+        type: boolean
+
+  Mileage:
+    description: |
+      A mileage entry representing use of a personal
+      vehicle for business, tracked for tax purposes
+    type: object
+    properties:
+      id?: number
+      travelDate: datetime-only
+      milesTravelled: number
+      costPerMile:
+        description: Defaults to applicable tax mileage rate but can be overriden
+        type: number
+
+  Invoice:
+    description: |
+      An invoice sent to one of a company's customers
+      for purchased goods/services
+    type: object
+    properties:
+      id?: number
+      customer: ConsumerCustomer | BusinessCustomer
+      invoiceNumber: string
+      invoiceDate: date-only
+      dueDate: date-only
+      amountDue:
+        description: Sum of all InvoiceLineItem.quantity * InvoiceLineItem.pricePerUnit
+        type: number
+      lineItems: InvoiceLineItem[]
+
+  InvoiceLineItem:
+    description: An individual line item within an invoice
+    type: object
+    properties:
+      lineNumber: number
+      itemName: string
+      "description": string
+      quantity: number
+      pricePerUnit: number
+
+  Report:
+    description: |
+      A report containing information about a company's
+      activities or performance
+    type: object
+    properties:
+      id?: number
+      name: string
+      "description": string
