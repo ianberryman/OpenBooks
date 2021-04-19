@@ -1,0 +1,20 @@
+{
+  "name": "openbooks",
+  "version": "1.0.0",
+  "description": "OpenBooks API server",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "apollo-server": "^2.23.0",
+    "graphql": "^15.5.0",
+    "mysql2": "^2.2.5",
+    "sequelize": "^6.6.2"
+  },
+  "devDependencies": {
+    "apollo": "^2.32.5"
+  }
+}
