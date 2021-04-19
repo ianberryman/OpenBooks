@@ -31,7 +31,7 @@ It is composed of a API exposing core business logic (this repo) backed by a sta
 The goal is to offer this platform as a pre-packaged distributable application that can be easily deployed by users without technical skill. No CLI installation or web server required, simply download the application and run it; the only base requirement is the JVM. That being said, users with different needs or existing hardware should be able to deploy a less opinionated version. A cloud offering may also be considered if it is deemed beneficial for end users and can be justified given the costs.
 
 ## Tech Stack
-The core business logic layer is written in Java 8 using the Spring framework. Spring provides a plethora of useful libraries for server processing, data abstraction and API creation. The web API is documented with RAML which is then implemented via Spring.
+The core business logic layer is written in NodeJS using Apollo for GraphQL support. 
 
 The base web UI is written in ReactJS ([OpenBooksUI](https://github.com/berryman17/OpenBooksUI)) to enable powerful, responsive client-side functionality. However, as mentioned in Architecture, the platform is designed to be extended easily. The web API provides all the core functionality in a format that can be implemented by other UI frameworks and languages and mobile applications.
 
