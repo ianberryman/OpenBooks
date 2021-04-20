@@ -14,7 +14,6 @@
     "apollo-server-errors": "^2.5.0",
     "graphql": "^15.5.0",
     "pg": "^8.6.0",
-    "postgres": "^1.0.2",
     "winston": "^3.3.3"
   }
 }

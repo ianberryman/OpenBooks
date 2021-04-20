@@ -1,7 +1,7 @@
 
 services:
   web:
-    image: ianberryman/openbooks-api
+    build: .
     ports:
       - "8080:4000"
     volumes:

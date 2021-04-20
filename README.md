@@ -7,13 +7,37 @@
 [![codebeat badge](https://codebeat.co/badges/e0e05c0e-5d64-48e9-bc0f-c9c71e48b3bc)](https://codebeat.co/projects/github-com-berryman17-openbooks-master)
 
 
-# OpenBooks
+# OpenBooks API
 
 An open-source small business accounting platform designed to provide powerful accounting functionality in a user friendly format.
 
 [![OpenBooks UI Concept](https://i.ibb.co/LJSfsn1/Open-Books-concept-01-25-2020.png "OpenBooks UI Concept")](https://github.com/berryman17/OpenBooksUI)
 
 The source is licensed under GPLv3 to ensure it remains open to anyone that wants to modify or extend it. 
+
+Get started quickly by cloning this repository and creating a `.env` file in the root directory containing the following (replace your_db_username and your_db_password):
+```
+# Server PostgreSQL
+PGUSER={your_db_username}
+PGHOST=db
+PGPASSWORD={your_db_password}
+PGDATABASE=openbooks
+PGPORT=5432
+
+# PostgreSQL docker init
+POSTGRES_DB=postgres
+POSTGRES_USER={your_db_password}
+POSTGRES_PASSWORD=postgres
+```
+
+Then run:
+```
+npm install
+
+docker-compose up
+```
+
+By default the API is available on port `8080` and PostgreSQL is available on port `8001`. You can adjust the exposed ports if needed by modifying `docker-compose.yml`.
 
 ## Core Functionality
 | | | |
@@ -57,5 +81,3 @@ The standard flow from feature to release should look like:
     feature -> develop -> release -> master
 
 where each arrow represents a pull request and merge.
-
-You can run the project by cloning and running: `mvn spring-boot:run`

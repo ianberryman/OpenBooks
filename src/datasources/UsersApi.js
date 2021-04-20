@@ -13,7 +13,8 @@ class UsersApi extends DataSource {
 
     async getUsers() {
         const client = await db.connect();
-        const result = await client.query("SELECT id, first_name, last_name, email, user_role FROM user");
+        const result = await client.query("SELECT id, first_name, last_name, email, user_role FROM users");
+        client.release();
         return result.rows;
     }
 }

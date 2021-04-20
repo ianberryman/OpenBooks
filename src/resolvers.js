@@ -5,11 +5,11 @@ const resolvers = {
       users: async (_, __, { dataSources }) => {
           const users = await dataSources.usersApi.getUsers()
           var result = users.map(user => ({
-              id: user.Id,
-              firstName: user.FirstName,
-              lastName: user.LastName,
-              email: user.Email,
-              role: user.UserRole
+              id: user.id,
+              firstName: user.first_name,
+              lastName: user.last_name,
+              email: user.email,
+              role: user.user_role
           }));
           return result;
       },

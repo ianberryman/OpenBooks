@@ -14,12 +14,14 @@ class AccountsApi extends DataSource {
     async getAccounts() {
         const client = await db.connect();
         const result = await client.query("SELECT id, account_name, account_type, balance, is_system_account FROM account");
+        client.release();
         return result.rows;
     }
 
     async getAccountById(id) {
         const client = await db.connect();
         const result = await client.query("SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = $1", [id]);
+        client.release();
         return result.rows[0];
     }
 }
