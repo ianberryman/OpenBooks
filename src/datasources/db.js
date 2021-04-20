@@ -1,13 +1,14 @@
-const mysql = require('mysql2/promise');
+"use strict";
+const { Pool } = require("pg");
+const path = require("path");
+const logger = require("../../logger");
+const fs = require('fs');
 
-const pool = mysql.createPool({
-    host: "localhost",
-    user: "openbooks",
-    password: "password",
-    database: "openbooks",
-    waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0
-  });
+const pool = new Pool();
+
+pool.on('error', (error, client) => {
+    console.log("error1", error)
+});
+
 
 module.exports = pool;

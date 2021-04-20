@@ -1,6 +1,6 @@
-    const { gql } = require('apollo-server');
-
-const typeDefs = gql`
+"use strict";
+const { gql } = require('apollo-server');
+const typeDefs = gql `
   
   type User {
     id: String!
@@ -18,13 +18,29 @@ const typeDefs = gql`
     Bookkeeper
   }
 
+  type Account {
+    id: String!
+    name: String!
+    accountType: AccountType!
+    balance: String
+    isSystemAccount: Boolean
+  }
+    
+  enum AccountType {
+    Income
+    Expense
+    Asset
+    Liability
+    Equity
+  }
+
   type Query {
     users: [User]
+    accounts: [Account]
+    account(id: String): Account!
   }
 `;
-
 module.exports = typeDefs;
-
 // type Account {
 //   id: String!
 //   name: String!
@@ -32,7 +48,6 @@ module.exports = typeDefs;
 //   balance: String
 //   isSystemAccount: Boolean
 // }
-
 // enum AccountType {
 //   Income
 //   Expense
@@ -40,7 +55,6 @@ module.exports = typeDefs;
 //   Liability
 //   Equity
 // }
-
 // type Address {
 //   id: String!
 //   line1: String
@@ -50,14 +64,12 @@ module.exports = typeDefs;
 //   zipcode: String
 //   country: String
 // }
-
 // type Bill {
 //   id: String!
 //   vendor: Vendor
 //   dueDate: String
 //   amountDue: String!
 // }
-
 // type BusinessCustomer {
 //   id: String!
 //   customerType: String!
@@ -66,7 +78,6 @@ module.exports = typeDefs;
 //   address: Address
 //   primaryContactPerson: ContactPerson
 // }
-
 // type Company {
 //   id: String!
 //   name: String!
@@ -75,7 +86,6 @@ module.exports = typeDefs;
 //   address: Address
 //   website: String
 // }
-
 // type ConsumerCustomer {
 //   id: String!
 //   customerType: CustomerType!
@@ -85,7 +95,6 @@ module.exports = typeDefs;
 //   email: String
 //   phone: String
 // }
-
 // type ContactPerson {
 //   id: String!
 //   firstName: String
@@ -94,14 +103,11 @@ module.exports = typeDefs;
 //   email: String
 //   phone: String
 // }
-
 // enum CustomerType {
 //   Consumer
 //   Business
 // }
-
 // union Customer = ConsumerCustomer | BusinessCustomer
-
 // type Invoice {
 //   id: String!
 //   customer: Customer!
@@ -111,7 +117,6 @@ module.exports = typeDefs;
 //   amountDue: String
 //   lineItems: [InvoiceLineItem]
 // }
-
 // type InvoiceLineItem {
 //   lineNumber: Int!
 //   itemName: String!
@@ -119,12 +124,10 @@ module.exports = typeDefs;
 //   quantity: Float!
 //   pricePerUnit: String!
 // }
-
 // enum TaxIdType {
 //   SSN
 //   EIN
 // }
-
 // type User {
 //   id: String!
 //   firstName: String!
@@ -134,13 +137,11 @@ module.exports = typeDefs;
 //   workPhone: String
 //   role: UserRole!
 // }
-
 // enum UserRole {
 //   Admin
 //   Manager
 //   Bookkeeper
 // }
-
 // type Vendor {
 //   id: String!
 //   name: String
