@@ -26,8 +26,8 @@ PGPORT=5432
 
 # PostgreSQL docker init
 POSTGRES_DB=postgres
-POSTGRES_USER={your_db_password}
-POSTGRES_PASSWORD=postgres
+POSTGRES_USER={your_db_username}
+POSTGRES_PASSWORD={your_db_password}
 ```
 
 Then run:
