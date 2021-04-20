@@ -1,0 +1,23 @@
+
+services:
+  web:
+    image: ianberryman/openbooks-api
+    ports:
+      - "8080:4000"
+    volumes:
+      - .:/code
+      - /var/log
+    links:
+      - "db:postgres"
+    env_file:
+    - .env
+      
+  db:
+    image: postgres
+    volumes:
+        - ./data/db:/var/lib/postgresql/data
+        - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+        - .env
+    ports:
+        - "8001:5432"

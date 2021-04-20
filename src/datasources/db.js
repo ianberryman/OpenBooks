@@ -1,27 +1,14 @@
 "use strict";
-const postgres = require("postgres");
+const { Pool } = require("pg");
 const path = require("path");
 const logger = require("../../logger");
-const pool = postgres({
-    host: "localhost",
-    user: "openbooks",
-    password: "password",
-    database: "openbooks",
-    max: 5,
+const fs = require('fs');
+
+const pool = new Pool();
+
+pool.on('error', (error, client) => {
+    console.log("error1", error)
 });
-function init() {
-    logger.info("Connecting to PostgreSQL database...");
-    logger.debug("Creating tables");
-    pool.file(path.join(__dirname, "../../sql/schema.sql"))
-        .then(() => {
-        logger.debug("Tables created");
-        logger.info("Database connection successful");
-    })
-        .catch(error => {
-        logger.error("An error occurred connecting to PostgreSQL...");
-        logger.error(error);
-        process.kill(process.pid, 'SIGTERM');
-    });
-}
-init();
+
+
 module.exports = pool;

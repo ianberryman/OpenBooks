@@ -1,3 +1,9 @@
+CREATE USER openbooks LOGIN PASSWORD 'password';
+CREATE DATABASE openbooks;
+REVOKE CONNECT ON DATABASE openbooks FROM PUBLIC;
+GRANT CONNECT ON DATABASE openbooks TO openbooks;
+
+\c openbooks
 
 create table if not exists accounttype (
     account_type varchar(20) not null,
@@ -24,3 +30,11 @@ create table if not exists account (
     constraint fk_account_accounttype foreign key (account_type)
     references accounttype (account_type)
 );
+
+REVOKE ALL
+ON ALL TABLES IN SCHEMA public 
+FROM PUBLIC;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON ALL TABLES IN SCHEMA public 
+TO openbooks;
