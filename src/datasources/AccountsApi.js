@@ -12,13 +12,15 @@ class AccountsApi extends DataSource {
     }
 
     async getAccounts() {
-        const result = await db`SELECT id, account_name, account_type, balance, is_system_account FROM account`;
-        return result;
+        const client = await db.connect();
+        const result = await client.query("SELECT id, account_name, account_type, balance, is_system_account FROM account");
+        return result.rows;
     }
 
     async getAccountById(id) {
-        const result = await db`SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = ${id}`;
-        return result[0];
+        const client = await db.connect();
+        const result = await client.query("SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = $1", [id]);
+        return result.rows[0];
     }
 }
 
