@@ -16,10 +16,18 @@ const resolvers = {
       accounts: async (_, __, { dataSources }) => {
         return await dataSources.accountsApi.getAccounts();
       },
-      account: async (_, args, { dataSources }) => {
-        return await dataSources.accountsApi.getAccountById(args.id);
+      account: async (_, { id }, { dataSources }) => {
+        return await dataSources.accountsApi.getAccountById(id);
       },
+      exchangeRates: async (_, { currency }, { dataSources }) => {
+        return await dataSources.exchangeRatesApi.getExchangeRatesByCurrency(currency);
+      }
     },
+    Mutation: {
+      changeExchangeRateForCurrency: async (_, { currency, newRate }, { dataSources }) => {
+        return await dataSources.exchangeRatesApi.changeExchangeRateForCurrency(currency, newRate);
+      }
+    }
   };
 
 module.exports = resolvers;

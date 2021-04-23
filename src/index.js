@@ -3,11 +3,13 @@ const typeDefs = require('./schema');
 const resolvers = require('./resolvers');
 const UsersApi = require('./datasources/UsersApi');
 const AccountsApi = require('./datasources/AccountsApi');
+const ExchangeRatesApi = require('./datasources/ExchangeRatesApi');
 const logger = require('../logger');
 
 const dataSources = () => ({
     usersApi: new UsersApi(),
-    accountsApi: new AccountsApi()
+    accountsApi: new AccountsApi(),
+    exchangeRatesApi: new ExchangeRatesApi()
 });
 
 const server = new ApolloServer({ 

@@ -112,10 +112,21 @@ const typeDefs = gql `
     primaryContactPerson: ContactPerson
   }
 
+  type ExchangeRate {
+    currency: String!
+    name: String
+    rate: Float!
+  }
+
   type Query {
     users: [User]
     accounts: [Account]
-    account(id: String): Account!
+    account(id: String!): Account!
+    exchangeRates(currency: String!): [ExchangeRate]
+  }
+
+  type Mutation {
+    changeExchangeRateForCurrency(currency: String!, newRate: Float!): ExchangeRate
   }
 `;
 module.exports = typeDefs;
