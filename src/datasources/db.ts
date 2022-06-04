@@ -3,9 +3,12 @@ import config from '../config'
 
 const pool = mysql.createPool(config.db)
 
-export function query(queryString) {
+export function query(
+    queryString: string,
+    values: Array<any> = []
+): Promise<Array<any>> {
     return new Promise((resolve, reject) => {
-        pool.query(queryString, (error, results, fields) => {
+        pool.query(queryString, values, (error, results, fields) => {
             if (error) {
                 console.log(error)
                 reject(error)

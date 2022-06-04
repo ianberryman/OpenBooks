@@ -32,7 +32,6 @@ server.listen().then(({ url }) => {
   console.log(`Apollo Server ready at ${url}`);
 });
 
-// export all the important pieces for integration/e2e tests to use
 module.exports = {
     dataSources,
     context,

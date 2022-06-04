@@ -33,6 +33,5 @@ const resolvers = {
             return customer.customerType
         }
     }
-  };
-
-module.exports = resolvers;
+};
+export default resolvers
