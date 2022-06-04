@@ -1,10 +1,9 @@
-const { ApolloServer } = require('apollo-server');
-const typeDefs = require('./schema');
-const resolvers = require('./resolvers');
-const UsersApi = require('./datasources/UsersApi');
-const AccountsApi = require('./datasources/AccountsApi');
-const ExchangeRatesApi = require('./datasources/ExchangeRatesApi');
-const logger = require('../logger');
+import { ApolloServer } from 'apollo-server';
+import typeDefs from './schema';
+import resolvers  from './resolvers';
+import UsersApi from './datasources/UsersApi';
+import AccountsApi from './datasources/AccountsApi';
+import ExchangeRatesApi from './datasources/ExchangeRatesApi';
 
 const dataSources = () => ({
     usersApi: new UsersApi(),
@@ -30,7 +29,7 @@ const context = async () => {
 
 // The `listen` method launches a web server.
 server.listen().then(({ url }) => {
-  logger.info(`Apollo Server ready at ${url}`);
+  console.log(`Apollo Server ready at ${url}`);
 });
 
 // export all the important pieces for integration/e2e tests to use

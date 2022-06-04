@@ -16,23 +16,22 @@ The source is licensed under GPLv3 to ensure it remains open to anyone that want
 
 Get started quickly by cloning this repository and creating a `.env` file in the root directory containing the following (replace your_db_username and your_db_password):
 ```
-# Server PostgreSQL
-PGUSER={your_db_username}
-PGHOST=db
-PGPASSWORD={your_db_password}
-PGDATABASE=openbooks
-PGPORT=5432
-
-# PostgreSQL docker init
-POSTGRES_DB=postgres
-POSTGRES_USER={your_db_username}
-POSTGRES_PASSWORD={your_db_password}
+# MySQL Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=openbooksapi
+DB_PASSWORD={your_db_password}
+DB_DATABASE=openbooks
 ```
 
 Then run:
 ```
-npm install
+yarn
 
+# For dev
+npm start
+
+# For Docker
 docker-compose up
 ```
 
