@@ -2,7 +2,9 @@ import { DataSource } from 'apollo-datasource';
 import { query } from './db';
 
 
-class UsersApi extends DataSource {
+export default class UsersApi extends DataSource {
+    context: any
+
     constructor() {
         super();
     }
@@ -15,5 +17,3 @@ class UsersApi extends DataSource {
         return await query("SELECT hex(id) as id, first_name, last_name, email, user_role FROM users");
     }
 }
-
-module.exports = UsersApi;

@@ -1,12 +1,11 @@
 const gulp = require('gulp')
 const babel = require('gulp-babel')
-const connect = require("gulp-connect")
 const path = require('path')
 const nodemon = require('gulp-nodemon')
 const chalk = require('chalk')
 
 gulp.task('build', () => {
-    return gulp.src('src/**/*.js')
+    return gulp.src(['src/**/*.ts', 'src/**/*.js'])
         .pipe(babel())
         .pipe(gulp.dest('./dist'))
 })
@@ -15,7 +14,8 @@ gulp.task('watch', gulp.series('build', async (done) => {
     // gulp.watch('./*.js', gulp.series('build'));
     return nodemon({
         script: './dist/index.js',
-        watch: ['src/**/*.js'],
+        watch: ['src/**'],
+        ext: 'js ts',
         tasks: files => {
             // eslint-disable-next-line no-console
             console.log(

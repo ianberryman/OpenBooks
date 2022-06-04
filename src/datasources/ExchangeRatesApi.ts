@@ -1,5 +1,5 @@
-const { DataSource } = require('apollo-datasource');
-const NotFoundError = require('../errors/NotFoundError');
+import { DataSource } from 'apollo-datasource';
+import NotFoundError  from '../errors/NotFoundError';
 
 // usd list
 const rates = [
@@ -1110,7 +1110,9 @@ const rates = [
     }
 ];
 
-class ExchangeRatesApi extends DataSource {
+export default class ExchangeRatesApi extends DataSource {
+    context: any
+
     constructor() {
         super();
     }
@@ -1119,15 +1121,13 @@ class ExchangeRatesApi extends DataSource {
         this.context = config.context;
     }
 
-    async getExchangeRatesByCurrency(currency) {
-        return Promise.resolve(rates);
+    async getExchangeRatesByCurrency(currency: string) {
+        return rates;
     }
 
-    async changeExchangeRateForCurrency(currency, newRate) {
+    async changeExchangeRateForCurrency(currency: string, newRate: string) {
         var rate = rates.find(rate => rate.currency === currency);
         rate.rate = newRate;
-        return Promise.resolve(rate);
+        return rate;
     }
 }
-
-module.exports = ExchangeRatesApi;

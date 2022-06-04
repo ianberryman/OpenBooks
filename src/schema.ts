@@ -1,5 +1,6 @@
-"use strict";
-const { gql } = require('apollo-server');
+
+import { gql } from 'apollo-server'
+
 const typeDefs = gql `
   
   type Account {
@@ -129,4 +130,4 @@ const typeDefs = gql `
     changeExchangeRateForCurrency(currency: String!, newRate: Float!): ExchangeRate
   }
 `;
-module.exports = typeDefs;
+export default typeDefs
