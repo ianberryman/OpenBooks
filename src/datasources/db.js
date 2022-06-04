@@ -1,10 +1,20 @@
-"use strict";
-const { Pool } = require("pg");
-const path = require("path");
-const logger = require("../../logger");
-const fs = require('fs');
-require('dotenv').config();
+import mysql from 'mysql';
+import config from '../config'
 
-const pool = new Pool();
+const pool = mysql.createPool(config.db)
 
-module.exports = pool;
+export function query(queryString) {
+    return new Promise((resolve, reject) => {
+        pool.query(queryString, (error, results, fields) => {
+            if (error) {
+                console.log(error)
+                reject(error)
+            }
+            if (results) {
+                resolve(results)
+            }
+        })
+    })
+}
+
+

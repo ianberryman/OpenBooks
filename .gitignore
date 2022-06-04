@@ -120,3 +120,6 @@ dist
 
 #Database files
 data/
+
+#Babel
+babel.config.json

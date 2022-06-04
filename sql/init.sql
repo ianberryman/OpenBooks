@@ -1,7 +1,13 @@
 
+DROP DATABASE IF EXISTS openbooks;
 CREATE DATABASE openbooks;
 
-\c openbooks
+use openbooks;
+
+CREATE USER IF NOT EXISTS openbooksapi
+identified WITH mysql_native_password BY 'openbooks';
+
+GRANT ALL PRIVILEGES ON openbooks.* to 'openbooksapi'@'%';
 
 create table if not exists account_type (
     account_type varchar(20) not null,
@@ -10,15 +16,15 @@ create table if not exists account_type (
 );
 
 insert into account_type
-values ('Income'), 
+values ('Income'),
        ('Expense'),
        ('Asset'),
        ('Liability'),
        ('Equity')
-ON CONFLICT DO NOTHING;
+ON DUPLICATE KEY UPDATE account_type = account_type;
 
 create table if not exists address (
-    id uuid not null,
+    id BINARY(16) not null,
     line1 varchar(100),
     line2 varchar(100),
     city varchar(100),
@@ -36,16 +42,16 @@ create table if not exists tax_id_type (
 );
 
 insert into tax_id_type
-values ('SSN'), 
+values ('SSN'),
        ('EIN')
-ON CONFLICT DO NOTHING;
+ON DUPLICATE KEY UPDATE tax_id_type = tax_id_type;
 
 create table if not exists company (
-    id uuid not null,
+    id BINARY(16) not null,
     company_name varchar(50) not null,
     tax_id varchar(9),
     tax_id_type varchar(4),
-    address_id uuid,
+    address_id BINARY(16),
     website varchar(250),
 
     constraint pk_company primary key (id),
@@ -56,8 +62,8 @@ create table if not exists company (
 );
 
 create table if not exists account (
-    id uuid not null,
-    company_id uuid,
+    id BINARY(16) not null,
+    company_id BINARY(16),
     account_name varchar(100) not null,
     account_type varchar(20) not null,
     balance decimal(15,2) not null default 0,
@@ -77,15 +83,15 @@ create table if not exists customer_type (
 );
 
 insert into customer_type
-values ('Consumer'), 
+values ('Consumer'),
        ('Business')
-ON CONFLICT DO NOTHING;
+ON DUPLICATE KEY UPDATE customer_type = customer_type;
 
 create table if not exists contact_person (
-    id uuid not null,
+    id BINARY(16) not null,
     first_name varchar(100),
     last_name varchar(100),
-    address_id uuid,
+    address_id BINARY(16),
     email varchar(100),
     phone varchar(12),
 
@@ -95,16 +101,16 @@ create table if not exists contact_person (
 );
 
 create table if not exists customer (
-    id uuid not null,
+    id BINARY(16) not null,
     customer_type varchar(20) not null,
     name varchar(100),
     first_name varchar(100),
     last_name varchar(100),
-    address_id uuid,
+    address_id BINARY(16),
     website varchar(250),
     email varchar(100),
     phone varchar(12),
-    primary_contact_id uuid,
+    primary_contact_id BINARY(16),
 
     constraint pk_customer primary key (id),
     constraint fk_customer_customer_type foreign key (customer_type)
@@ -116,8 +122,8 @@ create table if not exists customer (
 );
 
 create table if not exists invoice (
-    id uuid not null,
-    customer_id uuid not null,
+    id BINARY(16) not null,
+    customer_id BINARY(16) not null,
     invoice_number varchar(20),
     invoice_date date not null,
     due_date date not null,
@@ -135,12 +141,12 @@ create table if not exists quantity_unit (
 );
 
 insert into quantity_unit
-values ('Each'), 
+values ('Each'),
        ('Pound')
-ON CONFLICT DO NOTHING;
+ON DUPLICATE KEY UPDATE quantity_unit = quantity_unit;
 
 create table if not exists invoice_line_item (
-    invoice_id uuid not null,
+    invoice_id BINARY(16) not null,
     line_number integer not null,
     item_name varchar(50) not null,
     description varchar(100),
@@ -160,13 +166,13 @@ create table if not exists user_role (
 );
 
 insert into user_role
-values ('Admin'), 
+values ('Admin'),
        ('Manager'),
        ('Bookkeeper')
-ON CONFLICT DO NOTHING;
+ON DUPLICATE KEY UPDATE user_role = user_role;
 
 create table if not exists users (
-    id uuid not null,
+    id BINARY(16) not null,
     first_name varchar(100) not null,
     last_name varchar(100),
     email varchar(100) not null,
@@ -179,11 +185,11 @@ create table if not exists users (
 );
 
 create table if not exists vendor (
-    id uuid not null,
+    id BINARY(16) not null,
     vendor_name varchar(100) not null,
     website varchar(250),
-    address_id uuid,
-    primary_contact_id uuid,
+    address_id BINARY(16),
+    primary_contact_id BINARY(16),
 
     constraint pk_vendor primary key (id),
     constraint fk_vendor_address foreign key (address_id)
@@ -193,8 +199,8 @@ create table if not exists vendor (
 );
 
 create table if not exists bill (
-    id uuid not null,
-    vendor_id uuid not null,
+    id BINARY(16) not null,
+    vendor_id BINARY(16) not null,
     due_date date,
     amount_due integer not null,
 

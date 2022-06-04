@@ -27,6 +27,11 @@ const resolvers = {
       changeExchangeRateForCurrency: async (_, { currency, newRate }, { dataSources }) => {
         return await dataSources.exchangeRatesApi.changeExchangeRateForCurrency(currency, newRate);
       }
+    },
+    Customer: {
+        __resolveType: async (customer, __, { dataSources }) => {
+            return customer.customerType
+        }
     }
   };
 
