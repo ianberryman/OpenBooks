@@ -1,133 +1,56 @@
 
 import { gql } from 'apollo-server'
+import * as Account from './types/Account/Account'
+import * as AccountType from './types/AccountType'
+import * as Address from './types/Address/Address'
+import * as Bill from './types/Bill/Bill'
+import * as BusinessCustomer from './types/BusinessCustomer/BusinessCustomer'
+import * as Company from './types/Company/Company'
+import * as ConsumerCustomer from './types/ConsumerCustomer/ConsumerCustomer'
+import * as ContactPerson from './types/ContactPerson/ContactPerson'
+import * as Customer from './types/Customer/Customer'
+import * as CustomerType from './types/CustomerType'
+import * as Invoice from './types/Invoice/Invoice'
+import * as InvoiceLineItem from './types/InvoiceLineItem/InvoiceLineItem'
+import * as QuantityUnit from './types/QuantityUnit'
+import * as TaxIdType from './types/TaxIdType'
+import * as User from './types/User/User'
+import * as UserRole from './types/UserRole'
+import * as Vendor from './types/Vendor/Vendor'
 
 const typeDefs = gql `
-  
-  type Account {
-    id: String!
-    name: String!
-    accountType: AccountType!
-    balance: String
-    isSystemAccount: Boolean
-  }
-  enum AccountType {
-    Income
-    Expense
-    Asset
-    Liability
-    Equity
-  }
-  type Address {
-    id: String!
-    line1: String
-    line2: String
-    city: String
-    state: String
-    zipcode: String
-    country: String
-  }
-  type Bill {
-    id: String!
-    vendor: Vendor!
-    dueDate: String
-    amountDue: String!
-  }
-  type BusinessCustomer {
-    id: String!
-    customerType: String!
-    name: String!
-    website: String
-    address: Address
-    email: String
-    phone: String
-    primaryContactPerson: ContactPerson
-  }
-  type Company {
-    id: String!
-    name: String!
-    taxId: String
-    taxIdType: TaxIdType
-    address: Address
-    website: String
-  }
-  type ConsumerCustomer {
-    id: String!
-    customerType: CustomerType!
-    firstName: String
-    lastName: String
-    address: Address
-    email: String
-    phone: String
-  }
-  type ContactPerson {
-    id: String!
-    firstName: String
-    lastName: String
-    address: Address
-    email: String
-    phone: String
-  }
-  enum CustomerType {
-    Consumer
-    Business
-  }
-  union Customer = ConsumerCustomer | BusinessCustomer
-  type Invoice {
-    id: String!
-    customer: Customer!
-    invoiceNumber: String
-    invoiceDate: String
-    dueDate: String
-    totalAmountDue: String
-    lineItems: [InvoiceLineItem]
-  }
-  type InvoiceLineItem {
-    lineNumber: Int!
-    itemName: String!
-    description: String
-    quantity: Float!
-    pricePerUnit: String!
-  }
-  enum TaxIdType {
-    SSN
-    EIN
-  }
-  type User {
-    id: String!
-    firstName: String!
-    lastName: String!
-    email: String!
-    phone: String
-    role: UserRole!
-  }
-  enum UserRole {
-    Admin
-    Manager
-    Bookkeeper
-  }
-  type Vendor {
-    id: String!
-    name: String
-    website: String
-    address: Address
-    primaryContactPerson: ContactPerson
-  }
-
-  type ExchangeRate {
-    currency: String!
-    name: String
-    rate: Float!
-  }
+  ${Account.typeDefs}
+  ${AccountType.typeDefs}
+  ${Address.typeDefs}
+  ${Bill.typeDefs}
+  ${BusinessCustomer.typeDefs}
+  ${Company.typeDefs}
+  ${ConsumerCustomer.typeDefs}
+  ${ContactPerson.typeDefs}
+  ${Customer.typeDefs}
+  ${CustomerType.typeDefs}
+  ${Invoice.typeDefs}
+  ${InvoiceLineItem.typeDefs}
+  ${QuantityUnit.typeDefs}
+  ${TaxIdType.typeDefs}
+  ${User.typeDefs}
+  ${UserRole.typeDefs}
+  ${Vendor.typeDefs}
 
   type Query {
     users: [User]
+    user(id: String!): User
     accounts: [Account]
-    account(id: String!): Account!
-    exchangeRates(currency: String!): [ExchangeRate]
+    account(id: String!): Account
+    address(id: String!): Address
+    bill(id: String!): Bill
+    company(id: String!): Company
+    customer(id: String!): Customer
+    invoice(id: String!): Invoice
+    vendor(id: String!): Vendor
   }
 
-  type Mutation {
-    changeExchangeRateForCurrency(currency: String!, newRate: Float!): ExchangeRate
-  }
-`;
+  
+`
+//type Mutation {}
 export default typeDefs

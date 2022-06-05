@@ -1,37 +1,42 @@
 
+import AccountResolvers from './types/Account/resolvers'
+import AddressResolvers from './types/Address/resolvers'
+import BillResolvers from './types/Bill/resolvers'
+import BusinessCustomerResolvers from './types/BusinessCustomer/resolvers'
+import CompanyResolvers from './types/Company/resolvers'
+import ConsumerCustomerResolvers from './types/ConsumerCustomer/resolvers'
+import ContactPersonResolvers from './types/ContactPerson/resolvers'
+import CustomerResolvers from './types/Customer/resolvers'
+import InvoiceResolvers from './types/Invoice/resolvers'
+import InvoiceLineItemResolvers from './types/InvoiceLineItem/resolvers'
+import UserResolvers from './types/User/resolvers'
+import VendorResolvers from './types/Vendor/resolvers'
+
 
 const resolvers = {
     Query: {
-      users: async (_, __, { dataSources }) => {
-          const users = await dataSources.usersApi.getUsers()
-          var result = users.map(user => ({
-              id: user.id,
-              firstName: user.first_name,
-              lastName: user.last_name,
-              email: user.email,
-              role: user.user_role
-          }));
-          return result;
-      },
-      accounts: async (_, __, { dataSources }) => {
-        return await dataSources.accountsApi.getAccounts();
-      },
-      account: async (_, { id }, { dataSources }) => {
-        return await dataSources.accountsApi.getAccountById(id);
-      },
-      exchangeRates: async (_, { currency }, { dataSources }) => {
-        return await dataSources.exchangeRatesApi.getExchangeRatesByCurrency(currency);
-      }
+        ...AccountResolvers.api,
+        ...AddressResolvers.api,
+        ...BillResolvers.api,
+        ...CompanyResolvers.api,
+        ...CustomerResolvers.api,
+        ...InvoiceResolvers.api,
+        ...UserResolvers.api,
+        ...VendorResolvers.api,
     },
-    Mutation: {
-      changeExchangeRateForCurrency: async (_, { currency, newRate }, { dataSources }) => {
-        return await dataSources.exchangeRatesApi.changeExchangeRateForCurrency(currency, newRate);
-      }
-    },
-    Customer: {
-        __resolveType: async (customer, __, { dataSources }) => {
-            return customer.customerType
-        }
-    }
-};
+
+    // Mutation: {
+    // },
+
+    ...BillResolvers.type,
+    ...BusinessCustomerResolvers.type,
+    ...CompanyResolvers.type,
+    ...ConsumerCustomerResolvers.type,
+    ...ContactPersonResolvers.type,
+    ...CustomerResolvers.type,
+    ...InvoiceResolvers.type,
+    ...InvoiceLineItemResolvers.type,
+    ...VendorResolvers.type,
+}
+
 export default resolvers
