@@ -43,7 +43,7 @@ By default the API is available on port `4000`.
 | Double Entry Accounting | Expense/Revenue Tracking | Invoicing |
 | Bank Import/Reconciliation | Reports | Financial Statements |
 | Web/Mobile Apps | Dashboards | Open API |
-| Customers/Vendors | Mileage Tracking ||
+| Customers/Vendors | Mileage Tracking | Employees/Payroll |
 
 ## Architecture
 This platform is separated into several distinct layers forming an n-tier architecture to ensure it can be extended and deployed in many different environments.
