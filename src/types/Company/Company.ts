@@ -1,4 +1,4 @@
-import {TaxIdType} from "../TaxIdType";
+import {TaxIdType} from '../TaxIdType'
 
 
 export type Company = {

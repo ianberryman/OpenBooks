@@ -1,11 +1,11 @@
 
 export interface IResolvers {
   api: {
-    [key: string]: Function
+    [key: string]: (...any) => any
   },
   type: {
     [key: string]: {
-      [key: string]: Function
+      [key: string]: (...any) => any
     }
   }
 }

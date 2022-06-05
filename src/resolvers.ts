@@ -14,29 +14,29 @@ import VendorResolvers from './types/Vendor/resolvers'
 
 
 const resolvers = {
-  Query: {
-    ...AccountResolvers.api,
-    ...AddressResolvers.api,
-    ...BillResolvers.api,
-    ...CompanyResolvers.api,
-    ...CustomerResolvers.api,
-    ...InvoiceResolvers.api,
-    ...UserResolvers.api,
-    ...VendorResolvers.api,
-  },
+    Query: {
+        ...AccountResolvers.api,
+        ...AddressResolvers.api,
+        ...BillResolvers.api,
+        ...CompanyResolvers.api,
+        ...CustomerResolvers.api,
+        ...InvoiceResolvers.api,
+        ...UserResolvers.api,
+        ...VendorResolvers.api,
+    },
 
-  // Mutation: {
-  // },
+    // Mutation: {
+    // },
 
-  ...BillResolvers.type,
-  ...BusinessCustomerResolvers.type,
-  ...CompanyResolvers.type,
-  ...ConsumerCustomerResolvers.type,
-  ...ContactPersonResolvers.type,
-  ...CustomerResolvers.type,
-  ...InvoiceResolvers.type,
-  ...InvoiceLineItemResolvers.type,
-  ...VendorResolvers.type,
+    ...BillResolvers.type,
+    ...BusinessCustomerResolvers.type,
+    ...CompanyResolvers.type,
+    ...ConsumerCustomerResolvers.type,
+    ...ContactPersonResolvers.type,
+    ...CustomerResolvers.type,
+    ...InvoiceResolvers.type,
+    ...InvoiceLineItemResolvers.type,
+    ...VendorResolvers.type,
 }
 
 export default resolvers

@@ -1,5 +1,5 @@
-import {ConsumerCustomer} from "../ConsumerCustomer/ConsumerCustomer";
-import {BusinessCustomer} from "../BusinessCustomer/BusinessCustomer";
+import {ConsumerCustomer} from '../ConsumerCustomer/ConsumerCustomer'
+import {BusinessCustomer} from '../BusinessCustomer/BusinessCustomer'
 
 
 export type Customer = ConsumerCustomer | BusinessCustomer

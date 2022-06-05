@@ -1,20 +1,21 @@
-import { DataSource }  from 'apollo-datasource';
-import { query } from './db';
-import NotFoundError from '../errors/NotFoundError';
+import { DataSource }  from 'apollo-datasource'
+import { query } from './db'
+import NotFoundError from '../errors/NotFoundError'
+import {Account} from '../types/Account/Account'
 
 export default class AccountsApi extends DataSource {
     context: any
 
     constructor() {
-        super();
+        super()
     }
 
     initialize(config) {
-        this.context = config.context;
+        this.context = config.context
     }
 
-    async getAccounts() {
-        const results = await query("SELECT id, account_name, account_type, balance, is_system_account FROM account");
+    async getAccounts(): Promise<Array<Account>> {
+        const results = await query('SELECT id, account_name, account_type, balance, is_system_account FROM account')
 
         return results.map(account => ({
             id: account.id,
@@ -22,14 +23,14 @@ export default class AccountsApi extends DataSource {
             accountType: account.account_type,
             balance: account.balance,
             isSystemAccount: account.is_system_account
-        }));
+        }))
     }
 
-    async getAccountById(id: string) {
-        const results = await query("SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = ?", [id]);
+    async getAccountById(id: string): Promise<Account> {
+        const results = await query('SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = ?', [id])
 
-        const account = results[0];
-        if (!account) throw new NotFoundError("Account with ID " + id + " not found");
+        const account = results[0]
+        if (!account) throw new NotFoundError('Account with ID ' + id + ' not found')
         
         return {
             id: account.id,
@@ -37,6 +38,6 @@ export default class AccountsApi extends DataSource {
             accountType: account.account_type,
             balance: account.balance,
             isSystemAccount: account.is_system_account
-          };
+        }
     }
 }

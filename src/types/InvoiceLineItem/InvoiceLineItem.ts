@@ -1,4 +1,4 @@
-import {QuantityUnit} from "../QuantityUnit";
+import {QuantityUnit} from '../QuantityUnit'
 
 export type InvoiceLineItem = {
   invoiceId: string,

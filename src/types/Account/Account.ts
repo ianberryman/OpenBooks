@@ -1,12 +1,12 @@
-import {AccountType} from "../AccountType";
+import {AccountType} from '../AccountType'
 
 
 export type Account = {
   id: string,
-  account_name: string,
-  account_type: AccountType,
+  name: string,
+  accountType: AccountType,
   balance: number,
-  is_system_account: boolean,
+  isSystemAccount: boolean,
 }
 
 export const typeDefs = `

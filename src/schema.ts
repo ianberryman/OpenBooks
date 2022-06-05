@@ -1,19 +1,19 @@
 
 import { gql } from 'apollo-server'
 import * as Account from './types/Account/Account'
-import * as AccountType from "./types/AccountType";
+import * as AccountType from './types/AccountType'
 import * as Address from './types/Address/Address'
 import * as Bill from './types/Bill/Bill'
 import * as BusinessCustomer from './types/BusinessCustomer/BusinessCustomer'
 import * as Company from './types/Company/Company'
-import * as ConsumerCustomer from "./types/ConsumerCustomer/ConsumerCustomer"
-import * as ContactPerson from "./types/ContactPerson/ContactPerson"
+import * as ConsumerCustomer from './types/ConsumerCustomer/ConsumerCustomer'
+import * as ContactPerson from './types/ContactPerson/ContactPerson'
 import * as Customer from './types/Customer/Customer'
 import * as CustomerType from './types/CustomerType'
 import * as Invoice from './types/Invoice/Invoice'
-import * as InvoiceLineItem from "./types/InvoiceLineItem/InvoiceLineItem"
-import * as QuantityUnit from "./types/QuantityUnit";
-import * as TaxIdType from "./types/TaxIdType";
+import * as InvoiceLineItem from './types/InvoiceLineItem/InvoiceLineItem'
+import * as QuantityUnit from './types/QuantityUnit'
+import * as TaxIdType from './types/TaxIdType'
 import * as User from './types/User/User'
 import * as UserRole from './types/UserRole'
 import * as Vendor from './types/Vendor/Vendor'
@@ -51,6 +51,6 @@ const typeDefs = gql `
   }
 
   
-`;
+`
 //type Mutation {}
 export default typeDefs
