@@ -26,7 +26,7 @@ export default class AccountsApi extends DataSource {
     }
 
     async getAccountById(id: string) {
-        const results = await query("SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = $1", [id]);
+        const results = await query("SELECT id, account_name, account_type, balance, is_system_account FROM account WHERE id = ?", [id]);
 
         const account = results[0];
         if (!account) throw new NotFoundError("Account with ID " + id + " not found");

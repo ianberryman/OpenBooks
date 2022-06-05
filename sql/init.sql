@@ -152,7 +152,7 @@ create table if not exists invoice_line_item (
     description varchar(100),
     quantity decimal(10,2) not null,
     quantity_unit varchar(20) not null,
-    price_per_item integer not null,
+    price_per_unit integer not null,
 
     constraint pk_invoice_line_item primary key (invoice_id, line_number),
     constraint fk_invoice_line_item_quantity_unit foreign key (quantity_unit)
