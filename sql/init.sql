@@ -127,7 +127,6 @@ create table if not exists invoice (
     invoice_number varchar(20),
     invoice_date date not null,
     due_date date not null,
-    total_amount_due integer not null,
 
     constraint pk_invoice primary key (id),
     constraint fk_invoice_customer foreign key (customer_id)
@@ -135,7 +134,7 @@ create table if not exists invoice (
 );
 
 create table if not exists quantity_unit (
-    quantity_unit varchar(20) not null,
+    quantity_unit varchar(40) not null,
 
     constraint pk_quantity_unit primary key (quantity_unit)
 );
@@ -145,18 +144,29 @@ values ('Each'),
        ('Pound')
 ON DUPLICATE KEY UPDATE quantity_unit = quantity_unit;
 
+create table if not exists product (
+    id binary(16) not null,
+    product_name varchar(50) not null,
+    description varchar(300) null,
+    unit_price decimal(10,2) not null,
+    quantity_unit varchar(40) not null,
+
+    constraint pk_product primary key (id),
+    constraint fk_product_quantity_unit foreign key (quantity_unit)
+    references quantity_unit (quantity_unit)
+);
+
 create table if not exists invoice_line_item (
     invoice_id BINARY(16) not null,
     line_number integer not null,
-    item_name varchar(50) not null,
     description varchar(100),
-    quantity decimal(10,2) not null,
-    quantity_unit varchar(20) not null,
-    price_per_unit integer not null,
+    quantity integer not null,
+    product_id binary(16) not null,
+    discount_rate decimal(3,2) null,
 
     constraint pk_invoice_line_item primary key (invoice_id, line_number),
-    constraint fk_invoice_line_item_quantity_unit foreign key (quantity_unit)
-    references quantity_unit (quantity_unit)
+    constraint fk_invoice_line_item_product foreign key (product_id)
+    references product (id)
 );
 
 create table if not exists user_role (

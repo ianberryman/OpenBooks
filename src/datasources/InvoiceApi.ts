@@ -16,7 +16,7 @@ export default class InvoiceApi extends DataSource {
     }
 
     async getInvoiceById(id: string): Promise<Invoice> {
-        const results = await query('SELECT hex(id) as id, hex(customer_id) as customer_id, invoice_number, invoice_date, due_date, total_amount_due FROM invoice WHERE id = unhex(?)', [id])
+        const results = await query('SELECT hex(id) as id, hex(customer_id) as customer_id, invoice_number, invoice_date, due_date FROM invoice WHERE id = unhex(?)', [id])
 
         const invoice = results[0]
         if (!invoice) throw new NotFoundError('Invoice with id: ' + id + ' not found')
@@ -27,12 +27,11 @@ export default class InvoiceApi extends DataSource {
             invoiceNumber: invoice.invoice_number,
             invoiceDate: invoice.invoice_date,
             dueDate: invoice.due_date,
-            totalAmountDue: invoice.total_amount_due,
         }
     }
 
     async getInvoiceLineItemsByInvoiceId(invoiceId: string): Promise<Array<InvoiceLineItem>> {
-        const lineItems = await query('SELECT hex(invoice_id) as invoice_id, line_number, item_name, description, quantity, quantity_unit, price_per_unit FROM invoice_line_item WHERE invoice_id = unhex(?)', [invoiceId])
+        const lineItems = await query('SELECT hex(invoice_id) as invoice_id, line_number, item_name, description, quantity, hex(product_id) as product_id, discount_rate FROM invoice_line_item WHERE invoice_id = unhex(?)', [invoiceId])
 
         return lineItems.map(lineItem => ({
             invoiceId: lineItem.invoice_id,
@@ -40,8 +39,8 @@ export default class InvoiceApi extends DataSource {
             itemName: lineItem.item_name,
             description: lineItem.description,
             quantity: lineItem.quantity,
-            quantityUnit: lineItem.quantity_unit,
-            pricePerUnit: lineItem.price_per_unit,
+            productId: lineItem.product_id,
+            discountRate: lineItem.discount_rate,
         }))
     }
 }

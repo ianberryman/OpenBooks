@@ -1,11 +1,12 @@
 import mysql from 'mysql'
 import config from '../config'
+import { v4 as uuidv4 } from 'uuid'
 
 const pool = mysql.createPool(config.db)
 
 export function query(
     queryString: string,
-    values: Array<any> = []
+    values: Array<any> | { [key: string]: any} = []
 ): Promise<Array<any>> {
     return new Promise((resolve, reject) => {
         pool.query(queryString, values, (error, results, fields) => {
@@ -18,6 +19,10 @@ export function query(
             }
         })
     })
+}
+
+export function newId() {
+    return uuidv4().replace(/-/g, '')
 }
 
 

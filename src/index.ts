@@ -10,6 +10,7 @@ import CustomerApi from './datasources/CustomerApi'
 import InvoiceApi from './datasources/InvoiceApi'
 import VendorApi from './datasources/VendorApi'
 import BillApi from './datasources/BillApi'
+import ProductApi from './datasources/ProductApi'
 
 const dataSources = () => ({
     accountsApi: new AccountsApi(),
@@ -19,6 +20,7 @@ const dataSources = () => ({
     contactPersonApi: new ContactPersonApi(),
     customerApi: new CustomerApi(),
     invoiceApi: new InvoiceApi(),
+    productApi: new ProductApi(),
     usersApi: new UsersApi(),
     vendorApi: new VendorApi(),
 })
