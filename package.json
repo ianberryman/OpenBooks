@@ -1,10 +1,11 @@
 {
   "name": "openbooks",
-  "version": "1.0.0",
+  "version": "1.0.0-alpha",
   "description": "OpenBooks API server",
   "main": "src/index.ts",
   "scripts": {
-    "start": "gulp watch"
+    "start": "gulp watch",
+    "lint": "yarn eslint src --fix"
   },
   "author": "",
   "license": "ISC",
@@ -15,7 +16,8 @@
     "chalk": "^4.1.2",
     "dotenv": "^8.2.0",
     "graphql": "^15.5.0",
-    "mysql": "^2.18.1"
+    "mysql": "^2.18.1",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@babel/core": "^7.18.2",

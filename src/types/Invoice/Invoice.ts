@@ -6,7 +6,6 @@ export type Invoice = {
   invoiceNumber: string,
   invoiceDate: string,
   dueDate: string,
-  totalAmountDue: number,
 }
 
 export const typeDefs = `
@@ -16,7 +15,7 @@ export const typeDefs = `
     invoiceNumber: String
     invoiceDate: String
     dueDate: String
-    totalAmountDue: String
+    totalAmountDue: Float
     lineItems: [InvoiceLineItem]
   }
 `

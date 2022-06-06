@@ -12,6 +12,7 @@ import * as Customer from './types/Customer/Customer'
 import * as CustomerType from './types/CustomerType'
 import * as Invoice from './types/Invoice/Invoice'
 import * as InvoiceLineItem from './types/InvoiceLineItem/InvoiceLineItem'
+import * as Product from './types/Product/Product'
 import * as QuantityUnit from './types/QuantityUnit'
 import * as TaxIdType from './types/TaxIdType'
 import * as User from './types/User/User'
@@ -31,12 +32,17 @@ const typeDefs = gql `
   ${CustomerType.typeDefs}
   ${Invoice.typeDefs}
   ${InvoiceLineItem.typeDefs}
+  ${Product.typeDefs}
   ${QuantityUnit.typeDefs}
   ${TaxIdType.typeDefs}
   ${User.typeDefs}
   ${UserRole.typeDefs}
   ${Vendor.typeDefs}
-
+  type Mutation {
+    createProduct(createProductInput: CreateProductInput!): CreateProductResponse!
+    updateProduct(updateProductInput: UpdateProductInput!): UpdateProductResponse!
+    deleteProduct(id: String!): DeleteProductResponse!
+  }
   type Query {
     users: [User]
     user(id: String!): User
@@ -47,10 +53,8 @@ const typeDefs = gql `
     company(id: String!): Company
     customer(id: String!): Customer
     invoice(id: String!): Invoice
+    products: [Product]
     vendor(id: String!): Vendor
   }
-
-  
 `
-//type Mutation {}
 export default typeDefs
