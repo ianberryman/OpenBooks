@@ -66,7 +66,6 @@ create table if not exists account (
     company_id BINARY(16),
     account_name varchar(100) not null,
     account_type varchar(20) not null,
-    balance decimal(15,2) not null default 0,
     is_system_account boolean not null,
 
     constraint pk_account primary key (id),
@@ -217,4 +216,26 @@ create table if not exists bill (
     constraint pk_bill primary key (id),
     constraint fk_bill_vendor foreign key (vendor_id)
     references vendor (id)
+);
+
+create table if not exists journal_entry (
+    id binary(16) not null,
+    description varchar(50) null,
+    date_effective date not null,
+    date_created timestamp not null default current_timestamp,
+
+    constraint pk_journal_entry primary key (id)
+);
+
+create table if not exists transactions (
+    id binary(16) not null,
+    journal_entry_id binary(16) not null,
+    account_id binary(16) not null,
+    type enum('DEBIT', 'CREDIT') not null,
+    description varchar(50) null,
+    amount decimal(10,2) not null,
+
+    constraint pk_transactions primary key (id),
+    constraint fk_transactions_journal_entry foreign key (journal_entry_id) references journal_entry (id),
+    constraint fk_transaction_account foreign key (account_id) references `account` (id)
 );

@@ -9,8 +9,11 @@ import ContactPersonResolvers from './types/ContactPerson/resolvers'
 import CustomerResolvers from './types/Customer/resolvers'
 import InvoiceResolvers from './types/Invoice/resolvers'
 import InvoiceLineItemResolvers from './types/InvoiceLineItem/resolvers'
+import JournalEntryResolvers from './types/JournalEntry/resolvers'
+import JournalEntryMutations from './types/JournalEntry/mutations'
 import ProductMutations from './types/Product/mutations'
 import ProductResolvers from './types/Product/resolvers'
+import TransactionResolvers from './types/Transaction/resolvers'
 import UserResolvers from './types/User/resolvers'
 import VendorResolvers from './types/Vendor/resolvers'
 
@@ -26,12 +29,16 @@ const resolvers = {
         ...ContactPersonResolvers.api,
         ...CustomerResolvers.api,
         ...InvoiceResolvers.api,
+        ...InvoiceLineItemResolvers.api,
+        ...JournalEntryResolvers.api,
         ...ProductResolvers.api,
+        ...TransactionResolvers.api,
         ...UserResolvers.api,
         ...VendorResolvers.api,
     },
 
     Mutation: {
+        ...JournalEntryMutations,
         ...ProductMutations,
     },
 
@@ -45,6 +52,8 @@ const resolvers = {
     ...CustomerResolvers.type,
     ...InvoiceResolvers.type,
     ...InvoiceLineItemResolvers.type,
+    ...JournalEntryResolvers.type,
+    ...TransactionResolvers.type,
     ...UserResolvers.type,
     ...ProductResolvers.type,
     ...VendorResolvers.type,

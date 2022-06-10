@@ -1,18 +1,18 @@
 
 export enum AccountType {
-  Income = 'Income',
-  Expense = 'Expense',
-  Asset = 'Asset',
-  Liability = 'Liability',
-  Equity = 'Equity',
+  INCOME = 'INCOME',
+  EXPENSE = 'EXPENSE',
+  ASSET = 'ASSET',
+  LIABILITY = 'LIABILITY',
+  EQUITY = 'EQUITY',
 }
 
 export const typeDefs = `
   enum AccountType {
-    Income
-    Expense
-    Asset
-    Liability
-    Equity
+    INCOME
+    EXPENSE
+    ASSET
+    LIABILITY
+    EQUITY
   }
 `
