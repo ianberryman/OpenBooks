@@ -5,7 +5,6 @@ export type Account = {
   id: string,
   name: string,
   accountType: AccountType,
-  balance: number,
   isSystemAccount: boolean,
 }
 

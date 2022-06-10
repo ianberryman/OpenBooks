@@ -2,7 +2,7 @@ import {ApolloServer} from 'apollo-server'
 import typeDefs from './schema'
 import resolvers from './resolvers'
 import UsersApi from './datasources/UsersApi'
-import AccountsApi from './datasources/AccountsApi'
+import AccountApi from './datasources/AccountApi'
 import AddressApi from './datasources/AddressApi'
 import CompanyApi from './datasources/CompanyApi'
 import ContactPersonApi from './datasources/ContactPersonApi'
@@ -11,16 +11,20 @@ import InvoiceApi from './datasources/InvoiceApi'
 import VendorApi from './datasources/VendorApi'
 import BillApi from './datasources/BillApi'
 import ProductApi from './datasources/ProductApi'
+import TransactionApi from "./datasources/TransactionApi";
+import JournalEntryApi from "./datasources/JournalEntryApi";
 
 const dataSources = () => ({
-    accountsApi: new AccountsApi(),
+    accountApi: new AccountApi(),
     addressApi: new AddressApi(),
     billApi: new BillApi(),
     companyApi: new CompanyApi(),
     contactPersonApi: new ContactPersonApi(),
     customerApi: new CustomerApi(),
     invoiceApi: new InvoiceApi(),
+    journalEntryApi: new JournalEntryApi(),
     productApi: new ProductApi(),
+    transactionApi: new TransactionApi(),
     usersApi: new UsersApi(),
     vendorApi: new VendorApi(),
 })

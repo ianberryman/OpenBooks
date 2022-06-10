@@ -3,6 +3,7 @@ import config from '../config'
 import { v4 as uuidv4 } from 'uuid'
 
 const pool = mysql.createPool(config.db)
+export default pool
 
 export function query(
     queryString: string,
