@@ -1,7 +1,7 @@
-import { DataSource }  from 'apollo-datasource'
-import { query } from './db'
-import NotFoundError from '../errors/NotFoundError'
-import {Customer} from '../types/Customer/Customer'
+import {DataSource} from 'apollo-datasource'
+import {idToBuffer} from './db'
+import {BusinessCustomerFields, ConsumerCustomerFields, CreateCustomerInput, Customer} from '../types/Customer/Customer'
+import {CustomerType} from '../types/CustomerType'
 
 export default class CustomerApi extends DataSource {
     context: any
@@ -14,22 +14,21 @@ export default class CustomerApi extends DataSource {
         this.context = config.context
     }
 
-    async getCustomerById(id: string): Promise<Customer> {
-        const results = await query('SELECT hex(id) as id, customer_type, name, first_name, last_name, hex(address_id) as address_id, website, email, phone, hex(primary_contact_id) as primary_contact_id FROM customer WHERE id = unhex(?)', [id])
-
-        const customer = results[0]
-        if (!customer) throw new NotFoundError('Customer with id: ' + id + ' not found')
-
-        return {
-            id: customer.id,
-            customerType: customer.customer_type,
-            firstName: customer.first_name,
-            lastName: customer.last_name,
-            addressId: customer.address_id,
-            website: customer.website,
-            email: customer.email,
-            phone: customer.phone,
-            primaryContactId: customer.primary_contact_id,
+    async createCustomer(customerInput: CreateCustomerInput): Promise<Customer> {
+        if (customerInput.customerType === CustomerType.Business) {
+            return Customer.create(customerInput, { fields: BusinessCustomerFields })
+        } else if (customerInput.customerType === CustomerType.Consumer) {
+            return Customer.create(customerInput, { fields: ConsumerCustomerFields })
+        } else {
+            throw new Error(`Unknown customerType: ${customerInput.customerType}`)
         }
+    }
+
+    async getCustomerById(id: string): Promise<Customer> {
+        return Customer.findByPk(idToBuffer(id))
+    }
+
+    async getCustomers(): Promise<Array<Customer>> {
+        return Customer.findAll()
     }
 }

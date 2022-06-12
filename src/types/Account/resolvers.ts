@@ -1,7 +1,7 @@
 import {IResolvers} from '../IResolvers'
-import {Account} from "./Account";
-import {TransactionType} from "../TransactionType";
-import {AccountType} from "../AccountType";
+import {Account} from './Account'
+import {TransactionType} from '../TransactionType'
+import {AccountType} from '../AccountType'
 
 
 async function accounts(parent, args, { dataSources }, info): Promise<Account> {

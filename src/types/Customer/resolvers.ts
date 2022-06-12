@@ -1,21 +1,33 @@
 import {IResolvers} from '../IResolvers'
 import {Customer} from './Customer'
+import {Address} from '../Address/Address'
+import {ContactPerson} from '../ContactPerson/ContactPerson'
 
 async function customer(parent, { id }, { dataSources }, info): Promise<Customer> {
-    return await dataSources.customerApi.getCustomerById(id)
+    return dataSources.customerApi.getCustomerById(id)
 }
 
-async function __resolveType(customer: Customer, __, { dataSources }) {
-    return `${customer.customerType}Customer`
+async function customers(parent, args, { dataSources }, info): Promise<Array<Customer>> {
+    return dataSources.customerApi.getCustomers()
+}
+
+async function address(parent: Customer, args, { dataSources }, info): Promise<Address> {
+    return parent.getAddress()
+}
+
+async function primaryContact(parent: Customer, args, { dataSources }, info): Promise<ContactPerson> {
+    return parent.getPrimaryContact()
 }
 
 const resolvers: IResolvers = {
     api: {
         customer,
+        customers,
     },
     type: {
         Customer: {
-            __resolveType,
+            address,
+            primaryContact,
         }
     }
 }

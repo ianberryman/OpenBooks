@@ -11,8 +11,8 @@ import InvoiceApi from './datasources/InvoiceApi'
 import VendorApi from './datasources/VendorApi'
 import BillApi from './datasources/BillApi'
 import ProductApi from './datasources/ProductApi'
-import TransactionApi from "./datasources/TransactionApi";
-import JournalEntryApi from "./datasources/JournalEntryApi";
+import TransactionApi from './datasources/TransactionApi'
+import JournalEntryApi from './datasources/JournalEntryApi'
 
 const dataSources = () => ({
     accountApi: new AccountApi(),
@@ -25,7 +25,7 @@ const dataSources = () => ({
     journalEntryApi: new JournalEntryApi(),
     productApi: new ProductApi(),
     transactionApi: new TransactionApi(),
-    usersApi: new UsersApi(),
+    userApi: new UsersApi(),
     vendorApi: new VendorApi(),
 })
 

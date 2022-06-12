@@ -1,12 +1,29 @@
-import {CreateTransactionInput} from "../Transaction/Transaction";
+import {CreateTransactionInput, Transaction} from '../Transaction/Transaction'
+import {DataTypes, HasMany, Model} from 'sequelize'
+import sequelize, {idModel} from '../../datasources/db'
 
 
-export type JournalEntry = {
-  id?: string,
-  description?: string,
-  effectiveDate: string,
-  createdDate: string,
+export class JournalEntry extends Model {
+    static Debits: HasMany<JournalEntry, Transaction>
+    static Credits: HasMany<JournalEntry, Transaction>
+
+    declare id?: string
+    declare description?: string
+    declare effectiveDate: string
+
+    declare getDebits: () => Promise<Array<Transaction>>
+    declare getCredits: () => Promise<Array<Transaction>>
 }
+
+JournalEntry.init({
+    id: idModel(),
+    description: {
+        type: DataTypes.STRING(150),
+    },
+    effectiveDate: {
+        type: DataTypes.DATE,
+    }
+}, { sequelize })
 
 export type CreateJournalEntryInput = {
   description?: string,
@@ -25,7 +42,6 @@ export const typeDefs = `
     id: String!
     description: String
     effectiveDate: String!
-    createdDate: String!
     debits: [Transaction!]
     credits: [Transaction!]
   }

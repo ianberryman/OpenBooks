@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "gulp watch",
-    "lint": "yarn eslint src --fix"
+    "lint": "yarn eslint src --fix",
+    "init-db": "gulp build && node build/scripts/init-db.js"
   },
   "author": "",
   "license": "ISC",
@@ -13,10 +14,12 @@
     "apollo": "^2.32.5",
     "apollo-server": "^2.25.3",
     "apollo-server-errors": "^2.5.0",
+    "bcrypt": "^5.0.1",
     "chalk": "^4.1.2",
     "dotenv": "^8.2.0",
     "graphql": "^15.5.0",
-    "mysql": "^2.18.1",
+    "mysql2": "^2.3.3",
+    "sequelize": "^6.20.1",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
