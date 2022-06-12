@@ -6,7 +6,7 @@ async function products(parent, args, { dataSources }, info): Promise<Array<Prod
 }
 
 async function unitPrice(parent: Product, args, { dataSources }, info): Promise<number> {
-    return parent.unitPrice + Number.EPSILON
+    return parent.unitPrice
 }
 
 const resolvers: IResolvers = {

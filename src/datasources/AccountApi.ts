@@ -1,7 +1,6 @@
-import { DataSource }  from 'apollo-datasource'
-import { query } from './db'
-import NotFoundError from '../errors/NotFoundError'
+import {DataSource} from 'apollo-datasource'
 import {Account} from '../types/Account/Account'
+import {idToBuffer} from './db'
 
 export default class AccountApi extends DataSource {
     context: any
@@ -15,27 +14,14 @@ export default class AccountApi extends DataSource {
     }
 
     async getAccounts(): Promise<Array<Account>> {
-        const results = await query('SELECT hex(id) as id, account_name, account_type, is_system_account FROM account')
-
-        return results.map(account => ({
-            id: account.id,
-            name: account.account_name,
-            accountType: account.account_type,
-            isSystemAccount: account.is_system_account
-        }))
+        return Account.findAll()
     }
 
     async getAccountById(id: string): Promise<Account> {
-        const results = await query('SELECT hex(id) as id, account_name, account_type, is_system_account FROM account WHERE id = unhex(?)', [id])
+        return Account.findByPk(idToBuffer(id))
+    }
 
-        const account = results[0]
-        if (!account) throw new NotFoundError('Account with ID ' + id + ' not found')
-        
-        return {
-            id: account.id,
-            name: account.account_name,
-            accountType: account.account_type,
-            isSystemAccount: account.is_system_account
-        }
+    async createAccount(account: Account): Promise<Account> {
+        return account.save()
     }
 }

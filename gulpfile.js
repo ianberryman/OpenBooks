@@ -4,11 +4,20 @@ const path = require('path')
 const nodemon = require('gulp-nodemon')
 const chalk = require('chalk')
 
-gulp.task('build', () => {
+gulp.task('build-scripts', () => {
+    return gulp.src(['scripts/**/*.ts', 'scripts/**/*.js'])
+      .pipe(babel())
+      .pipe(gulp.dest('./build/scripts'))
+})
+
+gulp.task('build', gulp.series('build-scripts', () => {
     return gulp.src(['src/**/*.ts', 'src/**/*.js'])
         .pipe(babel())
+        // output files to dist for prod
         .pipe(gulp.dest('./dist'))
-})
+        // output files to build/src for scripts
+        .pipe(gulp.dest('./build/src'))
+}))
 
 gulp.task('watch', gulp.series('build', async (done) => {
     // gulp.watch('./*.js', gulp.series('build'));
