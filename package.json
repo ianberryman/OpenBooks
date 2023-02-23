@@ -19,7 +19,7 @@
     "dotenv": "^8.2.0",
     "graphql": "^15.5.0",
     "mysql2": "^2.3.3",
-    "sequelize": "^6.20.1",
+    "sequelize": "^6.28.2",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
