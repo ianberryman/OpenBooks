@@ -1,2 +1,70 @@
+# Build context exclusions.
+#
+# Two things here are load-bearing and easy to break:
+#
+#   1. `.yarn/releases` MUST stay in the context. The image invokes the committed
+#      Yarn 4 binary directly instead of bootstrapping corepack from the network,
+#      so a blanket `.yarn` exclusion breaks the build. The Yarn subdirectories
+#      are therefore listed individually rather than excluded with a wildcard
+#      plus a negation, which is the pattern that tends to get "simplified" into
+#      a bug later.
+#   2. `node_modules` must be excluded, because the build stage installs its own
+#      and a host tree carries darwin-arm64 prebuilds that would silently shadow
+#      the linux ones.
+
+# Host installs — the image installs its own (see note 2 above).
 node_modules
-npm-debug.log
+**/node_modules
+
+# Yarn state. Enumerated deliberately; see note 1 above.
+.yarn/cache
+.yarn/unplugged
+.yarn/install-state.gz
+.yarn/build-state.yml
+.pnp.*
+
+# Build output. Regenerated inside the image; a stale host `dist` copied in
+# would be indistinguishable from a fresh build.
+dist
+**/dist
+*.tsbuildinfo
+
+# Test and lint artifacts
+coverage
+.nyc_output
+.eslintcache
+
+# Version control and CI
+.git
+.gitignore
+.gitattributes
+.github
+
+# Infrastructure and container definitions — not inputs to the app build.
+infra
+docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Docs
+*.md
+LICENSE*
+
+# Local configuration and secrets. `.env.example` is committed but is
+# documentation, not a build input.
+.env
+.env.*
+
+# Editor and OS noise
+.idea
+.vscode
+.DS_Store
+*.swp
+
+# Logs and runtime junk
+logs
+*.log
+*.pid
+data

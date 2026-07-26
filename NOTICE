@@ -1,0 +1,73 @@
+OpenBooks
+Copyright (C) 2026 Ian Berryman and the OpenBooks contributors
+
+Open-source, AI-native, modular double-entry accounting.
+https://github.com/ianberryman/OpenBooks
+
+
+LICENSE MAP
+===========
+
+This repository is not licensed under a single license. Which license applies
+depends on which part of the tree a file belongs to.
+
+  Scope                              License
+  ---------------------------------  -------------------------------------------
+  Everything, by default             GNU Affero General Public License v3.0
+                                     only (AGPL-3.0-only)
+                                     -> ./LICENSE
+
+  packages/plugin-api/               Apache License 2.0, plus the OpenBooks
+                                     plugin-api Linking Exception v1.0
+                                     -> ./packages/plugin-api/LICENSE
+
+  The published OpenBooks OpenAPI    Apache License 2.0, plus the OpenBooks
+  description (openapi.json)         plugin-api Linking Exception v1.0
+                                     -> ./packages/plugin-api/LICENSE
+
+Any file not covered by a more specific entry above is AGPL-3.0-only. Each
+workspace package also declares its license in the `license` field of its
+own package.json; that field is authoritative for that package.
+
+There are no per-file license headers in this repository. This NOTICE, the
+two LICENSE files, and the package.json `license` fields are the complete
+statement of licensing.
+
+
+WHY TWO LICENSES
+================
+
+The server is AGPL-3.0. OpenBooks is operated as a hosted service from the
+same image it ships for self-hosting, and the AGPL's network-use provision
+(section 13) is what keeps a hosted fork from taking the work private. This
+is a deliberate business choice, not an accident of copy-paste.
+
+The contract packages are Apache-2.0. @openbooks/plugin-api and the published
+OpenAPI description exist so that other software can be written against
+OpenBooks. A copyleft license on an interface definition would defeat that
+purpose, so the interfaces are permissive and carry an explicit linking
+exception clarifying that depending on them does not, by itself, pull a
+module under the AGPL.
+
+The exception is narrow on purpose. It does not grant permission to convey a
+combined work of the AGPL server plus a bundled third-party module on
+non-AGPL terms. Integrations are meant to be built as external clients of the
+public HTTP API and OAuth authorization server, where no combination with
+AGPL-licensed code occurs at all. See section 3(b) and section 4 of
+./packages/plugin-api/LICENSE.
+
+
+CONTRIBUTIONS
+=============
+
+Contributors sign a Contributor License Agreement before their first
+contribution is merged. See ./CLA.md and ./CONTRIBUTING.md.
+
+
+THIRD-PARTY SOFTWARE
+====================
+
+OpenBooks depends on third-party open-source packages that are not
+distributed in this repository. Their licenses are their own and are
+resolved at install time; see yarn.lock and the installed packages'
+own LICENSE files. No third-party source is vendored into this tree.

@@ -11,10 +11,10 @@
     "dev": "tsx watch src/entrypoints/api.ts",
     "build": "node ../../scripts/build-server.mjs",
     "start": "node ../../dist/server/main.js",
-    "migrate": "tsx src/entrypoints/migrate.ts up",
-    "migrate:down": "tsx src/entrypoints/migrate.ts down",
-    "migrate:status": "tsx src/entrypoints/migrate.ts status",
-    "codegen": "tsx src/db/codegen.ts",
+    "migrate": "tsx src/entrypoints/migrate-cli.ts up",
+    "migrate:down": "tsx src/entrypoints/migrate-cli.ts down",
+    "migrate:status": "tsx src/entrypoints/migrate-cli.ts status",
+    "codegen": "node ../../scripts/codegen.mjs",
     "spec": "tsx src/entrypoints/spec.ts"
   },
   "dependencies": {

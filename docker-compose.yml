@@ -1,0 +1,128 @@
+# Self-host stack. `docker compose up` is the supported way to run OpenBooks on
+# your own hardware, and the environment M1's acceptance criteria are
+# demonstrated in.
+#
+# Configuration comes from `.env` in this directory; every value below has a
+# working local default, so the stack starts with no `.env` at all. Copy
+# `.env.example` (owned by OB-003) when you want to change anything. Passwords
+# are the exception: their real source of truth is docker/mysql-init/01-users.sql,
+# because MySQL cannot interpolate environment variables into its init scripts.
+# Overriding a DB password in `.env` also means editing that file and deleting
+# the `mysql-data` volume.
+
+name: openbooks
+
+# One image, three roles (spec §2.5). All three app services share this
+# definition — OPENBOOKS_ROLE is the only thing that differs between them.
+x-openbooks-image: &openbooks-image
+  image: ${OPENBOOKS_IMAGE:-openbooks:local}
+  build:
+    context: .
+  # Reaps zombies and forwards SIGTERM, which the slim base image has no init
+  # process to do.
+  init: true
+
+x-app-env: &app-env
+  NODE_ENV: production
+  OPENBOOKS_LOG_LEVEL: ${OPENBOOKS_LOG_LEVEL:-info}
+
+services:
+  mysql:
+    # 8.4 is the current LTS; 8.0 went end-of-life in April 2026. Should track
+    # whichever engine version OB-007 selects for RDS, so local and hosted are
+    # not on different majors.
+    image: mysql:${MYSQL_VERSION:-8.4}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-openbooks_root_local}
+      MYSQL_DATABASE: ${OPENBOOKS_DB_NAME:-openbooks}
+    ports:
+      # Exposed for psql-style poking and for `yarn migrate` from the host.
+      - '${MYSQL_PORT:-3306}:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Runs once, on an empty data directory, in filename order. Creates the
+      # two-user split described at length in 01-users.sql.
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Deliberately over TCP rather than the unix socket. The entrypoint runs
+      # init scripts against a socket-only temporary server, so a socket ping
+      # reports healthy while openbooks_app does not exist yet — and the migrate
+      # service would then start and fail. `-h 127.0.0.1` only succeeds once the
+      # real, network-listening server is up, which is after init has finished.
+      test:
+        [
+          'CMD',
+          'mysqladmin',
+          'ping',
+          '-h',
+          '127.0.0.1',
+          '-uroot',
+          '-p${MYSQL_ROOT_PASSWORD:-openbooks_root_local}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+
+  # Spec §12: migrations are a discrete pre-deploy job, never a container boot
+  # step. In Compose that is expressed as a one-shot service the api and worker
+  # both wait on via `service_completed_successfully` — a non-zero exit here
+  # stops the stack instead of starting an API against a half-migrated schema.
+  # The same separation appears in the ECS task definitions (OB-007).
+  migrate:
+    <<: *openbooks-image
+    environment:
+      <<: *app-env
+      OPENBOOKS_ROLE: migrate
+      # The only service that connects as the migrator. It holds DDL rights;
+      # the app user does not.
+      DATABASE_URL: mysql://openbooks_migrator:${OPENBOOKS_MIGRATOR_DB_PASSWORD:-openbooks_migrator_local}@mysql:3306/${OPENBOOKS_DB_NAME:-openbooks}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # A job, not a service. Without this, a clean exit looks like a crash loop.
+    restart: 'no'
+    # The image's HEALTHCHECK targets the api role's HTTP listener; a process
+    # that exits has nothing to probe.
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *openbooks-image
+    environment:
+      <<: *app-env
+      OPENBOOKS_ROLE: api
+      PORT: 8080
+      # openbooks_app, never openbooks_migrator. This is what makes the journal
+      # grant restriction (OB-011) apply to real traffic rather than to a user
+      # nothing connects as.
+      DATABASE_URL: mysql://openbooks_app:${OPENBOOKS_APP_DB_PASSWORD:-openbooks_app_local}@mysql:3306/${OPENBOOKS_DB_NAME:-openbooks}
+    ports:
+      - '${OPENBOOKS_PORT:-8080}:8080'
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    <<: *openbooks-image
+    environment:
+      <<: *app-env
+      OPENBOOKS_ROLE: worker
+      DATABASE_URL: mysql://openbooks_app:${OPENBOOKS_APP_DB_PASSWORD:-openbooks_app_local}@mysql:3306/${OPENBOOKS_DB_NAME:-openbooks}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # Idles in M1 — no jobs are registered until the agent queue (M5) and the
+    # banking pipeline (M4). It exists now to keep the role dispatch honest.
+    healthcheck:
+      disable: true
+
+volumes:
+  mysql-data:

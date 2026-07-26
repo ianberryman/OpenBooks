@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Type information for the RuleTester. `no-float-money` is type-aware, so its
+  // tests need a real program; extending the base config means the fixture sees
+  // the actual `Money` brand through the `@openbooks/*` path mappings rather
+  // than a copy that could drift from it.
+  "extends": "../../../../tsconfig.base.json",
+  "include": ["file.ts"]
+}

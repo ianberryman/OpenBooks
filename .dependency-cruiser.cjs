@@ -85,7 +85,12 @@ module.exports = {
           '\\.d\\.ts$',
           '(^|/)tsconfig\\.json$',
           '(^|/)(eslint|vitest|vite)\\.config\\.(js|ts)$',
+          // Process and bundle entrypoints: nothing imports them by design.
           '^packages/server/src/entrypoints/',
+          '^packages/web/src/main\\.tsx$',
+          // RuleTester needs the fixture to exist inside a TS program for
+          // type-aware rules; importing it would defeat the point.
+          '^packages/eslint-plugin/test/fixtures/',
         ],
       },
       to: {},
