@@ -23,6 +23,11 @@ export default defineConfig({
           root: './packages/server',
           environment: 'node',
           include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+          // Starts the one shared MySQL container and applies migrations, then
+          // hands connection parameters to test files via `provide`/`inject`.
+          // Nothing else can own it: each test file runs in its own process, so a
+          // container started from a test would not survive to the next file.
+          globalSetup: ['test/setup/global-setup.ts'],
           // Real MySQL 8 via testcontainers (spec §11 — never SQLite, never
           // mocks). Container startup dominates; the suite reuses one
           // container, so the generous timeouts apply to setup, not cases.

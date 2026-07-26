@@ -114,6 +114,12 @@ export default tseslint.config(
           allow: [
             'packages/server/src/modules/ledger/posting.repository.ts',
             'packages/server/src/db/migrations/',
+            // Test factories build ledger fixtures directly. They are the one
+            // legitimate second writer: a factory that went through the posting
+            // service could not construct the invalid states the enforcement
+            // tests exist to reject. Listed here rather than as a file-scoped
+            // disable so every exemption to this rule is visible in one place.
+            'packages/server/test/db/factories.ts',
           ],
         },
       ],
