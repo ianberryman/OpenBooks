@@ -3,7 +3,15 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    // For `scripts/*.mjs`. Two things need it. ESLint's flat config runs type-aware rules
+    // over every linted file, and a file belonging to no TypeScript program is a parse
+    // error there — the root's own scripts are listed in `allowDefaultProject` in
+    // eslint.config.js, which this ticket may not edit. And `checkJs` means the drift gate
+    // is type-checked like everything else, which for a file that fails the build is worth
+    // more than the JSDoc annotations it costs.
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts", "scripts"]
 }

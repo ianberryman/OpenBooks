@@ -26,7 +26,10 @@
     "migrate:down": "yarn workspace @openbooks/server migrate:down",
     "codegen": "yarn workspace @openbooks/server codegen",
     "spec": "yarn workspace @openbooks/server spec",
-    "check": "yarn format:check && yarn lint && yarn lint:deps && yarn typecheck && yarn test"
+    "spec:check": "yarn workspace @openbooks/server spec --check",
+    "client:check": "node packages/web/scripts/check-client-drift.mjs",
+    "drift": "yarn spec:check && yarn client:check",
+    "check": "yarn format:check && yarn lint && yarn lint:deps && yarn typecheck && yarn drift && yarn test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

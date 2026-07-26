@@ -67,6 +67,17 @@ export default defineConfig({
           include: ['test/**/*.test.ts'],
         },
       },
+      {
+        // The web package's own config carries its `test` block; listing it here is
+        // what puts it inside `yarn test`. Without this entry its money-formatting
+        // tests ran only under an explicit `--root packages/web`, which means they
+        // were not in the gate and a regression would have shipped green.
+        extends: './packages/web/vite.config.ts',
+        test: {
+          name: 'web',
+          root: './packages/web',
+        },
+      },
     ],
   },
 });
