@@ -1,0 +1,83 @@
+# Node + Yarn setup, shared by every job in ci.yml that needs the dependency tree.
+#
+# Extracted into a composite action rather than repeated per job because the three
+# steps below are all load-bearing in non-obvious ways, and a copy that drifts from
+# the others is a job that silently installs something different from the rest of CI.
+#
+# Exports `YARN` to $GITHUB_ENV, so the calling job invokes the package manager as
+# `node "$YARN" <command>`. That indirection is not style — see the yarnPath note below.
+name: Set up Node and Yarn
+description: Installs Node from .nvmrc, restores the Yarn global cache, and runs an immutable install.
+
+inputs:
+  yarn-path:
+    description: >
+      The committed Yarn release. This is the single place in .github/ that names it;
+      the value is exported as $YARN for the calling job. Must match `packageManager`
+      in the root package.json and `ARG YARN` in the Dockerfile — ROADMAP D-10 pins
+      all three to the same release on purpose.
+    required: false
+    default: .yarn/releases/yarn-4.17.1.cjs
+
+runs:
+  using: composite
+  steps:
+    # Why the release is invoked as `node <path>` and never as bare `yarn`:
+    #
+    # ROADMAP D-10 pins Yarn in-repo at .yarn/releases/ so no build needs `corepack
+    # enable` (which wants write access to /usr/local/bin) or network access to
+    # bootstrap a package manager. The `yarn` already on the GitHub runner's PATH is
+    # Yarn 1, which does not read `yarnPath` out of .yarnrc.yml — the Dockerfile
+    # records the same finding and solves it the same way. So the release is called
+    # directly at every call site.
+    #
+    # Nested invocations are fine and do not need this treatment: Yarn 4 puts its own
+    # shim ahead of PATH for the processes it spawns, so `spawnSync('yarn', ...)` inside
+    # scripts/codegen.mjs and packages/web/scripts/check-client-drift.mjs reaches Yarn 4
+    # even when a Yarn 1 sits earlier on the inherited PATH. Verified by running
+    # `client:check` with a decoy `yarn` first on PATH.
+    - name: Export the pinned Yarn release as $YARN
+      shell: bash
+      run: echo "YARN=${{ inputs.yarn-path }}" >> "$GITHUB_ENV"
+
+    # .nvmrc (22.19.0) is the one statement of the Node version; `engines` in
+    # package.json is a floor, not a pin. Reading the file keeps CI from becoming a
+    # second opinion.
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+
+    # Deliberately NOT `actions/setup-node`'s `cache: yarn`. That feature decides where
+    # the cache lives by asking the `yarn` on PATH — which is Yarn 1 (see above) and
+    # answers with a Yarn 1 cache directory this repo never writes to. The cache would
+    # be saved and restored faithfully, and always be empty.
+    #
+    # `.yarnrc.yml` sets `enableGlobalCache: true`, so the cache is Yarn 4's global
+    # folder — `~/.yarn/berry/cache`, confirmed with `yarn config get cacheFolder` —
+    # and not the in-repo `.yarn/cache`, which this configuration never populates.
+    - name: Restore the Yarn global cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.yarn/berry/cache
+        key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+        # A stale-but-warm cache still saves most of the download; Yarn fetches only
+        # what the lockfile asks for that is missing.
+        restore-keys: |
+          yarn-${{ runner.os }}-
+
+    # `--immutable` so a lockfile that does not match the manifests fails the build
+    # instead of being rewritten. The lockfile is authored on darwin-arm64 and already
+    # carries resolutions for every platform-specific optional package, so this holds
+    # on linux too; a failure here means yarn.lock is genuinely stale.
+    #
+    # No `--immutable-cache`: with `enableGlobalCache: true` the cache is outside the
+    # repository and legitimately grows, so pinning it would fail on a cache miss.
+    #
+    # `enableScripts: false` (.yarnrc.yml) is deliberate and must not be overridden
+    # here — argon2 and esbuild resolve platform prebuilds at require time, so no
+    # postinstall is needed, and enabling scripts globally to fix a future native
+    # dependency would be the wrong fix (use `dependenciesMeta.<pkg>.built`).
+    - name: Install dependencies
+      shell: bash
+      run: node "${{ inputs.yarn-path }}" install --immutable
