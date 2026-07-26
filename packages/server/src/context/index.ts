@@ -9,6 +9,11 @@
 export type { RequestContext, RequestContextInit } from './context';
 export { createRequestContext } from './context';
 
+// The pre-auth scope. Here rather than in `src/transport/` because both transport
+// and `src/modules/` need it and the boundary rules only let them share via this
+// module — see `authentication.ts`.
+export { isAuthenticatedContext, UNAUTHENTICATED_ID } from './authentication';
+
 export { ContextUnavailableError } from './errors';
 
 export type { ContextOverrides } from './store';

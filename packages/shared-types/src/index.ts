@@ -3,4 +3,5 @@
  * validation, TypeScript types, and the published OpenAPI spec (spec §3).
  */
 
+export * from './accounts';
 export * from './money';

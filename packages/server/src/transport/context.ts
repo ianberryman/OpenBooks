@@ -10,7 +10,7 @@ import type { ActorType, InvocationMode } from '@openbooks/plugin-api';
 import type { FastifyRequest } from 'fastify';
 
 import type { ContextOverrides, RequestContext } from '../context';
-import { createRequestContext } from '../context';
+import { createRequestContext, UNAUTHENTICATED_ID } from '../context';
 import { readIdempotencyKey } from './idempotency';
 
 /**
@@ -31,45 +31,22 @@ const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 export const REQUEST_ID_RESPONSE_HEADER = 'x-request-id';
 
 /**
- * The org, role, and actor a request carries before authentication has run.
+ * The pre-auth scope every request starts in.
  *
- * ## Why this exists at all
+ * The constant and its test now live in `src/context/authentication.ts`, which
+ * carries the reasoning for the nil UUID and for the move. The short version is
+ * that `src/modules/` may not import `src/transport/` — OB-016's permission check
+ * and OB-015's identity resolver both need this, and `src/context/` is the module
+ * both layers may reach.
  *
- * `RequestContext` (= plugin-api's `OperationContext`) makes `orgId`, `roleId`,
- * `actorType`, and `actorId` non-optional, deliberately: spec §4's guarantee is
- * that scope cannot be absent, and a context whose `orgId` might be `undefined`
- * pushes a null check into every tenant query, which is precisely the hole the
- * requirement closes. So there is no such thing as a context without an org, and
- * the pre-auth scope has to name one.
- *
- * ## Why the nil UUID is the safe thing to name
- *
- * `00000000-0000-0000-0000-000000000000` is well-formed, so nothing downstream
- * has to handle a malformed id, and it cannot name a real row: every `orgs.id`,
- * `roles.id`, and `users.id` in the system is a version-4 UUID (the seeded system
- * roles in migration `0001` are `…-4000-8000-…`), and the nil UUID's version
- * nibble is `0`. A query that somehow ran in this scope therefore returns zero
- * rows and, through `assertFound`, the one response A7 permits — a `not_found`
- * carrying no identifier. It fails closed.
- *
- * It is also not a capability. `tenantDb` takes an `OrgId`, which is a `Buffer`,
- * while a context's `orgId` is a string; reaching the database from this scope
- * requires an explicit conversion at the call site, which is visible in review
- * rather than implicit.
- *
- * ## What may run in it
- *
- * Only routes that touch no tenant data: `GET /health`, and OB-023's
+ * Only routes that touch no tenant data may run in it: `GET /health`, and OB-023's
  * identity-establishing routes — the ones whose `RouteDefinition.permission` is
  * `null`. Every other route runs in the scope derived by the identity resolver
- * below, and OB-016's permission check refuses a request whose context is still
- * unauthenticated (`isAuthenticatedContext` is the test).
+ * below.
+ *
+ * Re-exported so the transport surface in `src/transport/index.ts` is unchanged.
  */
-const UNAUTHENTICATED_ID = '00000000-0000-0000-0000-000000000000';
-
-export function isAuthenticatedContext(context: RequestContext): boolean {
-  return context.orgId !== UNAUTHENTICATED_ID;
-}
+export { isAuthenticatedContext } from '../context';
 
 /**
  * What OB-015 must produce from a request, and nothing more.

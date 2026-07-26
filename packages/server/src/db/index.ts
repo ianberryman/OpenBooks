@@ -49,7 +49,14 @@ export function tenantDb(orgId: OrgId): TenantDatabase {
  *    explains why it cannot be a foreign key.
  */
 export function systemDb(): Kysely<DB> {
-  return rawDb();
+  // Joins an ambient transaction for the same reason tenantDb does, and the
+  // asymmetry was a real bug before this line existed: registration writes `users`
+  // and `orgs` (neither org-scoped, so both reached through here) alongside
+  // `org_members` (a tenant table, reached through the wrapper). With only the
+  // wrapper transaction-aware, those landed on two connections, so a half-created
+  // account could survive a rollback. Both OB-015 and OB-019 hit it independently,
+  // which is the signal that the inconsistency was the defect and not their code.
+  return ambientTransaction() ?? rawDb();
 }
 
 export { initializeDatabase, destroyDatabase, isDatabaseInitialized } from './client';
@@ -64,6 +71,10 @@ export {
   tryUuidToBuffer,
   uuidToBuffer,
 } from './uuid';
+// The single conversion from a context's UUID-string orgId to the BINARY(16) form
+// tenantDb takes. Three modules had written this independently before it was
+// hoisted; see org-scope.ts for why its failure is a 500 and not a 400.
+export { orgScope } from './org-scope';
 export { TenantDatabase } from './tenant';
 export type { OrgId, TenantInsert, TenantUpdate } from './tenant';
 export type { TenantTableName } from './tenant-tables';

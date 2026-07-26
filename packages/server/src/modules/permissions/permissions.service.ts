@@ -1,5 +1,6 @@
 import type { RequestContext } from '../../context';
-import { InternalError, PermissionDeniedError } from '../../errors';
+import { isAuthenticatedContext } from '../../context';
+import { InternalError, PermissionDeniedError, UnauthenticatedError } from '../../errors';
 import type { PermissionKey } from './catalog';
 import { isUuid, selectMembershipRole, selectRolePermissionKeys } from './permissions.repository';
 
@@ -131,28 +132,32 @@ export async function hasPermission(
  * when one is reached by surrogate id, `assertOrgMatch` throws `NotFoundError`
  * rather than this.
  *
- * ## Open seam: 401 versus 403 for a request that presented no credentials
+ * ## 401 versus 403 for a request that presented no credentials
  *
- * The HTTP transport opens every request in a pre-auth scope whose `orgId` is the
- * nil UUID, and `src/transport/index.ts` states that this check is where such a
- * request should be refused, via its `isAuthenticatedContext`. This module cannot
- * call it: `.dependency-cruiser.cjs`'s `services-do-not-import-transport` makes
- * `src/modules/` → `src/transport/` a build failure, and correctly so — a service
- * that imports transport is a service the MCP surface and the M6 workflow engine
- * cannot call.
+ * The transport opens every request in a pre-auth scope whose `orgId` is a nil-UUID
+ * sentinel. Before that sentinel lived in `src/context/`, this check could not see
+ * it — transport owned it, and `services-do-not-import-transport` correctly forbids
+ * a service from importing transport, since such a service is one the MCP surface
+ * and the M6 workflow engine cannot call.
  *
- * The behaviour is safe in the meantime rather than merely unspecified: the nil
- * UUID is a well-formed UUID that names no row (every real id is v4), so a pre-auth
- * context resolves to an empty set and every check fails closed. It fails with a
- * `403` where `401` is the more accurate answer. The fix is not to restate the
- * sentinel here, which would put a security constant in two files; it is to move it
- * into `src/context/`, which both layers may import. Neither this ticket nor OB-022
- * owns that module — see the OB-016 report.
+ * The behaviour was safe but wrong in detail: the nil UUID names no row, so a
+ * pre-auth context resolved to an empty permission set and every check failed
+ * closed — with a `403` where `401` belongs. `403` tells a caller their credentials
+ * are insufficient, which misdescribes having presented none and sends them looking
+ * for a permission problem instead of a login.
+ *
+ * The sentinel now lives in `src/context/`, which both layers may import, so the
+ * distinction is drawn here without restating a security constant in two files.
  */
 export async function requirePermission(
   ctx: RequestContext,
   permission: PermissionKey,
 ): Promise<void> {
+  // Checked before resolution, not after: an unauthenticated caller has no role to
+  // resolve, and answering from an empty set would report the wrong reason.
+  if (!isAuthenticatedContext(ctx)) {
+    throw new UnauthenticatedError();
+  }
   if (!(await hasPermission(ctx, permission))) {
     throw new PermissionDeniedError(permission);
   }

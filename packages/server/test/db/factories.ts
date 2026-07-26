@@ -231,9 +231,11 @@ export function createFactories(db: Kysely<DB>): Factories {
    * property untested precisely where it is most likely to break — under the
    * concurrent posting that OB-026 exercises.
    *
-   * Runs as the migrator handle the factories already hold, which matters because
-   * the app user's grant on this table is what makes the production path possible
-   * at all (0004_app_grants).
+   * Runs as the **app** user, which is what the factories are constructed with —
+   * and that is the stronger position, not a compromise. `FOR UPDATE` here only
+   * works because `journal_sequences` is in 0004_app_grants' mutable allowlist,
+   * so the fixture exercises the same grant the posting repository depends on.
+   * Allocating as the migrator would have hidden a missing grant until production.
    */
   async function allocateSequenceNumber(orgId: Buffer): Promise<bigint> {
     return db.transaction().execute(async (trx) => {

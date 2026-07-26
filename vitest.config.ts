@@ -7,11 +7,23 @@ const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url));
  * Internal packages are consumed from source everywhere — tests, dev, and the
  * esbuild production bundle. These aliases are the test-time half of that.
  * Keep in sync with `paths` in tsconfig.base.json.
+ *
+ * Subpaths are mapped as well as bare specifiers, and that pairing is the point:
+ * `tsconfig.base.json` declares `@openbooks/shared-types/*`, so a subpath import
+ * *typechecks*. With only the bare specifier aliased here it then failed to
+ * resolve at run time — a module that compiles and does not exist, which is the
+ * worst available failure mode. The array form is required because the object
+ * form matches exact strings only.
  */
-const alias = {
-  '@openbooks/plugin-api': pkg('./packages/plugin-api/src/index.ts'),
-  '@openbooks/shared-types': pkg('./packages/shared-types/src/index.ts'),
-};
+const alias = [
+  { find: /^@openbooks\/plugin-api$/, replacement: pkg('./packages/plugin-api/src/index.ts') },
+  { find: /^@openbooks\/plugin-api\/(.*)$/, replacement: pkg('./packages/plugin-api/src/$1') },
+  { find: /^@openbooks\/shared-types$/, replacement: pkg('./packages/shared-types/src/index.ts') },
+  {
+    find: /^@openbooks\/shared-types\/(.*)$/,
+    replacement: pkg('./packages/shared-types/src/$1'),
+  },
+];
 
 export default defineConfig({
   test: {

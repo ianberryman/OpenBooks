@@ -14,6 +14,7 @@
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { rm, mkdir, writeFile } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -26,6 +27,68 @@ const outDir = path.join(repoRoot, 'dist', 'server');
  *  - pino and its transports spawn worker threads by resolved path
  */
 const external = ['argon2', 'mysql2', 'mysql2/promise', 'pino', 'pino-pretty', 'thread-stream'];
+
+/** Internal workspace packages, consumed from source. */
+const INTERNAL_PACKAGES = {
+  '@openbooks/plugin-api': path.join(repoRoot, 'packages/plugin-api/src'),
+  '@openbooks/shared-types': path.join(repoRoot, 'packages/shared-types/src'),
+};
+
+/**
+ * Resolves internal packages, bare specifier and subpath alike.
+ *
+ * A plugin rather than esbuild's `alias` option, because `alias` matches by exact
+ * module name and then *also* rewrites subpaths through the same mapping. With
+ * `'@openbooks/shared-types'` aliased to `…/src/index.ts`, the import
+ * `@openbooks/shared-types/money` was rewritten to `…/src/index.ts/money` and
+ * failed with "not a directory". So the alias did not merely miss subpaths, it
+ * broke them — while `tsconfig.base.json` declares `@openbooks/shared-types/*`,
+ * meaning such an import typechecked and then could not be bundled. Measured, not
+ * assumed.
+ */
+function internalPackageResolver() {
+  return {
+    name: 'openbooks-internal-packages',
+    /** @param {import('esbuild').PluginBuild} build */
+    setup(build) {
+      for (const [name, sourceDir] of Object.entries(INTERNAL_PACKAGES)) {
+        const escaped = name.replace(/[/\-@]/g, (c) => `\\${c}`);
+        build.onResolve({ filter: new RegExp(`^${escaped}(/.*)?$`) }, (args) => {
+          const subpath = args.path.slice(name.length).replace(/^\//, '');
+          const resolved = resolveSourceFile(sourceDir, subpath);
+          if (!resolved) {
+            return {
+              errors: [{ text: `Cannot resolve '${args.path}' under ${sourceDir}` }],
+            };
+          }
+          return { path: resolved };
+        });
+      }
+    },
+  };
+}
+
+/**
+ * Tries the candidate as a file, then with `.ts`, then as a directory index.
+ *
+ * The file check is `isFile()`, not `existsSync()`. A bare `existsSync` is true for
+ * a directory, so `@openbooks/shared-types/money` resolved to the *directory*
+ * `src/money` and esbuild failed with "is a directory" rather than falling through
+ * to `src/money/index.ts`. Caught by probing the resolver directly instead of
+ * trusting that a passing `yarn build` covered it — the real entrypoint happens to
+ * use only bare specifiers, so the build was green while subpaths were broken.
+ */
+function resolveSourceFile(sourceDir, subpath) {
+  const base = subpath === '' ? path.join(sourceDir, 'index.ts') : path.join(sourceDir, subpath);
+  for (const candidate of [base, `${base}.ts`, path.join(base, 'index.ts')]) {
+    try {
+      if (statSync(candidate).isFile()) return candidate;
+    } catch {
+      // Not present; try the next shape.
+    }
+  }
+  return undefined;
+}
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
@@ -49,10 +112,7 @@ const result = await build({
       'const require = __createRequire(import.meta.url);',
     ].join('\n'),
   },
-  alias: {
-    '@openbooks/plugin-api': path.join(repoRoot, 'packages/plugin-api/src/index.ts'),
-    '@openbooks/shared-types': path.join(repoRoot, 'packages/shared-types/src/index.ts'),
-  },
+  plugins: [internalPackageResolver()],
 });
 
 await writeFile(path.join(outDir, 'meta.json'), JSON.stringify(result.metafile, null, 2));

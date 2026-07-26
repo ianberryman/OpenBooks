@@ -166,9 +166,16 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
 
   await app.register(cookie, {
     /**
-     * Signed cookies for OB-015's session. The secret is validated at ≥32
-     * characters by the config schema, so there is no weak-key case to handle
-     * here.
+     * The secret enables signing *support*; the session cookie itself is
+     * deliberately unsigned.
+     *
+     * A signature would make `SESSION_SECRET` a second authority on whether a
+     * session is live, so rotating it would log everyone out while the `sessions`
+     * table still said otherwise — the opposite of why sessions are server-side
+     * (D-03). The token is 32 random bytes and its liveness comes from a row
+     * lookup, which a signature cannot improve on. Kept configured so a future
+     * cookie that genuinely needs tamper-evidence without a database read (a CSRF
+     * double-submit token, say) has it available.
      */
     secret: config.session.secret,
     parseOptions: {
