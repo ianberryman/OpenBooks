@@ -123,6 +123,14 @@ const MUTABLE: Row = {
  * The update probe needs *some* column to assign, and reading one out of
  * `information_schema` rather than naming one per table means adding a table to the
  * migration's list is the only edit this suite needs.
+ *
+ * Generated columns are excluded, and that exclusion is load-bearing rather than
+ * tidiness. MySQL refuses to write a generated column at all, with errno 3105
+ * (ER_WRONG_VALUE_FOR_GENERATED_COLUMN) — which this suite would report as a *denial*,
+ * so `idempotency_keys` read as append-only the moment `claim_scope` was added even
+ * though its grants were untouched. A privilege probe that cannot tell "no grant" from
+ * "not writable" is worse than no probe, because it fails in the safe-looking
+ * direction.
  */
 const columns = new Map<string, string>();
 
@@ -131,6 +139,7 @@ beforeAll(async () => {
     SELECT TABLE_NAME AS table_name, MIN(COLUMN_NAME) AS column_name
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = ${db.info.database}
+      AND EXTRA NOT LIKE '%GENERATED%'
     GROUP BY TABLE_NAME
   `.execute(db.migrator);
 
@@ -152,7 +161,11 @@ function probe(table: string, verb: Verb): RawBuilder<unknown> {
       // `INSERT … SELECT` with a false predicate: the INSERT privilege is checked,
       // and no row is constructed, so no CHECK constraint or foreign key can turn a
       // privilege question into a data question.
-      return sql`INSERT INTO ${name} SELECT * FROM ${name} WHERE 1 = 0`;
+      //
+      // The column list is explicit rather than `SELECT *` for the same reason the
+      // column above skips generated columns: `*` includes them, and naming one in an
+      // INSERT is errno 3105 regardless of privilege.
+      return sql`INSERT INTO ${name} (${field}) SELECT ${field} FROM ${name} WHERE 1 = 0`;
     case 'update':
       return sql`UPDATE ${name} SET ${field} = ${field} WHERE 1 = 0`;
     case 'delete':

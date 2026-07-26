@@ -62,13 +62,14 @@ export interface FiscalPeriods {
 }
 
 export interface IdempotencyKeys {
+  claim_scope: Generated<Buffer>;
   completed_at: Date | null;
   created_at: Generated<Date>;
   endpoint: string;
   expires_at: Date;
   id: Buffer;
   idempotency_key: string;
-  org_id: Buffer;
+  org_id: Buffer | null;
   request_fingerprint: string;
   response_body: Json | null;
   response_status: number | null;

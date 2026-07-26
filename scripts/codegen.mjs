@@ -77,6 +77,13 @@ const OVERRIDES = {
     // README's "every BIGINT is a bigint" stops being true.
     'journals.sequence_number': 'bigint',
     'journal_sequences.next_value': 'Generated<bigint>',
+    // A STORED generated column (0003_idempotency). MySQL rejects any attempt to
+    // write it, so it must not be required on insert; the generator has no notion of
+    // generated columns and typed it as a plain Buffer. `Generated<>` is the closest
+    // available truth — it makes the column optional. It does not make supplying one
+    // impossible, so nothing should reference it outside the unique index it exists
+    // for.
+    'idempotency_keys.claim_scope': 'Generated<Buffer>',
     'journals.entry_date': 'string',
     'fiscal_periods.start_date': 'string',
     'fiscal_periods.end_date': 'string',
