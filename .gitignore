@@ -108,7 +108,8 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# yarn v2
+# yarn v2+ — .yarn/releases and .yarn/patches ARE committed so the pinned
+# Yarn 4 binary travels with the repo and CI needs no corepack bootstrap.
 .yarn/cache
 .yarn/unplugged
 .yarn/build-state.yml
@@ -117,6 +118,27 @@ dist
 
 #IDEA
 .idea/
+
+# --- OpenBooks ---
+
+# Test coverage
+coverage/
+
+# Terraform. State and lockdirs never enter git; the .terraform.lock.hcl
+# provider lockfile deliberately does (see infra/terraform).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+
+# Local env overrides. .env.example is committed.
+.env.local
+.env.*.local
+
 
 #Database files
 data/

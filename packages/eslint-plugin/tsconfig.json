@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Rules are authored in JavaScript so ESLint can load the plugin with no
+    // transform in the config load path. checkJs keeps them type-checked.
+    "allowJs": true,
+    "checkJs": true,
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src", "test"]
+}

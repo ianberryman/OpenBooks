@@ -1,0 +1,46 @@
+{
+  "name": "openbooks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "Open-source, AI-native, modular double-entry accounting system",
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:deps": "depcruise packages --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "yarn workspaces foreach --all --parallel --topological-dev run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "yarn workspaces foreach --all --topological-dev run build",
+    "dev": "yarn workspace @openbooks/server dev",
+    "migrate": "yarn workspace @openbooks/server migrate",
+    "migrate:down": "yarn workspace @openbooks/server migrate:down",
+    "codegen": "yarn workspace @openbooks/server codegen",
+    "spec": "yarn workspace @openbooks/server spec",
+    "check": "yarn format:check && yarn lint && yarn lint:deps && yarn typecheck && yarn test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@openbooks/eslint-plugin": "workspace:*",
+    "@types/node": "^22.15.0",
+    "dependency-cruiser": "^18.1.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^10.8.0",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "yarn@4.17.1"
+}

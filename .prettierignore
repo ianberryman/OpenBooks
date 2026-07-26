@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.terraform
+*.tfstate
+*.tfstate.*
+
+# Generated artifacts — owned by their generators, never hand-edited.
+packages/server/src/db/generated.ts
+packages/web/src/api/schema.d.ts
+openapi.json

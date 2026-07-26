@@ -1,0 +1,30 @@
+{
+  "name": "@openbooks/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "OpenBooks React app. Consumes the public REST API only — no internal shortcuts.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "codegen": "openapi-typescript ../../openapi.json -o src/api/schema.d.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.4",
+    "openapi-fetch": "^0.17.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.4",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "5.9.3",
+    "vite": "^8.1.5"
+  }
+}
