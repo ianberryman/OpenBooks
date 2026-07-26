@@ -185,16 +185,17 @@ export async function updatePeriodClosure(
  * passed here comes from request context and never from a caller, so there is no
  * cross-org read to guard.
  *
- * Two consequences of using `systemDb` that callers should know:
+ * One consequence of using `systemDb` that callers should know: returning `undefined`
+ * means no such org row, which for an org id taken from a live request context is a
+ * fault rather than a caller error. The service says so.
  *
- *  - It does **not** join an ambient transaction — `systemDb()` returns the pool
- *    handle, where `tenantDb()` consults `ambientTransaction()`. So this read is on a
- *    separate connection from any surrounding transaction. That is harmless here
- *    because the service reads the start month *before* opening its transaction and
- *    because the value is a rarely-changed setting, but it is a real asymmetry and it
- *    would matter to a caller that needed a consistent snapshot across both.
- *  - Returning `undefined` means no such org row, which for an org id taken from a
- *    live request context is a fault rather than a caller error. The service says so.
+ * This comment previously warned that `systemDb()` does **not** join an ambient
+ * transaction while `tenantDb()` does. That asymmetry was real when this was written
+ * and has since been fixed — `systemDb()` now consults `ambientTransaction()` too,
+ * because registration writes `users` and `orgs` through it alongside `org_members`
+ * through the wrapper, and on two connections a half-created account could survive a
+ * rollback. So this read *does* join a surrounding transaction, and the OB-026 races
+ * depend on exactly that.
  */
 export async function selectFiscalYearStartMonth(orgId: OrgId): Promise<number | undefined> {
   const row = await systemDb()

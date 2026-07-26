@@ -44,8 +44,24 @@ import type { MigrationDb } from './types';
  */
 const APP_DB_USER = 'openbooks_app';
 
-/** Tables the application may never UPDATE or DELETE (spec §2.2, §12). */
-const APPEND_ONLY_TABLES = ['journals', 'journal_lines'] as const;
+/**
+ * Tables the application may never UPDATE or DELETE.
+ *
+ * Two different reasons land a table here, and both matter:
+ *
+ *  - `journals` / `journal_lines` — the ledger is append-only and corrections are
+ *    reversing entries (spec §2.2, §12). This is the guarantee the whole grant split
+ *    exists to enforce.
+ *  - `permissions` — the fixed catalog (spec §5). The application reads it and never
+ *    writes it; only a migration may change it.
+ *
+ * `permissions` is listed rather than left out even though omission produced the same
+ * behaviour, because the *signal* is what this file trades on: "in neither list" has
+ * to mean "somebody forgot". A table whose correct treatment happens by accident
+ * cannot be told apart from an oversight, which is precisely the confusion the
+ * declarative lists are here to prevent. Found by OB-026's converse check.
+ */
+const APPEND_ONLY_TABLES = ['journals', 'journal_lines', 'permissions'] as const;
 
 /**
  * Tables the application may UPDATE and DELETE. Ordinary mutable state:

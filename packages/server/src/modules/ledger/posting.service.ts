@@ -11,7 +11,14 @@ import type { Money } from '@openbooks/shared-types/money';
 
 import { getContext } from '../../context';
 import type { RequestContext } from '../../context';
-import { bufferToUuid, orgScope, tenantDb, tryUuidToBuffer, uuidToBuffer } from '../../db';
+import {
+  bufferToUuid,
+  isDuplicateEntryError,
+  orgScope,
+  tenantDb,
+  tryUuidToBuffer,
+  uuidToBuffer,
+} from '../../db';
 import type { OrgId, TenantDatabase } from '../../db';
 import {
   ConflictError,
@@ -155,35 +162,46 @@ export async function reverseJournal(
       'journal',
     );
 
-    // uq_journals_org_reverses would reject a second reversal anyway; checking first
-    // turns a driver duplicate-key error into an answer that names the reversal that
-    // already exists. The unique key remains the actual guarantee — this check races
-    // and the index does not.
+    // uq_journals_org_reverses is the guarantee; this check only produces a better
+    // message. It races, and the index does not.
     const existing = await selectExistingReversal(trx, original.id);
     if (existing) {
-      throw new ConflictError(
-        `Journal is already reversed by ${bufferToUuid(existing)}. A journal may be ` +
-          'reversed once; reversing the reversal re-instates the original.',
-      );
+      throw alreadyReversed(existing);
     }
 
     const period = await assertPostable(input.date);
     const sequenceNumber = await allocateSequenceNumber(trx, orgId);
 
     const journalId = newJournalId();
-    await insertJournal(trx, {
-      id: journalId,
-      sequenceNumber,
-      periodId: uuidToBuffer(period.id),
-      entryDate: input.date,
-      memo: input.memo ?? `Reversal of journal ${original.sequenceNumber.toString()}`,
-      reference: null,
-      source: 'reversal',
-      actorType: input.actorType,
-      actorId,
-      invocationMode: input.invocationMode ?? null,
-      reversesJournalId: original.id,
-    });
+    try {
+      await insertJournal(trx, {
+        id: journalId,
+        sequenceNumber,
+        periodId: uuidToBuffer(period.id),
+        entryDate: input.date,
+        memo: input.memo ?? `Reversal of journal ${original.sequenceNumber.toString()}`,
+        reference: null,
+        source: 'reversal',
+        actorType: input.actorType,
+        actorId,
+        invocationMode: input.invocationMode ?? null,
+        reversesJournalId: original.id,
+      });
+    } catch (error: unknown) {
+      // The losing side of a concurrent reversal, translated.
+      //
+      // The pre-check above cannot see a reversal that another transaction has not yet
+      // committed, so under real contention both callers reach this insert and one
+      // violates uq_journals_org_reverses. The *guarantee* was never in doubt — exactly
+      // one reversal exists either way — but the raw ER_DUP_ENTRY propagated to
+      // `toWireError` as an opaque `internal_error`, reporting a server fault for a
+      // request the system understood and correctly refused. Found by OB-026 under two
+      // real connections; the sequential test could not reach it.
+      if (isDuplicateEntryError(error)) {
+        throw alreadyReversed(await selectExistingReversal(trx, original.id));
+      }
+      throw error;
+    }
 
     // Sides swap; amounts are untouched. Line numbers are re-derived rather than
     // copied so the reversal is a well-formed journal in its own right.
@@ -357,6 +375,23 @@ async function assertAccountsPostable(
  * it. A missing actor is a wiring fault in the caller, not a client error — the
  * transport populates it from the resolved session.
  */
+/**
+ * One construction of the already-reversed conflict, used by both the pre-check and
+ * the duplicate-key path, so the two cannot drift into differently-worded answers for
+ * the same condition.
+ *
+ * `existing` may be undefined on the losing side of a race whose winner committed
+ * after this transaction's snapshot: the guarantee still held, so the answer is still
+ * a conflict, just without an id to name.
+ */
+function alreadyReversed(existing: Buffer | undefined): ConflictError {
+  const suffix = existing === undefined ? '' : ` by ${bufferToUuid(existing)}`;
+  return new ConflictError(
+    `Journal is already reversed${suffix}. A journal may be reversed once; reversing ` +
+      'the reversal re-instates the original.',
+  );
+}
+
 function requireActorId(actorId: string): Buffer {
   const buffer = tryUuidToBuffer(actorId);
   if (!buffer) {
