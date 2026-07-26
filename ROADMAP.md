@@ -437,7 +437,87 @@ Vitest aliases, and the bundler alias — one resolution story for dev, test, an
 of a dev-vs-dist split. `tsc` is used only for typechecking. Native and worker-spawning
 dependencies (argon2, mysql2, pino) stay external.
 
----
+<a id="d-13"></a>
+**D-13 — Money crosses the wire as an integer number of cents.** Stored as `BIGINT` minor units
+(spec §12), carried in JSON as an integer, converted to a decimal for display and nowhere else.
+
+This supersedes an earlier decision to send money as a minor-unit _string_. The string was chosen
+because a JSON number is an IEEE-754 double, but that reasoning conflates two different problems:
+decimal fractions like `0.1` are genuinely unrepresentable, whereas **integers are exact up to
+2^53** — about 9.007×10¹⁵ cents, or roughly $90 trillion. For an integer count of cents a JSON
+number is exact across any amount this system will legitimately see, and it is markedly easier for
+integrators than a string that every client must remember to parse.
+
+The residual gap is real and is closed by validation rather than by hope: `BIGINT` holds values up
+to ~9.2×10¹⁸ cents, far beyond what a JSON number carries faithfully, so the database can store
+amounts the wire cannot. Every money field is therefore validated at the boundary to
+`|cents| <= Number.MAX_SAFE_INTEGER` and rejected with a `validation_failed` beyond it. That makes
+the wire format provably exact for everything the API accepts, instead of silently rounding at the
+edge.
+
+One consequence for the display path: "display as a decimal" must not mean `cents / 100` in
+floating point, which yields `1234.5599999999999` for some values. Formatting goes through
+`toDecimalString` in `@openbooks/shared-types`, which does it by string manipulation. The float
+exists only in the rendered glyphs, never in a computation.
+
+<a id="d-14"></a>
+**D-14 — Journals carry a gapless per-org sequence number.** `journals.sequence_number`, unique per
+org, in addition to the UUID primary key. Accountants and auditors expect a human-readable
+monotonic reference, and adding one after the tables hold data means backfilling every journal and
+inventing numbers for history.
+
+Allocated from a `journal_sequences` counter row taken `FOR UPDATE` inside the posting transaction,
+not from `MAX(sequence_number) + 1` and not from `AUTO_INCREMENT`. Each alternative fails for its
+own reason, and the first is the interesting one: the app user cannot run `SELECT … FOR UPDATE` on
+`journals` at all, because MySQL requires `UPDATE`/`DELETE`/`LOCK TABLES` alongside `SELECT` for a
+locking read and withholding those is exactly how immutability is enforced (see OB-014's finding).
+`AUTO_INCREMENT` would leave gaps on rollback, and a gap in a journal sequence is indistinguishable
+from a deleted entry — precisely the ambiguity the append-only design exists to remove.
+
+<a id="d-15"></a>
+**D-15 — Until first release, migrations are edited in place, not appended to.** Nothing is
+deployed and no database holds data worth preserving, so a schema change belongs in the migration
+that created the table rather than in a new one. Four readable migrations describing the current
+schema are worth more than a dozen recording the order in which it was designed.
+
+This inverts at the first release, and the inversion is not gradual: once any environment holds
+data, migrations become append-only forever. Worth stating explicitly because the habit formed
+pre-release is the one that gets carried across that line by accident.
+
+<a id="d-16"></a>
+**D-16 — Deletion stays impossible, and reversal is not the UX answer to it.** QuickBooks Online
+permits deleting transactions; the question is whether that is cleaner. It is _simpler_, and it is
+not cleaner in the property that matters. A deleted transaction means the books can no longer
+reproduce what they said on a past date, a filed return stops reconciling to the ledger that
+produced it, and concealing an error becomes indistinguishable from never making one. Spec §2.2 and
+§2.3 already chose the other side, and the whole immutability apparatus — the grant split, the
+composite keys, gate A6 — implements that choice.
+
+But there is a genuine UX complaint underneath the question, and reversal does not answer it: a
+typo noticed ten seconds after posting should not produce three journal entries. The answer is a
+**draft state** — an entry that has not yet reached the ledger can be edited and discarded freely,
+because it is not yet a posting. That gives the delete-like experience where users actually want it
+without a mutable ledger. Deferred to M2 with the manual JE UI, where the friction is first felt.
+
+<a id="d-17"></a>
+**D-17 — Fiscal periods are calendar months, generated a year at a time.** A fiscal period is the
+smallest span the books are closed over. In practice that is almost always a calendar month: twelve
+per fiscal year, closed monthly as a soft close and annually as a hard close. Quarters exist as a
+reporting rollup rather than as the closing unit, and retail's 4-4-5 week calendar is real but is a
+mid-market concern, not a solo/micro-business one (spec §1). The fiscal _year_ frequently does not
+start in January — April, July, and October are all common — so the year's start month is a
+per-org setting even though the periods within it are ordinary months.
+
+So M1 ships: a fiscal-year-start month on the org, and period generation that creates twelve monthly
+periods for a given year in one call. Periods are contiguous by construction, which sidesteps the
+gap problem — a date falling in no period is un-postable, and `journals.period_id` being `NOT NULL`
+means that is enforced rather than merely discouraged.
+
+Generation is explicit, never implicit on first post. Auto-creating the enclosing period at posting
+time would let a posting silently manufacture a period inside a year that had already been closed,
+which is the reverse of what closing a year is for. The cost is that onboarding must generate
+periods before the first entry — a prerequisite rather than a nicety, and a real M1 acceptance
+dependency for "a user runs a full month of manual books".
 
 ## Risks
 
