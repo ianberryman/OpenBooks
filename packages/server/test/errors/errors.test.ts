@@ -129,6 +129,40 @@ describe('serialization for the HTTP layer', () => {
     expect(toWireError(error).message).toBe('An internal error occurred.');
   });
 
+  it('keeps an internal error’s details out of the response too', () => {
+    // `clientMessage` covers the message field, but `details` was forwarded
+    // unconditionally, so a details bag on a 500 reached the response body through
+    // the other field — the same leak arriving by a different route. Observed in
+    // practice: a serialization failure carrying Zod issue text.
+    //
+    // There is no legitimate reason a client needs structured detail about a fault
+    // it cannot act on, so this is stripped centrally rather than at each throw.
+    const error = new InternalError('serialization failed', {
+      query: 'select * from users where password_hash = ?',
+      host: '10.0.1.4',
+    });
+
+    const wire = toWireError(error);
+
+    expect('details' in wire).toBe(false);
+    expect(JSON.stringify(wire)).not.toContain('password_hash');
+    expect(JSON.stringify(wire)).not.toContain('10.0.1.4');
+    // The detail is not destroyed — the error still carries it to the logger,
+    // which is where an operator is supposed to read it.
+    expect(error.details).toMatchObject({ host: '10.0.1.4' });
+  });
+
+  it('still forwards details for errors a client can act on', () => {
+    // The stripping is specific to internal_error, not blanket. A validation
+    // failure's issues are the entire point of the response.
+    const wire = toWireError(
+      new ValidationError('invalid', [{ path: 'lines.0.amount', message: 'must be positive' }]),
+    );
+    expect(wire.details).toEqual({
+      issues: [{ path: 'lines.0.amount', message: 'must be positive' }],
+    });
+  });
+
   it('treats anything it does not recognise as an opaque internal error', () => {
     for (const thrown of [new TypeError('cannot read x of undefined'), 'boom', undefined, 42]) {
       expect(toWireError(thrown)).toEqual({

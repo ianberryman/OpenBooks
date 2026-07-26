@@ -32,13 +32,14 @@ export function isOpenBooksError(value: unknown): value is OpenBooksError {
  */
 export function toWireError(error: unknown): WireError {
   if (isOpenBooksError(error)) {
+    const details = wireDetails(error);
     return {
       code: error.code,
       status: error.status,
       message: error.clientMessage,
-      // Spread rather than `details: error.details` because
-      // exactOptionalPropertyTypes distinguishes an absent key from `undefined`.
-      ...(error.details === undefined ? {} : { details: error.details }),
+      // Spread rather than `details` because exactOptionalPropertyTypes
+      // distinguishes an absent key from one set to `undefined`.
+      ...(details === undefined ? {} : { details }),
     };
   }
 
@@ -47,4 +48,24 @@ export function toWireError(error: unknown): WireError {
     status: ERROR_CODE_STATUS[ERROR_CODES.INTERNAL_ERROR],
     message: 'An internal error occurred.',
   };
+}
+
+/**
+ * `details` never travels on an `internal_error`, whatever the error carries.
+ *
+ * `clientMessage` already replaces an operator message with a fixed string for
+ * this code, but `details` was forwarded unconditionally — so an `InternalError`
+ * constructed with a details bag put it in a 500 response body regardless. That is
+ * the same class of leak `clientMessage` exists to prevent, arriving through the
+ * other field. It was found in practice: a serialization failure carrying Zod
+ * issue text reached a response before OB-022 stripped it at the call site.
+ *
+ * Stripping here rather than at each throw site is the point. There is no
+ * legitimate reason a client needs structured detail about a fault it cannot act
+ * on, and a rule enforced in one place cannot be forgotten at the next `throw`.
+ * The detail is not lost — the error object still carries it to the logger, which
+ * is where an operator reads it.
+ */
+function wireDetails(error: OpenBooksError): ErrorDetails | undefined {
+  return error.code === ERROR_CODES.INTERNAL_ERROR ? undefined : error.details;
 }

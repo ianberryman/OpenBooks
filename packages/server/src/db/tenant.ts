@@ -13,6 +13,7 @@ import type {
 
 import type { DB } from './generated';
 import type { TenantTableName } from './tenant-tables';
+import { ambientTransaction, runInTransactionScope } from './transaction-scope';
 
 /** An org identifier as stored: a UUID in BINARY(16), plain hex byte order. */
 export type OrgId = Buffer;
@@ -133,14 +134,27 @@ export class TenantDatabase {
    * the one place org scoping did not apply.
    */
   async transaction<R>(body: (trx: TenantDatabase) => Promise<R>): Promise<R> {
+    // Joining an ambient transaction is checked first, and it is what makes
+    // composition work: `withIdempotency(..., () => postJournal(...))` has two
+    // services each opening a transaction, and without this they get two, on two
+    // connections, so a rollback of one leaves the other committed. See
+    // transaction-scope.ts for why this is ambient rather than a parameter.
+    const ambient = ambientTransaction();
+    if (ambient !== undefined) {
+      return body(new TenantDatabase(ambient, this.#orgId));
+    }
+
+    // MySQL has no true nested transactions, only savepoints, so a wrapper that
+    // already holds one joins it rather than pretending to start another.
     if (isTransaction(this.#executor)) {
-      // Already inside one. MySQL has no true nested transactions, only
-      // savepoints, and joining the outer transaction is what callers expect.
       return body(this);
     }
+
     return this.#executor
       .transaction()
-      .execute((trx) => body(new TenantDatabase(trx, this.#orgId)));
+      .execute((trx) =>
+        runInTransactionScope(trx, () => body(new TenantDatabase(trx, this.#orgId))),
+      );
   }
 
   /**

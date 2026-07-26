@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import { rawDb } from './client';
 import type { DB } from './generated';
 import { TenantDatabase, type OrgId } from './tenant';
+import { ambientTransaction } from './transaction-scope';
 
 /**
  * The public database surface. Two functions and some types — nothing else.
@@ -22,7 +23,10 @@ import { TenantDatabase, type OrgId } from './tenant';
  * top of a service method rather than threading an org through signatures.
  */
 export function tenantDb(orgId: OrgId): TenantDatabase {
-  return new TenantDatabase(rawDb(), orgId);
+  // An ambient transaction wins over the pool. Without this, a service called
+  // inside another service's transaction would silently get its own connection —
+  // see `transaction-scope.ts` for the composition this exists to make correct.
+  return new TenantDatabase(ambientTransaction() ?? rawDb(), orgId);
 }
 
 /**
