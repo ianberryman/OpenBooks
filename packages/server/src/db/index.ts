@@ -49,6 +49,17 @@ export function systemDb(): Kysely<DB> {
 }
 
 export { initializeDatabase, destroyDatabase, isDatabaseInitialized } from './client';
+// UUID ↔ BINARY(16). Exported here rather than left to deep imports because every
+// caller that holds an `OrgId` needs it, and a module that cannot find it writes
+// its own copy in the wrong byte order — which has already happened twice.
+export {
+  bufferToUuid,
+  isUuid,
+  newUuid,
+  newUuidBuffer,
+  tryUuidToBuffer,
+  uuidToBuffer,
+} from './uuid';
 export { TenantDatabase } from './tenant';
 export type { OrgId, TenantInsert, TenantUpdate } from './tenant';
 export type { TenantTableName } from './tenant-tables';
