@@ -8,15 +8,15 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                | Status                        |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ----------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Scoped, awaiting approval** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | Not scoped                    |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | Not scoped                    |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | Not scoped                    |
-| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                    |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                    |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                    |
+| Milestone | Spec phase | Outcome                                                                                                | Status                       |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | Not scoped                   |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | Not scoped                   |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | Not scoped                   |
+| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import.
 
@@ -526,6 +526,71 @@ time would let a posting silently manufacture a period inside a year that had al
 which is the reverse of what closing a year is for. The cost is that onboarding must generate
 periods before the first entry — a prerequisite rather than a nicety, and a real M1 acceptance
 dependency for "a user runs a full month of manual books".
+
+## Status
+
+All 27 tickets are built and committed on `develop`. The gate — `yarn check`, which runs
+formatting, lint, dependency boundaries, typecheck, both artifact drift gates, and the
+test suite — passes. 667 tests across 51 files against real MySQL 8.4 via testcontainers,
+roughly 28 seconds.
+
+### Acceptance criteria
+
+| #   | Criterion                                           | Proven by                                                                        |
+| --- | --------------------------------------------------- | -------------------------------------------------------------------------------- |
+| A1  | Post a manual balanced journal via REST             | `test/transport/v1.test.ts` — one narrative, register to trial balance           |
+| A2  | Trial balance balances                              | `test/ledger/posting.test.ts`, `test/properties/balance.test.ts`                 |
+| A3  | Unbalanced posting rejected                         | `test/ledger/posting.test.ts`, incl. "writes nothing when validation fails"      |
+| A4  | Posting to a locked period rejected                 | `test/ledger/posting.test.ts`; raced in `test/enforcement/`                      |
+| A5  | Unscoped query impossible to construct              | `test/db/tenant-scope.test.ts` — `@ts-expect-error`, so typecheck enforces it    |
+| A6  | `UPDATE`/`DELETE` on journals fails at grant level  | `test/db/harness.test.ts`, `test/enforcement/grants.test.ts`, as `openbooks_app` |
+| A7  | Cross-org read leaks nothing                        | `test/enforcement/cross-org.test.ts` — nine surfaces, byte-identical bodies      |
+| A8  | Duplicate idempotency key yields one journal        | `test/idempotency/concurrency.test.ts` — two connections, mutation-tested        |
+| A9  | Posting racing a period lock leaves nothing partial | `test/enforcement/posting-race.test.ts` — parked transactions, mutation-tested   |
+| A10 | Spec drift is a build failure                       | `yarn spec:check` plus `yarn client:check`                                       |
+| A11 | No float arithmetic on money paths                  | `openbooks/no-float-money`, type-aware, verified to fire                         |
+| A12 | Migrations are a discrete job                       | Compose gates api on migrate exiting zero; verified with a bad password          |
+| A13 | Structured logs carry actor provenance              | pino `mixin` reads the context; the mixin wins over call-site fields             |
+
+### Known gaps, carried deliberately
+
+1. **Org-less idempotency claims are half-wired.** The schema now supports them
+   (`claim_scope`, see `0003_idempotency`), but `withIdempotency` still resolves `orgId`
+   from context unconditionally — so register, login, logout, create-org, and switch-org
+   accept an `Idempotency-Key` and do not honour it. A header the API documents as
+   required and ignores is worse than no header: a retried create-org yields two orgs.
+   This is a service change plus tests. **Highest-value remaining item.**
+2. **No CORS layer.** The hosted layout puts the bundle on CloudFront and the API on a
+   separate hostname, but the server ships no CORS. `Idempotency-Key` is not
+   CORS-safelisted, so every write needs a preflight, and the session cookie is
+   `SameSite=Lax`, so the API hostname must be a same-site subdomain with
+   `SESSION_COOKIE_DOMAIN` set. Needed before the first hosted deploy, not before M2.
+3. **IaC has never been applied** (D-05). `infra/terraform/README.md` lists what would
+   likely break on first apply; `require_secure_transport` is item one, since nothing in
+   the server does TLS to MySQL yet.
+4. **`plugin-api` is designed against one consumer** and will be wrong in ways M2 and M3
+   reveal (spec §8). It is `0.x` and unpublished for exactly that reason.
+5. **Legal review outstanding** — the plugin-api linking exception and `CLA.md` were
+   drafted, not advised. Also `packages/plugin-api/package.json` says
+   `"license": "Apache-2.0"` without referencing the exception.
+6. **Seeded roles silently widen at M3.** The permission catalog seeds all 48 codes
+   including AR/AP, so when M3 lands a Bookkeeper gains invoice powers with no migration
+   and no audit event. A deliberate choice (it makes AP-only and AR-only meaningful
+   today), but the widening is invisible.
+7. **Worker restart policy must flip in M4/M5.** `on-failure` is right while the worker
+   returns immediately; once it blocks on a queue, a clean exit becomes an outage and it
+   needs `unless-stopped`.
+
+### Before scoping M3
+
+Spec §14 says to walk ACH Pro's existing QBO integration before finalizing Phase 2 and
+Phase 4 endpoint design, because you own both ends and can fix mismatches on either.
+AR/AP is exactly what that informs — vendor/bill sync, payment recording, status
+writeback, entity correlation. Doing it after the endpoints are frozen wastes the
+advantage. See also D-16: invoicing is where the deferred draft state first bites, since
+an invoice has a lifecycle a journal does not.
+
+---
 
 ## Risks
 

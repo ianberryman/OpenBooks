@@ -1,0 +1,128 @@
+# CLAUDE.md
+
+Working notes for OpenBooks. `ROADMAP.md` is the execution plan and the record of
+decisions (`D-01` … `D-17`); the v1 Development Scope is the source of truth for intent.
+Read the roadmap's **Status** section first — it lists what is proven, what is a known
+gap, and what to do before scoping M3.
+
+## Commands
+
+```bash
+yarn check          # the gate: format, lint, lint:deps, typecheck, drift, test
+yarn test           # 667 tests against real MySQL 8.4 via testcontainers (~28s)
+yarn migrate        # OPENBOOKS_ROLE=migrate; needs DATABASE_MIGRATOR_* credentials
+yarn codegen        # regenerate src/db/generated.ts from a live migrated database
+yarn drift          # spec:check + client:check — both artifacts must match their source
+yarn build          # esbuild server bundle + Vite web bundle
+```
+
+Yarn 4 is pinned in-repo at `.yarn/releases/`. Do not `corepack enable` — the committed
+release exists so nothing needs the network. `enableScripts: false` is deliberate;
+argon2 and esbuild resolve platform prebuilds at require time.
+
+## Non-negotiables
+
+These are enforced by the build, not by convention. If you find yourself wanting to work
+around one, that is the signal to stop and ask.
+
+**Journals are append-only, at the database level.** The app connects as
+`openbooks_app`, which holds no `UPDATE`/`DELETE` on `journals` or `journal_lines`.
+Corrections are reversing entries carrying `reverses_journal_id` (D-02). There is no
+column anywhere whose value changes after insert. A consequence that surprises people:
+the app cannot `SELECT … FOR UPDATE` on journals either, because MySQL requires
+`UPDATE`/`DELETE`/`LOCK TABLES` for a locking read — which is why the journal sequence
+counter is its own table (D-14).
+
+**Two database users.** `openbooks_migrator` has DDL and `GRANT OPTION`;
+`openbooks_app` has read/append plus `UPDATE`/`DELETE` on an explicit allowlist. MySQL
+cannot revoke a table privilege granted at schema level, so the privilege that must not
+exist is never granted — see `0004_app_grants`, which explains it at length. The same
+split is provisioned in Compose, testcontainers, and the RDS bootstrap, and
+`infra/scripts/check-db-bootstrap-parity.sh` fails if they diverge.
+
+**Money is `bigint` minor units end to end.** On the wire it is a **cents-only string**
+(`"150000"`) — never a decimal, never a JSON number (D-13). `fromMinorString` rejects
+`"1500.00"`. Display formatting is string manipulation; `cents / 100` in floating point
+yields `1234.5599999999999`. `openbooks/no-float-money` is type-aware and will catch you.
+
+**Tenant tables are only reachable through `tenantDb(orgId)`.** The raw Kysely handle
+has no public name and a dependency-cruiser rule fails the build on any import around it.
+An unscoped tenant query does not typecheck. `roles` is deliberately excluded from the
+tenant set — its `org_id` is nullable and NULL means a shared system role, so a bare
+equality would hide all six seeded roles. See `src/db/tenant-tables.ts`.
+
+**Transactions propagate ambiently.** `tenantDb()` and `systemDb()` both join an open
+transaction in the same async scope (`src/db/transaction-scope.ts`). This exists because
+`withIdempotency(spec, () => postJournal(...))` otherwise produced two transactions on
+two connections, and a rollback of one left the other committed.
+
+**A cross-org read is indistinguishable from a nonexistent one.** 404, never 403.
+`NotFoundError` takes a validated resource _token_ — no message, no details bag, no id
+echo — so constructing one with a distinguishing string throws. `PermissionDeniedError`
+takes only a permission key. `assertFound` is the single sanctioned zero-row conversion.
+
+**Only `posting.repository.ts` may write journal tables**, enforced by
+`openbooks/no-journal-writes`. Balance validation, the period lock, and actor provenance
+all live above it, so a second write path skips all three.
+
+**Transport holds no business logic.** Handlers map arguments. `requirePermission` is
+service-layer only. Enforced by dependency-cruiser.
+
+## Layout
+
+```
+packages/plugin-api     the internal module contract (spec §8), 0.x, unpublished
+packages/shared-types   Zod schemas + the money primitive
+packages/server         Fastify API, MCP server (M5), worker — one image, three roles
+packages/web            React shell; a building shell only until M2
+packages/eslint-plugin  the three project-specific lint rules
+infra/terraform         hosted topology, plan-clean, never applied
+```
+
+`src/db/migrations/README.md` is worth reading before touching the schema — it covers
+the composite-key tenancy pattern, the UUID byte order, and the two codegen overrides
+that exist because the generator maps `BIGINT` to `number` and `DATE` to `Date`.
+
+## Conventions
+
+- Extensionless imports (`moduleResolution: Bundler`). Never `./foo.js`.
+- Strict TS with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. No `any`
+  in `src`. `import type` for type-only imports.
+- No `console.*` — use the logger, which attaches actor provenance automatically. No
+  `process.env` outside `src/config/`.
+- Zod is **v4**; check installed behaviour rather than assuming v3 idioms.
+- Prettier: 100 col, single quotes, semicolons, trailing commas.
+- Pre-release, **migrations are edited in place** rather than appended to (D-15). This
+  inverts permanently at first release.
+
+## Comments
+
+Comments explain _why_, citing the spec section or roadmap decision — not _what_. The
+register to match: `src/db/migrations/0004_app_grants.ts`, `src/db/transaction-scope.ts`,
+`src/modules/ledger/posting.service.ts`. Ordinary code gets no commentary. A decision
+that took measuring to reach gets the measurement written down, so the next person does
+not have to repeat it.
+
+## Testing
+
+Real MySQL 8 via testcontainers. **Never SQLite, never mocks** (spec §11). One container
+for the suite; `useTestDatabase()` gives app and migrator handles plus factories, and
+`openAppConnection()` gives a genuinely separate connection for concurrency work.
+
+Two habits this project has earned the hard way:
+
+**Prove contention, don't assume it.** Concurrency tests park one transaction mid-flight
+and assert the other has not settled. A sequential simulation of a race passes against
+code that has no locking at all.
+
+**Mutation-test anything load-bearing.** Two mutations passed the entire example suite
+and were caught only by property tests — including permuting accounts in a reversal
+instead of swapping sides, which is _identical to correct_ on a two-line journal, and
+two-line journals were all the example suite posted. A suite that has never failed is of
+unknown value.
+
+## CI
+
+`.github/workflows/` — **`workflow_dispatch` only.** Automatic triggers are deliberately
+commented out, not absent; uncommenting them is the whole change. Nothing runs until
+someone starts it.
