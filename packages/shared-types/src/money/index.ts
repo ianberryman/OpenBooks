@@ -7,6 +7,8 @@ export type { Money } from './money';
 export {
   MINOR_UNIT_EXPONENT,
   MoneyParseError,
+  MAX_MONEY_MINOR_UNITS,
+  MIN_MONEY_MINOR_UNITS,
   ZERO,
   abs,
   add,

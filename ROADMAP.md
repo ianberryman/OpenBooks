@@ -438,27 +438,35 @@ of a dev-vs-dist split. `tsc` is used only for typechecking. Native and worker-s
 dependencies (argon2, mysql2, pino) stay external.
 
 <a id="d-13"></a>
-**D-13 — Money crosses the wire as an integer number of cents.** Stored as `BIGINT` minor units
-(spec §12), carried in JSON as an integer, converted to a decimal for display and nowhere else.
+**D-13 — Money is cents everywhere, carried on the wire as a cents-only string.** Stored as
+`BIGINT` minor units (spec §12), transported as a decimal string containing **nothing but an
+integer count of cents** (`"150000"`, `"-150000"`, `"0"`), converted to a decimal for display and
+nowhere else.
 
-This supersedes an earlier decision to send money as a minor-unit _string_. The string was chosen
-because a JSON number is an IEEE-754 double, but that reasoning conflates two different problems:
-decimal fractions like `0.1` are genuinely unrepresentable, whereas **integers are exact up to
-2^53** — about 9.007×10¹⁵ cents, or roughly $90 trillion. For an integer count of cents a JSON
-number is exact across any amount this system will legitimately see, and it is markedly easier for
-integrators than a string that every client must remember to parse.
+A string rather than a JSON number, and the reason is narrower than "floats are inexact": integers
+_are_ exact in a double, up to 2^53. The problem is that the ceiling exists at all and is invisible
+— above it a JSON parser rounds silently, and the layer doing the rounding is the one we do not
+control. A string has no such ceiling, and `9007199254740993` round-trips exactly, which is asserted
+by test.
 
-The residual gap is real and is closed by validation rather than by hope: `BIGINT` holds values up
-to ~9.2×10¹⁸ cents, far beyond what a JSON number carries faithfully, so the database can store
-amounts the wire cannot. Every money field is therefore validated at the boundary to
-`|cents| <= Number.MAX_SAFE_INTEGER` and rejected with a `validation_failed` beyond it. That makes
-the wire format provably exact for everything the API accepts, instead of silently rounding at the
-edge.
+The discipline is that the string is **cents, never an amount**. `"1500.00"`, `"1.5"`, `"1e5"`,
+`"+150000"`, and `"01500"` are all rejected by `fromMinorString`, verified case by case. A decimal
+amount on the wire would require every reader to know the currency exponent, which is exactly the
+coupling to avoid before multi-currency arrives (spec §13); it would also make the format's meaning
+depend on a field it does not carry. Decimal strings are a presentation form, produced by
+`toDecimalString` for the UI and consumed by the money input component.
+
+The gap a string leaves — and a JSON number would not — is that it has no upper bound, so
+`"99999999999999999999"` parses to a valid `bigint` that no `BIGINT` column can store. Before this
+was bounded, such a value reached the driver and returned an opaque `internal_error`: the server
+taking blame for a request it should have refused. `fromMinorUnits` now bounds to the signed
+`BIGINT` range, and because every constructor funnels through it, that single check covers every
+route money takes into the system.
 
 One consequence for the display path: "display as a decimal" must not mean `cents / 100` in
 floating point, which yields `1234.5599999999999` for some values. Formatting goes through
-`toDecimalString` in `@openbooks/shared-types`, which does it by string manipulation. The float
-exists only in the rendered glyphs, never in a computation.
+`toDecimalString`, which does it by string manipulation. The float exists only in the rendered
+glyphs, never in a computation.
 
 <a id="d-14"></a>
 **D-14 — Journals carry a gapless per-org sequence number.** `journals.sequence_number`, unique per

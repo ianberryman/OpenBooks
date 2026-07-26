@@ -71,8 +71,39 @@ const DECIMAL_PATTERN = /^(-)?(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/;
 
 export const ZERO = 0n as Money;
 
-/** The primitive constructor: a `bigint` count of minor units is already a Money. */
+/**
+ * The storable range: signed `BIGINT` (spec §12 stores money as `BIGINT`).
+ *
+ * Bounding at ingress is what keeps an out-of-range amount a *client* error. The
+ * wire format is a decimal string of minor units, which — unlike a JSON number —
+ * carries unbounded precision, so `"99999999999999999999"` parses to a perfectly
+ * good `bigint` that no `BIGINT` column can hold. Without this check that value
+ * travelled all the way to the driver and came back as an opaque `internal_error`,
+ * blaming the server for a request it should have refused with a 400.
+ *
+ * There is no lower-value guard for the same reason there is no currency: a cent
+ * is the atom, so any integer within range is a legitimate amount.
+ */
+export const MAX_MONEY_MINOR_UNITS = 9223372036854775807n;
+export const MIN_MONEY_MINOR_UNITS = -9223372036854775808n;
+
+/**
+ * The primitive constructor, and the funnel every other constructor passes through
+ * — `fromMinorString`, `fromDecimalString`, and `fromMajorMinor` all end here, so
+ * the range check placed here covers every route money takes into the system.
+ *
+ * Arithmetic (`add`, `sum`) does not pass through this and can in principle exceed
+ * the range. That is deliberate: intermediate results in `allocate` legitimately
+ * exceed a single amount, and the database is the backstop for a total that does
+ * not fit. Blocking it at ingress is what makes reaching that backstop implausible.
+ */
 export function fromMinorUnits(minorUnits: bigint): Money {
+  if (minorUnits > MAX_MONEY_MINOR_UNITS || minorUnits < MIN_MONEY_MINOR_UNITS) {
+    throw new MoneyParseError(
+      `Amount ${minorUnits.toString()} minor units is outside the storable range ` +
+        `${MIN_MONEY_MINOR_UNITS.toString()}..${MAX_MONEY_MINOR_UNITS.toString()}.`,
+    );
+  }
   return minorUnits as Money;
 }
 
