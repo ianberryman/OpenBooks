@@ -1,13 +1,9 @@
-# The repository root .gitignore has a bare `data/` pattern (under "#Database files"), which
-# matches a directory named `data` at ANY depth — including infra/terraform/modules/data/.
-# Without this negation the entire data module, RDS and the two-database-user bootstrap
-# included, is silently absent from git: `git add` reports nothing and the working tree looks
-# complete.
-#
-# Re-included as a DIRECTORY rather than as a file glob, because gitignore cannot re-include
-# a path whose parent directory is still excluded.
-#
-# The broader fix belongs in the root .gitignore — `data/` should be anchored (`/data/`)
-# rather than matching at any depth, since otherwise it will do this again to any future
-# `data` directory in any package. Out of scope for OB-007, which owns infra/ only.
-!terraform/modules/data/
+# Terraform working state. The root .gitignore covers these too; repeating them
+# here keeps `infra/` self-describing for anyone working only in this directory.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Provider lockfiles ARE committed — pinning provider checksums is their purpose.
+!**/.terraform.lock.hcl

@@ -1,0 +1,57 @@
+import type { Kysely } from 'kysely';
+
+import { rawDb } from './client';
+import type { DB } from './generated';
+import { TenantDatabase, type OrgId } from './tenant';
+
+/**
+ * The public database surface. Two functions and some types — nothing else.
+ *
+ * Spec §4 requires that the unsafe path not exist. `src/db/client.ts` holds the
+ * raw handle and is deliberately not re-exported here, and
+ * `.dependency-cruiser.cjs` makes importing it from outside `src/db/` a build
+ * failure. So the only names service code can reach are the two below.
+ */
+
+/**
+ * Org-scoped access to tenant tables. Every query is filtered to `orgId` before
+ * the caller sees it, and only tenant tables are addressable.
+ *
+ * The org comes from request-scoped context (spec §4: "never as a loose
+ * parameter"), so the intended call is `tenantDb(requestContext().orgId)` at the
+ * top of a service method rather than threading an org through signatures.
+ */
+export function tenantDb(orgId: OrgId): TenantDatabase {
+  return new TenantDatabase(rawDb(), orgId);
+}
+
+/**
+ * Access to the tables that are not org-scoped: `users`, `permissions`,
+ * `role_permissions`, `sessions`, `orgs`, and `roles`.
+ *
+ * This is the acknowledged limit of the guarantee (ROADMAP D-01). These tables
+ * have no `org_id` to filter on — a user exists across orgs, permissions are a
+ * fixed global catalog — so there is nothing for a wrapper to inject. The surface
+ * is kept small and the tables on it are all ones where "which org" is not a
+ * meaningful question.
+ *
+ * Two of them need care, and both are called out where they are used:
+ *
+ *  - `roles` carries a nullable `org_id`, where NULL means a shared system role.
+ *    Queries against it need `org_id = ? OR org_id IS NULL`, never a bare
+ *    equality, or every system role disappears. See `tenant-tables.ts`.
+ *  - `sessions.active_org_id` is a preference, not an authorization. It must be
+ *    re-validated against `org_members` on every request; migration `0001`
+ *    explains why it cannot be a foreign key.
+ */
+export function systemDb(): Kysely<DB> {
+  return rawDb();
+}
+
+export { initializeDatabase, destroyDatabase, isDatabaseInitialized } from './client';
+export { TenantDatabase } from './tenant';
+export type { OrgId, TenantInsert, TenantUpdate } from './tenant';
+export type { TenantTableName } from './tenant-tables';
+export { TENANT_TABLES, isTenantTable } from './tenant-tables';
+export type { DatabaseConnectionConfig } from './connection';
+export type { DB } from './generated';

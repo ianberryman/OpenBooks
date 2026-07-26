@@ -11,11 +11,23 @@ worker) → RDS MySQL**, plus ECR, SQS, S3, Secrets Manager and SES.
 > credentials for the very first data source it evaluates, so "plan-clean" is not a claim
 > that can honestly be made here.
 >
-> **What has actually been verified:** `terraform fmt -recursive -check` is clean, and
-> `terraform init -backend=false && terraform validate` succeeds for both roots (which
-> validates every module they compose). That proves the configuration is syntactically valid,
-> that every reference resolves, and that no resource has an unknown argument or a
-> type-mismatched one. It proves nothing about whether AWS will accept it.
+> **What has actually been verified:**
+>
+> - `terraform fmt -recursive -check` is clean.
+> - `terraform init -backend=false && terraform validate` succeeds for both roots, which
+>   validates every module they compose. That proves the configuration is syntactically valid,
+>   that every reference resolves, and that no resource has an unknown or type-mismatched
+>   argument. It proves nothing about whether AWS will accept it.
+> - The db-bootstrap container's shell script — the one piece of real logic in here — was
+>   rendered out of `local.bootstrap_script` and executed against a stub `mysql`. It parses
+>   under `sh -n`; both heredocs deliver exactly the intended SQL; passwords containing `$`,
+>   `&`, `%`, `{}` and a backtick pass through verbatim; and the grant assertion correctly
+>   exits non-zero for database-level `UPDATE`/`DELETE`, for `ALL PRIVILEGES`, and for a
+>   table-level grant on `journals`, while passing a legitimate table-level grant on
+>   `accounts`. This found one genuine bug — a backtick in a prose comment, executed as
+>   command substitution — now guarded by `scripts/check-db-bootstrap-parity.sh`.
+>
+> **What has not been verified:** that any of it applies.
 >
 > [What to expect to break on the first real apply](#what-to-expect-to-break-on-the-first-real-apply)
 > is not a formality. Read it before running anything.
@@ -179,8 +191,17 @@ aws cloudfront create-invalidation \
 
 ```bash
 infra/scripts/tf-validate.sh                  # fmt -check + validate, both roots, no credentials
-infra/scripts/check-db-bootstrap-parity.sh    # 02-grants.sql identical across environments
+infra/scripts/check-db-bootstrap-parity.sh    # grant-split parity + bootstrap SQL shell safety
 ```
+
+`check-db-bootstrap-parity.sh` enforces two things. The first is parity, below. The second is
+that `01-users-rds.sql` contains no backtick and no dollar-parenthesis sequence: the
+db-bootstrap task streams that file through an _unquoted_ shell heredoc so the two generated
+passwords expand, which means the shell reads the comments too, and either sequence becomes
+command substitution running as the bootstrap process. That is not a hypothetical — a backtick
+in a prose comment broke it during development, which is why there is now a check instead of
+a warning in a comment. (`02-grants.sql` goes through a _quoted_ heredoc and may use
+backtick-quoted identifiers freely; it needs to, and does.)
 
 The parity check is the mechanical answer to the ROADMAP risk that "the dual-DB-user
 requirement touches four environments … a mismatch makes A6 pass locally and mean nothing in
@@ -373,7 +394,12 @@ specific place this configuration makes an assumption it could not check.
     service principals for RDS, Secrets Manager, SQS and SES. If one of them needs a grant
     shape this policy does not allow, it presents as a create failure on the resource, not on
     the key.
-14. **`prevent_destroy` on the RDS instance and both S3 buckets** means a genuine teardown
+14. **`readonlyRootFilesystem = true` on all three app containers.** `/tmp` is mounted
+    writable as a Fargate ephemeral volume, which covers the usual cases, but if the Node
+    process writes anywhere else (a cache directory, a native module extracting at runtime) it
+    fails at startup with EROFS. Nothing in the committed `packages/server` does, but nothing
+    has run in this configuration either.
+15. **`prevent_destroy` on the RDS instance and both S3 buckets** means a genuine teardown
     requires editing tracked code. That is intentional and will still be annoying the first
     time it is wanted in staging.
 

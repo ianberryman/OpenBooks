@@ -141,7 +141,12 @@ terraform.rc
 
 
 #Database files
-data/
+# Anchored to the repository root deliberately. An unanchored `data/` matches a
+# directory named `data` at ANY depth, and it silently swallowed the whole
+# infra/terraform/modules/data module — `git add` reported nothing while the
+# working tree looked complete. A local MySQL volume is the only thing this is
+# meant to catch, and that lives at the root.
+/data/
 
 #Babel
 babel.config.json
