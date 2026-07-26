@@ -1,8 +1,10 @@
 import {
   ACCOUNT_CODE_MAX_LENGTH,
   ACCOUNT_TYPES,
+  accountListSchema,
   accountSchema,
   createAccountRequestSchema,
+  listAccountsQuerySchema,
   NORMAL_BALANCES,
   updateAccountRequestSchema,
 } from '@openbooks/shared-types';
@@ -123,17 +125,29 @@ describe('account schemas', () => {
   });
 
   /**
-   * No schema in this module may carry an `id` in zod's global registry.
+   * Component ids, and the rule they follow.
    *
-   * `jsonSchemaTransformObject` copies the *whole* registry into
-   * `components.schemas`, and this module is evaluated in the API process, so an
-   * `id` added here would appear in `openapi.json` before any account route exists
-   * — which A10 turns into a build failure in a file this ticket does not own. The
-   * ids belong to OB-023, added with the routes that reference them.
+   * `jsonSchemaTransformObject` copies the *whole* zod registry into
+   * `components.schemas`, and this module is evaluated in the API process, so an `id`
+   * here lands in `openapi.json` whether or not a route references it — and A10 turns
+   * any drift in that file into a build failure. OB-018 therefore asserted the ids were
+   * *absent*; OB-023 added them in the same diff as the routes that reference them, and
+   * this is that assertion inverted.
+   *
+   * The half that still needs guarding is the other one: `listAccountsQuerySchema`
+   * describes a querystring, which is emitted as individual `parameters` rather than as
+   * a schema reference, so an id on it would be a component nothing points at.
    */
-  it('registers no OpenAPI component ids ahead of the routes that use them', () => {
-    for (const schema of [accountSchema, createAccountRequestSchema, updateAccountRequestSchema]) {
-      expect(z.globalRegistry.get(schema)?.id).toBeUndefined();
+  it('names the schemas the account routes reference, and only those', () => {
+    for (const [schema, id] of [
+      [accountSchema, 'Account'],
+      [createAccountRequestSchema, 'CreateAccountRequest'],
+      [updateAccountRequestSchema, 'UpdateAccountRequest'],
+      [accountListSchema, 'AccountList'],
+    ] as const) {
+      expect(z.globalRegistry.get(schema)?.id).toBe(id);
     }
+
+    expect(z.globalRegistry.get(listAccountsQuerySchema)?.id).toBeUndefined();
   });
 });

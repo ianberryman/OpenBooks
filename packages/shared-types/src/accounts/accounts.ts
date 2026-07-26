@@ -12,7 +12,7 @@ import { z } from 'zod';
  * service layer only), the duplicate-code conflict, and the has-postings checks.
  * A schema knows nothing about the caller, which is why it is safe to share.
  *
- * ## No `id` in `.meta()`, deliberately
+ * ## The `id`s, and the rule that governs them
  *
  * `jsonSchemaTransformObject`, registered in `src/transport/openapi.ts`, copies
  * *every* schema carrying an `id` out of zod's global registry into
@@ -22,13 +22,17 @@ import { z } from 'zod';
  * the API process as soon as anything imports `@openbooks/shared-types`, which
  * `src/modules/idempotency/response.ts` already does.
  *
- * So an `id` here would add two components — `Account` and `AccountInput`, one
- * per io direction — to `openapi.json` before a single account route exists, and
- * A10 makes any drift in that file a build failure. Descriptions are free
- * because they are only read through a schema that is actually referenced.
+ * So an `id` is not free: each one adds two components — `Account` and
+ * `AccountInput`, one per io direction — whether or not any route references the
+ * schema, and A10 makes drift in `openapi.json` a build failure. OB-018 therefore
+ * left them off and OB-023 added them in the same diff as the routes that use
+ * them.
  *
- * The `id`s belong to OB-023, added alongside the routes that reference them, so
- * the artifact and the route table move in one diff.
+ * The rule that follows, for anything added here later: **an `id` goes on a body
+ * or response schema that a route references, and on nothing else.** In
+ * particular `listAccountsQuerySchema` has none and must not gain one — a
+ * querystring is emitted as individual `parameters`, so a component for it would
+ * be referenced by nothing.
  */
 
 /**
@@ -133,7 +137,7 @@ export const accountSchema = z
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
-  .meta({ description: 'One account in the org’s chart of accounts.' });
+  .meta({ id: 'Account', description: 'One account in the org’s chart of accounts.' });
 
 export type Account = z.infer<typeof accountSchema>;
 
@@ -183,7 +187,10 @@ export const createAccountRequestSchema = z
     normalBalance: normalBalanceSchema,
     description: accountDescriptionSchema.nullish(),
   })
-  .meta({ description: 'Creates one account. Accounts are created active.' });
+  .meta({
+    id: 'CreateAccountRequest',
+    description: 'Creates one account. Accounts are created active.',
+  });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;
 
@@ -212,6 +219,7 @@ export const updateAccountRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateAccountRequest',
     description:
       'Partial update. An absent field is unchanged; `description: null` clears it. `type` ' +
       'and `normalBalance` are refused once the account has postings.',
@@ -256,6 +264,7 @@ export const accountListSchema = z
     accounts: z.array(accountSchema),
   })
   .meta({
+    id: 'AccountList',
     description:
       'The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is ' +
       'bounded by the org’s own chart.',

@@ -31,6 +31,7 @@ import {
 import { createErrorHandler, createNotFoundHandler } from './errors';
 import { registerHealthRoute } from './health';
 import { registerOpenApi } from './openapi';
+import { registerV1Routes } from './routes';
 import type { App } from './types';
 
 export interface BuildAppOptions {
@@ -82,6 +83,45 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  /**
+   * `@fastify/cookie` first, before any hook of ours.
+   *
+   * It parses the `Cookie` header in an `onRequest` hook of its own and leaves
+   * `request.cookies` as the `null` its decorator declares until that hook has run.
+   * Fastify runs `onRequest` hooks in the order they were added, and `addHook` calls
+   * made here run synchronously while `await app.register(...)` completes the plugin's
+   * own registration — so calling it *after* the hooks below would put its parse hook
+   * last, and the identity resolver (step 2) would read `null` and fail with a
+   * `TypeError` on every request. Found by OB-023 the moment a resolver was wired in;
+   * before that nothing read a cookie and the ordering was invisible.
+   */
+  await app.register(cookie, {
+    /**
+     * The secret enables signing *support*; the session cookie itself is
+     * deliberately unsigned.
+     *
+     * A signature would make `SESSION_SECRET` a second authority on whether a
+     * session is live, so rotating it would log everyone out while the `sessions`
+     * table still said otherwise — the opposite of why sessions are server-side
+     * (D-03). The token is 32 random bytes and its liveness comes from a row
+     * lookup, which a signature cannot improve on. Kept configured so a future
+     * cookie that genuinely needs tamper-evidence without a database read (a CSRF
+     * double-submit token, say) has it available.
+     */
+    secret: config.session.secret,
+    parseOptions: {
+      httpOnly: true,
+      secure: config.session.cookieSecure,
+      // `lax` and not `strict`: a session cookie that is dropped on a top-level
+      // navigation from an email link logs the user out for no security benefit,
+      // and CSRF on this API is addressed by requiring a JSON content type and an
+      // `Idempotency-Key` on writes rather than by cookie policy alone.
+      sameSite: 'lax',
+      path: '/',
+      ...(config.session.cookieDomain === undefined ? {} : { domain: config.session.cookieDomain }),
+    },
+  });
 
   /**
    * Hook order is the load-bearing part of this function, and all of it must
@@ -164,33 +204,6 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
     done();
   });
 
-  await app.register(cookie, {
-    /**
-     * The secret enables signing *support*; the session cookie itself is
-     * deliberately unsigned.
-     *
-     * A signature would make `SESSION_SECRET` a second authority on whether a
-     * session is live, so rotating it would log everyone out while the `sessions`
-     * table still said otherwise — the opposite of why sessions are server-side
-     * (D-03). The token is 32 random bytes and its liveness comes from a row
-     * lookup, which a signature cannot improve on. Kept configured so a future
-     * cookie that genuinely needs tamper-evidence without a database read (a CSRF
-     * double-submit token, say) has it available.
-     */
-    secret: config.session.secret,
-    parseOptions: {
-      httpOnly: true,
-      secure: config.session.cookieSecure,
-      // `lax` and not `strict`: a session cookie that is dropped on a top-level
-      // navigation from an email link logs the user out for no security benefit,
-      // and CSRF on this API is addressed by requiring a JSON content type and an
-      // `Idempotency-Key` on writes rather than by cookie policy alone.
-      sameSite: 'lax',
-      path: '/',
-      ...(config.session.cookieDomain === undefined ? {} : { domain: config.session.cookieDomain }),
-    },
-  });
-
   // Before routes — see `registerOpenApi`.
   await registerOpenApi(app);
 
@@ -198,6 +211,10 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   app.setNotFoundHandler(createNotFoundHandler(logger));
 
   registerHealthRoute(app);
+  // Registration order is not load-bearing: `canonicalize` sorts the document's keys,
+  // so moving a route or splitting a file cannot change `openapi.json` (see
+  // `./openapi.ts`). It is alphabetical inside `registerV1Routes` for readers only.
+  registerV1Routes(app, config);
 
   return app;
 }

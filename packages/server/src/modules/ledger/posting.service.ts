@@ -69,6 +69,24 @@ import {
 
 const MIN_LINES = 2;
 
+/**
+ * The upper bound on lines in one journal, from `journal_lines.line_number`'s
+ * `SMALLINT UNSIGNED` in `0002_ledger`.
+ *
+ * Bounded here so an over-long journal is a `validation_failed` rather than an
+ * opaque `internal_error`. Without it, `line_number` overflowed at the driver and the
+ * server took blame for a request it should have refused — the same shape as the
+ * unbounded money string in D-13, and reachable from the MCP surface and the M6
+ * workflow engine, not only from HTTP.
+ *
+ * Set to the schema's actual limit rather than to a smaller "reasonable" number on
+ * purpose. The schema limit is a correctness constraint; a lower business limit
+ * (payroll allocated across cost centres, a batched deposit in M4) would be product
+ * policy, and inventing policy inside the kernel is how the kernel stops being
+ * boring (spec §2.6).
+ */
+const MAX_LINES = 65_535;
+
 export async function postJournal(
   input: PostJournalInput,
   ctx: RequestContext = getContext('postJournal()'),
@@ -227,6 +245,17 @@ function validateLines(lines: readonly JournalLineInput[]): readonly ValidatedLi
       path: 'lines',
       message: `A journal needs at least ${String(MIN_LINES)} lines; received ${String(lines.length)}.`,
     });
+  }
+
+  if (lines.length > MAX_LINES) {
+    // Returned immediately: the per-line loop below is O(n) and there is no reason to
+    // walk 100,000 lines to report a length the first check already settled.
+    throw new ValidationError('Journal has too many lines.', [
+      {
+        path: 'lines',
+        message: `A journal may have at most ${String(MAX_LINES)} lines; received ${String(lines.length)}.`,
+      },
+    ]);
   }
 
   const validated: ValidatedLine[] = [];

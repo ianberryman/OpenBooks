@@ -410,3 +410,34 @@ describe('trial balance (A2)', () => {
     expect(tb.totalDebits).toBe('0');
   });
 });
+
+describe('journal size is bounded (found by OB-025)', () => {
+  it('refuses more lines than line_number can hold, as a 400 not a 500', async () => {
+    // journal_lines.line_number is SMALLINT UNSIGNED. Unbounded, a longer journal
+    // overflowed at the driver and surfaced as an opaque internal_error — the server
+    // taking blame for a request it should have refused. Reachable from MCP and the
+    // workflow engine too, not only from HTTP, which is why the bound lives in the
+    // service rather than in a route schema.
+    const tooMany = 65_536;
+    const half = tooMany / 2;
+    const lines = [
+      ...Array.from({ length: half }, () => ({
+        accountId: s.cash,
+        side: 'debit' as const,
+        amount: 1n,
+      })),
+      ...Array.from({ length: half }, () => ({
+        accountId: s.revenue,
+        side: 'credit' as const,
+        amount: 1n,
+      })),
+    ];
+
+    const error = await withContext(s.ctx, () => postJournal({ ...balanced(s), lines })).catch(
+      (e: unknown) => toWireError(e),
+    );
+
+    expect(error).toMatchObject({ code: 'validation_failed', status: 400 });
+    expect(JSON.stringify(error)).toContain('65535');
+  });
+});

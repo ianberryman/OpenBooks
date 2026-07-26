@@ -1,6 +1,460 @@
 {
   "components": {
     "schemas": {
+      "Account": {
+        "additionalProperties": false,
+        "description": "One account in the org’s chart of accounts.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Inactive accounts keep every posting they carry and cannot be selected for new ones. This is the only form of removal available to an account that has been posted to.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "type",
+          "normalBalance",
+          "description",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AccountInput": {
+        "additionalProperties": false,
+        "description": "One account in the org’s chart of accounts.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Inactive accounts keep every posting they carry and cannot be selected for new ones. This is the only form of removal available to an account that has been posted to.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "type",
+          "normalBalance",
+          "description",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AccountList": {
+        "additionalProperties": false,
+        "description": "The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart.",
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "type": "object"
+      },
+      "AccountListInput": {
+        "additionalProperties": false,
+        "description": "The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart.",
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "accounts"
+        ],
+        "type": "object"
+      },
+      "AuthenticatedUser": {
+        "additionalProperties": false,
+        "description": "The signed-in user.",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "AuthenticatedUserInput": {
+        "additionalProperties": false,
+        "description": "The signed-in user.",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "CalendarDate": {
+        "description": "A calendar date, `YYYY-MM-DD`. Not an instant: an accounting date carries no time and no timezone, because which fiscal period an entry lands in must not depend on the reader’s.",
+        "examples": [
+          "2026-03-31"
+        ],
+        "format": "date",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+        "type": "string"
+      },
+      "CalendarDateInput": {
+        "description": "A calendar date, `YYYY-MM-DD`. Not an instant: an accounting date carries no time and no timezone, because which fiscal period an entry lands in must not depend on the reader’s.",
+        "examples": [
+          "2026-03-31"
+        ],
+        "format": "date",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+        "type": "string"
+      },
+      "CreateAccountRequest": {
+        "additionalProperties": false,
+        "description": "Creates one account. Accounts are created active.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "type",
+          "normalBalance"
+        ],
+        "type": "object"
+      },
+      "CreateAccountRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates one account. Accounts are created active.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "type",
+          "normalBalance"
+        ],
+        "type": "object"
+      },
+      "CreateFiscalPeriodRequest": {
+        "additionalProperties": false,
+        "description": "Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range.",
+        "properties": {
+          "month": {
+            "description": "Calendar month, 1–12.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "month"
+        ],
+        "type": "object"
+      },
+      "CreateFiscalPeriodRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range.",
+        "properties": {
+          "month": {
+            "description": "Calendar month, 1–12.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "year": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "month"
+        ],
+        "type": "object"
+      },
+      "CreateOrgRequest": {
+        "additionalProperties": false,
+        "description": "Creates an organization with the calling user as its Owner. No slug — it is derived from the name.",
+        "properties": {
+          "fiscalYearStartMonth": {
+            "description": "The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Length is bounded by the server (`orgs.name` is `VARCHAR(255)`) and reported as a `validation_failed` naming `name`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateOrgRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates an organization with the calling user as its Owner. No slug — it is derived from the name.",
+        "properties": {
+          "fiscalYearStartMonth": {
+            "description": "The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Length is bounded by the server (`orgs.name` is `VARCHAR(255)`) and reported as a `validation_failed` naming `name`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "ErrorResponse": {
         "additionalProperties": false,
         "description": "The body of every non-2xx response.",
@@ -86,6 +540,1324 @@
           "error"
         ],
         "type": "object"
+      },
+      "FiscalPeriod": {
+        "additionalProperties": false,
+        "description": "One monthly fiscal period.",
+        "properties": {
+          "closedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closedByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human label for the month, e.g. `2026-03`.",
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "status": {
+            "description": "A posting may only land in an `open` period (A4). Closing is the routine monthly soft close; reopening withdraws a statement that may already have been relied on, and needs a separate permission.",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "startDate",
+          "endDate",
+          "status",
+          "closedAt",
+          "closedByUserId"
+        ],
+        "type": "object"
+      },
+      "FiscalPeriodInput": {
+        "additionalProperties": false,
+        "description": "One monthly fiscal period.",
+        "properties": {
+          "closedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closedByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human label for the month, e.g. `2026-03`.",
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "status": {
+            "description": "A posting may only land in an `open` period (A4). Closing is the routine monthly soft close; reopening withdraws a statement that may already have been relied on, and needs a separate permission.",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "startDate",
+          "endDate",
+          "status",
+          "closedAt",
+          "closedByUserId"
+        ],
+        "type": "object"
+      },
+      "FiscalPeriodList": {
+        "additionalProperties": false,
+        "description": "The org’s fiscal periods in ascending date order. Unpaginated in M1.",
+        "properties": {
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/FiscalPeriod"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "periods"
+        ],
+        "type": "object"
+      },
+      "FiscalPeriodListInput": {
+        "additionalProperties": false,
+        "description": "The org’s fiscal periods in ascending date order. Unpaginated in M1.",
+        "properties": {
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/FiscalPeriodInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "periods"
+        ],
+        "type": "object"
+      },
+      "GenerateFiscalYearRequest": {
+        "additionalProperties": false,
+        "description": "Generates the twelve monthly periods of one fiscal year. Generation is always explicit — no posting ever creates the period it needs (ROADMAP D-17).",
+        "properties": {
+          "fiscalYear": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fiscalYear"
+        ],
+        "type": "object"
+      },
+      "GenerateFiscalYearRequestInput": {
+        "additionalProperties": false,
+        "description": "Generates the twelve monthly periods of one fiscal year. Generation is always explicit — no posting ever creates the period it needs (ROADMAP D-17).",
+        "properties": {
+          "fiscalYear": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fiscalYear"
+        ],
+        "type": "object"
+      },
+      "GeneratedFiscalYear": {
+        "additionalProperties": false,
+        "description": "The generated fiscal year, its span, and the twelve periods inside it.",
+        "properties": {
+          "endDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "fiscalYear": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          },
+          "periods": {
+            "description": "Twelve periods, contiguous, in ascending date order.",
+            "items": {
+              "$ref": "#/components/schemas/FiscalPeriod"
+            },
+            "type": "array"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "startMonth": {
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fiscalYear",
+          "startMonth",
+          "startDate",
+          "endDate",
+          "periods"
+        ],
+        "type": "object"
+      },
+      "GeneratedFiscalYearInput": {
+        "additionalProperties": false,
+        "description": "The generated fiscal year, its span, and the twelve periods inside it.",
+        "properties": {
+          "endDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "fiscalYear": {
+            "description": "The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026.",
+            "maximum": 9998,
+            "minimum": 1000,
+            "type": "integer"
+          },
+          "periods": {
+            "description": "Twelve periods, contiguous, in ascending date order.",
+            "items": {
+              "$ref": "#/components/schemas/FiscalPeriodInput"
+            },
+            "type": "array"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "startMonth": {
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fiscalYear",
+          "startMonth",
+          "startDate",
+          "endDate",
+          "periods"
+        ],
+        "type": "object"
+      },
+      "Identity": {
+        "additionalProperties": false,
+        "description": "The caller, every organization they are a member of, and which one this session is currently scoped to. `activeOrgId` is null for a user who is a member of nothing.",
+        "properties": {
+          "activeOrgId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembership"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          }
+        },
+        "required": [
+          "user",
+          "memberships",
+          "activeOrgId"
+        ],
+        "type": "object"
+      },
+      "IdentityInput": {
+        "additionalProperties": false,
+        "description": "The caller, every organization they are a member of, and which one this session is currently scoped to. `activeOrgId` is null for a user who is a member of nothing.",
+        "properties": {
+          "activeOrgId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembershipInput"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUserInput"
+          }
+        },
+        "required": [
+          "user",
+          "memberships",
+          "activeOrgId"
+        ],
+        "type": "object"
+      },
+      "JournalLineRequest": {
+        "additionalProperties": false,
+        "description": "One side of one account, for a positive amount in minor units.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is not a debit, it is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "side",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "JournalLineRequestInput": {
+        "additionalProperties": false,
+        "description": "One side of one account, for a positive amount in minor units.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is not a debit, it is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "side",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "description": "Exchanges a password for a session cookie. Reachable without credentials. Every failure answers `unauthenticated` with no detail — a wrong password and an unknown address are indistinguishable by design.",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "LoginRequestInput": {
+        "additionalProperties": false,
+        "description": "Exchanges a password for a session cookie. Reachable without credentials. Every failure answers `unauthenticated` with no detail — a wrong password and an unknown address are indistinguishable by design.",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "MinorUnits": {
+        "description": "An exact monetary amount as a string of minor units — an integer count of cents with no decimal point, no separators, and no leading zeros. `\"150000\"` is 1,500.00 in a two-decimal currency. Never a JSON number, and never a decimal amount: `\"1500.00\"` is refused.",
+        "examples": [
+          "150000",
+          "-150000",
+          "0"
+        ],
+        "pattern": "^-?(?:0|[1-9][0-9]*)$",
+        "type": "string"
+      },
+      "MinorUnitsInput": {
+        "description": "An exact monetary amount as a string of minor units — an integer count of cents with no decimal point, no separators, and no leading zeros. `\"150000\"` is 1,500.00 in a two-decimal currency. Never a JSON number, and never a decimal amount: `\"1500.00\"` is refused.",
+        "examples": [
+          "150000",
+          "-150000",
+          "0"
+        ],
+        "pattern": "^-?(?:0|[1-9][0-9]*)$",
+        "type": "string"
+      },
+      "OrgMembership": {
+        "additionalProperties": false,
+        "description": "One organization together with the role the caller holds in it.",
+        "properties": {
+          "org": {
+            "$ref": "#/components/schemas/OrgSummary"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org",
+          "roleId",
+          "roleCode"
+        ],
+        "type": "object"
+      },
+      "OrgMembershipInput": {
+        "additionalProperties": false,
+        "description": "One organization together with the role the caller holds in it.",
+        "properties": {
+          "org": {
+            "$ref": "#/components/schemas/OrgSummaryInput"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org",
+          "roleId",
+          "roleCode"
+        ],
+        "type": "object"
+      },
+      "OrgMembershipList": {
+        "additionalProperties": false,
+        "description": "Every organization the caller is a member of, with the role held in each.",
+        "properties": {
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembership"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "memberships"
+        ],
+        "type": "object"
+      },
+      "OrgMembershipListInput": {
+        "additionalProperties": false,
+        "description": "Every organization the caller is a member of, with the role held in each.",
+        "properties": {
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembershipInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "memberships"
+        ],
+        "type": "object"
+      },
+      "OrgSummary": {
+        "additionalProperties": false,
+        "description": "One organization the caller can act in.",
+        "properties": {
+          "fiscalYearStartMonth": {
+            "description": "The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "fiscalYearStartMonth"
+        ],
+        "type": "object"
+      },
+      "OrgSummaryInput": {
+        "additionalProperties": false,
+        "description": "One organization the caller can act in.",
+        "properties": {
+          "fiscalYearStartMonth": {
+            "description": "The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional.",
+            "maximum": 12,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "fiscalYearStartMonth"
+        ],
+        "type": "object"
+      },
+      "PostJournalRequest": {
+        "additionalProperties": false,
+        "description": "Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/JournalLineRequest"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "PostJournalRequestInput": {
+        "additionalProperties": false,
+        "description": "Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/JournalLineRequestInput"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "PostedJournal": {
+        "additionalProperties": false,
+        "description": "A journal as the ledger stored it, read back from the same transaction.",
+        "properties": {
+          "actorId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actorType": {
+            "description": "Who or what made the posting (spec §6). Taken from the session, never from the request.",
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "invocationMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "interactive",
+                  "scheduled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a human was present. Null means unrecorded, which is not the same as `interactive`. Set for agent callers only."
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PostedJournalLine"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "orgId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "postedAt": {
+            "description": "When the journal was written. An instant, not an accounting date.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reversesJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02)."
+          }
+        },
+        "required": [
+          "journalId",
+          "orgId",
+          "date",
+          "memo",
+          "postedAt",
+          "actorType",
+          "actorId",
+          "invocationMode",
+          "reversesJournalId",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "PostedJournalInput": {
+        "additionalProperties": false,
+        "description": "A journal as the ledger stored it, read back from the same transaction.",
+        "properties": {
+          "actorId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actorType": {
+            "description": "Who or what made the posting (spec §6). Taken from the session, never from the request.",
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "invocationMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "interactive",
+                  "scheduled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether a human was present. Null means unrecorded, which is not the same as `interactive`. Set for agent callers only."
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PostedJournalLineInput"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "orgId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "postedAt": {
+            "description": "When the journal was written. An instant, not an accounting date.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reversesJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02)."
+          }
+        },
+        "required": [
+          "journalId",
+          "orgId",
+          "date",
+          "memo",
+          "postedAt",
+          "actorType",
+          "actorId",
+          "invocationMode",
+          "reversesJournalId",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "PostedJournalLine": {
+        "additionalProperties": false,
+        "description": "One stored line. `side` is read back from which amount column is non-zero rather than echoed from the request, so this reports what the ledger holds.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "lineId": {
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is not a debit, it is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "lineId",
+          "accountId",
+          "side",
+          "amount",
+          "memo"
+        ],
+        "type": "object"
+      },
+      "PostedJournalLineInput": {
+        "additionalProperties": false,
+        "description": "One stored line. `side` is read back from which amount column is non-zero rather than echoed from the request, so this reports what the ledger holds.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "lineId": {
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is not a debit, it is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "lineId",
+          "accountId",
+          "side",
+          "amount",
+          "memo"
+        ],
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "additionalProperties": false,
+        "description": "Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials.",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "org": {
+            "$ref": "#/components/schemas/CreateOrgRequest"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "displayName",
+          "org"
+        ],
+        "type": "object"
+      },
+      "RegisterRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials.",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "org": {
+            "$ref": "#/components/schemas/CreateOrgRequestInput"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "displayName",
+          "org"
+        ],
+        "type": "object"
+      },
+      "ReverseJournalRequest": {
+        "additionalProperties": false,
+        "description": "Posts the reversal of an existing journal: a new journal with every line’s side inverted. A journal may be reversed once.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The reversal’s own entry date, which must itself fall in an open period."
+          },
+          "memo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "type": "object"
+      },
+      "ReverseJournalRequestInput": {
+        "additionalProperties": false,
+        "description": "Posts the reversal of an existing journal: a new journal with every line’s side inverted. A journal may be reversed once.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The reversal’s own entry date, which must itself fall in an open period."
+          },
+          "memo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "type": "object"
+      },
+      "SwitchActiveOrgRequest": {
+        "additionalProperties": false,
+        "description": "Switches the session’s active organization. The role returned is the one held in the new org, never carried across the switch.",
+        "properties": {
+          "orgId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orgId"
+        ],
+        "type": "object"
+      },
+      "SwitchActiveOrgRequestInput": {
+        "additionalProperties": false,
+        "description": "Switches the session’s active organization. The role returned is the one held in the new org, never carried across the switch.",
+        "properties": {
+          "orgId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orgId"
+        ],
+        "type": "object"
+      },
+      "TrialBalance": {
+        "additionalProperties": false,
+        "description": "Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache anywhere in M1.",
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The upper bound that was applied, or null when every posting to date is in."
+          },
+          "difference": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "`totalDebits - totalCredits`. Always `\"0\"` for a consistent ledger. Reported rather than asserted, so a discrepancy is visible instead of being converted into an error."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TrialBalanceRow"
+            },
+            "type": "array"
+          },
+          "totalCredits": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "totalDebits": {
+            "$ref": "#/components/schemas/MinorUnits"
+          }
+        },
+        "required": [
+          "asOf",
+          "rows",
+          "totalDebits",
+          "totalCredits",
+          "difference"
+        ],
+        "type": "object"
+      },
+      "TrialBalanceInput": {
+        "additionalProperties": false,
+        "description": "Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache anywhere in M1.",
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The upper bound that was applied, or null when every posting to date is in."
+          },
+          "difference": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "`totalDebits - totalCredits`. Always `\"0\"` for a consistent ledger. Reported rather than asserted, so a discrepancy is visible instead of being converted into an error."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TrialBalanceRowInput"
+            },
+            "type": "array"
+          },
+          "totalCredits": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "totalDebits": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "required": [
+          "asOf",
+          "rows",
+          "totalDebits",
+          "totalCredits",
+          "difference"
+        ],
+        "type": "object"
+      },
+      "TrialBalanceRow": {
+        "additionalProperties": false,
+        "description": "One account’s totals. Accounts with no postings appear with zeros — a trial balance that silently omitted them would hide a chart-of-accounts mistake exactly when someone is looking for one.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "`debits - credits`. Negative means the account is net credit."
+          },
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "debits": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalBalance": {
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "code",
+          "name",
+          "type",
+          "normalBalance",
+          "debits",
+          "credits",
+          "balance"
+        ],
+        "type": "object"
+      },
+      "TrialBalanceRowInput": {
+        "additionalProperties": false,
+        "description": "One account’s totals. Accounts with no postings appear with zeros — a trial balance that silently omitted them would hide a chart-of-accounts mistake exactly when someone is looking for one.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "`debits - credits`. Negative means the account is net credit."
+          },
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "debits": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalBalance": {
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "code",
+          "name",
+          "type",
+          "normalBalance",
+          "debits",
+          "credits",
+          "balance"
+        ],
+        "type": "object"
+      },
+      "UpdateAccountRequest": {
+        "additionalProperties": false,
+        "description": "Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateAccountRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings.",
+        "properties": {
+          "code": {
+            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "description": "Optional free text. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "Display name, e.g. `Operating bank account`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "normalBalance": {
+            "description": "The side that increases this account. Stored, never derived from `type`, because contra accounts are real: accumulated depreciation is an `asset` whose normal balance is `credit`, as is an allowance for doubtful accounts. No constraint ties the two fields together — see the `accounts` commentary in migration 0002_ledger.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
+            "enum": [
+              "asset",
+              "liability",
+              "equity",
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     }
   },
@@ -142,6 +1914,1108 @@
         "summary": "Liveness probe",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/v1/accounts": {
+      "get": {
+        "operationId": "listAccounts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asset",
+                "liability",
+                "equity",
+                "revenue",
+                "expense"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and inactive accounts alike.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List the chart of accounts",
+        "tags": [
+          "accounts"
+        ]
+      },
+      "post": {
+        "description": "Accounts are created active. `normalBalance` is required and independent of `type`, because contra accounts are real — accumulated depreciation is an `asset` whose normal balance is `credit`.",
+        "operationId": "createAccount",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create an account",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/v1/accounts/{accountId}": {
+      "delete": {
+        "description": "An account is configuration rather than a record of what happened, so deleting an unreferenced one restates nothing. An account with postings answers `precondition_failed` with `account_has_postings`; deactivate it instead.",
+        "operationId": "deleteAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Delete an account that has never been posted to",
+        "tags": [
+          "accounts"
+        ]
+      },
+      "get": {
+        "operationId": "getAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One account",
+        "tags": [
+          "accounts"
+        ]
+      },
+      "patch": {
+        "description": "`type` and `normalBalance` are refused once the account carries postings: changing either would silently restate what past reports said about entries already made.",
+        "operationId": "updateAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update an account",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/v1/accounts/{accountId}/deactivate": {
+      "post": {
+        "description": "Removes an account from circulation without removing it from the books, which is the only form of removal available to an account that has been posted to. Idempotent: an already-inactive account is returned unchanged rather than refused.",
+        "operationId": "deactivateAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Deactivate an account",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/v1/accounts/{accountId}/reactivate": {
+      "post": {
+        "description": "The counterpart to deactivation, so that deactivation is not a one-way door.",
+        "operationId": "reactivateAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reactivate an account",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "description": "Sets an `HttpOnly` session cookie. Every failure answers `unauthenticated` with no detail and takes the same time, because a faster answer for an unknown address is a user-enumeration oracle regardless of what the body says. Reachable without credentials.",
+        "operationId": "login",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Identity"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Exchange a password for a session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "description": "Revokes the session named by the cookie and clears it. Succeeds whether or not the cookie names a live session — a stale cookie is the ordinary case for this call.",
+        "operationId": "logout",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Revoke the current session",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "description": "Answers for any live session, including one whose user is a member of no organization — `activeOrgId` is then null.",
+        "operationId": "getCurrentIdentity",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Identity"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The caller, their organizations, and the active one",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/register": {
+      "post": {
+        "description": "Creates a user, their first organization, an Owner membership, and a session, atomically. Sets an `HttpOnly` session cookie; the token is never in the body. Reachable without credentials.",
+        "operationId": "register",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Identity"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Register a user and their first organization",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/fiscal-periods": {
+      "get": {
+        "operationId": "listFiscalPeriods",
+        "parameters": [
+          {
+            "description": "A posting may only land in an `open` period (A4). Closing is the routine monthly soft close; reopening withdraws a statement that may already have been relied on, and needs a separate permission.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiscalPeriodList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List fiscal periods",
+        "tags": [
+          "fiscal-periods"
+        ]
+      },
+      "post": {
+        "description": "For the partial first year a business that started in September actually has. Gaplessness is a property of year generation, not of the table, so a year built one month at a time can leave a hole — and a date in that hole is un-postable.",
+        "operationId": "createFiscalPeriod",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFiscalPeriodRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiscalPeriod"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create one monthly period",
+        "tags": [
+          "fiscal-periods"
+        ]
+      }
+    },
+    "/v1/fiscal-periods/{periodId}/close": {
+      "post": {
+        "description": "The routine monthly soft close. Records who closed it and when. A posting dated inside a closed period is refused (A4), and a posting racing this call either commits fully or not at all (A9).",
+        "operationId": "closeFiscalPeriod",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "periodId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiscalPeriod"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Close a fiscal period",
+        "tags": [
+          "fiscal-periods"
+        ]
+      }
+    },
+    "/v1/fiscal-periods/{periodId}/reopen": {
+      "post": {
+        "description": "Withdraws a statement that may already have been relied on, so it needs the separate `periods.reopen` permission rather than the one that closes.",
+        "operationId": "reopenFiscalPeriod",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "periodId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiscalPeriod"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reopen a closed fiscal period",
+        "tags": [
+          "fiscal-periods"
+        ]
+      }
+    },
+    "/v1/fiscal-years": {
+      "post": {
+        "description": "The month the year begins in comes from the org’s `fiscalYearStartMonth`, not from the request — a caller that could choose it per call could generate two overlapping years for one org.",
+        "operationId": "generateFiscalYear",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateFiscalYearRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedFiscalYear"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Generate the twelve periods of a fiscal year",
+        "tags": [
+          "fiscal-periods"
+        ]
+      }
+    },
+    "/v1/journals": {
+      "post": {
+        "description": "At least two lines, debits equal to credits exactly, every account active and in this org, and the entry date inside an open fiscal period. All of it in one transaction, so a rejected posting leaves nothing behind.",
+        "operationId": "postJournal",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostJournalRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostedJournal"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Post a manual journal",
+        "tags": [
+          "journals"
+        ]
+      }
+    },
+    "/v1/journals/{journalId}/reverse": {
+      "post": {
+        "description": "Posts a new journal with every line’s side inverted and `reversesJournalId` set. The original is untouched. A journal may be reversed once; reversing the reversal re-instates the original.",
+        "operationId": "reverseJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "journalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseJournalRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostedJournal"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reverse a posted journal",
+        "tags": [
+          "journals"
+        ]
+      }
+    },
+    "/v1/orgs": {
+      "get": {
+        "description": "The org switcher’s menu. Always the full list with the role held in each, because one login may be Owner of its own books and Read-only on a client’s.",
+        "operationId": "listOrgMemberships",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgMembershipList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Every organization the caller is a member of",
+        "tags": [
+          "orgs"
+        ]
+      },
+      "post": {
+        "description": "Creates an organization with the calling user as its Owner. The slug is derived from the name and collisions are disambiguated silently, so no collision is ever reported.",
+        "operationId": "createOrg",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrgRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgMembership"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create an organization",
+        "tags": [
+          "orgs"
+        ]
+      }
+    },
+    "/v1/orgs/active": {
+      "post": {
+        "description": "Re-resolves the caller’s membership and points the session at the new org. An org the caller is not a member of and an org that does not exist both answer `not_found`.",
+        "operationId": "switchActiveOrg",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchActiveOrgRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgMembership"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Switch the session’s active organization",
+        "tags": [
+          "orgs"
+        ]
+      }
+    },
+    "/v1/reports/trial-balance": {
+      "get": {
+        "description": "Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache in M1, because a stale one produces books that balance on screen and not in the data.",
+        "operationId": "getTrialBalance",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialBalance"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Trial balance",
+        "tags": [
+          "reports"
         ]
       }
     }

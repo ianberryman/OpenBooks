@@ -12,6 +12,7 @@ import { sql } from 'kysely';
 import { getConfig } from '../config';
 import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
+import { resolveSessionIdentity } from '../modules/auth';
 import { buildApp } from '../transport';
 
 /** SIGTERM is what Fargate and `docker stop` send; SIGINT is Ctrl-C in development. */
@@ -48,7 +49,22 @@ export async function startApi(): Promise<void> {
   });
   await assertDatabaseReachable();
 
-  const app = await buildApp({ config, logger });
+  /**
+   * This entrypoint is the one layer allowed to see both sides of the authentication
+   * seam, which is why the wiring happens here and not in either module.
+   * `.dependency-cruiser.cjs` forbids `src/modules/` → `src/transport/`, so
+   * `resolveSessionIdentity` cannot name transport's `IdentityResolver` type; it
+   * declares a structurally identical `ResolvedIdentity` instead and the assignment
+   * below is where the two meet (see the boundary note in
+   * `src/modules/auth/identity.ts`).
+   *
+   * Passing it is what authenticates the running app at all. Without it every request
+   * stays in the pre-auth scope, so `isAuthenticatedContext` is false and
+   * `requirePermission` answers `401` for every tenant route — the API would be
+   * reachable and useless. The transport tests build instances with and without a
+   * resolver deliberately; production always has one.
+   */
+  const app = await buildApp({ config, logger, resolveIdentity: resolveSessionIdentity });
 
   /**
    * Registered before `listen`, not after.

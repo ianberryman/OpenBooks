@@ -13,9 +13,10 @@
  * - **OB-017 (idempotency)** reads the key from `OperationContext.idempotencyKey`,
  *   which the context hook populates from the header. Transport declares no runner
  *   interface of its own — see `src/transport/idempotency.ts` for why.
- * - **OB-023 (routes)** registers routes on the returned instance, attaching
- *   `requireIdempotencyKey` to every one whose `RouteDefinition.requiresIdempotencyKey`
- *   is true, and reuses `errorResponseSchema` for its declared error responses.
+ * - **OB-023 (routes)** is `src/transport/routes/`, registered by `buildApp` itself.
+ *   Read `routes/index.ts` for the route table, what a handler in there may contain,
+ *   how the two halves of idempotency are applied at the boundary, and why no
+ *   `RouteDefinition` → Fastify adapter was built.
  * - **OB-024 (client)** consumes `openapi.json`, produced by
  *   `src/entrypoints/spec.ts` from `generateOpenApiDocument`.
  */
