@@ -1,4 +1,11 @@
-# syntax=docker/dockerfile:1
+# No `# syntax=docker/dockerfile:1` directive, deliberately. Pinning the frontend
+# makes every build pull docker/dockerfile from a registry before it reads a line
+# of this file, which is the same build-time network dependency the committed Yarn
+# release exists to avoid — and it fails closed, with an opaque
+# "resolve image config ... DeadlineExceeded". Nothing here needs a feature the
+# built-in BuildKit frontend lacks; `RUN --mount=type=cache` is the newest thing
+# used and has been built in since Docker 23. Add the directive back if a genuine
+# frontend feature is needed, not by reflex.
 #
 # One image, three roles (spec §2.5). OPENBOOKS_ROLE=api|worker|migrate selects
 # the entrypoint at boot — packages/server/src/config/role.ts holds the register
@@ -62,12 +69,18 @@ COPY . .
 RUN node "${YARN}" build
 
 # ── prod-deps ────────────────────────────────────────────────────────────────
-# The runtime node_modules. scripts/build-server.mjs marks argon2, mysql2, pino,
-# pino-pretty and thread-stream external, so those five are resolved from disk at
-# require time and must physically exist here — everything else is inlined into
-# the bundle. `workspaces focus @openbooks/server --production` installs exactly
-# the server's dependency closure and drops devDependencies, which is what keeps
-# esbuild, vitest, testcontainers and the React toolchain out of the image.
+# The runtime node_modules. scripts/build-server.mjs leaves argon2, mysql2, pino,
+# pino-pretty and thread-stream out of the bundle, so they are resolved from disk
+# at require time and have to physically exist here; everything else is inlined.
+# `workspaces focus @openbooks/server --production` installs exactly the server's
+# dependency closure and drops devDependencies, which is what keeps esbuild,
+# vitest, testcontainers and the React toolchain out of the image.
+#
+# pino-pretty is the one external that is *not* installed, because it is a
+# devDependency — correct for production, where logs are JSON (spec §12). It only
+# becomes a problem if application code ever imports it unconditionally rather
+# than behind a development-only branch, and the symptom would be a runtime
+# module-not-found in this image while dev and test pass.
 FROM toolchain AS prod-deps
 ARG YARN
 RUN --mount=type=cache,target=/opt/yarn \
@@ -77,7 +90,6 @@ RUN --mount=type=cache,target=/opt/yarn \
 FROM base AS runtime
 
 ENV NODE_ENV=production
-ENV PORT=8080
 
 # node_modules plus the manifests that make Node resolve dist/server/main.js as
 # ESM (the root package.json's "type": "module") and keep the workspace symlinks
@@ -89,17 +101,19 @@ COPY --from=build --chown=root:root /app/dist ./dist
 # tree is owned by it, so the process cannot modify its own code.
 USER node
 
-EXPOSE 8080
+EXPOSE 3000
 
 # Liveness for the api role. Uses Node's built-in fetch because the slim image
-# has no curl or wget, and 127.0.0.1 rather than localhost to avoid a DNS
-# round-trip resolving to an unbound ::1.
+# has no curl or wget, and 127.0.0.1 rather than localhost to avoid resolving to
+# an unbound ::1. HTTP_PORT and its 3000 default mirror the schema in
+# packages/server/src/config/env.ts — no default is duplicated into ENV, so the
+# config module stays the only place that decides it.
 #
 # HEALTHCHECK is a property of the image, not the role, so it is wrong for
 # `worker` (no listener) and `migrate` (exits). docker-compose.yml disables it
-# for those two services. The port and path are the api role's contract with
-# OB-022; if that lands on something other than /health, this must follow.
+# for those two services. The /health path is the api role's contract with
+# OB-022; if that route lands elsewhere, this must follow.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+    CMD node -e "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 
 CMD ["node", "dist/server/main.js"]

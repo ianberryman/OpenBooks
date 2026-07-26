@@ -21,13 +21,25 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 --
 -- Credentials here are literals: MySQL's entrypoint does not expand environment
--- variables in *.sql. They are local-development credentials and are the source
--- of truth for docker-compose.yml's defaults — changing a password in .env
--- without changing it here (and recreating the mysql-data volume, since these
--- scripts run only on first boot) breaks the stack. See .env.example (OB-003).
+-- variables in *.sql. They match the DATABASE_PASSWORD and
+-- DATABASE_MIGRATOR_PASSWORD defaults in .env.example and docker-compose.yml, so
+-- `cp .env.example .env && docker compose up` works untouched. Changing either
+-- password in .env means changing it here too *and* deleting the `mysql-data`
+-- volume, because these scripts run only against an empty data directory. If you
+-- forget, MySQL rejects the connection with "Access denied for user
+-- 'openbooks_app'" — loud, not silent.
+--
+-- The same applies to the schema name: `openbooks` below must match
+-- DATABASE_NAME. The MySQL entrypoint creates the schema from MYSQL_DATABASE, so
+-- a changed DATABASE_NAME produces the right schema with none of the grants
+-- below attached to it.
+--
 -- Hosted deployments never run this file; OB-007 provisions the same two users
 -- from Secrets Manager.
 
+-- Redundant against the entrypoint's MYSQL_DATABASE, and deliberately so: it
+-- makes this file runnable on its own against any MySQL 8 instance, which is how
+-- OB-014's testcontainers setup and OB-007's RDS bootstrap should consume it.
 CREATE DATABASE IF NOT EXISTS `openbooks`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_0900_ai_ci;
@@ -43,7 +55,7 @@ CREATE DATABASE IF NOT EXISTS `openbooks`
 -- permits granting or revoking a privilege you hold *and* hold GRANT OPTION on.
 -- Without it the ledger migration fails with ERROR 1044.
 CREATE USER IF NOT EXISTS 'openbooks_migrator'@'%'
-  IDENTIFIED BY 'openbooks_migrator_local';
+  IDENTIFIED BY 'change-me-migrator';
 GRANT ALL PRIVILEGES ON `openbooks`.* TO 'openbooks_migrator'@'%' WITH GRANT OPTION;
 
 
@@ -79,7 +91,7 @@ GRANT ALL PRIVILEGES ON `openbooks`.* TO 'openbooks_migrator'@'%' WITH GRANT OPT
 -- on every table in the schema except the two journal tables, so the invariant
 -- is maintained in one place instead of once per migration.
 CREATE USER IF NOT EXISTS 'openbooks_app'@'%'
-  IDENTIFIED BY 'openbooks_app_local';
+  IDENTIFIED BY 'change-me-app';
 GRANT SELECT, INSERT ON `openbooks`.* TO 'openbooks_app'@'%';
 
 FLUSH PRIVILEGES;
