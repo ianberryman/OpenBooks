@@ -123,10 +123,16 @@ export async function up(db: MigrationDb): Promise<void> {
   // rather than an ENUM so a new origin does not require an ALTER on the
   // largest table in the system.
   // ---------------------------------------------------------------------------
+  // `sequence_number` is the human-readable reference accountants and auditors
+  // ask for — the UUID is not one (ROADMAP D-14). Gapless and monotonic per org,
+  // allocated from `journal_sequences` below. It is NOT NULL from the start: added
+  // later it would mean backfilling every journal and inventing numbers for
+  // history.
   await sql`
     CREATE TABLE journals (
       id                  BINARY(16)   NOT NULL,
       org_id              BINARY(16)   NOT NULL,
+      sequence_number     BIGINT UNSIGNED NOT NULL,
       period_id           BINARY(16)   NOT NULL,
       entry_date          DATE         NOT NULL,
       memo                VARCHAR(512) NULL,
@@ -139,6 +145,7 @@ export async function up(db: MigrationDb): Promise<void> {
       created_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_journals_org_id (org_id, id),
+      UNIQUE KEY uq_journals_org_sequence (org_id, sequence_number),
       UNIQUE KEY uq_journals_org_reverses (org_id, reverses_journal_id),
       KEY idx_journals_org_date (org_id, entry_date),
       KEY idx_journals_org_period (org_id, period_id),
@@ -202,9 +209,44 @@ export async function up(db: MigrationDb): Promise<void> {
       )
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
+
+  // ---------------------------------------------------------------------------
+  // journal_sequences — one counter row per org, allocating
+  // `journals.sequence_number` (ROADMAP D-14).
+  //
+  // A counter table rather than the two obvious alternatives, and the first
+  // reason is not a preference:
+  //
+  //   MAX(sequence_number) + 1 needs a locking read to be safe under
+  //   concurrency, and the application user *cannot* take one on `journals`.
+  //   MySQL requires SELECT plus one of UPDATE/DELETE/LOCK TABLES for
+  //   `FOR UPDATE`, and withholding exactly those is how journal immutability is
+  //   enforced (see 0004_app_grants). So the lock has to live on a table the app
+  //   may write, which is this one.
+  //
+  //   AUTO_INCREMENT leaves gaps on rollback, and a gap in a journal sequence is
+  //   indistinguishable from a deleted entry — precisely the ambiguity an
+  //   append-only ledger exists to remove.
+  //
+  // Taking this row FOR UPDATE serializes posting within an org. That is a real
+  // throughput ceiling and it is the correct trade for a gapless sequence; if it
+  // ever binds, the answer is a per-org queue, not a sequence with holes.
+  // ---------------------------------------------------------------------------
+  await sql`
+    CREATE TABLE journal_sequences (
+      org_id      BINARY(16)      NOT NULL,
+      next_value  BIGINT UNSIGNED NOT NULL DEFAULT 1,
+      updated_at  DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                  ON UPDATE CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (org_id),
+      CONSTRAINT fk_journal_sequences_org
+        FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `.execute(db);
 }
 
 export async function down(db: MigrationDb): Promise<void> {
+  await sql`DROP TABLE IF EXISTS journal_sequences`.execute(db);
   await sql`DROP TABLE IF EXISTS journal_lines`.execute(db);
   await sql`DROP TABLE IF EXISTS journals`.execute(db);
   await sql`DROP TABLE IF EXISTS fiscal_periods`.execute(db);

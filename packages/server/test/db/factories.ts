@@ -197,6 +197,8 @@ export interface JournalInput {
   readonly actorId?: Buffer;
   readonly invocationMode?: InvocationMode;
   readonly reversesJournalId?: Buffer;
+  /** Overrides sequence allocation. Only useful for testing the uniqueness key. */
+  readonly sequenceNumber?: bigint;
   readonly lines?: readonly JournalLineInput[];
   /** Amount on each side of the default two-line entry. Ignored if `lines` is given. */
   readonly amountMinor?: bigint;
@@ -220,6 +222,44 @@ let sequence = 0;
 const nextSequence = (): number => (sequence += 1);
 
 export function createFactories(db: Kysely<DB>): Factories {
+  /**
+   * Allocates the next `journals.sequence_number` for an org.
+   *
+   * Uses the real `journal_sequences` counter with the same `FOR UPDATE` claim the
+   * posting repository does, rather than counting existing rows. Fixtures that
+   * allocated differently from production would leave the gapless-and-monotonic
+   * property untested precisely where it is most likely to break — under the
+   * concurrent posting that OB-026 exercises.
+   *
+   * Runs as the migrator handle the factories already hold, which matters because
+   * the app user's grant on this table is what makes the production path possible
+   * at all (0004_app_grants).
+   */
+  async function allocateSequenceNumber(orgId: Buffer): Promise<bigint> {
+    return db.transaction().execute(async (trx) => {
+      await trx
+        .insertInto('journal_sequences')
+        .values({ org_id: orgId, next_value: 1n })
+        .onDuplicateKeyUpdate({ org_id: orgId })
+        .execute();
+
+      const row = await trx
+        .selectFrom('journal_sequences')
+        .select('next_value')
+        .where('org_id', '=', orgId)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+
+      await trx
+        .updateTable('journal_sequences')
+        .set({ next_value: row.next_value + 1n })
+        .where('org_id', '=', orgId)
+        .execute();
+
+      return row.next_value;
+    });
+  }
+
   async function org(input: OrgInput = {}): Promise<OrgFixture> {
     const uuid = newUuid();
     const seq = nextSequence();
@@ -382,9 +422,12 @@ export function createFactories(db: Kysely<DB>): Factories {
     const entryDate = input.entryDate ?? context.entryDate;
     const actorId = input.actorId ?? context.actorId;
 
+    const sequenceNumber = input.sequenceNumber ?? (await allocateSequenceNumber(context.orgId));
+
     const journalRow: Insertable<DB['journals']> = {
       id,
       org_id: context.orgId,
+      sequence_number: sequenceNumber,
       period_id: context.periodId,
       entry_date: entryDate,
       memo: input.memo ?? null,

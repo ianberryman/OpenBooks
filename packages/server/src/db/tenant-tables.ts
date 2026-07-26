@@ -45,6 +45,7 @@ export const TENANT_TABLES = [
   'fiscal_periods',
   'idempotency_keys',
   'journal_lines',
+  'journal_sequences',
   'journals',
   'org_invites',
   'org_members',

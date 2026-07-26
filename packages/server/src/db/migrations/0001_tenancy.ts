@@ -39,16 +39,24 @@ export async function up(db: MigrationDb): Promise<void> {
   // orgs — the tenant root. Its own `id` IS the org_id, so it is reached by id
   // rather than through the org-scoped wrapper.
   // ---------------------------------------------------------------------------
+  //
+  // `fiscal_year_start_month` is 1–12, defaulting to January (ROADMAP D-17). A
+  // fiscal year frequently does not start in January — April, July, and October
+  // are all common — but the periods within it are ordinary calendar months, so
+  // the only thing that varies per org is where the year begins.
   await sql`
     CREATE TABLE orgs (
-      id          BINARY(16)   NOT NULL,
-      name        VARCHAR(255) NOT NULL,
-      slug        VARCHAR(120) NOT NULL,
-      created_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      updated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-                               ON UPDATE CURRENT_TIMESTAMP(3),
+      id                      BINARY(16)   NOT NULL,
+      name                    VARCHAR(255) NOT NULL,
+      slug                    VARCHAR(120) NOT NULL,
+      fiscal_year_start_month TINYINT UNSIGNED NOT NULL DEFAULT 1,
+      created_at              DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at              DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                           ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
-      UNIQUE KEY uq_orgs_slug (slug)
+      UNIQUE KEY uq_orgs_slug (slug),
+      CONSTRAINT chk_orgs_fiscal_year_start_month
+        CHECK (fiscal_year_start_month BETWEEN 1 AND 12)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
 

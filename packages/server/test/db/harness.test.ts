@@ -323,11 +323,16 @@ describe('test database harness', () => {
 
         // Appending to the ledger is allowed; rewriting it is not. Corrections are
         // reversing entries (spec §2.2, ROADMAP D-02).
+        // sequence_number is NOT NULL with no default, deliberately: it is
+        // allocated from journal_sequences by the posting path (ROADMAP D-14), and
+        // a default would let a journal exist without a reference. A literal is
+        // fine here — this test is about the grant, not about allocation.
         await expect(
           sql`
-            INSERT INTO journals (id, org_id, period_id, entry_date, actor_type, actor_id)
+            INSERT INTO journals
+              (id, org_id, sequence_number, period_id, entry_date, actor_type, actor_id)
             VALUES (
-              UUID_TO_BIN(UUID(), 0), ${ledger.org.id}, ${ledger.period.id},
+              UUID_TO_BIN(UUID(), 0), ${ledger.org.id}, 9001, ${ledger.period.id},
               ${ledger.period.startDate}, 'user', ${ledger.user.id}
             )
           `.execute(connection.db),

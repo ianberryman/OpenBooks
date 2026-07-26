@@ -63,6 +63,10 @@ const MUTABLE_TABLES = [
   'accounts',
   'fiscal_periods',
   'idempotency_keys',
+  // The journal sequence counter must be updatable even though the journals it
+  // numbers are not. This is the table the posting transaction locks, precisely
+  // because it cannot lock `journals` — see the comment in 0002_ledger.
+  'journal_sequences',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

@@ -71,6 +71,12 @@ const OVERRIDES = {
     // the class of bug the one-sided CHECK constraint cannot catch.
     'journal_lines.debit_minor': 'bigint',
     'journal_lines.credit_minor': 'bigint',
+    // BIGINT UNSIGNED is still LONGLONG to the driver, so these arrive as bigint
+    // like every other BIGINT. The uniform rule is worth more than the slight
+    // ergonomic cost on a display sequence: an exception here would mean the
+    // README's "every BIGINT is a bigint" stops being true.
+    'journals.sequence_number': 'bigint',
+    'journal_sequences.next_value': 'Generated<bigint>',
     'journals.entry_date': 'string',
     'fiscal_periods.start_date': 'string',
     'fiscal_periods.end_date': 'string',

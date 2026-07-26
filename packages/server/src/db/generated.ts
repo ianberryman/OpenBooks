@@ -98,7 +98,14 @@ export interface Journals {
   period_id: Buffer;
   reference: string | null;
   reverses_journal_id: Buffer | null;
+  sequence_number: bigint;
   source: Generated<string>;
+}
+
+export interface JournalSequences {
+  next_value: Generated<bigint>;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
 }
 
 export interface OrgInvites {
@@ -126,6 +133,7 @@ export interface OrgMembers {
 
 export interface Orgs {
   created_at: Generated<Date>;
+  fiscal_year_start_month: Generated<number>;
   id: Buffer;
   name: string;
   slug: string;
@@ -182,6 +190,7 @@ export interface DB {
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
   journal_lines: JournalLines;
+  journal_sequences: JournalSequences;
   journals: Journals;
   org_invites: OrgInvites;
   org_members: OrgMembers;
