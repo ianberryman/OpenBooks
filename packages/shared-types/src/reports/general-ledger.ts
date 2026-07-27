@@ -2,9 +2,10 @@ import { z } from 'zod';
 
 import { ACCOUNT_TYPES, NORMAL_BALANCES } from '../accounts';
 import { MAX_DIMENSIONS_PER_ORG } from '../dimensions';
-import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageCursorSchema, pageQueryShape } from '../wire';
 
 import { reportDimensionFilterSchema, reportRangeShape } from './balances';
+import { reportGroupKeyShape } from './groups';
 
 /**
  * The general ledger wire contract (OB-044; acceptance B4, B6; D-13, D-14, D-21).
@@ -27,12 +28,12 @@ import { reportDimensionFilterSchema, reportRangeShape } from './balances';
  * the totals are a true statement about the ledger at the moment that page was
  * read, and a client comparing two pages' headers can *see* that it moved.
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## The `id`s
  *
- * The same reason `balances.ts` gives: the transform lifts every schema carrying
- * an `id` into `components.schemas` whether a route references it or not, and A10
- * makes drift in `openapi.json` a build failure. OB-044 ends at the service.
- * Transport is OB-045, and the ids belong to it.
+ * `GET /v1/reports/general-ledger` is OB-045's, so the response schemas below now
+ * carry the ids OB-044 deliberately withheld. `generalLedgerQuerySchema` carries
+ * none and must not: a querystring is emitted as individual `parameters`, so a
+ * component for it would be referenced by nothing.
  */
 
 /**
@@ -47,13 +48,20 @@ import { reportDimensionFilterSchema, reportRangeShape } from './balances';
  */
 export const GL_COUNTERPARTY_ACCOUNTS_MAX = 8;
 
-const glAmountsSchema = z.strictObject({
-  debits: minorUnitsSchema,
-  credits: minorUnitsSchema,
-  balance: minorUnitsSchema.meta({
-    description: '`debits - credits`. Negative means the account is net credit.',
-  }),
-});
+const glAmountsSchema = z
+  .strictObject({
+    debits: minorUnitsSchema,
+    credits: minorUnitsSchema,
+    balance: minorUnitsSchema.meta({
+      description: '`debits - credits`. Negative means the account is net credit.',
+    }),
+  })
+  .meta({
+    id: 'GeneralLedgerAmounts',
+    description:
+      'Debits, credits, and their difference over one window. The three windows a ledger page ' +
+      'reports — opening, movement, closing — are the same shape, so they are one component.',
+  });
 
 const glAccountRefSchema = z.strictObject({
   accountId: z.uuid(),
@@ -89,33 +97,47 @@ const glAccountRefSchema = z.strictObject({
  * whose entries showed no counterparty would be reporting the filter rather than
  * the books.
  */
-export const generalLedgerCounterpartySchema = z.strictObject({
-  accounts: z
-    .array(glAccountRefSchema)
-    .max(GL_COUNTERPARTY_ACCOUNTS_MAX)
-    .meta({
-      description:
-        'Distinct accounts on the opposite side of the journal, in account-code order, truncated ' +
-        'to at most `GL_COUNTERPARTY_ACCOUNTS_MAX`. Compare against `accountCount` to tell a ' +
-        'complete list from a truncated one.',
-    }),
-  accountCount: z
-    .int()
-    .nonnegative()
-    .meta({
-      description:
-        'How many distinct accounts are on the opposite side in total. More than one is the ' +
-        'classic split entry.',
-    }),
-});
+export const generalLedgerCounterpartySchema = z
+  .strictObject({
+    accounts: z
+      .array(glAccountRefSchema)
+      .max(GL_COUNTERPARTY_ACCOUNTS_MAX)
+      .meta({
+        description:
+          'Distinct accounts on the opposite side of the journal, in account-code order, truncated ' +
+          'to at most `GL_COUNTERPARTY_ACCOUNTS_MAX`. Compare against `accountCount` to tell a ' +
+          'complete list from a truncated one.',
+      }),
+    accountCount: z
+      .int()
+      .nonnegative()
+      .meta({
+        description:
+          'How many distinct accounts are on the opposite side in total. More than one is the ' +
+          'classic split entry.',
+      }),
+  })
+  .meta({ id: 'GeneralLedgerCounterparty' });
 
-export const generalLedgerTagSchema = z.strictObject({
-  dimensionId: z.uuid(),
-  dimensionCode: z.string(),
-  dimensionValueId: z.uuid(),
-  code: z.string(),
-  name: z.string(),
-});
+/**
+ * One dimension value a line carries, qualified by the axis it sits on.
+ *
+ * `reportGroupKeyShape` spread rather than referenced: a tag names both halves of
+ * the pair, where a grouped report's key is already qualified by the report's own
+ * `groupBy`. Composing this as an `allOf` over `ReportGroupKey` would publish a
+ * two-part schema that says nothing a reader of one entry needs, so the shared
+ * fields are spread and this stays one flat component. See `groups.ts`.
+ */
+export const generalLedgerTagSchema = z
+  .strictObject({
+    dimensionId: z.uuid(),
+    dimensionCode: z.string(),
+    ...reportGroupKeyShape,
+  })
+  .meta({
+    id: 'GeneralLedgerTag',
+    description: 'A dimension value carried by this line, with the axis it belongs to.',
+  });
 
 /**
  * One journal line against the account, and the balance it left behind.
@@ -134,84 +156,105 @@ export const generalLedgerTagSchema = z.strictObject({
  * `lineId` and `sequenceNumber` are strings because both are `BIGINT` — D-13's
  * argument about a JSON parser's silent 2^53 ceiling, applied to an identifier.
  */
-export const generalLedgerEntrySchema = z.strictObject({
-  lineId: z.string(),
-  journalId: z.uuid(),
-  sequenceNumber: z.string().meta({
-    description:
-      'The org’s own gapless entry number (D-14), and the second column of this list’s ' +
-      'ordering — `date` alone does not order two entries made on the same day.',
-  }),
-  lineNumber: z.int().positive(),
-  date: calendarDateSchema,
-  journalMemo: z.string().nullable(),
-  lineMemo: z.string().nullable(),
-  contact: z
-    .strictObject({ contactId: z.uuid(), displayName: z.string() })
-    .nullable()
-    .meta({
+export const generalLedgerEntrySchema = z
+  .strictObject({
+    lineId: z.string(),
+    journalId: z.uuid(),
+    sequenceNumber: z.string().meta({
       description:
-        'Who the amount is with, when the line names anyone. Not a statement that the amount is ' +
-        'receivable or payable — that is the subledger’s, and the subledger is M3.',
+        'The org’s own gapless entry number (D-14), and the second column of this list’s ' +
+        'ordering — `date` alone does not order two entries made on the same day.',
     }),
-  debit: minorUnitsSchema,
-  credit: minorUnitsSchema,
-  runningBalance: minorUnitsSchema.meta({
-    description:
-      '`opening.balance` plus every entry through this one, as `debits - credits`. See the ' +
-      'note on the page: a running balance is a statement about the ledger at the moment the ' +
-      'page was read.',
-  }),
-  counterparty: generalLedgerCounterpartySchema,
-  tags: z.array(generalLedgerTagSchema).meta({
-    description:
-      'Every dimension value this line carries, in dimension-code then value-code order.',
-  }),
-});
+    lineNumber: z.int().positive(),
+    date: calendarDateSchema,
+    journalMemo: z.string().nullable(),
+    lineMemo: z.string().nullable(),
+    contact: z
+      .strictObject({ contactId: z.uuid(), displayName: z.string() })
+      .nullable()
+      .meta({
+        description:
+          'Who the amount is with, when the line names anyone. Not a statement that the amount is ' +
+          'receivable or payable — that is the subledger’s, and the subledger is M3.',
+      }),
+    debit: minorUnitsSchema,
+    credit: minorUnitsSchema,
+    runningBalance: minorUnitsSchema.meta({
+      description:
+        '`opening.balance` plus every entry through this one, as `debits - credits`. See the ' +
+        'note on the page: a running balance is a statement about the ledger at the moment the ' +
+        'page was read.',
+    }),
+    counterparty: generalLedgerCounterpartySchema,
+    tags: z.array(generalLedgerTagSchema).meta({
+      description:
+        'Every dimension value this line carries, in dimension-code then value-code order.',
+    }),
+  })
+  .meta({ id: 'GeneralLedgerEntry' });
 
 export type GeneralLedgerEntry = z.infer<typeof generalLedgerEntrySchema>;
 
 /**
  * One page of a general ledger: the account, the three totals, and the entries.
  *
- * The envelope is written out rather than built with `pageSchema`, because that
- * factory requires the `.meta({ id })` this file must not carry. `items` is
- * `entries` for the same reason it is `items` everywhere else — this response is
- * not only a list, and a page whose sole key was `items` would have nowhere to put
- * the balances the list exists to explain.
+ * ## Why this is not the `{ items, nextCursor }` envelope (OB-045)
+ *
+ * D-21 gives every *list* one envelope, and six endpoints use it. This one
+ * deliberately does not, and the reason is that a general ledger page is not a
+ * list — it is a report that contains one. The account it is about, the range that
+ * was applied, and the three balances are the subject; the entries are the working
+ * that explains them, and the header is recomputed per page precisely so a client
+ * can see the ledger move underneath it. A page whose sole key was `items` would
+ * have nowhere to put any of that.
+ *
+ * Forcing the envelope was the alternative and it produces something worse in both
+ * available forms: the header inside every item repeats a report per row, and the
+ * header beside `items` is this shape with the entries renamed — the same object,
+ * naming the one part of it that is a list after the whole. So the *protocol* is
+ * shared and the *shape* is not: `nextCursor` is the same opaque `PageCursor`,
+ * with the same meaning and the same rule about a full page not implying another,
+ * so a client that has learned to page any other collection pages this one
+ * unchanged. What it must not do is assume `items`.
  */
-export const generalLedgerSchema = z.strictObject({
-  accountId: z.uuid(),
-  code: z.string(),
-  name: z.string(),
-  type: z.enum(ACCOUNT_TYPES),
-  normalBalance: z.enum(NORMAL_BALANCES),
-  from: calendarDateSchema.nullable().meta({
-    description:
-      'The inclusive lower bound applied, or null when the range starts at the ledger’s beginning.',
-  }),
-  to: calendarDateSchema.nullable().meta({
-    description: 'The inclusive upper bound applied, or null when every posting to date is in.',
-  }),
-  opening: glAmountsSchema.meta({
-    description:
-      'Postings strictly before `from`, under the same filters. All zero when `from` is absent.',
-  }),
-  movement: glAmountsSchema.meta({
-    description:
-      'Postings inside the range, both bounds inclusive — the entries this page is a window on.',
-  }),
-  closing: glAmountsSchema.meta({ description: '`opening + movement` (B4).' }),
-  entries: z.array(generalLedgerEntrySchema),
-  nextCursor: z
-    .string()
-    .nullable()
-    .meta({
+export const generalLedgerSchema = z
+  .strictObject({
+    accountId: z.uuid(),
+    code: z.string(),
+    name: z.string(),
+    type: z.enum(ACCOUNT_TYPES),
+    normalBalance: z.enum(NORMAL_BALANCES),
+    from: calendarDateSchema.nullable().meta({
+      description:
+        'The inclusive lower bound applied, or null when the range starts at the ledger’s beginning.',
+    }),
+    to: calendarDateSchema.nullable().meta({
+      description: 'The inclusive upper bound applied, or null when every posting to date is in.',
+    }),
+    opening: glAmountsSchema.meta({
+      description:
+        'Postings strictly before `from`, under the same filters. All zero when `from` is absent.',
+    }),
+    movement: glAmountsSchema.meta({
+      description:
+        'Postings inside the range, both bounds inclusive — the entries this page is a window on.',
+    }),
+    closing: glAmountsSchema.meta({ description: '`opening + movement` (B4).' }),
+    entries: z.array(generalLedgerEntrySchema),
+    nextCursor: pageCursorSchema.nullable().meta({
       description:
         'The cursor for the next page, or null when this is the last one. Opaque: send it back ' +
-        'verbatim. A full page does not imply another exists.',
+        'verbatim. A full page does not imply another exists. The same token every other list ' +
+        'endpoint returns — only the key it sits beside differs.',
     }),
-});
+  })
+  .meta({
+    id: 'GeneralLedger',
+    description:
+      'One account over a date range: the balance it was carrying, one page of the lines that ' +
+      'moved it, and the balance it ended on. The three balances are recomputed on every page, ' +
+      'so a client can tell that the ledger moved between two fetches.',
+  });
 
 export type GeneralLedger = z.infer<typeof generalLedgerSchema>;
 

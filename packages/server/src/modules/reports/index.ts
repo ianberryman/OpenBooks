@@ -7,14 +7,19 @@
  *
  * ## Surface
  *
- * | Operation                          | Permission    |
- * | ---------------------------------- | ------------- |
- * | `getAccountBalances(query, ctx)`   | `reports.read` |
+ * | Operation                                   | Permission     |
+ * | ------------------------------------------- | -------------- |
+ * | `getAccountBalances(query, ctx, options?)`  | `reports.read` |
  *
  * `(query, ctx)` with the org taken from the context, like every other service:
  * spec §4 forbids an org as a loose parameter, so there is no signature here into
  * which another org's id could be passed. Nothing takes a transaction —
  * `src/db/transaction-scope.ts` propagates one ambiently.
+ *
+ * The third parameter is the module's own, not a client's: `query` is parsed from
+ * a schema published in `shared-types`, and a narrowing no client needs does not
+ * belong in a schema every client reads. `AccountBalancesOptions` in
+ * `balances.service.ts` carries the argument and the cost.
  *
  * ## What it returns, and why it is shaped like that
  *
@@ -44,7 +49,8 @@
  *
  * // OB-044 — a general ledger range: `opening` is the brought-forward balance the
  * // entries run on from, and `opening + movement = closing` is acceptance B4.
- * getAccountBalances({ from, to, dimensions, contactId }, ctx)
+ * // One account, so the aggregation reads one account rather than a whole type.
+ * getAccountBalances({ from, to, dimensions, contactId }, ctx, { accountIds: [accountId] })
  * ```
  *
  * Omitting `from` means the ledger's beginning, so `opening` is zero and `closing`
@@ -106,6 +112,7 @@ export {
 
 export type {
   AccountBalances,
+  AccountBalancesOptions,
   AccountBalancesQuery,
   ReportGroup,
   ReportGroupKey,

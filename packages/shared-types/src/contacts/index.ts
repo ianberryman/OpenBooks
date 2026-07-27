@@ -6,9 +6,8 @@
  * (against D-27, and for reasons that turn out to be about accounts) — and for why
  * the list is ordered by `(created_at, id)` rather than by name.
  *
- * Nothing here carries a `.meta({ id })`. Contacts have no routes until OB-045,
- * and an `id` puts a component into `openapi.json` whether or not a route
- * references it.
+ * The bodies and responses carry `.meta({ id })` and the list query deliberately
+ * does not — `contacts.ts` states the rule and why a querystring is the exception.
  */
 
 export type {

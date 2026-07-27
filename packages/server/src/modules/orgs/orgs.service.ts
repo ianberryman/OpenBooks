@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 
-import { getContext } from '../../context';
+import { deriveContext, getContext, runInContext } from '../../context';
 import type { DB } from '../../db';
 import { newUuid, systemDb, uuidToBuffer, withTransaction } from '../../db';
 import { InternalError, NotFoundError, UnauthenticatedError, ValidationError } from '../../errors';
+import type { ChartTemplateId } from '../accounts';
+import { applyChartTemplate } from '../accounts';
 import { resolveMembership } from '../permissions';
 import type { Kysely } from 'kysely';
 import type { OrgRow } from './orgs.repository';
@@ -68,6 +70,11 @@ export interface OrgCreationInput {
   readonly name: string;
   /** 1–12, defaulting to January (ROADMAP D-17). */
   readonly fiscalYearStartMonth?: number;
+  /**
+   * An opt-in starter chart (ROADMAP D-23). Absent means an org with no accounts,
+   * which is what every org got before this field existed.
+   */
+  readonly chartTemplateId?: ChartTemplateId;
 }
 
 /**
@@ -119,6 +126,10 @@ export async function createOrgIn(
     }
 
     await insertMembership(executor, id, ownerUserId, uuidToBuffer(OWNER_ROLE_ID));
+    if (input.chartTemplateId !== undefined) {
+      await applyStarterChart(uuid, input.chartTemplateId);
+    }
+
     return {
       org: { id: uuid, name, slug, fiscalYearStartMonth },
       roleId: OWNER_ROLE_ID,
@@ -131,6 +142,51 @@ export async function createOrgIn(
       'attempts. The suffix carries 24 bits of entropy, so this is a fault rather than ' +
       'contention — look for a broken unique index or a truncating collation.',
   );
+}
+
+/**
+ * Copies the requested starter chart into the org the lines above have just written
+ * (ROADMAP D-23, OB-039).
+ *
+ * ## Why a scope and not a parameter
+ *
+ * `applyChartTemplate` takes a context and never an org, because spec §4 forbids an
+ * org as a loose parameter — so an `applyChartTemplateTo(orgId, …)` overload is the
+ * one thing this must not be. The sanctioned way to act in an org that is not the
+ * one the request arrived in is to open a scope for it, which is the same mechanism
+ * the org switcher and spec §4's per-row worker use (`runInDerivedContext` in
+ * `src/context/store.ts`). Derived rather than built from nothing, so the new scope
+ * carries the caller's `requestId` and actor forward: these accounts are provenanced
+ * to the person who asked for them (A13) rather than to an invented principal, and
+ * `deriveContext`'s requirement of a current scope is what guarantees there is a
+ * caller to name.
+ *
+ * The scope is entered as well as passed. Nothing under `applyChartTemplate` reads
+ * the ambient context for data — it takes `ctx` — but the logger does, and during
+ * registration the surrounding scope is the pre-auth sentinel org, so sixty account
+ * writes would otherwise log against `00000000-…-000000000000`.
+ *
+ * `OWNER_ROLE_ID` is the membership the line above just wrote, not a granted
+ * capability: naming a role in a scope is a claim about who acted, which is why this
+ * is reachable only from the one place that has just made this user an Owner.
+ *
+ * ## Why no transaction is opened here
+ *
+ * There is one open already — every caller reaches `createOrgIn` through
+ * `withTransaction` — and `applyChartTemplate`'s own `orgScope(ctx).transaction`
+ * joins it ambiently (`src/db/transaction-scope.ts`). That is the whole point of
+ * doing this here rather than after `createOrg` returns: a template that cannot be
+ * applied leaves no org, instead of an org holding half a chart of accounts whose
+ * codes are now occupied.
+ *
+ * An unknown template id is therefore a `validation_failed` — `applyChartTemplate`
+ * parses its input with the shared schema — that rolls the org back with it. It is
+ * validated there and not restated here, so there is one answer to "is that a
+ * template" rather than two that can drift.
+ */
+async function applyStarterChart(orgId: string, templateId: ChartTemplateId): Promise<void> {
+  const ctx = deriveContext({ orgId, roleId: OWNER_ROLE_ID });
+  await runInContext(ctx, () => applyChartTemplate({ templateId }, ctx));
 }
 
 /**

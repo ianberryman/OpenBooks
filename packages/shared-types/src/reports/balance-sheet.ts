@@ -5,6 +5,7 @@ import { NORMAL_BALANCES } from '../accounts';
 import { calendarDateSchema, minorUnitsSchema } from '../wire';
 
 import { reportSliceShape } from './balances';
+import { reportGroupKeySchema } from './groups';
 
 /**
  * The balance sheet wire contract (OB-043; acceptance B2, B3, B6, B7; D-20).
@@ -48,12 +49,18 @@ import { reportSliceShape } from './balances';
  * maturing chart acquires first. Every ordinary account agrees with both rules, so
  * the mistake is invisible until the first contra account exists.
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## The `id`s
  *
- * The transform lifts every schema carrying an `id` out of zod's global registry
- * into `components.schemas` whether a route references it or not, and A10 makes
- * drift in `openapi.json` a build failure. OB-043 ends at the service; routes are
- * OB-045, and the ids land with them.
+ * `GET /v1/reports/balance-sheet` is OB-045's, so the response schemas below now
+ * carry the ids OB-043 deliberately withheld — the rule at the top of
+ * `accounts/accounts.ts` is that an `id` goes on a body or response schema a route
+ * references, and until the route existed these would have published components
+ * nothing could reach. `balanceSheetQuerySchema` still carries none, and must not:
+ * a querystring is emitted as individual `parameters`, so a component for it would
+ * be referenced by nothing.
+ *
+ * The bucket key is `reportGroupKeySchema` and no longer a copy of it — see
+ * `groups.ts`.
  */
 
 /**
@@ -94,6 +101,7 @@ export const balanceSheetRowSchema = z
     }),
   })
   .meta({
+    id: 'BalanceSheetRow',
     description:
       'One account’s line. Rows are in account-code order and nest by `parentAccountId`; the ' +
       'hierarchy is expressed by that pointer rather than by nesting so the shape stays flat.',
@@ -118,6 +126,7 @@ export const balanceSheetSectionSchema = z
     total: minorUnitsSchema,
   })
   .meta({
+    id: 'BalanceSheetSection',
     description:
       'Every account of this type in the chart, including those standing at zero, plus the ' +
       'section total. `total` is the sum of every row’s `amount` — not of the `subtotal`s, ' +
@@ -125,18 +134,6 @@ export const balanceSheetSectionSchema = z
   });
 
 export type BalanceSheetSection = z.infer<typeof balanceSheetSectionSchema>;
-
-/**
- * The bucket key when the sheet is sliced by a dimension axis.
- *
- * `null` is the unassigned bucket, which is always present (D-18): a slice view
- * that omits untagged lines shows a smaller business than exists.
- */
-export const balanceSheetGroupKeySchema = z.strictObject({
-  dimensionValueId: z.uuid(),
-  code: z.string(),
-  name: z.string(),
-});
 
 /**
  * Every figure the sheet foots on, for one bucket or for the whole report.
@@ -152,42 +149,45 @@ export const balanceSheetGroupKeySchema = z.strictObject({
  * an error, and B6 — the groups summed equal the report unsliced — is the property
  * that keeps it honest.
  */
-export const balanceSheetTotalsSchema = z.strictObject({
-  assets: minorUnitsSchema,
-  liabilities: minorUnitsSchema,
-  /** Equity **accounts** only. The two derived lines are separate on purpose (D-20). */
-  equity: minorUnitsSchema,
-  priorYearEarnings: minorUnitsSchema.meta({
-    description:
-      'Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, ' +
-      'never an account (D-20) — it is what a closing journal would have moved into equity.',
-  }),
-  currentYearEarnings: minorUnitsSchema.meta({
-    description:
-      'Revenue less expenses from the start of the fiscal year containing `asOf` up to and ' +
-      'including it. Derived, never an account (D-20). Positive is a profit.',
-  }),
-  liabilitiesAndEquity: minorUnitsSchema.meta({
-    description: '`liabilities + equity + priorYearEarnings + currentYearEarnings`.',
-  }),
-  difference: minorUnitsSchema.meta({
-    description:
-      '`assets - liabilitiesAndEquity`. `"0"` for the report as a whole (B3); one slice of a ' +
-      'grouped report may be non-zero, because tags are per line.',
-  }),
-});
+export const balanceSheetTotalsSchema = z
+  .strictObject({
+    assets: minorUnitsSchema,
+    liabilities: minorUnitsSchema,
+    /** Equity **accounts** only. The two derived lines are separate on purpose (D-20). */
+    equity: minorUnitsSchema,
+    priorYearEarnings: minorUnitsSchema.meta({
+      description:
+        'Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, ' +
+        'never an account (D-20) — it is what a closing journal would have moved into equity.',
+    }),
+    currentYearEarnings: minorUnitsSchema.meta({
+      description:
+        'Revenue less expenses from the start of the fiscal year containing `asOf` up to and ' +
+        'including it. Derived, never an account (D-20). Positive is a profit.',
+    }),
+    liabilitiesAndEquity: minorUnitsSchema.meta({
+      description: '`liabilities + equity + priorYearEarnings + currentYearEarnings`.',
+    }),
+    difference: minorUnitsSchema.meta({
+      description:
+        '`assets - liabilitiesAndEquity`. `"0"` for the report as a whole (B3); one slice of a ' +
+        'grouped report may be non-zero, because tags are per line.',
+    }),
+  })
+  .meta({ id: 'BalanceSheetTotals' });
 
 export type BalanceSheetTotals = z.infer<typeof balanceSheetTotalsSchema>;
 
 export const balanceSheetGroupSchema = z
   .strictObject({
-    key: balanceSheetGroupKeySchema.nullable(),
+    key: reportGroupKeySchema.nullable(),
     assets: balanceSheetSectionSchema,
     liabilities: balanceSheetSectionSchema,
     equity: balanceSheetSectionSchema,
     totals: balanceSheetTotalsSchema,
   })
   .meta({
+    id: 'BalanceSheetGroup',
     description:
       'One complete sheet. An unsliced report has exactly one group, whose `key` is null; a ' +
       'sliced one has a group per dimension value plus the unassigned bucket last.',
@@ -214,6 +214,7 @@ export const balanceSheetFiscalYearSchema = z
     endDate: calendarDateSchema,
   })
   .meta({
+    id: 'BalanceSheetFiscalYear',
     description:
       'The fiscal year containing `asOf`, resolved from the org’s fiscal-year start month. ' +
       '`year` names the calendar year the fiscal year starts in.',
@@ -239,6 +240,7 @@ export const balanceSheetSchema = z
     }),
   })
   .meta({
+    id: 'BalanceSheet',
     description:
       'Assets, liabilities and equity as at a date, with hierarchy subtotals and the two derived ' +
       'earnings lines that make the sheet balance without a closing journal (D-20). Amounts are ' +

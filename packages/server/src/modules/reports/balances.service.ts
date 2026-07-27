@@ -4,6 +4,7 @@ import { accountBalancesQuerySchema } from '@openbooks/shared-types';
 import { getContext } from '../../context';
 import type { RequestContext } from '../../context';
 import type { TenantDatabase } from '../../db';
+import { uuidToBuffer } from '../../db';
 import { InternalError, parseInput } from '../../errors';
 import { requirePermission } from '../permissions';
 
@@ -109,6 +110,41 @@ export interface AccountBalances {
 export type AccountBalancesQuery = AccountBalancesQueryParams;
 
 /**
+ * Narrowings the core accepts from its own callers and from nobody else.
+ *
+ * A third parameter rather than a field on the query, and the reason is that
+ * "internal" has to be a property of the signature rather than of a convention.
+ * The query is parsed from a strict zod schema published in `shared-types`, which
+ * is exactly the schema a route hands a client-supplied object to. There were
+ * three honest ways to add a narrowing to it and this is the only one where a
+ * client cannot reach the field at all:
+ *
+ *  - **A field on the wire schema.** Every report would then advertise "give me
+ *    these account ids", which no client needs — the P&L and the balance sheet
+ *    take the whole chart, and the general ledger names its one account through
+ *    `accountId` already — and A10 would freeze it into `openapi.json` where
+ *    removing it later is a breaking change.
+ *  - **A field stripped off the query before the parse.** Cheap, and it puts a
+ *    JSON-spellable key on the object a handler passes through; the only thing
+ *    keeping it off the wire is every wire schema staying strict, which is
+ *    discipline rather than the build.
+ *  - **A separate parameter.** Nothing a request body can carry ever lands here,
+ *    because a body is one value and this is a different argument.
+ *
+ * The cost is paid in the signature: the core is no longer uniformly
+ * `(query, ctx)`, and a caller that wants an option has to pass `ctx` explicitly
+ * to reach past its default. Both are visible at every call site, which is the
+ * right place for the cost of an internal back door to sit.
+ */
+export interface AccountBalancesOptions {
+  /**
+   * Report on these accounts only. Ids as they appear on the wire; they are this
+   * process's own, so a malformed one throws rather than 404s.
+   */
+  readonly accountIds?: readonly string[];
+}
+
+/**
  * Account balances over a date range, optionally filtered and optionally grouped
  * by a dimension axis.
  *
@@ -122,12 +158,13 @@ export type AccountBalancesQuery = AccountBalancesQueryParams;
 export async function getAccountBalances(
   query: AccountBalancesQuery = {},
   ctx: RequestContext = getContext('getAccountBalances()'),
+  options: AccountBalancesOptions = {},
 ): Promise<AccountBalances> {
   await requirePermission(ctx, 'reports.read');
   const request = parseInput(accountBalancesQuerySchema, query);
 
   const db = orgScope(ctx);
-  const spec = await resolveSpec(db, request);
+  const spec = await resolveSpec(db, request, options);
   const rows = await selectAccountBalances(db, spec);
 
   return assemble(rows, {
@@ -147,6 +184,7 @@ export async function getAccountBalances(
 async function resolveSpec(
   db: TenantDatabase,
   request: AccountBalancesQuery,
+  options: AccountBalancesOptions,
 ): Promise<BalanceQuerySpec> {
   const dimensions: ResolvedDimensionFilter[] = [];
   for (const filter of request.dimensions ?? []) {
@@ -162,6 +200,15 @@ async function resolveSpec(
     from: request.from ?? null,
     to: request.to ?? null,
     types: request.types ?? null,
+    // Not resolved against `accounts`, unlike every id above it. The others are
+    // client input, where an id this org does not own has to become a 404 rather
+    // than a report of zeros; these are internal, so `uuidToBuffer` throwing on a
+    // malformed one is the right answer — the same argument
+    // `selectDimensionValueLabels` makes about ids this process produced itself.
+    // An id for an account that does not exist simply reports on no account,
+    // which is what asking for it means.
+    accountIds:
+      options.accountIds === undefined ? null : options.accountIds.map((id) => uuidToBuffer(id)),
     contactId: request.contactId === undefined ? null : await resolveContact(db, request.contactId),
     dimensions,
     groupBy: request.groupBy === undefined ? null : await resolveDimension(db, request.groupBy),

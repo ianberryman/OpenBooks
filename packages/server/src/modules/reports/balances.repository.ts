@@ -100,6 +100,11 @@ export interface BalanceQuerySpec {
   /** Inclusive upper bound. `null` means every posting to date. */
   readonly to: string | null;
   readonly types: readonly AccountType[] | null;
+  /**
+   * The accounts to report on, or `null` for the whole chart. An empty list is a
+   * report on no accounts, not an absent filter.
+   */
+  readonly accountIds: readonly Buffer[] | null;
   readonly contactId: Buffer | null;
   readonly dimensions: readonly ResolvedDimensionFilter[];
   /** The axis to group by, or `null` for an ungrouped report. */
@@ -181,11 +186,21 @@ export async function selectAccountBalances(
         ),
     );
 
-  // The one filter that is a WHERE rather than a join condition, because it is the
-  // only one that is a statement about accounts. Removing an account is what is
-  // wanted here; removing a line is not.
-  const scoped =
-    spec.types === null ? joined : joined.where('accounts.type', 'in', [...spec.types]);
+  // The two filters that are WHERE clauses rather than join conditions, because
+  // they are the only ones that are statements about accounts. Removing an account
+  // is what is wanted here; removing a line is not.
+  let scoped = spec.types === null ? joined : joined.where('accounts.type', 'in', [...spec.types]);
+  if (spec.accountIds !== null) {
+    // An empty list is a report on no accounts. `IN ()` is a syntax error in
+    // MySQL, and folding the empty case back to "no filter" would answer a
+    // request for nothing with the entire chart — the failure mode this filter's
+    // property exists to rule out. `FALSE` is the honest empty set, and MySQL
+    // folds it before it reads a row.
+    scoped =
+      spec.accountIds.length === 0
+        ? scoped.where(sql<SqlBool>`FALSE`)
+        : scoped.where('accounts.id', 'in', [...spec.accountIds]);
+  }
 
   const rows = await scoped
     .select([
@@ -378,8 +393,16 @@ function windowSum(column: 'debit_minor' | 'credit_minor', window: Expression<Sq
  * Org scoping comes from `journal_lines.org_id`, which `tenantDb` has already
  * pinned through the join chain from `accounts` — the same way every other join in
  * this query inherits it.
+ *
+ * Exported because the general ledger applies the same filter to a different
+ * query. It was restated there while OB-042, OB-043 and OB-044 were being written
+ * against this file at once, and the two copies were byte-identical apart from the
+ * alias prefix — a divergence waiting to happen with a property standing over it
+ * rather than a second implementation worth keeping. The predicate correlates only
+ * to `journal_lines`, so it is equally at home in this query's `ON` clause and in
+ * the general ledger's `WHERE`; nothing about it depends on the shape around it.
  */
-function dimensionFilterPredicate(
+export function dimensionFilterPredicate(
   filter: ResolvedDimensionFilter,
   index: number,
 ): Expression<SqlBool> {

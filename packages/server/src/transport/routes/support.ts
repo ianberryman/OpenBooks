@@ -143,6 +143,35 @@ export function wireList<T>(values: readonly T[]): T[] {
 }
 
 /**
+ * `wireList` for a value whose `readonly` arrays are nested inside it.
+ *
+ * The three M2 reports return one object holding sections holding rows, every
+ * level `readonly`, and copying that by hand at a route would be twenty lines of
+ * re-listing fields — which is the one shape of code that silently drops a field
+ * when the service gains one. This drops `readonly` in the type and returns the
+ * same object.
+ *
+ * ## Why the cast is not a hole
+ *
+ * It removes a modifier and nothing else, so it cannot make a wrong shape
+ * type-check: the handler still declares the response schema's inferred type as its
+ * return type, and `Mutable<ReportShape>` is checked against it there. A field the
+ * service adds, renames, or changes the type of fails to compile at that position,
+ * exactly as it would without this. What is given up is the compiler's objection to
+ * a route mutating a service's result, and no route does — Fastify serializes the
+ * value and drops it.
+ */
+type Mutable<T> = T extends readonly (infer Element)[]
+  ? Mutable<Element>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: Mutable<T[K]> }
+    : T;
+
+export function wireValue<T>(value: T): Mutable<T> {
+  return value as Mutable<T>;
+}
+
+/**
  * The stored response body of an idempotent write, typed for the route's declared
  * response schema.
  *

@@ -16,6 +16,7 @@ export * from './contacts';
 export * from './dimensions';
 export * from './drafts';
 export * from './journals';
+export * from './members';
 export * from './money';
 export * from './orgs';
 export * from './periods';

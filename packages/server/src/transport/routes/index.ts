@@ -2,39 +2,87 @@ import type { Config } from '../../config';
 import type { App } from '../types';
 import { registerAccountRoutes } from './accounts';
 import { registerAuthRoutes } from './auth';
+import { registerChartTemplateRoutes } from './chart-templates';
+import { registerContactRoutes } from './contacts';
+import { registerDimensionRoutes } from './dimensions';
+import { registerDraftRoutes } from './drafts';
+import { registerJournalLineRoutes } from './journal-lines';
 import { registerJournalRoutes } from './journals';
+import { registerMemberRoutes } from './members';
 import { registerOrgRoutes } from './orgs';
 import { registerPeriodRoutes } from './periods';
 import { registerReportRoutes } from './reports';
 
 /**
- * The `/v1` route surface (OB-023).
+ * The `/v1` route surface (OB-023, extended by OB-045).
  *
- * | Method   | Path                                    | operationId           | Idempotency-Key | Claim scope    |
- * | -------- | --------------------------------------- | --------------------- | --------------- | -------------- |
- * | `POST`   | `/v1/auth/register`                     | `register`            | required        | global         |
- * | `POST`   | `/v1/auth/login`                        | `login`               | required        | global         |
- * | `POST`   | `/v1/auth/logout`                       | `logout`              | required        | global         |
- * | `GET`    | `/v1/auth/me`                           | `getCurrentIdentity`  | —               | —              |
- * | `POST`   | `/v1/orgs`                              | `createOrg`           | required        | global         |
- * | `GET`    | `/v1/orgs`                              | `listOrgMemberships`  | —               | —              |
- * | `POST`   | `/v1/orgs/active`                       | `switchActiveOrg`     | required        | global         |
- * | `POST`   | `/v1/accounts`                          | `createAccount`       | required        | org            |
- * | `GET`    | `/v1/accounts`                          | `listAccounts`        | —               | —              |
- * | `GET`    | `/v1/accounts/:accountId`               | `getAccount`          | —               | —              |
- * | `PATCH`  | `/v1/accounts/:accountId`               | `updateAccount`       | required        | org            |
- * | `POST`   | `/v1/accounts/:accountId/deactivate`    | `deactivateAccount`   | required        | org            |
- * | `POST`   | `/v1/accounts/:accountId/reactivate`    | `reactivateAccount`   | required        | org            |
- * | `DELETE` | `/v1/accounts/:accountId`               | `deleteAccount`       | required        | org            |
- * | `POST`   | `/v1/fiscal-years`                      | `generateFiscalYear`  | required        | org            |
- * | `POST`   | `/v1/fiscal-periods`                    | `createFiscalPeriod`  | required        | org            |
- * | `GET`    | `/v1/fiscal-periods`                    | `listFiscalPeriods`   | —               | —              |
- * | `POST`   | `/v1/fiscal-periods/:periodId/close`    | `closeFiscalPeriod`   | required        | org            |
- * | `POST`   | `/v1/fiscal-periods/:periodId/reopen`   | `reopenFiscalPeriod`  | required        | org            |
- * | `POST`   | `/v1/journals`                          | `postJournal`         | required        | org            |
- * | `GET`    | `/v1/journals`                          | `listJournals`        | —               | —              |
- * | `POST`   | `/v1/journals/:journalId/reverse`       | `reverseJournal`      | required        | org            |
- * | `GET`    | `/v1/reports/trial-balance`             | `getTrialBalance`     | —               | —              |
+ * | Method   | Path                                            | operationId                 | Idempotency-Key | Claim scope    |
+ * | -------- | ----------------------------------------------- | --------------------------- | --------------- | -------------- |
+ * | `POST`   | `/v1/auth/register`                             | `register`                  | required        | global         |
+ * | `POST`   | `/v1/auth/login`                                | `login`                     | required        | global         |
+ * | `POST`   | `/v1/auth/logout`                               | `logout`                    | required        | global         |
+ * | `GET`    | `/v1/auth/me`                                   | `getCurrentIdentity`        | —               | —              |
+ * | `POST`   | `/v1/orgs`                                      | `createOrg`                 | required        | global         |
+ * | `GET`    | `/v1/orgs`                                      | `listOrgMemberships`        | —               | —              |
+ * | `POST`   | `/v1/orgs/active`                               | `switchActiveOrg`           | required        | global         |
+ * | `POST`   | `/v1/accounts`                                  | `createAccount`             | required        | org            |
+ * | `GET`    | `/v1/accounts`                                  | `listAccounts`              | —               | —              |
+ * | `GET`    | `/v1/accounts/:accountId`                       | `getAccount`                | —               | —              |
+ * | `PATCH`  | `/v1/accounts/:accountId`                       | `updateAccount`             | required        | org            |
+ * | `POST`   | `/v1/accounts/:accountId/deactivate`            | `deactivateAccount`         | required        | org            |
+ * | `POST`   | `/v1/accounts/:accountId/reactivate`            | `reactivateAccount`         | required        | org            |
+ * | `DELETE` | `/v1/accounts/:accountId`                       | `deleteAccount`             | required        | org            |
+ * | `GET`    | `/v1/chart-templates`                           | `listChartTemplates`        | —               | —              |
+ * | `POST`   | `/v1/chart-templates/apply`                     | `applyChartTemplate`        | required        | org            |
+ * | `POST`   | `/v1/contacts`                                  | `createContact`             | required        | org            |
+ * | `GET`    | `/v1/contacts`                                  | `listContacts`              | —               | —              |
+ * | `GET`    | `/v1/contacts/:contactId`                       | `getContact`                | —               | —              |
+ * | `PATCH`  | `/v1/contacts/:contactId`                       | `updateContact`             | required        | org            |
+ * | `POST`   | `/v1/contacts/:contactId/deactivate`            | `deactivateContact`         | required        | org            |
+ * | `POST`   | `/v1/contacts/:contactId/reactivate`            | `reactivateContact`         | required        | org            |
+ * | `DELETE` | `/v1/contacts/:contactId`                       | `deleteContact`             | required        | org            |
+ * | `POST`   | `/v1/dimensions`                                | `createDimension`           | required        | org            |
+ * | `GET`    | `/v1/dimensions`                                | `listDimensions`            | —               | —              |
+ * | `GET`    | `/v1/dimensions/:dimensionId`                   | `getDimension`              | —               | —              |
+ * | `PATCH`  | `/v1/dimensions/:dimensionId`                   | `updateDimension`           | required        | org            |
+ * | `POST`   | `/v1/dimensions/:dimensionId/archive`           | `archiveDimension`          | required        | org            |
+ * | `POST`   | `/v1/dimensions/:dimensionId/unarchive`         | `unarchiveDimension`        | required        | org            |
+ * | `DELETE` | `/v1/dimensions/:dimensionId`                   | `deleteDimension`           | required        | org            |
+ * | `POST`   | `/v1/dimensions/:dimensionId/values`            | `createDimensionValue`      | required        | org            |
+ * | `GET`    | `/v1/dimensions/:dimensionId/values`            | `listDimensionValues`       | —               | —              |
+ * | `GET`    | `/v1/dimension-values/:valueId`                 | `getDimensionValue`         | —               | —              |
+ * | `PATCH`  | `/v1/dimension-values/:valueId`                 | `updateDimensionValue`      | required        | org            |
+ * | `POST`   | `/v1/dimension-values/:valueId/archive`         | `archiveDimensionValue`     | required        | org            |
+ * | `POST`   | `/v1/dimension-values/:valueId/unarchive`       | `unarchiveDimensionValue`   | required        | org            |
+ * | `DELETE` | `/v1/dimension-values/:valueId`                 | `deleteDimensionValue`      | required        | org            |
+ * | `POST`   | `/v1/fiscal-years`                              | `generateFiscalYear`        | required        | org            |
+ * | `POST`   | `/v1/fiscal-periods`                            | `createFiscalPeriod`        | required        | org            |
+ * | `GET`    | `/v1/fiscal-periods`                            | `listFiscalPeriods`         | —               | —              |
+ * | `POST`   | `/v1/fiscal-periods/:periodId/close`            | `closeFiscalPeriod`         | required        | org            |
+ * | `POST`   | `/v1/fiscal-periods/:periodId/reopen`           | `reopenFiscalPeriod`        | required        | org            |
+ * | `POST`   | `/v1/invites`                                   | `inviteMember`              | required        | org            |
+ * | `GET`    | `/v1/invites`                                   | `listInvites`               | —               | —              |
+ * | `POST`   | `/v1/invites/accept`                            | `acceptInvite`              | required        | **global**     |
+ * | `POST`   | `/v1/invites/:inviteId/revoke`                  | `revokeInvite`              | required        | org            |
+ * | `GET`    | `/v1/journal-lines/:lineId/dimensions`          | `getJournalLineDimensions`  | —               | —              |
+ * | `PUT`    | `/v1/journal-lines/:lineId/dimensions`          | `setJournalLineDimensions`  | required        | org            |
+ * | `POST`   | `/v1/journal-drafts`                            | `createDraft`               | required        | org            |
+ * | `GET`    | `/v1/journal-drafts`                            | `listDrafts`                | —               | —              |
+ * | `GET`    | `/v1/journal-drafts/:draftId`                   | `getDraft`                  | —               | —              |
+ * | `PATCH`  | `/v1/journal-drafts/:draftId`                   | `updateDraft`               | required        | org            |
+ * | `DELETE` | `/v1/journal-drafts/:draftId`                   | `discardDraft`              | required        | org            |
+ * | `POST`   | `/v1/journal-drafts/:draftId/post`              | `postDraft`                 | required        | org            |
+ * | `POST`   | `/v1/journals`                                  | `postJournal`               | required        | org            |
+ * | `GET`    | `/v1/journals`                                  | `listJournals`              | —               | —              |
+ * | `POST`   | `/v1/journals/:journalId/reverse`               | `reverseJournal`            | required        | org            |
+ * | `GET`    | `/v1/members`                                   | `listMembers`               | —               | —              |
+ * | `PATCH`  | `/v1/members/:userId`                           | `changeMemberRole`          | required        | org            |
+ * | `DELETE` | `/v1/members/:userId`                           | `removeMember`              | required        | org            |
+ * | `GET`    | `/v1/reports/balance-sheet`                     | `getBalanceSheet`           | —               | —              |
+ * | `GET`    | `/v1/reports/general-ledger`                    | `getGeneralLedger`          | —               | —              |
+ * | `GET`    | `/v1/reports/profit-and-loss`                   | `getProfitAndLoss`          | —               | —              |
+ * | `GET`    | `/v1/reports/trial-balance`                     | `getTrialBalance`           | —               | —              |
+ * | `GET`    | `/v1/roles`                                     | `listAssignableRoles`       | —               | —              |
  *
  * ## What a handler in this directory is allowed to contain
  *
@@ -117,12 +165,46 @@ import { registerReportRoutes } from './reports';
  * with no `Set-Cookie`, because the session token exists only during execution and is
  * deliberately never stored (D-03). That is right for the double-submit this guards
  * against; a caller who genuinely lost the response has to log in again.
+ *
+ * OB-045 added a sixth global claim and it is the only one that is not an identity or
+ * org-lifecycle write: **`acceptInvite`**. It belongs there for the same structural
+ * reason the other five do — the caller is by definition not yet a member of the org
+ * they are joining, so `requireOrgScope` would refuse a request the service is built
+ * to accept and an org-scoped claim would be recorded against whichever org they
+ * happened to be scoped to. Every other OB-045 write is org-scoped and uses
+ * `withIdempotency`.
+ *
+ * ## Two shapes this surface deliberately does not have
+ *
+ * **A read that is a `POST`.** The three M2 reports take a structured dimension
+ * filter that a querystring cannot express in any standard notation, and the obvious
+ * answer is a `POST` with a JSON body. It is refused because "every write requires an
+ * `Idempotency-Key`" is asserted here by enumerating the non-`GET` operations out of
+ * the published document, so a read-only `POST` converts a rule into a rule with an
+ * allowlist. `src/transport/routes/reports.ts` carries the full argument and what the
+ * chosen alternative costs.
+ *
+ * **`{ items, nextCursor }` on the general ledger.** D-21 gives every list one
+ * envelope and six endpoints use it; `GET /v1/reports/general-ledger` does not,
+ * because it is a report that contains a list rather than a list. The account, the
+ * range and the three balances are its subject, and they are recomputed on every page
+ * precisely so a client can see the ledger move underneath it — none of which has
+ * anywhere to live beside a bare `items`. The paging *protocol* is unchanged:
+ * `nextCursor` is the same opaque `PageCursor` with the same meaning, so a client
+ * that can page any other collection can page this one. Only the key the rows sit
+ * under differs, and `generalLedgerSchema` states why.
  */
 export function registerV1Routes(app: App, config: Config): void {
   registerAuthRoutes(app, config);
   registerOrgRoutes(app);
   registerAccountRoutes(app);
+  registerChartTemplateRoutes(app);
+  registerContactRoutes(app);
+  registerDimensionRoutes(app);
+  registerJournalLineRoutes(app);
   registerPeriodRoutes(app);
   registerJournalRoutes(app);
+  registerDraftRoutes(app);
+  registerMemberRoutes(app);
   registerReportRoutes(app);
 }

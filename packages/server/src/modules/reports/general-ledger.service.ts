@@ -172,11 +172,11 @@ export async function getGeneralLedger(
 /**
  * The account's decomposition, from the core.
  *
- * `types` is narrowed to this account's own type. The core has no per-account
- * filter — it is deliberately a whole-chart aggregation, and OB-042 and OB-043 are
- * being written against that surface right now — so this is the one narrowing
- * available without changing it. A parent's type equals its children's
- * (`hierarchy.ts`), so this cannot exclude the account being asked about.
+ * One account, through the core's `accountIds` option. This used to narrow by
+ * `types` instead — the widest filter the core's wire query offers — and so
+ * aggregated every account of one type in order to read a single row. That was
+ * harmless arithmetic and the wrong shape, and the option exists now precisely so
+ * this call asks for what it wants.
  *
  * The filters are passed through as the caller sent them rather than as the bytes
  * already resolved for `spec`, because the core resolves its own. That is a second
@@ -193,20 +193,20 @@ async function coreBalance(
     {
       ...(request.from === undefined ? {} : { from: request.from }),
       ...(request.to === undefined ? {} : { to: request.to }),
-      types: [account.type],
       ...(request.contactId === undefined ? {} : { contactId: request.contactId }),
       ...(request.dimensions === undefined ? {} : { dimensions: request.dimensions }),
     },
     ctx,
+    { accountIds: [account.accountId] },
   );
 
   const group = balances.groups[0];
   const row = group?.rows.find((candidate) => candidate.accountId === account.accountId);
   if (row === undefined) {
-    // The core is dense — every account of the requested types carries a row in
-    // every group, at zero where the ledger had nothing — and this account was
-    // read out of `accounts` a moment ago. An absent row means the two disagree
-    // about the chart, which is not a condition a caller can cause.
+    // The core is dense — every account it was asked about carries a row in every
+    // group, at zero where the ledger had nothing — and this account was read out
+    // of `accounts` a moment ago. An absent row means the two disagree about the
+    // chart, which is not a condition a caller can cause.
     throw new InternalError(
       'The report core returned no row for an account that exists, so the ledger has no ' +
         'opening balance to run from.',

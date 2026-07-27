@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { CHART_TEMPLATE_IDS } from '../accounts';
+
 /**
  * The org and membership wire contract (OB-023; spec §5).
  *
@@ -95,6 +97,26 @@ export const orgMembershipListSchema = z
 
 export type OrgMembershipList = z.infer<typeof orgMembershipListSchema>;
 
+/**
+ * The starter chart to copy into the new org, if any (ROADMAP D-23).
+ *
+ * Optional, and its absence is the status quo rather than a default: an org created
+ * without it has no accounts at all, because a chart that arrives uninvited is a
+ * chart the user deletes account by account. Naming one applies it inside the same
+ * transaction that writes the org, so a template that cannot be applied leaves no
+ * org behind either — see `createOrgIn` in the server's `modules/orgs`.
+ *
+ * The enum is restated from `CHART_TEMPLATE_IDS` rather than reusing the schema in
+ * `accounts/chart-templates.ts`, which describes the *apply* operation on an org
+ * that already exists. The tokens are the shared thing; the descriptions are not.
+ */
+const chartTemplateIdSchema = z.enum(CHART_TEMPLATE_IDS).meta({
+  description:
+    'An optional starter chart of accounts to copy into the new organization. Omit it and the ' +
+    'organization is created with no accounts. Applied in the same transaction as the ' +
+    'organization: an unknown id is a `validation_failed` and no organization is created.',
+});
+
 export const createOrgRequestSchema = z
   .strictObject({
     name: z.string().meta({
@@ -103,6 +125,7 @@ export const createOrgRequestSchema = z
         '`validation_failed` naming `name`.',
     }),
     fiscalYearStartMonth: fiscalYearStartMonthSchema.optional(),
+    chartTemplateId: chartTemplateIdSchema.optional(),
   })
   .meta({
     id: 'CreateOrgRequest',

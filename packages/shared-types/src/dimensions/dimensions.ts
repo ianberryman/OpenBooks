@@ -1,27 +1,28 @@
 import { z } from 'zod';
 
-import { pageQueryShape } from '../wire';
+import { pageQueryShape, pageSchema } from '../wire';
 
 /**
  * Request and response schemas for dimensions — the user-defined reporting axes
  * of ROADMAP D-18 (OB-033, OB-037).
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## The `id`s
  *
  * `jsonSchemaTransformObject` copies *every* schema carrying an `id` out of zod's
  * global registry into `components.schemas`, whether or not a route references it,
  * and A10 makes drift in `openapi.json` a build failure. The rule stated at the
  * top of `accounts/accounts.ts` is that an `id` goes on a body or response schema
- * a route references and on nothing else — and OB-037 ends at the service, with
- * the routes arriving in OB-045. So the ids are added in the same diff as the
- * routes that use them, exactly as OB-018 left them off and OB-023 added them.
+ * a route references and on nothing else. OB-037 ended at the service and left them
+ * off; OB-045 built `/v1/dimensions` and added them, which is the sequence OB-018
+ * and OB-023 established.
  *
- * That is also why the two page types below are hand-written rather than built
- * with `pageSchema`: the helper requires an `id`, because the only reason to have
- * a response *schema* rather than a response *type* is to publish it. OB-045
- * replaces both with `pageSchema(dimensionSchema, { id: 'DimensionPage', … })`,
- * which is a change to this file alone — the keys are the shared envelope's keys
- * (D-21), so nothing downstream moves.
+ * The two pages are `pageSchema` calls now rather than hand-written interfaces —
+ * the helper requires an `id`, because the only reason to have a response *schema*
+ * rather than a response *type* is to publish it. The keys did not change: they
+ * were the shared envelope's keys already (D-21), so nothing downstream moved.
+ *
+ * The two list queries carry no `id` and must not: a querystring is emitted as
+ * individual `parameters`, so a component for one would be referenced by nothing.
  */
 
 /**
@@ -136,20 +137,26 @@ const dimensionValueNameSchema = z
  * would carry no information and would be one more place a cross-org id could
  * appear in a response.
  */
-export const dimensionSchema = z.strictObject({
-  id: z.uuid(),
-  code: dimensionCodeSchema,
-  name: dimensionNameSchema,
-  description: dimensionDescriptionSchema.nullable(),
-  isActive: z.boolean().meta({
+export const dimensionSchema = z
+  .strictObject({
+    id: z.uuid(),
+    code: dimensionCodeSchema,
+    name: dimensionNameSchema,
+    description: dimensionDescriptionSchema.nullable(),
+    isActive: z.boolean().meta({
+      description:
+        'An archived axis keeps every tag its values carry and every report they slice; it is ' +
+        'simply not offered for new values or new tags. This is the only form of removal ' +
+        'available to an axis whose values are in use.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Dimension',
     description:
-      'An archived axis keeps every tag its values carry and every report they slice; it is ' +
-      'simply not offered for new values or new tags. This is the only form of removal ' +
-      'available to an axis whose values are in use.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'One reporting axis: a way of dividing the business that the chart should not carry.',
+  });
 
 export type Dimension = z.infer<typeof dimensionSchema>;
 
@@ -161,19 +168,24 @@ export type Dimension = z.infer<typeof dimensionSchema>;
  * key in `0002_ledger` is what makes the pair a single fact), so a client holding
  * a value without its axis holds half a tag.
  */
-export const dimensionValueSchema = z.strictObject({
-  id: z.uuid(),
-  dimensionId: z.uuid(),
-  code: dimensionValueCodeSchema,
-  name: dimensionValueNameSchema,
-  isActive: z.boolean().meta({
-    description:
-      'An archived value keeps every journal line already tagged with it and cannot be chosen ' +
-      'for a new tag.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const dimensionValueSchema = z
+  .strictObject({
+    id: z.uuid(),
+    dimensionId: z.uuid(),
+    code: dimensionValueCodeSchema,
+    name: dimensionValueNameSchema,
+    isActive: z.boolean().meta({
+      description:
+        'An archived value keeps every journal line already tagged with it and cannot be chosen ' +
+        'for a new tag.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'DimensionValue',
+    description: 'One division on one axis. A journal line carries at most one value per axis.',
+  });
 
 export type DimensionValue = z.infer<typeof dimensionValueSchema>;
 
@@ -189,11 +201,18 @@ export type DimensionValue = z.infer<typeof dimensionValueSchema>;
  * relabelling; renumbering `DEPT` to `CC` is a different axis wearing the old
  * one's tags.
  */
-export const createDimensionRequestSchema = z.strictObject({
-  code: dimensionCodeSchema,
-  name: dimensionNameSchema,
-  description: dimensionDescriptionSchema.nullish(),
-});
+export const createDimensionRequestSchema = z
+  .strictObject({
+    code: dimensionCodeSchema,
+    name: dimensionNameSchema,
+    description: dimensionDescriptionSchema.nullish(),
+  })
+  .meta({
+    id: 'CreateDimensionRequest',
+    description:
+      'Creates one axis. An org may hold at most `MAX_DIMENSIONS_PER_ORG` of them, archived ones ' +
+      'included; over that is a `precondition_failed`.',
+  });
 
 export type CreateDimensionRequest = z.infer<typeof createDimensionRequestSchema>;
 
@@ -214,14 +233,22 @@ export const updateDimensionRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateDimensionRequest',
+    description:
+      'Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending ' +
+      'either is a `validation_failed` naming the field.',
   });
 
 export type UpdateDimensionRequest = z.infer<typeof updateDimensionRequestSchema>;
 
-export const createDimensionValueRequestSchema = z.strictObject({
-  code: dimensionValueCodeSchema,
-  name: dimensionValueNameSchema,
-});
+export const createDimensionValueRequestSchema = z
+  .strictObject({
+    code: dimensionValueCodeSchema,
+    name: dimensionValueNameSchema,
+  })
+  .meta({ id: 'CreateDimensionValueRequest', description: 'Adds one value to an axis.' });
 
 export type CreateDimensionValueRequest = z.infer<typeof createDimensionValueRequestSchema>;
 
@@ -230,9 +257,14 @@ export type CreateDimensionValueRequest = z.infer<typeof createDimensionValueReq
  * value has: an update with it absent would be an empty request, which the axis
  * schema has to spell as a `.refine()` and this one does not.
  */
-export const updateDimensionValueRequestSchema = z.strictObject({
-  name: dimensionValueNameSchema,
-});
+export const updateDimensionValueRequestSchema = z
+  .strictObject({
+    name: dimensionValueNameSchema,
+  })
+  .meta({
+    id: 'UpdateDimensionValueRequest',
+    description: 'Renames a value. `name` is the only mutable field a value has.',
+  });
 
 export type UpdateDimensionValueRequest = z.infer<typeof updateDimensionValueRequestSchema>;
 
@@ -282,17 +314,24 @@ export type ListDimensionValuesQuery = z.input<typeof listDimensionValuesQuerySc
  * Bounded by `MAX_DIMENSIONS_PER_ORG` because a line cannot carry more tags than
  * the org has axes; over that, at least two of them are duplicates on one axis.
  */
-export const setJournalLineDimensionsRequestSchema = z.strictObject({
-  valueIds: z
-    .array(z.uuid())
-    .max(MAX_DIMENSIONS_PER_ORG)
-    .meta({
-      description:
-        'Every dimension value this line carries, after the call. An axis absent from the list ' +
-        'is untagged; an empty list clears every tag. Two values on one axis is a ' +
-        '`precondition_failed`, not a last-one-wins.',
-    }),
-});
+export const setJournalLineDimensionsRequestSchema = z
+  .strictObject({
+    valueIds: z
+      .array(z.uuid())
+      .max(MAX_DIMENSIONS_PER_ORG)
+      .meta({
+        description:
+          'Every dimension value this line carries, after the call. An axis absent from the list ' +
+          'is untagged; an empty list clears every tag. Two values on one axis is a ' +
+          '`precondition_failed`, not a last-one-wins.',
+      }),
+  })
+  .meta({
+    id: 'SetJournalLineDimensionsRequest',
+    description:
+      'The complete set of dimension values a posted line carries after the call. A value names ' +
+      'its own axis, so a tag filed under the wrong one is unrepresentable rather than refused.',
+  });
 
 export type SetJournalLineDimensionsRequest = z.infer<typeof setJournalLineDimensionsRequestSchema>;
 
@@ -302,25 +341,47 @@ export type SetJournalLineDimensionsRequest = z.infer<typeof setJournalLineDimen
  * `lineId` is a string for the reason `postedJournalLineSchema` gives:
  * `journal_lines.id` is a `BIGINT` and a JSON number cannot carry it past 2^53.
  */
-export const journalLineDimensionSchema = z.strictObject({
-  lineId: z.string(),
-  dimensionId: z.uuid(),
-  dimensionValueId: z.uuid(),
-});
+export const journalLineDimensionSchema = z
+  .strictObject({
+    lineId: z.string(),
+    dimensionId: z.uuid(),
+    dimensionValueId: z.uuid(),
+  })
+  .meta({ id: 'JournalLineDimension', description: 'One tag on one posted journal line.' });
 
 export type JournalLineDimension = z.infer<typeof journalLineDimensionSchema>;
 
 /**
- * The list envelope's shape without its `id`, for the reason given at the top of
- * this file. `items` and `nextCursor` are the keys `pageSchema` produces (D-21),
- * so a client written against this page reads the next one unchanged.
+ * The tags a line carries, as an envelope rather than a bare array.
+ *
+ * The reason `orgMembershipListSchema` gives: a top-level object has somewhere to
+ * put a later addition, and a bare array does not. It is not `pageSchema`, because
+ * a line's tags are bounded by `MAX_DIMENSIONS_PER_ORG` — there is no page to take
+ * a second of.
  */
-export interface DimensionPage {
-  readonly items: readonly Dimension[];
-  readonly nextCursor: string | null;
-}
+export const journalLineDimensionListSchema = z
+  .strictObject({
+    dimensions: z.array(journalLineDimensionSchema),
+  })
+  .meta({
+    id: 'JournalLineDimensionList',
+    description: 'Every dimension value one posted journal line carries, at most one per axis.',
+  });
 
-export interface DimensionValuePage {
-  readonly items: readonly DimensionValue[];
-  readonly nextCursor: string | null;
-}
+export type JournalLineDimensionList = z.infer<typeof journalLineDimensionListSchema>;
+
+export const dimensionPageSchema = pageSchema(dimensionSchema, {
+  id: 'DimensionPage',
+  description:
+    'One page of the org’s axes, in `code` order. Safe against a cursor because a dimension’s ' +
+    'code is immutable — the same dependency D-27 created for the chart of accounts.',
+});
+
+export type DimensionPage = z.infer<typeof dimensionPageSchema>;
+
+export const dimensionValuePageSchema = pageSchema(dimensionValueSchema, {
+  id: 'DimensionValuePage',
+  description: 'One page of one axis’s values, in `code` order, which is likewise immutable.',
+});
+
+export type DimensionValuePage = z.infer<typeof dimensionValuePageSchema>;

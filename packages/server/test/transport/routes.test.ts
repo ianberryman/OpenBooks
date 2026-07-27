@@ -104,6 +104,49 @@ describe('the /v1 route table', () => {
         'reverseJournal',
         'listJournals',
         'getTrialBalance',
+        // OB-045.
+        'listChartTemplates',
+        'applyChartTemplate',
+        'createContact',
+        'listContacts',
+        'getContact',
+        'updateContact',
+        'deactivateContact',
+        'reactivateContact',
+        'deleteContact',
+        'createDimension',
+        'listDimensions',
+        'getDimension',
+        'updateDimension',
+        'archiveDimension',
+        'unarchiveDimension',
+        'deleteDimension',
+        'createDimensionValue',
+        'listDimensionValues',
+        'getDimensionValue',
+        'updateDimensionValue',
+        'archiveDimensionValue',
+        'unarchiveDimensionValue',
+        'deleteDimensionValue',
+        'getJournalLineDimensions',
+        'setJournalLineDimensions',
+        'createDraft',
+        'listDrafts',
+        'getDraft',
+        'updateDraft',
+        'discardDraft',
+        'postDraft',
+        'listMembers',
+        'changeMemberRole',
+        'removeMember',
+        'listAssignableRoles',
+        'inviteMember',
+        'listInvites',
+        'revokeInvite',
+        'acceptInvite',
+        'getProfitAndLoss',
+        'getBalanceSheet',
+        'getGeneralLedger',
       ]),
     );
   });
@@ -112,7 +155,10 @@ describe('the /v1 route table', () => {
     // Guards the enumeration itself: a filter bug that matched nothing would make
     // every case below pass vacuously.
     expect(new Set(writes().map((operation) => operation.method))).toEqual(
-      new Set(['POST', 'PATCH', 'DELETE']),
+      // `PUT` is OB-045's retag, and the only one: it replaces the complete set of a
+      // line's dimension values, where every other write here creates, patches, or
+      // removes.
+      new Set(['POST', 'PUT', 'PATCH', 'DELETE']),
     );
   });
 });

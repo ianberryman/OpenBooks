@@ -20,6 +20,14 @@ export {
 } from './balances';
 
 /**
+ * The bucket key every grouped report shares (OB-045). Read `groups.ts` for why it
+ * is one component rather than the three identical copies OB-042, OB-043 and
+ * OB-044 each declared.
+ */
+export type { ReportGroupKey } from './groups';
+export { reportGroupKeySchema, reportGroupKeyShape } from './groups';
+
+/**
  * The balance sheet (OB-043). Read `balance-sheet.ts` for why every amount is
  * already signed for the side it prints on, and for why the two derived earnings
  * lines are separate from the equity accounts (D-20).
@@ -36,7 +44,6 @@ export type {
 } from './balance-sheet';
 export {
   balanceSheetFiscalYearSchema,
-  balanceSheetGroupKeySchema,
   balanceSheetGroupSchema,
   balanceSheetQuerySchema,
   balanceSheetRowSchema,
@@ -53,7 +60,6 @@ export {
 export { PROFIT_AND_LOSS_ACCOUNT_TYPES } from './profit-and-loss';
 export type { ProfitAndLossAccountType, ProfitAndLossQueryParams } from './profit-and-loss';
 export {
-  profitAndLossGroupKeySchema,
   profitAndLossGroupSchema,
   profitAndLossQuerySchema,
   profitAndLossRowSchema,

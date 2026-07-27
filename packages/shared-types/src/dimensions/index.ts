@@ -3,8 +3,8 @@
  *
  * Read `dimensions.ts` for the axis bound and how it was chosen, for why a
  * dimension's `code` is immutable while its `name` is not, for why a tag names a
- * value and never an axis, and for why nothing here carries a `.meta({ id })`
- * until OB-045 puts a route in front of it.
+ * value and never an axis, and for the rule that decides which schemas carry a
+ * `.meta({ id })` — bodies and responses do, the two list queries do not.
  */
 
 export type {
@@ -15,6 +15,7 @@ export type {
   DimensionValue,
   DimensionValuePage,
   JournalLineDimension,
+  JournalLineDimensionList,
   ListDimensionValuesQuery,
   ListDimensionsQuery,
   SetJournalLineDimensionsRequest,
@@ -29,8 +30,11 @@ export {
   DIMENSION_NAME_MAX_LENGTH,
   DIMENSION_VALUE_CODE_MAX_LENGTH,
   DIMENSION_VALUE_NAME_MAX_LENGTH,
+  dimensionPageSchema,
   dimensionSchema,
+  dimensionValuePageSchema,
   dimensionValueSchema,
+  journalLineDimensionListSchema,
   journalLineDimensionSchema,
   listDimensionValuesQuerySchema,
   listDimensionsQuerySchema,

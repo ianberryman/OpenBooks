@@ -137,20 +137,23 @@ describe('contact schemas', () => {
   });
 
   /**
-   * No schema in this module carries a `.meta({ id })`, and it has to stay that
-   * way until OB-045 adds the routes: the OpenAPI transform copies the whole zod
-   * registry into `components.schemas`, so an `id` here would publish a component
-   * no route can reach and A10 makes the resulting drift a build failure.
+   * The OpenAPI transform copies the whole zod registry into `components.schemas`,
+   * not the subset some route references, and A10 makes drift a build failure. So
+   * the rule is that an `id` goes on a body or response schema a route uses and on
+   * nothing else. OB-045 added `/v1/contacts` and with it the four ids below; the
+   * list query stays out, because a querystring is emitted as individual
+   * `parameters` and a component for it would be referenced by nothing.
    */
-  it('registers no OpenAPI component, because contacts have no routes yet', () => {
-    for (const schema of [
-      contactSchema,
-      contactPageSchema,
-      createContactRequestSchema,
-      updateContactRequestSchema,
-      listContactsQuerySchema,
-    ]) {
-      expect(z.globalRegistry.get(schema)?.id).toBeUndefined();
-    }
+  it('publishes a component for each body and response, and none for the query', () => {
+    expect(
+      [
+        contactSchema,
+        contactPageSchema,
+        createContactRequestSchema,
+        updateContactRequestSchema,
+      ].map((schema) => z.globalRegistry.get(schema)?.id),
+    ).toEqual(['Contact', 'ContactPage', 'CreateContactRequest', 'UpdateContactRequest']);
+
+    expect(z.globalRegistry.get(listContactsQuerySchema)?.id).toBeUndefined();
   });
 });

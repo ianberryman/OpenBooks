@@ -193,6 +193,316 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/chart-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the starter charts of accounts
+         * @description Takes `accounts.read`. `accountCount` and not the accounts themselves: the number is what makes the choice, while the full list would invite a client to render a preview — and a preview is the first step towards treating a copied chart as something the org stays related to (D-23).
+         */
+        get: operations["listChartTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/chart-templates/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a starter chart into this organization
+         * @description Takes `accounts.write`. The accounts are written through `createAccount` one at a time in one transaction, so the hierarchy rules, the code-uniqueness conflict and the shared schema apply to a shipped chart exactly as they apply to a hand-typed one — there is no second write path for a template to bypass. A code the org already holds refuses the whole application and names every collision. Nothing records which template was used: the accounts are ordinary accounts from that moment on.
+         */
+        post: operations["applyChartTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List contacts
+         * @description One page, oldest first by creation. Deliberately not alphabetical: `displayName` is the field most likely to be edited, and a keyset cursor over a mutable column drops the rows that moved behind it (ROADMAP D-21). A screen that wants the list by name sorts what it holds.
+         */
+        get: operations["listContacts"];
+        put?: never;
+        /**
+         * Create a contact
+         * @description Contacts are created active. Only `displayName` is required: `isCustomer` and `isVendor` both default to false, because a party named on a journal line need take part in no subledger at all — an employee expense reimbursement being the ordinary case.
+         */
+        post: operations["createContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contacts/{contactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One contact */
+        get: operations["getContact"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a contact nothing references
+         * @description A contact is a directory row rather than a record of what happened, so deleting an unreferenced one restates nothing — and refusing would leave every mistyped and double-entered row in the picker forever. A contact named by a posted line answers `precondition_failed` with `contact_has_postings`, and one named by a draft with `contact_on_draft`: a posting is permanent and a draft is a form in progress, so the two are told apart rather than lumped together. Deactivate the first; edit the second.
+         */
+        delete: operations["deleteContact"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a contact
+         * @description An absent field is unchanged and an explicit `null` clears it. `code` may be changed here, unlike an account’s: a posted line references a contact by row, so renumbering a customer restates nothing, and codes usually arrive from the system the org migrated off.
+         */
+        patch: operations["updateContact"];
+        trace?: never;
+    };
+    "/v1/contacts/{contactId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate a contact
+         * @description Takes a contact out of circulation without removing it from the books, which is the only removal available to a contact the ledger names. A deactivated contact may not be named on a new entry (`contact_inactive`), though a reversal of an old one is exempt. Idempotent: an already-inactive contact is returned unchanged.
+         */
+        post: operations["deactivateContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contacts/{contactId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a contact
+         * @description The counterpart, so that deactivation is not a one-way door.
+         */
+        post: operations["reactivateContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimension-values/{valueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One dimension value
+         * @description A value names its own axis, so the axis is not part of the path.
+         */
+        get: operations["getDimensionValue"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a dimension value nothing carries
+         * @description A value any journal line or draft line carries answers `precondition_failed` with `dimension_value_in_use`. Deleting one would restate every sliced report ever run without moving a single amount — dangerous precisely because the trial balance would not change. Archive it instead.
+         */
+        delete: operations["deleteDimensionValue"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a dimension value
+         * @description `name` is the only mutable field a value has, so it is required rather than optional.
+         */
+        patch: operations["updateDimensionValue"];
+        trace?: never;
+    };
+    "/v1/dimension-values/{valueId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a dimension value
+         * @description An archived value keeps every line already tagged with it and cannot be chosen for a new tag. This is the only removal available to a value journal lines carry.
+         */
+        post: operations["archiveDimensionValue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimension-values/{valueId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unarchive a dimension value
+         * @description The counterpart. Refused while the axis itself is archived (`dimension_archived`) — a live value on a dead axis is a value nothing can be tagged with anyway.
+         */
+        post: operations["unarchiveDimensionValue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List dimensions
+         * @description One page, in `code` order. Paging is safe against a cursor because a dimension’s code is immutable — the same dependency D-27 created for the chart of accounts.
+         */
+        get: operations["listDimensions"];
+        put?: never;
+        /**
+         * Create a dimension
+         * @description An org may define at most eight axes, archived ones included, and over that is `precondition_failed` with `dimension_limit_reached` — every axis is another join in every sliced report and another row per tagged line (D-18). `code` is immutable once created.
+         */
+        post: operations["createDimension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimensions/{dimensionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One dimension */
+        get: operations["getDimension"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a dimension that has no values
+         * @description An axis with values answers `precondition_failed` with `dimension_has_values`: deleting it would take the values reports are grouped by with it, without naming them. Delete the values first, or archive the axis. Deleting is also how an org that has reached the eight-axis bound frees a slot — archiving is not, because an archived axis still costs what the bound is counting.
+         */
+        delete: operations["deleteDimension"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a dimension
+         * @description Rename, and nothing else. `code` is immutable and `isActive` belongs to the archive routes, so sending either is a `validation_failed` naming the field.
+         */
+        patch: operations["updateDimension"];
+        trace?: never;
+    };
+    "/v1/dimensions/{dimensionId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a dimension
+         * @description An archived axis keeps every tag its values carry and every report they slice; it is offered for nothing new — no new values, and no new tags on a line. Idempotent.
+         */
+        post: operations["archiveDimension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimensions/{dimensionId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unarchive a dimension
+         * @description The counterpart, so that archiving is not a one-way door.
+         */
+        post: operations["unarchiveDimension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dimensions/{dimensionId}/values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List one dimension’s values
+         * @description One page, in `code` order, which is likewise immutable and therefore safe.
+         */
+        get: operations["listDimensionValues"];
+        put?: never;
+        /**
+         * Add a value to a dimension
+         * @description The axis must not be archived — an archived one is offered for nothing new, and answers `dimension_archived`. `code` is unique within the axis and immutable.
+         */
+        post: operations["createDimensionValue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/fiscal-periods": {
         parameters: {
             query?: never;
@@ -274,6 +584,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the organization’s invitations
+         * @description Takes `members.read`. `expired` is derived from the clock on every read rather than stored: a stored status would be wrong between the moment an invitation lapses and whatever job noticed, and there is no such job.
+         */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Invite an address to the organization
+         * @description Takes `members.write`. The response carries `emailDelivered`, and it can be false: the send happens after the commit and must never fail the write, so a false here means the invitation exists and nobody was told. Reissue rather than assume. The token is never returned — it is a credential, held only as a hash.
+         */
+        post: operations["inviteMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invites/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem an invitation and join the organization
+         * @description Authorized by the token plus the caller’s registered address matching the invited one — without that second half, a forwarded link is a membership for whoever opens it. The caller must already be signed in: an invitation names an address, not an account, and is not a second way to register. Single use, decided by a locking read rather than a check. A caller who is already a member consumes the invitation and keeps the role they have (`joined: false`) — an invitation issued as Read-only must not be a way to demote an Owner who clicked it.
+         */
+        post: operations["acceptInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invites/{inviteId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw an invitation
+         * @description Takes `members.write`. Revoking an already-revoked invitation succeeds and changes nothing — it is the same request stated twice. Revoking an *accepted* one is refused with `invite_already_accepted`: the person is a member now, and the operation that undoes that is removing them, which carries the last-Owner rule. An expired invitation may still be revoked; that is how an administrator says so on the list.
+         */
+        post: operations["revokeInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List journal drafts
+         * @description One page of headers, oldest first by creation, with no lines — the argument `journalSummarySchema` makes: embedding them would make one page’s size depend on how many lines an org’s drafts happen to carry. Ordered by `(created_at, id)` because neither of the journal list’s columns exists on a draft: there is no sequence number by construction, and `entryDate` is nullable.
+         */
+        get: operations["listDrafts"];
+        put?: never;
+        /**
+         * Create a journal draft
+         * @description Nothing is required — not a date, not an account, not a line, not a balance. A form that cannot be saved until it is already correct is not a draft. The one rule applied now is that an amount may not be negative, because the side carries the sign; everything else is checked when the draft is posted. An account, contact or dimension value that does not exist in this org is a `not_found`.
+         */
+        post: operations["createDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal-drafts/{draftId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One journal draft, with its lines */
+        get: operations["getDraft"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a journal draft
+         * @description Deletes the draft and its lines. Nothing in the ledger changes, because nothing about this draft ever reached it.
+         */
+        delete: operations["discardDraft"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a journal draft
+         * @description An absent header field is unchanged and `null` clears it. `lines`, when present, replaces the **whole** set — send every line the draft should have, including the unchanged ones, and `[]` to clear them. Replacement rather than per-line patching because the client is a form that holds every line already, and patching would need line identities stable across an edit that inserts a line in the middle.
+         */
+        patch: operations["updateDraft"];
+        trace?: never;
+    };
+    "/v1/journal-drafts/{draftId}/post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post a draft to the ledger
+         * @description Posts the draft and discards it, in one transaction, exactly once. The entry number is allocated now rather than reserved at draft time, or the gapless guarantee (D-14) is not gapless. Everything a journal requires is checked here and not before: a missing date, a line with no account or no side, unbalanced debits and credits, an inactive account, a closed period. A refused post leaves the draft intact and editable. The actor recorded is the caller, not the draft’s author — who posted is the fact an auditor asks about.
+         */
+        post: operations["postDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journal-lines/{lineId}/dimensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The dimension values one posted line carries
+         * @description At most one value per axis, which is what makes acceptance B6 true.
+         */
+        get: operations["getJournalLineDimensions"];
+        /**
+         * Retag a posted journal line
+         * @description Replaces the whole set: an axis absent from `valueIds` is untagged afterwards, and an empty list clears every tag. Two values on one axis is a `precondition_failed`, not a last-one-wins. A tag already present passes even if its value has since been archived — otherwise archiving one value would make the line untaggable on every other axis — while a new or moved tag must name a live value on a live axis.
+         */
+        put: operations["setJournalLineDimensions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journals": {
         parameters: {
             query?: never;
@@ -316,6 +783,50 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the organization’s members
+         * @description Takes `members.read`. `isActive` is the user’s own flag rather than the membership’s — a deactivated user keeps their membership, and an administrator reading this list is exactly who needs to see that. Unpaginated in M2: the target business is an owner plus a bookkeeper.
+         */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a member from the organization
+         * @description Takes `members.write`. Removes the membership and nothing else — the user account is not touched, and every journal they posted keeps naming them, because an actor on a posted entry is a fact rather than a link. The last Owner cannot be removed.
+         */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        /**
+         * Change what a member may do
+         * @description Takes `members.write`. An org cannot lose its last Owner: demoting the only one is a `precondition_failed`, decided under a lock on the Owner set rather than a count, so two callers each demoting the other’s Owner cannot both succeed.
+         */
+        patch: operations["changeMemberRole"];
         trace?: never;
     };
     "/v1/orgs": {
@@ -362,6 +873,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports/balance-sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Balance sheet
+         * @description Assets, liabilities and equity as at `asOf`, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a year-end closing journal (D-20): `priorYearEarnings` for every fiscal year before the one containing `asOf`, and `currentYearEarnings` for that year to date. Neither is an account — an org’s own retained-earnings account is an ordinary equity account and is counted once, in `equity`. `asOf` is required, unlike the trial balance’s: the fiscal year the derivation is scoped to is resolved from it, so an omitted date would have to come from the process clock and the same request would return different numbers on either side of a year end. There is no `types` filter, and could not be: the derived lines are computed from the revenue and expense accounts one would remove.
+         */
+        get: operations["getBalanceSheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/general-ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * General ledger for one account
+         * @description The balance the account was carrying, one page of the lines that moved it, and the balance it ended on — `opening + movement = closing` (B4). Ordered oldest first by entry date, then the org’s own entry number, then the line, which is a total order and therefore a cursor that cannot skip or repeat a row. The three balances ride on every page rather than only the first, and are recomputed each time: a back-dated entry posted between two fetches moves `closing`, and a client comparing two pages’ headers can see that it did. `counterparty` names the accounts on the *opposite* debit/credit side of the same journal, with no amount apportioned to any of them — a journal records that its debits equal its credits, not which debit paid for which credit. There is no `groupBy`: dividing a list of individual lines into columns is a cross-tabulation and not a ledger.
+         */
+        get: operations["getGeneralLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/profit-and-loss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profit and loss
+         * @description Revenue and expense over an inclusive date range, with hierarchy subtotals and net income. Amounts are signed to their section — a positive revenue figure is money earned, a positive expense figure is money spent — and the flip keys off the account’s `type` and never its `normalBalance`, so a contra-revenue account subtracts from revenue as a discount should. Every account of the type appears, including those with no postings in the period. There is no `types` filter: a profit and loss is revenue and expense by definition. Accrual basis only in M2 (D-22), and the response says so rather than leaving it to be assumed.
+         */
+        get: operations["getProfitAndLoss"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/trial-balance": {
         parameters: {
             query?: never;
@@ -382,10 +953,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the roles this organization may grant
+         * @description Takes `roles.read`. `code` is the half to branch on — the six system roles have stable codes and per-deployment ids, so a screen keyed on the id is keyed on a value that differs between two installations of the same product.
+         */
+        get: operations["listAssignableRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The organization and the token, both taken from the invitation link. Neither is checked for shape beyond being a string: a token of the wrong length must fail as a miss, not as a `400` telling its holder their guess was malformed. */
+        AcceptInviteRequest: {
+            orgId: string;
+            token: string;
+        };
+        /** @description The organization and the token, both taken from the invitation link. Neither is checked for shape beyond being a string: a token of the wrong length must fail as a miss, not as a `400` telling its holder their guess was malformed. */
+        AcceptInviteRequestInput: {
+            orgId: string;
+            token: string;
+        };
+        /** @description The membership an accepted invitation resolved to. */
+        AcceptedInvitation: {
+            /** @description False when the caller was already a member and the invitation was only consumed. Their existing role is returned; an invitation never changes one. */
+            joined: boolean;
+            /** Format: uuid */
+            orgId: string;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        /** @description The membership an accepted invitation resolved to. */
+        AcceptedInvitationInput: {
+            /** @description False when the caller was already a member and the invitation was only consumed. Their existing role is returned; an invitation never changes one. */
+            joined: boolean;
+            /** Format: uuid */
+            orgId: string;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            /** Format: uuid */
+            userId: string;
+        };
         /** @description One account in the org’s chart of accounts. */
         Account: {
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
@@ -452,6 +1077,66 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description Every account the application created, in the order it created them — the one moment a caller learns their ids without paging the chart back. */
+        AppliedChartTemplate: {
+            accounts: components["schemas"]["Account"][];
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            templateId: "general_small_business";
+        };
+        /** @description Every account the application created, in the order it created them — the one moment a caller learns their ids without paging the chart back. */
+        AppliedChartTemplateInput: {
+            accounts: components["schemas"]["AccountInput"][];
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            templateId: "general_small_business";
+        };
+        /** @description Copies a starter chart of accounts into this organization. Opt-in: no organization receives one unless this is called (D-23). The accounts created are ordinary accounts with no further relationship to the template. */
+        ApplyChartTemplateRequest: {
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            templateId: "general_small_business";
+        };
+        /** @description Copies a starter chart of accounts into this organization. Opt-in: no organization receives one unless this is called (D-23). The accounts created are ordinary accounts with no further relationship to the template. */
+        ApplyChartTemplateRequestInput: {
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            templateId: "general_small_business";
+        };
+        /** @description A role that may be granted in this organization. */
+        AssignableRole: {
+            code: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            isSystem: boolean;
+            name: string;
+        };
+        /** @description A role that may be granted in this organization. */
+        AssignableRoleInput: {
+            code: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            isSystem: boolean;
+            name: string;
+        };
+        /** @description The roles an invitation or a re-role may name. Reading this takes `roles.read` and not `members.read`: the catalog is a different subject from the people who hold entries in it. */
+        AssignableRoleList: {
+            roles: components["schemas"]["AssignableRole"][];
+        };
+        /** @description The roles an invitation or a re-role may name. Reading this takes `roles.read` and not `members.read`: the catalog is a different subject from the people who hold entries in it. */
+        AssignableRoleListInput: {
+            roles: components["schemas"]["AssignableRoleInput"][];
+        };
         /** @description The signed-in user. */
         AuthenticatedUser: {
             displayName: string;
@@ -465,6 +1150,128 @@ export interface components {
             email: string;
             /** Format: uuid */
             id: string;
+        };
+        /** @description Assets, liabilities and equity as at a date, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a closing journal (D-20). Amounts are signed to their section, so `totals.assets` equals `totals.liabilitiesAndEquity`. */
+        BalanceSheet: {
+            asOf: components["schemas"]["CalendarDate"];
+            /** @constant */
+            basis: "accrual";
+            fiscalYear: components["schemas"]["BalanceSheetFiscalYear"];
+            groupBy: string | null;
+            groups: components["schemas"]["BalanceSheetGroup"][];
+            /** @description Every group summed, including the unassigned bucket. Equal to the same sheet run without `groupBy` (B6), and the totals B3 is stated over. */
+            totals: components["schemas"]["BalanceSheetTotals"];
+        };
+        /** @description The fiscal year containing `asOf`, resolved from the org’s fiscal-year start month. `year` names the calendar year the fiscal year starts in. */
+        BalanceSheetFiscalYear: {
+            endDate: components["schemas"]["CalendarDate"];
+            startDate: components["schemas"]["CalendarDate"];
+            startMonth: number;
+            year: number;
+        };
+        /** @description The fiscal year containing `asOf`, resolved from the org’s fiscal-year start month. `year` names the calendar year the fiscal year starts in. */
+        BalanceSheetFiscalYearInput: {
+            endDate: components["schemas"]["CalendarDateInput"];
+            startDate: components["schemas"]["CalendarDateInput"];
+            startMonth: number;
+            year: number;
+        };
+        /** @description One complete sheet. An unsliced report has exactly one group, whose `key` is null; a sliced one has a group per dimension value plus the unassigned bucket last. */
+        BalanceSheetGroup: {
+            assets: components["schemas"]["BalanceSheetSection"];
+            equity: components["schemas"]["BalanceSheetSection"];
+            key: components["schemas"]["ReportGroupKey"] | null;
+            liabilities: components["schemas"]["BalanceSheetSection"];
+            totals: components["schemas"]["BalanceSheetTotals"];
+        };
+        /** @description One complete sheet. An unsliced report has exactly one group, whose `key` is null; a sliced one has a group per dimension value plus the unassigned bucket last. */
+        BalanceSheetGroupInput: {
+            assets: components["schemas"]["BalanceSheetSectionInput"];
+            equity: components["schemas"]["BalanceSheetSectionInput"];
+            key: components["schemas"]["ReportGroupKeyInput"] | null;
+            liabilities: components["schemas"]["BalanceSheetSectionInput"];
+            totals: components["schemas"]["BalanceSheetTotalsInput"];
+        };
+        /** @description Assets, liabilities and equity as at a date, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a closing journal (D-20). Amounts are signed to their section, so `totals.assets` equals `totals.liabilitiesAndEquity`. */
+        BalanceSheetInput: {
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @constant */
+            basis: "accrual";
+            fiscalYear: components["schemas"]["BalanceSheetFiscalYearInput"];
+            groupBy: string | null;
+            groups: components["schemas"]["BalanceSheetGroupInput"][];
+            /** @description Every group summed, including the unassigned bucket. Equal to the same sheet run without `groupBy` (B6), and the totals B3 is stated over. */
+            totals: components["schemas"]["BalanceSheetTotalsInput"];
+        };
+        /** @description One account’s line. Rows are in account-code order and nest by `parentAccountId`; the hierarchy is expressed by that pointer rather than by nesting so the shape stays flat. */
+        BalanceSheetRow: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description This account’s own balance as at the report date, signed to its section: a positive asset is held, a positive liability is owed. Descendants are in `subtotal`, not here. */
+            amount: components["schemas"]["MinorUnits"];
+            code: string;
+            isActive: boolean;
+            name: string;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
+            /** @description `amount` plus every descendant’s `amount` (B7). A parent may hold postings of its own, so printing `subtotal` against the parent’s name beside its children double-counts. */
+            subtotal: components["schemas"]["MinorUnits"];
+            /** @enum {string} */
+            type: "asset" | "liability" | "equity";
+        };
+        /** @description One account’s line. Rows are in account-code order and nest by `parentAccountId`; the hierarchy is expressed by that pointer rather than by nesting so the shape stays flat. */
+        BalanceSheetRowInput: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description This account’s own balance as at the report date, signed to its section: a positive asset is held, a positive liability is owed. Descendants are in `subtotal`, not here. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            code: string;
+            isActive: boolean;
+            name: string;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
+            /** @description `amount` plus every descendant’s `amount` (B7). A parent may hold postings of its own, so printing `subtotal` against the parent’s name beside its children double-counts. */
+            subtotal: components["schemas"]["MinorUnitsInput"];
+            /** @enum {string} */
+            type: "asset" | "liability" | "equity";
+        };
+        /** @description Every account of this type in the chart, including those standing at zero, plus the section total. `total` is the sum of every row’s `amount` — not of the `subtotal`s, which would count each parent’s subtree once per level. */
+        BalanceSheetSection: {
+            rows: components["schemas"]["BalanceSheetRow"][];
+            total: components["schemas"]["MinorUnits"];
+        };
+        /** @description Every account of this type in the chart, including those standing at zero, plus the section total. `total` is the sum of every row’s `amount` — not of the `subtotal`s, which would count each parent’s subtree once per level. */
+        BalanceSheetSectionInput: {
+            rows: components["schemas"]["BalanceSheetRowInput"][];
+            total: components["schemas"]["MinorUnitsInput"];
+        };
+        BalanceSheetTotals: {
+            assets: components["schemas"]["MinorUnits"];
+            /** @description Revenue less expenses from the start of the fiscal year containing `asOf` up to and including it. Derived, never an account (D-20). Positive is a profit. */
+            currentYearEarnings: components["schemas"]["MinorUnits"];
+            /** @description `assets - liabilitiesAndEquity`. `"0"` for the report as a whole (B3); one slice of a grouped report may be non-zero, because tags are per line. */
+            difference: components["schemas"]["MinorUnits"];
+            equity: components["schemas"]["MinorUnits"];
+            liabilities: components["schemas"]["MinorUnits"];
+            /** @description `liabilities + equity + priorYearEarnings + currentYearEarnings`. */
+            liabilitiesAndEquity: components["schemas"]["MinorUnits"];
+            /** @description Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, never an account (D-20) — it is what a closing journal would have moved into equity. */
+            priorYearEarnings: components["schemas"]["MinorUnits"];
+        };
+        BalanceSheetTotalsInput: {
+            assets: components["schemas"]["MinorUnitsInput"];
+            /** @description Revenue less expenses from the start of the fiscal year containing `asOf` up to and including it. Derived, never an account (D-20). Positive is a profit. */
+            currentYearEarnings: components["schemas"]["MinorUnitsInput"];
+            /** @description `assets - liabilitiesAndEquity`. `"0"` for the report as a whole (B3); one slice of a grouped report may be non-zero, because tags are per line. */
+            difference: components["schemas"]["MinorUnitsInput"];
+            equity: components["schemas"]["MinorUnitsInput"];
+            liabilities: components["schemas"]["MinorUnitsInput"];
+            /** @description `liabilities + equity + priorYearEarnings + currentYearEarnings`. */
+            liabilitiesAndEquity: components["schemas"]["MinorUnitsInput"];
+            /** @description Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, never an account (D-20) — it is what a closing journal would have moved into equity. */
+            priorYearEarnings: components["schemas"]["MinorUnitsInput"];
         };
         /**
          * Format: date
@@ -491,6 +1298,102 @@ export interface components {
             memberships: components["schemas"]["OrgMembershipInput"][];
             permissions: string[];
             user: components["schemas"]["AuthenticatedUserInput"];
+        };
+        /** @description The role the member holds afterwards. Re-roling to the role they already hold succeeds and changes nothing: a client reconciling state should not have to know the current value in order to write the intended one. */
+        ChangeMemberRoleRequest: {
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description The role the member holds afterwards. Re-roling to the role they already hold succeeds and changes nothing: a client reconciling state should not have to know the current value in order to write the intended one. */
+        ChangeMemberRoleRequestInput: {
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description Every starter chart this build ships. */
+        ChartTemplateList: {
+            templates: components["schemas"]["ChartTemplateSummary"][];
+        };
+        /** @description Every starter chart this build ships. */
+        ChartTemplateListInput: {
+            templates: components["schemas"]["ChartTemplateSummaryInput"][];
+        };
+        /** @description What a picker needs to choose a starter chart, and deliberately not its accounts. */
+        ChartTemplateSummary: {
+            accountCount: number;
+            description: string;
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            id: "general_small_business";
+            name: string;
+        };
+        /** @description What a picker needs to choose a starter chart, and deliberately not its accounts. */
+        ChartTemplateSummaryInput: {
+            accountCount: number;
+            description: string;
+            /**
+             * @description Which starter chart to copy. An unknown id is a `validation_failed`, not a `not_found`: the set of templates is fixed at build time and is the same for every organization, so naming one that does not exist is a malformed request rather than a missed lookup.
+             * @enum {string}
+             */
+            id: "general_small_business";
+            name: string;
+        };
+        /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
+        Contact: {
+            code: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName: string;
+            email: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description Inactive contacts keep every journal line that names them and cannot be selected for new ones. This is the only form of removal available to a contact the ledger references. */
+            isActive: boolean;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor: boolean;
+            legalName: string | null;
+            notes: string | null;
+            phone: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
+        ContactInput: {
+            code: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName: string;
+            email: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description Inactive contacts keep every journal line that names them and cannot be selected for new ones. This is the only form of removal available to a contact the ledger references. */
+            isActive: boolean;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor: boolean;
+            legalName: string | null;
+            notes: string | null;
+            phone: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of the org’s contacts, oldest first by creation. Not alphabetical, and the paragraph above says why: a cursor into a list ordered by an editable column silently drops the rows that moved behind it. */
+        ContactPage: {
+            items: components["schemas"]["Contact"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s contacts, oldest first by creation. Not alphabetical, and the paragraph above says why: a cursor into a list ordered by an editable column silently drops the rows that moved behind it. */
+        ContactPageInput: {
+            items: components["schemas"]["ContactInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
         /** @description Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given. */
         CreateAccountRequest: {
@@ -530,6 +1433,78 @@ export interface components {
              */
             type: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
+        /** @description Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
+        CreateContactRequest: {
+            code?: string | null;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName: string;
+            email?: string | null;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer?: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor?: boolean;
+            legalName?: string | null;
+            notes?: string | null;
+            phone?: string | null;
+        };
+        /** @description Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
+        CreateContactRequestInput: {
+            code?: string | null;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName: string;
+            email?: string | null;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer?: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor?: boolean;
+            legalName?: string | null;
+            notes?: string | null;
+            phone?: string | null;
+        };
+        /** @description Creates one axis. An org may hold at most `MAX_DIMENSIONS_PER_ORG` of them, archived ones included; over that is a `precondition_failed`. */
+        CreateDimensionRequest: {
+            /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
+            code: string;
+            description?: string | null;
+            /** @description Display name, e.g. `Department`. */
+            name: string;
+        };
+        /** @description Creates one axis. An org may hold at most `MAX_DIMENSIONS_PER_ORG` of them, archived ones included; over that is a `precondition_failed`. */
+        CreateDimensionRequestInput: {
+            /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
+            code: string;
+            description?: string | null;
+            /** @description Display name, e.g. `Department`. */
+            name: string;
+        };
+        /** @description Adds one value to an axis. */
+        CreateDimensionValueRequest: {
+            /** @description Short reference unique within its axis, e.g. `SALES`. Case- and accent-insensitive, and immutable once created. */
+            code: string;
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+        };
+        /** @description Adds one value to an axis. */
+        CreateDimensionValueRequestInput: {
+            /** @description Short reference unique within its axis, e.g. `SALES`. Case- and accent-insensitive, and immutable once created. */
+            code: string;
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+        };
+        /** @description Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted. */
+        CreateDraftRequest: {
+            entryDate?: components["schemas"]["CalendarDate"] | null;
+            lines?: components["schemas"]["JournalDraftLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted. */
+        CreateDraftRequestInput: {
+            entryDate?: components["schemas"]["CalendarDateInput"] | null;
+            lines?: components["schemas"]["JournalDraftLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+        };
         /** @description Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range. */
         CreateFiscalPeriodRequest: {
             /** @description Calendar month, 1–12. */
@@ -546,6 +1521,11 @@ export interface components {
         };
         /** @description Creates an organization with the calling user as its Owner. No slug — it is derived from the name. */
         CreateOrgRequest: {
+            /**
+             * @description An optional starter chart of accounts to copy into the new organization. Omit it and the organization is created with no accounts. Applied in the same transaction as the organization: an unknown id is a `validation_failed` and no organization is created.
+             * @enum {string}
+             */
+            chartTemplateId?: "general_small_business";
             /** @description The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional. */
             fiscalYearStartMonth?: number;
             /** @description Length is bounded by the server (`orgs.name` is `VARCHAR(255)`) and reported as a `validation_failed` naming `name`. */
@@ -553,10 +1533,105 @@ export interface components {
         };
         /** @description Creates an organization with the calling user as its Owner. No slug — it is derived from the name. */
         CreateOrgRequestInput: {
+            /**
+             * @description An optional starter chart of accounts to copy into the new organization. Omit it and the organization is created with no accounts. Applied in the same transaction as the organization: an unknown id is a `validation_failed` and no organization is created.
+             * @enum {string}
+             */
+            chartTemplateId?: "general_small_business";
             /** @description The calendar month the org’s fiscal year begins in, 1–12. April, July, and October are all common. Defaults to January where the field is optional. */
             fiscalYearStartMonth?: number;
             /** @description Length is bounded by the server (`orgs.name` is `VARCHAR(255)`) and reported as a `validation_failed` naming `name`. */
             name: string;
+        };
+        /** @description One reporting axis: a way of dividing the business that the chart should not carry. */
+        Dimension: {
+            /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
+            code: string;
+            /** Format: date-time */
+            createdAt: string;
+            description: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived axis keeps every tag its values carry and every report they slice; it is simply not offered for new values or new tags. This is the only form of removal available to an axis whose values are in use. */
+            isActive: boolean;
+            /** @description Display name, e.g. `Department`. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One reporting axis: a way of dividing the business that the chart should not carry. */
+        DimensionInput: {
+            /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
+            code: string;
+            /** Format: date-time */
+            createdAt: string;
+            description: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived axis keeps every tag its values carry and every report they slice; it is simply not offered for new values or new tags. This is the only form of removal available to an axis whose values are in use. */
+            isActive: boolean;
+            /** @description Display name, e.g. `Department`. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of the org’s axes, in `code` order. Safe against a cursor because a dimension’s code is immutable — the same dependency D-27 created for the chart of accounts. */
+        DimensionPage: {
+            items: components["schemas"]["Dimension"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s axes, in `code` order. Safe against a cursor because a dimension’s code is immutable — the same dependency D-27 created for the chart of accounts. */
+        DimensionPageInput: {
+            items: components["schemas"]["DimensionInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description One division on one axis. A journal line carries at most one value per axis. */
+        DimensionValue: {
+            /** @description Short reference unique within its axis, e.g. `SALES`. Case- and accent-insensitive, and immutable once created. */
+            code: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived value keeps every journal line already tagged with it and cannot be chosen for a new tag. */
+            isActive: boolean;
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One division on one axis. A journal line carries at most one value per axis. */
+        DimensionValueInput: {
+            /** @description Short reference unique within its axis, e.g. `SALES`. Case- and accent-insensitive, and immutable once created. */
+            code: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived value keeps every journal line already tagged with it and cannot be chosen for a new tag. */
+            isActive: boolean;
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of one axis’s values, in `code` order, which is likewise immutable. */
+        DimensionValuePage: {
+            items: components["schemas"]["DimensionValue"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of one axis’s values, in `code` order, which is likewise immutable. */
+        DimensionValuePageInput: {
+            items: components["schemas"]["DimensionValueInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
         /** @description The body of every non-2xx response. */
         ErrorResponse: {
@@ -626,6 +1701,158 @@ export interface components {
         FiscalPeriodListInput: {
             periods: components["schemas"]["FiscalPeriodInput"][];
         };
+        /** @description One account over a date range: the balance it was carrying, one page of the lines that moved it, and the balance it ended on. The three balances are recomputed on every page, so a client can tell that the ledger moved between two fetches. */
+        GeneralLedger: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description `opening + movement` (B4). */
+            closing: components["schemas"]["GeneralLedgerAmounts"];
+            code: string;
+            entries: components["schemas"]["GeneralLedgerEntry"][];
+            /** @description The inclusive lower bound applied, or null when the range starts at the ledger’s beginning. */
+            from: components["schemas"]["CalendarDate"] | null;
+            /** @description Postings inside the range, both bounds inclusive — the entries this page is a window on. */
+            movement: components["schemas"]["GeneralLedgerAmounts"];
+            name: string;
+            /** @description The cursor for the next page, or null when this is the last one. Opaque: send it back verbatim. A full page does not imply another exists. The same token every other list endpoint returns — only the key it sits beside differs. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            /** @description Postings strictly before `from`, under the same filters. All zero when `from` is absent. */
+            opening: components["schemas"]["GeneralLedgerAmounts"];
+            /** @description The inclusive upper bound applied, or null when every posting to date is in. */
+            to: components["schemas"]["CalendarDate"] | null;
+            /** @enum {string} */
+            type: "asset" | "liability" | "equity" | "revenue" | "expense";
+        };
+        /** @description Debits, credits, and their difference over one window. The three windows a ledger page reports — opening, movement, closing — are the same shape, so they are one component. */
+        GeneralLedgerAmounts: {
+            /** @description `debits - credits`. Negative means the account is net credit. */
+            balance: components["schemas"]["MinorUnits"];
+            credits: components["schemas"]["MinorUnits"];
+            debits: components["schemas"]["MinorUnits"];
+        };
+        /** @description Debits, credits, and their difference over one window. The three windows a ledger page reports — opening, movement, closing — are the same shape, so they are one component. */
+        GeneralLedgerAmountsInput: {
+            /** @description `debits - credits`. Negative means the account is net credit. */
+            balance: components["schemas"]["MinorUnitsInput"];
+            credits: components["schemas"]["MinorUnitsInput"];
+            debits: components["schemas"]["MinorUnitsInput"];
+        };
+        GeneralLedgerCounterparty: {
+            /** @description How many distinct accounts are on the opposite side in total. More than one is the classic split entry. */
+            accountCount: number;
+            /** @description Distinct accounts on the opposite side of the journal, in account-code order, truncated to at most `GL_COUNTERPARTY_ACCOUNTS_MAX`. Compare against `accountCount` to tell a complete list from a truncated one. */
+            accounts: {
+                /** Format: uuid */
+                accountId: string;
+                code: string;
+                name: string;
+            }[];
+        };
+        GeneralLedgerCounterpartyInput: {
+            /** @description How many distinct accounts are on the opposite side in total. More than one is the classic split entry. */
+            accountCount: number;
+            /** @description Distinct accounts on the opposite side of the journal, in account-code order, truncated to at most `GL_COUNTERPARTY_ACCOUNTS_MAX`. Compare against `accountCount` to tell a complete list from a truncated one. */
+            accounts: {
+                /** Format: uuid */
+                accountId: string;
+                code: string;
+                name: string;
+            }[];
+        };
+        GeneralLedgerEntry: {
+            /** @description Who the amount is with, when the line names anyone. Not a statement that the amount is receivable or payable — that is the subledger’s, and the subledger is M3. */
+            contact: {
+                /** Format: uuid */
+                contactId: string;
+                displayName: string;
+            } | null;
+            counterparty: components["schemas"]["GeneralLedgerCounterparty"];
+            credit: components["schemas"]["MinorUnits"];
+            date: components["schemas"]["CalendarDate"];
+            debit: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            journalId: string;
+            journalMemo: string | null;
+            lineId: string;
+            lineMemo: string | null;
+            lineNumber: number;
+            /** @description `opening.balance` plus every entry through this one, as `debits - credits`. See the note on the page: a running balance is a statement about the ledger at the moment the page was read. */
+            runningBalance: components["schemas"]["MinorUnits"];
+            /** @description The org’s own gapless entry number (D-14), and the second column of this list’s ordering — `date` alone does not order two entries made on the same day. */
+            sequenceNumber: string;
+            /** @description Every dimension value this line carries, in dimension-code then value-code order. */
+            tags: components["schemas"]["GeneralLedgerTag"][];
+        };
+        GeneralLedgerEntryInput: {
+            /** @description Who the amount is with, when the line names anyone. Not a statement that the amount is receivable or payable — that is the subledger’s, and the subledger is M3. */
+            contact: {
+                /** Format: uuid */
+                contactId: string;
+                displayName: string;
+            } | null;
+            counterparty: components["schemas"]["GeneralLedgerCounterpartyInput"];
+            credit: components["schemas"]["MinorUnitsInput"];
+            date: components["schemas"]["CalendarDateInput"];
+            debit: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            journalId: string;
+            journalMemo: string | null;
+            lineId: string;
+            lineMemo: string | null;
+            lineNumber: number;
+            /** @description `opening.balance` plus every entry through this one, as `debits - credits`. See the note on the page: a running balance is a statement about the ledger at the moment the page was read. */
+            runningBalance: components["schemas"]["MinorUnitsInput"];
+            /** @description The org’s own gapless entry number (D-14), and the second column of this list’s ordering — `date` alone does not order two entries made on the same day. */
+            sequenceNumber: string;
+            /** @description Every dimension value this line carries, in dimension-code then value-code order. */
+            tags: components["schemas"]["GeneralLedgerTagInput"][];
+        };
+        /** @description One account over a date range: the balance it was carrying, one page of the lines that moved it, and the balance it ended on. The three balances are recomputed on every page, so a client can tell that the ledger moved between two fetches. */
+        GeneralLedgerInput: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description `opening + movement` (B4). */
+            closing: components["schemas"]["GeneralLedgerAmountsInput"];
+            code: string;
+            entries: components["schemas"]["GeneralLedgerEntryInput"][];
+            /** @description The inclusive lower bound applied, or null when the range starts at the ledger’s beginning. */
+            from: components["schemas"]["CalendarDateInput"] | null;
+            /** @description Postings inside the range, both bounds inclusive — the entries this page is a window on. */
+            movement: components["schemas"]["GeneralLedgerAmountsInput"];
+            name: string;
+            /** @description The cursor for the next page, or null when this is the last one. Opaque: send it back verbatim. A full page does not imply another exists. The same token every other list endpoint returns — only the key it sits beside differs. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            /** @description Postings strictly before `from`, under the same filters. All zero when `from` is absent. */
+            opening: components["schemas"]["GeneralLedgerAmountsInput"];
+            /** @description The inclusive upper bound applied, or null when every posting to date is in. */
+            to: components["schemas"]["CalendarDateInput"] | null;
+            /** @enum {string} */
+            type: "asset" | "liability" | "equity" | "revenue" | "expense";
+        };
+        /** @description A dimension value carried by this line, with the axis it belongs to. */
+        GeneralLedgerTag: {
+            code: string;
+            dimensionCode: string;
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            name: string;
+        };
+        /** @description A dimension value carried by this line, with the axis it belongs to. */
+        GeneralLedgerTagInput: {
+            code: string;
+            dimensionCode: string;
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            name: string;
+        };
         /** @description Generates the twelve monthly periods of one fiscal year. Generation is always explicit — no posting ever creates the period it needs (ROADMAP D-17). */
         GenerateFiscalYearRequest: {
             /** @description The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026. */
@@ -667,6 +1894,226 @@ export interface components {
             activeOrgId: string | null;
             memberships: components["schemas"]["OrgMembershipInput"][];
             user: components["schemas"]["AuthenticatedUserInput"];
+        };
+        /** @description An outstanding or settled invitation. The token is never returned — it is a credential, held only as a hash after the message is sent. */
+        Invitation: {
+            acceptedByUserId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: email */
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            id: string;
+            invitedByUserId: string | null;
+            /** Format: uuid */
+            orgId: string;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            /** @enum {string} */
+            status: "pending" | "accepted" | "revoked" | "expired";
+        };
+        /** @description An outstanding or settled invitation. The token is never returned — it is a credential, held only as a hash after the message is sent. */
+        InvitationInput: {
+            acceptedByUserId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: email */
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: uuid */
+            id: string;
+            invitedByUserId: string | null;
+            /** Format: uuid */
+            orgId: string;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            /** @enum {string} */
+            status: "pending" | "accepted" | "revoked" | "expired";
+        };
+        /** @description Every invitation this organization has issued, in whatever state it reached. */
+        InvitationList: {
+            invites: components["schemas"]["Invitation"][];
+        };
+        /** @description Every invitation this organization has issued, in whatever state it reached. */
+        InvitationListInput: {
+            invites: components["schemas"]["InvitationInput"][];
+        };
+        /** @description An address and the role it is invited to hold. The address is lowercased and trimmed, because the accept path compares an invited address against a registered one in application code, where there is no collation to fall back on. */
+        InviteMemberRequest: {
+            email: string;
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description An address and the role it is invited to hold. The address is lowercased and trimmed, because the accept path compares an invited address against a registered one in application code, where there is no collation to fall back on. */
+        InviteMemberRequestInput: {
+            email: string;
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description A newly created invitation and its send outcome. */
+        IssuedInvitation: {
+            /** @description False means the invitation exists and the message did not go out. Reissue rather than assume — the invitation is valid either way, but nobody has the link. */
+            emailDelivered: boolean;
+            invitation: components["schemas"]["Invitation"];
+        };
+        /** @description A newly created invitation and its send outcome. */
+        IssuedInvitationInput: {
+            /** @description False means the invitation exists and the message did not go out. Reissue rather than assume — the invitation is valid either way, but nobody has the link. */
+            emailDelivered: boolean;
+            invitation: components["schemas"]["InvitationInput"];
+        };
+        /** @description An entry that has not reached the ledger. It is in no report and no trial balance, carries no sequence number and no period, and may be edited or discarded freely (D-19). */
+        JournalDraft: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            entryDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            lines: components["schemas"]["JournalDraftLine"][];
+            memo: string | null;
+            reference: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description An entry that has not reached the ledger. It is in no report and no trial balance, carries no sequence number and no period, and may be edited or discarded freely (D-19). */
+        JournalDraftInput: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            entryDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            lines: components["schemas"]["JournalDraftLineInput"][];
+            memo: string | null;
+            reference: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One stored draft line, read back rather than echoed. */
+        JournalDraftLine: {
+            accountId: string | null;
+            /**
+             * @description The amount on `side`, in minor units. `"0"` while the line is unfinished — an amount of zero carries no side, so a line saved with a side and no amount reads back with neither.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            amount: components["schemas"]["MinorUnits"];
+            contactId: string | null;
+            dimensionValueIds: string[];
+            lineId: string;
+            lineNumber: number;
+            memo: string | null;
+            side: ("debit" | "credit") | null;
+        };
+        /** @description One stored draft line, read back rather than echoed. */
+        JournalDraftLineInput: {
+            accountId: string | null;
+            /**
+             * @description The amount on `side`, in minor units. `"0"` while the line is unfinished — an amount of zero carries no side, so a line saved with a side and no amount reads back with neither.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            amount: components["schemas"]["MinorUnitsInput"];
+            contactId: string | null;
+            dimensionValueIds: string[];
+            lineId: string;
+            lineNumber: number;
+            memo: string | null;
+            side: ("debit" | "credit") | null;
+        };
+        /** @description One line in progress. An unknown or another organization’s `accountId`, `contactId`, or dimension value is a `not_found`, not a validation failure. */
+        JournalDraftLineRequest: {
+            accountId?: string | null;
+            amount?: components["schemas"]["MinorUnits"] | null;
+            contactId?: string | null;
+            /** @description Every dimension value this line carries, after the call. A value names its own axis. An omitted axis is untagged and an empty list clears every tag. */
+            dimensionValueIds?: string[];
+            memo?: string | null;
+            side?: ("debit" | "credit") | null;
+        };
+        /** @description One line in progress. An unknown or another organization’s `accountId`, `contactId`, or dimension value is a `not_found`, not a validation failure. */
+        JournalDraftLineRequestInput: {
+            accountId?: string | null;
+            amount?: components["schemas"]["MinorUnitsInput"] | null;
+            contactId?: string | null;
+            /** @description Every dimension value this line carries, after the call. A value names its own axis. An omitted axis is untagged and an empty list clears every tag. */
+            dimensionValueIds?: string[];
+            memo?: string | null;
+            side?: ("debit" | "credit") | null;
+        };
+        /** @description One page of the org’s drafts, oldest first by creation. Drafts are visible to anyone who can read journals; they are not private to their author. */
+        JournalDraftPage: {
+            items: components["schemas"]["JournalDraftSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s drafts, oldest first by creation. Drafts are visible to anyone who can read journals; they are not private to their author. */
+        JournalDraftPageInput: {
+            items: components["schemas"]["JournalDraftSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A draft in a list: the header, and no lines. */
+        JournalDraftSummary: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            entryDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            memo: string | null;
+            reference: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A draft in a list: the header, and no lines. */
+        JournalDraftSummaryInput: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            entryDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            memo: string | null;
+            reference: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One tag on one posted journal line. */
+        JournalLineDimension: {
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            lineId: string;
+        };
+        /** @description One tag on one posted journal line. */
+        JournalLineDimensionInput: {
+            /** Format: uuid */
+            dimensionId: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            lineId: string;
+        };
+        /** @description Every dimension value one posted journal line carries, at most one per axis. */
+        JournalLineDimensionList: {
+            dimensions: components["schemas"]["JournalLineDimension"][];
+        };
+        /** @description Every dimension value one posted journal line carries, at most one per axis. */
+        JournalLineDimensionListInput: {
+            dimensions: components["schemas"]["JournalLineDimensionInput"][];
         };
         /** @description One side of one account, for a positive amount in minor units. */
         JournalLineRequest: {
@@ -772,6 +2219,50 @@ export interface components {
          * @example 0
          */
         MinorUnitsInput: string;
+        /** @description One person’s membership of this organization, with the role they hold in it. */
+        OrgMember: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            /** Format: email */
+            email: string;
+            invitedByUserId: string | null;
+            isActive: boolean;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            roleName: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        /** @description One person’s membership of this organization, with the role they hold in it. */
+        OrgMemberInput: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            /** Format: email */
+            email: string;
+            invitedByUserId: string | null;
+            isActive: boolean;
+            roleCode: string;
+            /** Format: uuid */
+            roleId: string;
+            roleName: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        /** @description Everyone who belongs to this organization. */
+        OrgMemberList: {
+            members: components["schemas"]["OrgMember"][];
+        };
+        /** @description Everyone who belongs to this organization. */
+        OrgMemberListInput: {
+            members: components["schemas"]["OrgMemberInput"][];
+        };
         /** @description One organization together with the role the caller holds in it. */
         OrgMembership: {
             org: components["schemas"]["OrgSummary"];
@@ -914,6 +2405,104 @@ export interface components {
              */
             side: "debit" | "credit";
         };
+        /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
+        ProfitAndLoss: {
+            /** @constant */
+            basis: "accrual";
+            groupBy: string | null;
+            groups: components["schemas"]["ProfitAndLossGroup"][];
+            /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */
+            range: {
+                from: components["schemas"]["CalendarDate"] | null;
+                to: components["schemas"]["CalendarDate"] | null;
+            };
+            /** @description Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6). */
+            totals: components["schemas"]["ProfitAndLossTotals"];
+        };
+        /** @description One complete statement. An unsliced report has exactly one group, whose `key` is null; a sliced one has a group per dimension value in the period plus the unassigned bucket last. */
+        ProfitAndLossGroup: {
+            expenses: components["schemas"]["ProfitAndLossSection"];
+            key: components["schemas"]["ReportGroupKey"] | null;
+            /** @description `revenue.total - expenses.total`. Positive is a profit. */
+            netIncome: components["schemas"]["MinorUnits"];
+            revenue: components["schemas"]["ProfitAndLossSection"];
+        };
+        /** @description One complete statement. An unsliced report has exactly one group, whose `key` is null; a sliced one has a group per dimension value in the period plus the unassigned bucket last. */
+        ProfitAndLossGroupInput: {
+            expenses: components["schemas"]["ProfitAndLossSectionInput"];
+            key: components["schemas"]["ReportGroupKeyInput"] | null;
+            /** @description `revenue.total - expenses.total`. Positive is a profit. */
+            netIncome: components["schemas"]["MinorUnitsInput"];
+            revenue: components["schemas"]["ProfitAndLossSectionInput"];
+        };
+        /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
+        ProfitAndLossInput: {
+            /** @constant */
+            basis: "accrual";
+            groupBy: string | null;
+            groups: components["schemas"]["ProfitAndLossGroupInput"][];
+            /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */
+            range: {
+                from: components["schemas"]["CalendarDateInput"] | null;
+                to: components["schemas"]["CalendarDateInput"] | null;
+            };
+            /** @description Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6). */
+            totals: components["schemas"]["ProfitAndLossTotalsInput"];
+        };
+        /** @description One account’s line. Rows are in account-code order and nest by `parentAccountId`; the hierarchy is expressed by that pointer rather than by nesting so the shape stays flat. */
+        ProfitAndLossRow: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description This account’s own postings in the period, signed to its section: positive revenue means earned, positive expense means spent. Descendants are in `subtotal`, not here. */
+            amount: components["schemas"]["MinorUnits"];
+            code: string;
+            isActive: boolean;
+            name: string;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
+            /** @description `amount` plus every descendant’s `amount` (B7). A parent may hold postings of its own, so printing `subtotal` against the parent’s name beside its children double-counts. */
+            subtotal: components["schemas"]["MinorUnits"];
+            /** @enum {string} */
+            type: "revenue" | "expense";
+        };
+        /** @description One account’s line. Rows are in account-code order and nest by `parentAccountId`; the hierarchy is expressed by that pointer rather than by nesting so the shape stays flat. */
+        ProfitAndLossRowInput: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description This account’s own postings in the period, signed to its section: positive revenue means earned, positive expense means spent. Descendants are in `subtotal`, not here. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            code: string;
+            isActive: boolean;
+            name: string;
+            /** @enum {string} */
+            normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
+            /** @description `amount` plus every descendant’s `amount` (B7). A parent may hold postings of its own, so printing `subtotal` against the parent’s name beside its children double-counts. */
+            subtotal: components["schemas"]["MinorUnitsInput"];
+            /** @enum {string} */
+            type: "revenue" | "expense";
+        };
+        /** @description Every account of this type in the chart, including those with no postings in the period, plus the section total. `total` is the sum of every row’s `amount` — not of the `subtotal`s, which would count each parent’s subtree once per level. */
+        ProfitAndLossSection: {
+            rows: components["schemas"]["ProfitAndLossRow"][];
+            total: components["schemas"]["MinorUnits"];
+        };
+        /** @description Every account of this type in the chart, including those with no postings in the period, plus the section total. `total` is the sum of every row’s `amount` — not of the `subtotal`s, which would count each parent’s subtree once per level. */
+        ProfitAndLossSectionInput: {
+            rows: components["schemas"]["ProfitAndLossRowInput"][];
+            total: components["schemas"]["MinorUnitsInput"];
+        };
+        ProfitAndLossTotals: {
+            expenses: components["schemas"]["MinorUnits"];
+            netIncome: components["schemas"]["MinorUnits"];
+            revenue: components["schemas"]["MinorUnits"];
+        };
+        ProfitAndLossTotalsInput: {
+            expenses: components["schemas"]["MinorUnitsInput"];
+            netIncome: components["schemas"]["MinorUnitsInput"];
+            revenue: components["schemas"]["MinorUnitsInput"];
+        };
         /** @description Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials. */
         RegisterRequest: {
             displayName: string;
@@ -928,6 +2517,20 @@ export interface components {
             org: components["schemas"]["CreateOrgRequestInput"];
             password: string;
         };
+        /** @description The dimension value one slice of a grouped report is for. A report grouped by an axis has one bucket per value plus an unassigned bucket, whose key is null. */
+        ReportGroupKey: {
+            code: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            name: string;
+        };
+        /** @description The dimension value one slice of a grouped report is for. A report grouped by an axis has one bucket per value plus an unassigned bucket, whose key is null. */
+        ReportGroupKeyInput: {
+            code: string;
+            /** Format: uuid */
+            dimensionValueId: string;
+            name: string;
+        };
         /** @description Posts the reversal of an existing journal: a new journal with every line’s side inverted. A journal may be reversed once. */
         ReverseJournalRequest: {
             /** @description The reversal’s own entry date, which must itself fall in an open period. */
@@ -939,6 +2542,16 @@ export interface components {
             /** @description The reversal’s own entry date, which must itself fall in an open period. */
             date: components["schemas"]["CalendarDateInput"];
             memo?: string;
+        };
+        /** @description The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused. */
+        SetJournalLineDimensionsRequest: {
+            /** @description Every dimension value this line carries, after the call. An axis absent from the list is untagged; an empty list clears every tag. Two values on one axis is a `precondition_failed`, not a last-one-wins. */
+            valueIds: string[];
+        };
+        /** @description The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused. */
+        SetJournalLineDimensionsRequestInput: {
+            /** @description Every dimension value this line carries, after the call. An axis absent from the list is untagged; an empty list clears every tag. Two values on one axis is a `precondition_failed`, not a last-one-wins. */
+            valueIds: string[];
         };
         /** @description Switches the session’s active organization. The role returned is the one held in the new org, never carried across the switch. */
         SwitchActiveOrgRequest: {
@@ -1033,6 +2646,70 @@ export interface components {
              * @enum {string}
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
+        };
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
+        UpdateContactRequest: {
+            code?: string | null;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName?: string;
+            email?: string | null;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer?: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor?: boolean;
+            legalName?: string | null;
+            notes?: string | null;
+            phone?: string | null;
+        };
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
+        UpdateContactRequestInput: {
+            code?: string | null;
+            /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
+            displayName?: string;
+            email?: string | null;
+            /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
+            isCustomer?: boolean;
+            /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
+            isVendor?: boolean;
+            legalName?: string | null;
+            notes?: string | null;
+            phone?: string | null;
+        };
+        /** @description Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending either is a `validation_failed` naming the field. */
+        UpdateDimensionRequest: {
+            description?: string | null;
+            /** @description Display name, e.g. `Department`. */
+            name?: string;
+        };
+        /** @description Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending either is a `validation_failed` naming the field. */
+        UpdateDimensionRequestInput: {
+            description?: string | null;
+            /** @description Display name, e.g. `Department`. */
+            name?: string;
+        };
+        /** @description Renames a value. `name` is the only mutable field a value has. */
+        UpdateDimensionValueRequest: {
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+        };
+        /** @description Renames a value. `name` is the only mutable field a value has. */
+        UpdateDimensionValueRequestInput: {
+            /** @description Display name, e.g. `Sales team`. */
+            name: string;
+        };
+        /** @description Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones. */
+        UpdateDraftRequest: {
+            entryDate?: components["schemas"]["CalendarDate"] | null;
+            lines?: components["schemas"]["JournalDraftLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones. */
+        UpdateDraftRequestInput: {
+            entryDate?: components["schemas"]["CalendarDateInput"] | null;
+            lines?: components["schemas"]["JournalDraftLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
         };
     };
     responses: never;
@@ -1447,6 +3124,799 @@ export interface operations {
             };
         };
     };
+    listChartTemplates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartTemplateList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    applyChartTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyChartTemplateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppliedChartTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listContacts: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                isCustomer?: string;
+                /** @description Independent of `isCustomer`: a contact that is both matches either filter. */
+                isVendor?: string;
+                /** @description Omitted matches active and inactive contacts alike. */
+                isActive?: string;
+                /** @description How many contacts to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createContact: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContactRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getContact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteContact: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateContact: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContactRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateContact: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reactivateContact: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDimensionValue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                valueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteDimensionValue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                valueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDimensionValue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                valueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDimensionValueRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    archiveDimensionValue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                valueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unarchiveDimensionValue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                valueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDimensions: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches archived and unarchived alike. */
+                isActive?: string;
+                /** @description How many to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDimension: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDimensionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dimension"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDimension: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dimension"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteDimension: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDimension: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDimensionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dimension"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    archiveDimension: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dimension"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unarchiveDimension: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dimension"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDimensionValues: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches archived and unarchived alike. */
+                isActive?: string;
+                /** @description How many to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValuePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDimensionValue: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                dimensionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDimensionValueRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listFiscalPeriods: {
         parameters: {
             query?: {
@@ -1619,6 +4089,418 @@ export interface operations {
             };
         };
     };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    inviteMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteMemberRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedInvitation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    acceptInvite: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInviteRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedInvitation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeInvite: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                inviteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDrafts: {
+        parameters: {
+            query?: {
+                /** @description Only this author’s drafts. Omitted lists every draft in the org — drafts are visible to anyone who can read journals, and are not private to their author. */
+                createdByUserId?: string;
+                /** @description How many drafts to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDraftPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDraftRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDraft"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDraft"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDraftRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDraft"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    postDraft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostedJournal"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getJournalLineDimensions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A posted journal line’s id, as a decimal string — the column is a `BIGINT` and a JSON number cannot carry one past 2^53. A value that is not one answers `404`, not `400`. */
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalLineDimensionList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setJournalLineDimensions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                /** @description A posted journal line’s id, as a decimal string — the column is a `BIGINT` and a JSON number cannot carry one past 2^53. A value that is not one answers `404`, not `400`. */
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetJournalLineDimensionsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalLineDimensionList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listJournals: {
         parameters: {
             query?: {
@@ -1713,6 +4595,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostedJournal"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgMemberList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    changeMemberRole: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeMemberRoleRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgMember"];
                 };
             };
             /** @description Default Response */
@@ -1827,6 +4808,121 @@ export interface operations {
             };
         };
     };
+    getBalanceSheet: {
+        parameters: {
+            query: {
+                asOf: components["schemas"]["CalendarDateInput"];
+                /** @description Only lines naming this contact. Not a subledger — that is M3. */
+                contactId?: string;
+                /** @description A url-encoded JSON array of dimension filters. Each entry is `{ "dimensionId": uuid, "valueIds"?: uuid[], "includeUnassigned"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing. */
+                dimensions?: string;
+                /** @description A dimension axis to slice by. The result is one bucket per value the window contains plus an unassigned bucket, which is always present (D-18) — a slice view that omitted untagged lines would show a smaller business than exists. One axis, not several: two would be a cross-tabulation, which is a different presentation problem. */
+                groupBy?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceSheet"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getGeneralLedger: {
+        parameters: {
+            query: {
+                accountId: string;
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description Only lines naming this contact. Not a subledger — that is M3. */
+                contactId?: string;
+                /** @description A url-encoded JSON array of dimension filters. Each entry is `{ "dimensionId": uuid, "valueIds"?: uuid[], "includeUnassigned"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing. */
+                dimensions?: string;
+                /** @description How many entries to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneralLedger"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getProfitAndLoss: {
+        parameters: {
+            query?: {
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description Only lines naming this contact. Not a subledger — that is M3. */
+                contactId?: string;
+                /** @description A url-encoded JSON array of dimension filters. Each entry is `{ "dimensionId": uuid, "valueIds"?: uuid[], "includeUnassigned"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing. */
+                dimensions?: string;
+                /** @description A dimension axis to slice by. The result is one bucket per value the window contains plus an unassigned bucket, which is always present (D-18) — a slice view that omitted untagged lines would show a smaller business than exists. One axis, not several: two would be a cross-tabulation, which is a different presentation problem. */
+                groupBy?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfitAndLoss"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getTrialBalance: {
         parameters: {
             query?: {
@@ -1845,6 +4941,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrialBalance"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAssignableRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignableRoleList"];
                 };
             };
             /** @description Default Response */

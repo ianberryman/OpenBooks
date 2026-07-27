@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { MAX_DIMENSIONS_PER_ORG } from '../dimensions';
 import { JOURNAL_SIDES } from '../journals';
-import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 /**
  * The journal-draft wire contract (OB-038; ROADMAP D-16, D-19).
@@ -23,16 +23,20 @@ import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
  * not incompleteness — it encodes a sign convention this system does not have
  * (D-13), and `chk_journal_draft_lines_non_negative` would refuse it anyway.
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## The `id`s
  *
  * `jsonSchemaTransformObject` copies *every* schema carrying an `id` out of zod's
  * global registry into `components.schemas`, whether or not a route references
- * it, and A10 makes drift in `openapi.json` a build failure. OB-038 ends at the
- * service; the routes are OB-045, and the ids belong in that diff — exactly as
- * OB-018 left them off and OB-023 added them. `JournalDraftPage` below is a
- * hand-written interface for the same reason: `pageSchema` requires an `id`,
- * because the only reason to have a response *schema* rather than a response
- * *type* is to publish it.
+ * it, and A10 makes drift in `openapi.json` a build failure. OB-038 ended at the
+ * service and left them off; OB-045 built `/v1/journal-drafts` and added them,
+ * exactly as OB-018 left them off and OB-023 added them. `JournalDraftPage` is a
+ * `pageSchema` call now for the same reason — the helper requires an `id`, because
+ * the only reason to have a response *schema* rather than a response *type* is to
+ * publish it — and the keys did not change, because they were the shared
+ * envelope's already (D-21).
+ *
+ * `listDraftsQuerySchema` carries no `id`: a querystring is emitted as individual
+ * `parameters`, so a component for it would be referenced by nothing.
  */
 
 /**
@@ -144,6 +148,14 @@ export const draftLineInputSchema = z
     dimensionValueIds: draftLineDimensionValueIdsSchema.optional(),
   })
   .meta({
+    /**
+     * `JournalDraftLineRequest` and not `DraftLineInput`, which reads better here and
+     * publishes worse: `fastify-type-provider-zod` emits one component per io
+     * direction and suffixes the request side with `Input`, so that id becomes a
+     * `DraftLineInputInput` in the artifact. The name chosen is the one
+     * `JournalLineRequest` already set for the posting body.
+     */
+    id: 'JournalDraftLineRequest',
     description:
       'One line in progress. An unknown or another organization’s `accountId`, `contactId`, or ' +
       'dimension value is a `not_found`, not a validation failure.',
@@ -161,16 +173,21 @@ export type DraftLineInput = z.infer<typeof draftLineInputSchema>;
  * was sent — the table has no column for a side without an amount, and inventing
  * one would be a second place a line's meaning is recorded.
  */
-export const journalDraftLineSchema = z.strictObject({
-  lineId: z.string(),
-  lineNumber: z.int(),
-  accountId: z.uuid().nullable(),
-  contactId: z.uuid().nullable(),
-  side: draftSideSchema.nullable(),
-  amount: draftAmountSchema,
-  memo: z.string().nullable(),
-  dimensionValueIds: z.array(z.uuid()),
-});
+export const journalDraftLineSchema = z
+  .strictObject({
+    lineId: z.string(),
+    lineNumber: z.int(),
+    accountId: z.uuid().nullable(),
+    contactId: z.uuid().nullable(),
+    side: draftSideSchema.nullable(),
+    amount: draftAmountSchema,
+    memo: z.string().nullable(),
+    dimensionValueIds: z.array(z.uuid()),
+  })
+  .meta({
+    id: 'JournalDraftLine',
+    description: 'One stored draft line, read back rather than echoed.',
+  });
 
 export type JournalDraftLine = z.infer<typeof journalDraftLineSchema>;
 
@@ -190,16 +207,23 @@ export type JournalDraftLine = z.infer<typeof journalDraftLineSchema>;
  * `createdByUserId` records who *drafted*. Who *posted* is the journal's actor
  * triple, set from the caller at post — the fact an auditor asks about.
  */
-export const journalDraftSchema = z.strictObject({
-  id: z.uuid(),
-  entryDate: calendarDateSchema.nullable(),
-  memo: z.string().nullable(),
-  reference: z.string().nullable(),
-  createdByUserId: z.uuid(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-  lines: z.array(journalDraftLineSchema),
-});
+export const journalDraftSchema = z
+  .strictObject({
+    id: z.uuid(),
+    entryDate: calendarDateSchema.nullable(),
+    memo: z.string().nullable(),
+    reference: z.string().nullable(),
+    createdByUserId: z.uuid(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    lines: z.array(journalDraftLineSchema),
+  })
+  .meta({
+    id: 'JournalDraft',
+    description:
+      'An entry that has not reached the ledger. It is in no report and no trial balance, carries ' +
+      'no sequence number and no period, and may be edited or discarded freely (D-19).',
+  });
 
 export type JournalDraft = z.infer<typeof journalDraftSchema>;
 
@@ -210,15 +234,20 @@ export type JournalDraft = z.infer<typeof journalDraftSchema>;
  * of one page depend on how many lines an org's drafts happen to carry, which is
  * the property the page-size bound exists to remove.
  */
-export const journalDraftSummarySchema = z.strictObject({
-  id: z.uuid(),
-  entryDate: calendarDateSchema.nullable(),
-  memo: z.string().nullable(),
-  reference: z.string().nullable(),
-  createdByUserId: z.uuid(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const journalDraftSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    entryDate: calendarDateSchema.nullable(),
+    memo: z.string().nullable(),
+    reference: z.string().nullable(),
+    createdByUserId: z.uuid(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'JournalDraftSummary',
+    description: 'A draft in a list: the header, and no lines.',
+  });
 
 export type JournalDraftSummary = z.infer<typeof journalDraftSummarySchema>;
 
@@ -238,6 +267,7 @@ export const createDraftRequestSchema = z
     lines: z.array(draftLineInputSchema).max(DRAFT_MAX_LINES).optional(),
   })
   .meta({
+    id: 'CreateDraftRequest',
     description:
       'Creates one draft. Nothing is required: a draft holds whatever has been entered so far, ' +
       'and everything is checked when it is posted.',
@@ -269,6 +299,7 @@ export const updateDraftRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateDraftRequest',
     description:
       'Partial update. An absent field is unchanged, `null` clears a header field, and `lines` ' +
       'replaces the whole set — send every line the draft should have, including the unchanged ' +
@@ -304,15 +335,15 @@ export const listDraftsQuerySchema = z
 export type ListDraftsQuery = z.input<typeof listDraftsQuerySchema>;
 
 /**
- * The list envelope's shape without its `id`, for the reason given at the top of
- * this file. `items` and `nextCursor` are the keys `pageSchema` produces (D-21),
- * so a client written against this page reads the next one unchanged.
- *
  * Ordered by `(created_at, id)` — `idx_journal_drafts_org_created`. Neither of the
  * journal list's columns is available: a draft has no sequence number by
  * construction, and its `entry_date` is nullable, so neither is total.
  */
-export interface JournalDraftPage {
-  readonly items: readonly JournalDraftSummary[];
-  readonly nextCursor: string | null;
-}
+export const journalDraftPageSchema = pageSchema(journalDraftSummarySchema, {
+  id: 'JournalDraftPage',
+  description:
+    'One page of the org’s drafts, oldest first by creation. Drafts are visible to anyone who ' +
+    'can read journals; they are not private to their author.',
+});
+
+export type JournalDraftPage = z.infer<typeof journalDraftPageSchema>;

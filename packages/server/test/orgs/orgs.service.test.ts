@@ -8,6 +8,10 @@ import {
   UnauthenticatedError,
   ValidationError,
 } from '../../src/errors';
+import { CHART_TEMPLATES } from '../../src/modules/accounts';
+import { register } from '../../src/modules/auth';
+import { withGlobalIdempotency } from '../../src/modules/idempotency';
+import type { OrgCreationInput } from '../../src/modules/orgs';
 import {
   createOrg,
   listMemberships,
@@ -15,7 +19,13 @@ import {
   resolveOrgMembership,
 } from '../../src/modules/orgs';
 import { bufferToUuid, SYSTEM_ROLE_UUIDS, systemRoleId } from '../db';
-import { runAsIdentity, runUnauthenticated, useServiceDatabase } from '../auth/support';
+import {
+  runAsIdentity,
+  runAsIdentityWithKey,
+  runUnauthenticated,
+  useServiceDatabase,
+  VALID_PASSWORD,
+} from '../auth/support';
 
 /**
  * Org creation and the `org_members` many-to-many (spec §5, OB-015).
@@ -35,6 +45,27 @@ async function asNewUser() {
       actorId: user.uuid,
     },
   };
+}
+
+/**
+ * Read from the table rather than through `listAccounts`, so the assertion does not
+ * depend on the org being reachable from a context — which is the thing under test in
+ * the rollback case, where there is no org to build one for.
+ */
+async function chartCodes(orgUuid: string): Promise<readonly string[]> {
+  const rows = await db.app
+    .selectFrom('accounts')
+    .select('code')
+    .where('org_id', '=', uuidToBuffer(orgUuid))
+    .execute();
+
+  return rows.map((row) => row.code);
+}
+
+/** The slugs of every org carrying `name`, which is how a rolled-back org is looked for. */
+async function slugsOfOrgsNamed(name: string): Promise<readonly string[]> {
+  const rows = await db.app.selectFrom('orgs').select('slug').where('name', '=', name).execute();
+  return rows.map((row) => row.slug);
 }
 
 describe('createOrg', () => {
@@ -111,6 +142,136 @@ describe('createOrg', () => {
     await expect(
       runUnauthenticated(() => createOrg({ name: 'Nobody Books' })),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+});
+
+/**
+ * The opt-in starter chart at org creation (OB-039, ROADMAP D-23).
+ *
+ * Two claims, and the second is the one that matters. The first is that a template
+ * named at creation is applied. The second is that nothing else changed: an org
+ * created without one has no accounts, exactly as it did before this field existed,
+ * because D-23's argument is that a chart arriving uninvited is a chart the user
+ * deletes account by account.
+ *
+ * The third suite below is the one that could not be written as an afterthought. The
+ * chart is applied inside `createOrgIn`'s transaction, and a happy-path test passes
+ * just as well against two separate transactions — so the boundary is proven by
+ * making the application fail and looking for the org.
+ */
+describe('the starter chart at org creation (D-23)', () => {
+  it('applies the named template into the new org', async () => {
+    const { scope } = await asNewUser();
+
+    const created = await runAsIdentity(scope, () =>
+      createOrg({ name: 'Chartered Books', chartTemplateId: 'general_small_business' }),
+    );
+
+    const codes = await chartCodes(created.org.id);
+    const template = CHART_TEMPLATES.general_small_business;
+    expect(codes).toHaveLength(template.accounts.length);
+    expect([...codes].sort()).toEqual(template.accounts.map((entry) => entry.code).sort());
+  });
+
+  it('creates no accounts at all when no template is named', async () => {
+    // The load-bearing half of D-23. An org that did not ask for a chart gets none —
+    // not a default template, not a partial one.
+    const { scope } = await asNewUser();
+
+    const created = await runAsIdentity(scope, () => createOrg({ name: 'Bare Books' }));
+
+    expect(await chartCodes(created.org.id)).toEqual([]);
+  });
+
+  it('applies it on the registration path too, from the pre-auth scope', async () => {
+    // `register` creates the user, the org and the membership in one transaction and
+    // reaches the same `createOrgIn`. Its surrounding scope is the pre-auth sentinel,
+    // which is what the derived org scope has to be built from — there is no
+    // authenticated context to inherit at signup.
+    const issued = await runUnauthenticated(() =>
+      register({
+        email: 'chartered@openbooks.test',
+        password: VALID_PASSWORD,
+        displayName: 'Chartered',
+        org: { name: 'Registered Books', chartTemplateId: 'general_small_business' },
+      }),
+    );
+
+    const orgId = issued.identity.activeOrgId;
+    expect(orgId).not.toBeNull();
+
+    const codes = await chartCodes(orgId ?? '');
+    expect(codes).toHaveLength(CHART_TEMPLATES.general_small_business.accounts.length);
+  });
+});
+
+describe('the chart is applied inside the org’s own transaction', () => {
+  it('creates no org when the template cannot be applied', async () => {
+    // Nothing in `orgs.service.ts` inspects `chartTemplateId`; the only thing that can
+    // refuse it is `applyChartTemplate`'s `parseInput`, which runs *after* `insertOrg`
+    // and `insertMembership` have written their rows. So an org surviving this call is
+    // a direct observation of two transactions rather than one.
+    const { scope } = await asNewUser();
+    const input = {
+      name: 'Rolled Back Books',
+      chartTemplateId: 'no_such_template',
+    } as unknown as OrgCreationInput;
+
+    const thrown = await runAsIdentity(scope, () =>
+      createOrg(input).then(
+        () => undefined,
+        (error: unknown) => error,
+      ),
+    );
+
+    expect(thrown).toBeInstanceOf(ValidationError);
+    expect(toWireError(thrown).status).toBe(400);
+    expect(await slugsOfOrgsNamed('Rolled Back Books')).toEqual([]);
+  });
+
+  it('leaves the slug free, so the rolled-back row is gone rather than hidden', async () => {
+    // A name query answering "none" would also be the answer if the row had committed
+    // under a different name. The slug is the independent witness: `uq_orgs_slug` is
+    // global, so a surviving row would push this create onto a random suffix.
+    const { scope } = await asNewUser();
+    const input = {
+      name: 'Contested Books',
+      chartTemplateId: 'no_such_template',
+    } as unknown as OrgCreationInput;
+
+    await expect(runAsIdentity(scope, () => createOrg(input))).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    const created = await runAsIdentity(scope, () => createOrg({ name: 'Contested Books' }));
+
+    expect(created.org.slug).toBe('contested-books');
+  });
+
+  it('yields one org with one chart when the create is retried under a key', async () => {
+    // OB-028's claim opens the transaction the chart then joins. A second application
+    // would collide on `uq_accounts_org_code` and be refused, so a duplicated chart is
+    // not the failure mode here — a second *org* is.
+    const { user, scope } = await asNewUser();
+    const input = { name: 'Retried Books', chartTemplateId: 'general_small_business' as const };
+    const spec = { endpoint: 'createOrg', request: input, successStatus: 201 };
+
+    const first = await runAsIdentityWithKey(scope, 'create-org-with-chart', () =>
+      withGlobalIdempotency(spec, () => createOrg(input)),
+    );
+    const second = await runAsIdentityWithKey(scope, 'create-org-with-chart', () =>
+      withGlobalIdempotency(spec, () => createOrg(input)),
+    );
+
+    expect(first.outcome).toBe('executed');
+    expect(second.outcome).toBe('replayed');
+    expect(await slugsOfOrgsNamed('Retried Books')).toEqual(['retried-books']);
+
+    const orgs = await listMemberships(user.uuid);
+    const retried = orgs.find((entry) => entry.org.name === 'Retried Books');
+    expect(retried).toBeDefined();
+    expect(await chartCodes(retried?.org.id ?? '')).toHaveLength(
+      CHART_TEMPLATES.general_small_business.accounts.length,
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { pageCursorSchema, pageQueryShape } from '../wire';
+import { pageQueryShape, pageSchema } from '../wire';
 
 /**
  * Request and response schemas for contacts (OB-036; spec §3).
@@ -10,23 +10,19 @@ import { pageCursorSchema, pageQueryShape } from '../wire';
  * `requirePermission`, the duplicate-code conflict, the delete restriction —
  * stays on the server, because a schema knows nothing about the caller.
  *
- * ## No `.meta({ id })` anywhere in this file, and that is deliberate
+ * ## The `id`s
  *
  * `jsonSchemaTransformObject` copies *every* schema carrying an `id` out of zod's
  * global registry into `components.schemas`, whether or not a route references
- * it, and A10 makes drift in `openapi.json` a build failure. Contacts have no
- * routes yet — transport is OB-045 — so an `id` added here would put a component
- * in the published document that nothing can reach. The rule stated at the top of
- * `accounts/accounts.ts` is that an `id` goes on a body or response schema a
- * route references and on nothing else; OB-018 left them off and OB-023 added
- * them in the same diff as the routes, which is the sequence this file is
- * following.
+ * it, and A10 makes drift in `openapi.json` a build failure. So the rule at the top
+ * of `accounts/accounts.ts` holds: an `id` goes on a body or response schema a
+ * route references and on nothing else. OB-036 left them off because contacts had
+ * no routes; OB-045 built `/v1/contacts` and added them, which is the sequence
+ * OB-018 and OB-023 established.
  *
- * `contactPageSchema` is therefore assembled here rather than through
- * `pageSchema`, whose signature requires the `id`. It is the same two fields with
- * the same meaning, and OB-045 replaces it with
- * `pageSchema(contactSchema, { id: 'ContactPage', … })` in the diff that adds the
- * route.
+ * `listContactsQuerySchema` has none and must not gain one — a querystring is
+ * emitted as individual `parameters`, so a component for it would be referenced by
+ * nothing.
  */
 
 /**
@@ -135,24 +131,30 @@ const isVendorSchema = z.boolean().meta({
  * caller can reach belongs to the context's org, so the field would carry no
  * information and would be one more place a cross-org id could appear.
  */
-export const contactSchema = z.strictObject({
-  id: z.uuid(),
-  code: contactCodeSchema.nullable(),
-  displayName: displayNameSchema,
-  legalName: legalNameSchema.nullable(),
-  email: emailSchema.nullable(),
-  phone: phoneSchema.nullable(),
-  isCustomer: isCustomerSchema,
-  isVendor: isVendorSchema,
-  notes: notesSchema.nullable(),
-  isActive: z.boolean().meta({
+export const contactSchema = z
+  .strictObject({
+    id: z.uuid(),
+    code: contactCodeSchema.nullable(),
+    displayName: displayNameSchema,
+    legalName: legalNameSchema.nullable(),
+    email: emailSchema.nullable(),
+    phone: phoneSchema.nullable(),
+    isCustomer: isCustomerSchema,
+    isVendor: isVendorSchema,
+    notes: notesSchema.nullable(),
+    isActive: z.boolean().meta({
+      description:
+        'Inactive contacts keep every journal line that names them and cannot be selected for new ' +
+        'ones. This is the only form of removal available to a contact the ledger references.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Contact',
     description:
-      'Inactive contacts keep every journal line that names them and cannot be selected for new ' +
-      'ones. This is the only form of removal available to a contact the ledger references.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'A customer, a vendor, or both — one directory row the ledger can name on a journal line.',
+  });
 
 export type Contact = z.infer<typeof contactSchema>;
 
@@ -168,16 +170,23 @@ export type Contact = z.infer<typeof contactSchema>;
  * filter, which is visible the first time someone looks for it and is corrected
  * by one update. There is nothing to restate.
  */
-export const createContactRequestSchema = z.strictObject({
-  code: contactCodeSchema.nullish(),
-  displayName: displayNameSchema,
-  legalName: legalNameSchema.nullish(),
-  email: emailSchema.nullish(),
-  phone: phoneSchema.nullish(),
-  isCustomer: isCustomerSchema.optional(),
-  isVendor: isVendorSchema.optional(),
-  notes: notesSchema.nullish(),
-});
+export const createContactRequestSchema = z
+  .strictObject({
+    code: contactCodeSchema.nullish(),
+    displayName: displayNameSchema,
+    legalName: legalNameSchema.nullish(),
+    email: emailSchema.nullish(),
+    phone: phoneSchema.nullish(),
+    isCustomer: isCustomerSchema.optional(),
+    isVendor: isVendorSchema.optional(),
+    notes: notesSchema.nullish(),
+  })
+  .meta({
+    id: 'CreateContactRequest',
+    description:
+      'Creates one contact. Only `displayName` is required; both subledger flags default to ' +
+      'false, because a party named on a journal line need take part in no subledger at all.',
+  });
 
 export type CreateContactRequest = z.infer<typeof createContactRequestSchema>;
 
@@ -239,6 +248,12 @@ export const updateContactRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateContactRequest',
+    description:
+      'Partial update. An absent field is unchanged and an explicit `null` clears it. ' +
+      '`isActive` is not here — deactivation is its own operation.',
   });
 
 export type UpdateContactRequest = z.infer<typeof updateContactRequestSchema>;
@@ -297,9 +312,12 @@ export type ListContactsQuery = z.input<typeof listContactsQuerySchema>;
  * order — two contacts created in the same millisecond share it — and a
  * non-total ordering skips or repeats rows at the page boundary.
  */
-export const contactPageSchema = z.strictObject({
-  items: z.array(contactSchema),
-  nextCursor: pageCursorSchema.nullable(),
+export const contactPageSchema = pageSchema(contactSchema, {
+  id: 'ContactPage',
+  description:
+    'One page of the org’s contacts, oldest first by creation. Not alphabetical, and the ' +
+    'paragraph above says why: a cursor into a list ordered by an editable column silently ' +
+    'drops the rows that moved behind it.',
 });
 
 export type ContactPage = z.infer<typeof contactPageSchema>;

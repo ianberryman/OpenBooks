@@ -639,8 +639,9 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 
 ### M2 status
 
-Waves 0, 1 and 2 plus OB-046 and the start of wave 3 are built on `develop`. `yarn check`
-passes: 1,081 tests across 86 files, ~59s.
+Waves 0 through 4 plus OB-046 are built on `develop`. `yarn check`
+passes: 1,151 tests across 94 files, ~80s. What remains is wave 5 (the screens) and
+wave 6 (verification).
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -664,6 +665,7 @@ passes: 1,081 tests across 86 files, ~59s.
 | **OB-042** | Built | P&L; sign keyed off `type`, never `normalBalance` — contra accounts              |
 | **OB-043** | Built | Balance sheet; **two** derived equity lines, not one ([D-20](#d-20))             |
 | **OB-044** | Built | General ledger; running balance recomputed per page, not carried in the cursor   |
+| **OB-045** | Built | 42 operations over 27 new paths; the whole M2 surface is now reachable           |
 | Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because
@@ -720,24 +722,19 @@ to hold it — worth knowing before anyone reorders that file.
 
 Outstanding work, as against notes:
 
-1. **Three cleanups the report core wants, now that three tickets have been written
-   against it.** Each was flagged independently and each was correctly left alone rather
-   than made three ways: `dimensionFilterPredicate` is private to `balances.repository.ts`,
-   so OB-044 restates the `EXISTS` semi-join (guarded — the B4 and B6 properties assert the
-   two agree, so a divergence fails a test rather than shipping); the core has no
-   per-account filter, so the general ledger runs a whole-chart aggregation narrowed only by
-   type in order to read one row; and the three-field dimension group key is now declared in
-   three wire schemas. None is a defect and none is urgent at M2 volumes. They are what a
-   young core looks like after its first real consumers.
+Both items previously listed here are done. The report core's two internal cleanups landed
+with wave 4 — `dimensionFilterPredicate` is exported and shared (the two copies were
+verified byte-identical before being collapsed, rather than assumed equivalent), and the
+core gained an internal-only `accountIds` option so the general ledger no longer aggregates
+the whole chart to read one account. The third, the thrice-declared dimension group key,
+was resolved by OB-045 while deciding component identity for the published spec. And the
+starter chart is now applied at org creation, through `deriveContext`/`runInContext` inside
+`createOrgIn`'s transaction rather than through an org parameter (spec §4).
 
-2. **The starter chart is not applied at org creation.** OB-039's service is complete and
-   callable; `createOrg` lives in `modules/orgs/`, which another agent held during the wave.
-   It is more than a call site: `applyChartTemplate` takes a `RequestContext` and at
-   org-creation time the caller's context is not yet scoped to the org being created. It
-   needs an opt-in field on the org-creation input and a context for the new org, inside
-   `createOrgIn`'s transaction — which the service then joins ambiently. OB-039 correctly
-   declined to add an `applyChartTemplateTo(orgId, …)` escape hatch, since spec §4 forbids
-   passing an org as a parameter.
+One follow-up OB-045 could not make: the members module's **request** schemas are still in
+`modules/members/input.ts`, so its routes import them and re-register them with an id.
+Moving that file into `shared-types` changes zero bytes of `openapi.json` and removes the
+one place a wire contract has two homes.
 
 Two threads left loose:
 

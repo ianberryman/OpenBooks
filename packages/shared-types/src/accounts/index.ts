@@ -34,11 +34,13 @@ export type {
   AppliedChartTemplate,
   ApplyChartTemplateRequest,
   ChartTemplateId,
+  ChartTemplateList,
   ChartTemplateSummary,
 } from './chart-templates';
 export {
   CHART_TEMPLATE_IDS,
   appliedChartTemplateSchema,
   applyChartTemplateRequestSchema,
+  chartTemplateListSchema,
   chartTemplateSummarySchema,
 } from './chart-templates';

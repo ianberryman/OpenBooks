@@ -309,13 +309,29 @@ describe('contacts service', () => {
      */
     it('renames a contact without disturbing its position in the list', async () => {
       const actor = await actorIn(db);
-      const first = await createContact({ displayName: 'Aardvark Ltd' }, actor.ctx);
+      await createContact({ displayName: 'Aardvark Ltd' }, actor.ctx);
       const second = await createContact({ displayName: 'Zenith Ltd' }, actor.ctx);
+
+      /**
+       * The order *before* the rename is the baseline, rather than creation order.
+       * `contacts.created_at` is `DATETIME(3)` and two creates in one test land in the
+       * same millisecond often enough to matter, so the keyset falls through to the
+       * random UUID and creation order is not what the list returns — this test failed
+       * about one run in three when it asserted otherwise.
+       *
+       * That tie is not a defect: the ordering only has to be *total and stable*, which
+       * a random tiebreak is, or a cursor could skip a row (D-21). Reading the baseline
+       * is also the stronger assertion, because it states the claim being made — the
+       * rename moved nothing — rather than a fact about insertion that happens to
+       * coincide with it when the clock cooperates.
+       */
+      const before = (await listContacts({}, actor.ctx)).items.map((contact) => contact.id);
 
       await updateContact(second.id, { displayName: 'Acme Ltd' }, actor.ctx);
 
-      const listed = await listContacts({}, actor.ctx);
-      expect(listed.items.map((contact) => contact.id)).toEqual([first.id, second.id]);
+      const after = (await listContacts({}, actor.ctx)).items.map((contact) => contact.id);
+      expect(after).toEqual(before);
+      expect(after).toHaveLength(2);
     });
   });
 

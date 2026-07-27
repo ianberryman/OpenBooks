@@ -1,6 +1,6 @@
 import type { AccountType } from '@openbooks/shared-types';
 import { sql } from 'kysely';
-import type { Expression, SqlBool } from 'kysely';
+import type { SqlBool } from 'kysely';
 
 import type { KeysetOrdering, TenantDatabase } from '../../db';
 import {
@@ -14,6 +14,7 @@ import {
 import { assertFound, InternalError } from '../../errors';
 
 import type { ResolvedDimensionFilter } from './balances.repository';
+import { dimensionFilterPredicate } from './balances.repository';
 
 /**
  * The general ledger's two reads (OB-044; D-14, D-21).
@@ -47,16 +48,14 @@ import type { ResolvedDimensionFilter } from './balances.repository';
  * and needs no row to carry it. Nothing here is at risk from the bug the core's
  * commentary describes, and a join-condition bound would be the confusing form.
  *
- * ## Why the dimension filter is written out again
+ * ## Why the dimension filter is the core's own predicate
  *
- * `dimensionFilterPredicate` in `balances.repository.ts` is private to that file,
- * and OB-044 does not get to widen the core's surface while OB-042 and OB-043 are
- * being written against it. So the semi-join is restated here — with the same
- * shape and for the same reason, because a join on `journal_line_dimensions`
- * multiplies a line by its tag count and this query would then list the same line
- * twice. What keeps the two copies honest is not discipline: the general ledger's
- * movement is asserted equal to the core's movement under the same filters, over
- * generated ledgers, so a divergence between these predicates fails a property.
+ * `dimensionFilterPredicate` comes from `balances.repository.ts` rather than being
+ * restated here. It correlates only to `journal_lines`, which this query selects
+ * from directly, so the core's `ON`-clause predicate is the same expression in
+ * this query's `WHERE`. The B4 and B6 properties assert the general ledger's
+ * movement equals the core's under the same filters — an agreement that is now
+ * true by construction rather than checked after the fact.
  */
 
 const ACCOUNT_RESOURCE = 'account';
@@ -362,53 +361,4 @@ function movementScope(db: TenantDatabase, spec: GeneralLedgerSpec) {
   }
 
   return query;
-}
-
-/**
- * "This line carries one of these values on this axis" — as a semi-join.
- *
- * The restatement of `balances.repository.ts`'s predicate that the note at the top
- * of this file explains. `EXISTS` rather than a join for the same reason, and the
- * `NOT EXISTS` branch is the drill-through from a grouped report's unassigned
- * bucket (D-18), which is the case this report exists to answer.
- */
-function dimensionFilterPredicate(
-  filter: ResolvedDimensionFilter,
-  index: number,
-): Expression<SqlBool> {
-  const name = `gl_jld_${String(index)}`;
-  const alias = sql.table(name);
-  const correlation = sql`
-    ${sql.ref(`${name}.org_id`)} = ${sql.ref('journal_lines.org_id')}
-    AND ${sql.ref(`${name}.journal_line_id`)} = ${sql.ref('journal_lines.id')}
-    AND ${sql.ref(`${name}.dimension_id`)} = ${filter.dimensionId}
-  `;
-
-  const branches: Expression<SqlBool>[] = [];
-
-  if (filter.valueIds.length > 0) {
-    branches.push(sql<SqlBool>`EXISTS (
-      SELECT 1 FROM journal_line_dimensions AS ${alias}
-      WHERE ${correlation}
-        AND ${sql.ref(`${name}.dimension_value_id`)} IN (${sql.join([...filter.valueIds])})
-    )`);
-  }
-
-  if (filter.includeUnassigned) {
-    branches.push(sql<SqlBool>`NOT EXISTS (
-      SELECT 1 FROM journal_line_dimensions AS ${alias}
-      WHERE ${correlation}
-    )`);
-  }
-
-  const [first, second] = branches;
-  if (first === undefined) {
-    throw new InternalError(
-      'A dimension filter named no values and did not include the unassigned bucket, so there ' +
-        'is no predicate to apply. Report queries must be parsed before they reach the ' +
-        'repository.',
-    );
-  }
-
-  return second === undefined ? first : sql<SqlBool>`(${first} OR ${second})`;
 }

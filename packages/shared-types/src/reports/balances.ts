@@ -31,13 +31,21 @@ import { calendarDateSchema } from '../wire';
  * });
  * ```
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## Why nothing here carries `.meta({ id })`, still, with the routes built
  *
  * The transform lifts every schema carrying an `id` out of zod's global registry
  * into `components.schemas` whether or not a route references it, and A10 makes
- * drift in `openapi.json` a build failure. OB-041 ends at the service; routes are
- * OB-045. The rule and its history are stated at the top of
- * `dimensions/dimensions.ts`.
+ * drift in `openapi.json` a build failure. OB-045 added the ids to the three
+ * reports' *responses* and deliberately added none here, for two reasons that are
+ * both permanent rather than sequencing:
+ *
+ * This file's schemas are queries, and a query reaches an endpoint as individual
+ * `parameters` — a component for one would be referenced by nothing. That includes
+ * `reportDimensionFilterSchema`, which is the one place it costs something: the
+ * filter is structured, so the routes carry it as a JSON-encoded string parameter
+ * (`src/transport/routes/reports.ts` argues why), and a generated client therefore
+ * gets a string where a named type would have been nicer. The alternative is an
+ * unreachable component, which is the thing the rule forbids.
  */
 
 /**

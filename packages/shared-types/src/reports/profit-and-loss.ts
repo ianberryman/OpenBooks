@@ -5,6 +5,7 @@ import { NORMAL_BALANCES } from '../accounts';
 import { calendarDateSchema, minorUnitsSchema } from '../wire';
 
 import { reportRangeShape, reportSliceShape } from './balances';
+import { reportGroupKeySchema } from './groups';
 
 /**
  * The profit and loss wire contract (OB-042; acceptance B2, B6, B7).
@@ -19,13 +20,19 @@ import { reportRangeShape, reportSliceShape } from './balances';
  * the same reason: the sums are exact `bigint` arithmetic all the way to this
  * boundary, and a JSON number would surrender that in the client's parser.
  *
- * ## Why nothing here carries `.meta({ id })`
+ * ## The `id`s
  *
- * The transform lifts every schema carrying an `id` out of zod's global registry
- * into `components.schemas` whether a route references it or not, and A10 makes
- * drift in `openapi.json` a build failure. OB-042 ends at the service; routes are
- * OB-045, and the ids land with them. The rule is stated at the top of
- * `dimensions/dimensions.ts`.
+ * `GET /v1/reports/profit-and-loss` is OB-045's, so the response schemas below now
+ * carry the ids OB-042 deliberately withheld — the rule at the top of
+ * `accounts/accounts.ts` is that an `id` goes on a body or response schema a route
+ * references, and until the route existed these would have published components
+ * nothing could reach. `profitAndLossQuerySchema` still carries none, and must not:
+ * a querystring is emitted as individual `parameters`, so a component for it would
+ * be referenced by nothing.
+ *
+ * The bucket key is `reportGroupKeySchema` and no longer a copy of it. See
+ * `groups.ts` for why three identical components would have been a worse artifact
+ * than one.
  */
 
 /**
@@ -126,6 +133,7 @@ export const profitAndLossRowSchema = z
     }),
   })
   .meta({
+    id: 'ProfitAndLossRow',
     description:
       'One account’s line. Rows are in account-code order and nest by `parentAccountId`; the ' +
       'hierarchy is expressed by that pointer rather than by nesting so the shape stays flat.',
@@ -154,27 +162,16 @@ export const profitAndLossSectionSchema = z
     total: minorUnitsSchema,
   })
   .meta({
+    id: 'ProfitAndLossSection',
     description:
       'Every account of this type in the chart, including those with no postings in the ' +
       'period, plus the section total. `total` is the sum of every row’s `amount` — not of ' +
       'the `subtotal`s, which would count each parent’s subtree once per level.',
   });
 
-/**
- * The bucket key when the statement is sliced by a dimension axis.
- *
- * `null` is the unassigned bucket, which is always present (D-18): a slice view
- * that omits untagged lines shows a smaller business than exists.
- */
-export const profitAndLossGroupKeySchema = z.strictObject({
-  dimensionValueId: z.uuid(),
-  code: z.string(),
-  name: z.string(),
-});
-
 export const profitAndLossGroupSchema = z
   .strictObject({
-    key: profitAndLossGroupKeySchema.nullable(),
+    key: reportGroupKeySchema.nullable(),
     revenue: profitAndLossSectionSchema,
     expenses: profitAndLossSectionSchema,
     netIncome: minorUnitsSchema.meta({
@@ -182,16 +179,19 @@ export const profitAndLossGroupSchema = z
     }),
   })
   .meta({
+    id: 'ProfitAndLossGroup',
     description:
       'One complete statement. An unsliced report has exactly one group, whose `key` is null; a ' +
       'sliced one has a group per dimension value in the period plus the unassigned bucket last.',
   });
 
-export const profitAndLossTotalsSchema = z.strictObject({
-  revenue: minorUnitsSchema,
-  expenses: minorUnitsSchema,
-  netIncome: minorUnitsSchema,
-});
+export const profitAndLossTotalsSchema = z
+  .strictObject({
+    revenue: minorUnitsSchema,
+    expenses: minorUnitsSchema,
+    netIncome: minorUnitsSchema,
+  })
+  .meta({ id: 'ProfitAndLossTotals' });
 
 export const profitAndLossSchema = z
   .strictObject({
@@ -223,6 +223,7 @@ export const profitAndLossSchema = z
     }),
   })
   .meta({
+    id: 'ProfitAndLoss',
     description:
       'Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts ' +
       'are signed to their section — positive revenue is earned, positive expense is spent — ' +

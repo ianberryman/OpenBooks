@@ -47,6 +47,20 @@ interface Scene {
   readonly accountId: string;
   readonly periodId: string;
   readonly journalId: string;
+  readonly journalLineId: string;
+  readonly contactId: string;
+  readonly dimensionId: string;
+  readonly dimensionValueId: string;
+  /** Posted by the control pass, which consumes it. */
+  readonly draftId: string;
+  /**
+   * A second draft, because two operations destroy one and the control pass runs
+   * both: posting a draft deletes it (D-19) and discarding it deletes it. Sharing a
+   * row would make whichever ran second answer `404` for the *owner*, which is the
+   * one thing `ownerGetsNotFound` exists to catch.
+   */
+  readonly discardableDraftId: string;
+  readonly inviteId: string;
 }
 
 /**
@@ -98,11 +112,75 @@ async function scene(app: App): Promise<Scene> {
     },
   });
   const journalId = posted.json<{ journalId: string }>().journalId;
+  const journalLineId = posted.json<{ lines: { lineId: string }[] }>().lines[0]?.lineId;
 
   if (periodId === undefined) throw new Error(`fiscal year setup failed: ${year.body}`);
   if (posted.statusCode !== 201) throw new Error(`journal setup failed: ${posted.body}`);
+  if (journalLineId === undefined) throw new Error(`journal setup returned no lines`);
 
-  return { owner, stranger, accountId, periodId, journalId };
+  const created = async (
+    label: string,
+    url: string,
+    payload: Record<string, unknown>,
+  ): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url,
+      headers: authorizedWrite(owner, `a7-setup-${label}`),
+      payload,
+    });
+    if (response.statusCode !== 201) {
+      throw new Error(`${label} setup failed: ${String(response.statusCode)} ${response.body}`);
+    }
+    return response.json<{ id: string }>().id;
+  };
+
+  // Deliberately named by nothing: `deleteContact` is one of the rows below, and the
+  // control pass has to reach a `204` rather than the `precondition_failed` a contact
+  // on a posting or a draft line earns.
+  const contactId = await created('contact', '/v1/contacts', { displayName: 'Acme' });
+  const dimensionId = await created('dimension', '/v1/dimensions', {
+    code: 'DEPT',
+    name: 'Department',
+  });
+  const dimensionValueId = await created('value', `/v1/dimensions/${dimensionId}/values`, {
+    code: 'SALES',
+    name: 'Sales',
+  });
+
+  const draft = {
+    entryDate: '2026-03-31',
+    lines: [
+      { accountId, side: 'debit', amount: '100' },
+      { accountId: revenueId, side: 'credit', amount: '100' },
+    ],
+  };
+  const draftId = await created('draft', '/v1/journal-drafts', draft);
+  const discardableDraftId = await created('draft-2', '/v1/journal-drafts', draft);
+
+  const invited = await app.inject({
+    method: 'POST',
+    url: '/v1/invites',
+    headers: authorizedWrite(owner, 'a7-setup-invite'),
+    payload: { email: 'a7-invited@example.invalid', roleId: OWNER_ROLE_ID },
+  });
+  if (invited.statusCode !== 201) throw new Error(`invite setup failed: ${invited.body}`);
+  const inviteId = invited.json<{ invitation: { id: string } }>().invitation.id;
+
+  return {
+    owner,
+    stranger,
+    accountId,
+    periodId,
+    journalId,
+    journalLineId,
+    contactId,
+    dimensionId,
+    dimensionValueId,
+    draftId,
+    discardableDraftId,
+    inviteId,
+  };
 }
 
 /**
@@ -114,7 +192,7 @@ async function scene(app: App): Promise<Scene> {
  */
 interface Surface {
   readonly operationId: string;
-  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** `%s` is replaced by the id under test. */
   readonly path: string;
   readonly id: (scene: Scene) => string;
@@ -128,6 +206,12 @@ interface Surface {
  * deactivate, and reactivate all leave the account in place, and `deleteAccount` comes
  * after them (and is refused, because the account carries postings, which is still not
  * a `404`). The leak pass is order-independent, since every row answers the same way.
+ *
+ * OB-045's rows inherit that constraint and two of them make it sharp: `deleteContact`
+ * succeeds, so it is the last row naming a contact, and posting a draft deletes it
+ * (D-19), so `postDraft` and `discardDraft` name two different drafts. A row that
+ * destroyed something a later row reads would answer `404` for the *owner*, which
+ * `ownerGetsNotFound` turns into a failure rather than a silently vacuous pass.
  */
 const SURFACES: readonly Surface[] = [
   { operationId: 'getAccount', method: 'GET', path: '/v1/accounts/%s', id: (s) => s.accountId },
@@ -174,6 +258,189 @@ const SURFACES: readonly Surface[] = [
     path: '/v1/journals/%s/reverse',
     id: (s) => s.journalId,
     payload: () => ({ date: '2026-04-30' }),
+  },
+  {
+    operationId: 'getContact',
+    method: 'GET',
+    path: '/v1/contacts/%s',
+    id: (s) => s.contactId,
+  },
+  {
+    operationId: 'updateContact',
+    method: 'PATCH',
+    path: '/v1/contacts/%s',
+    id: (s) => s.contactId,
+    payload: () => ({ displayName: 'Renamed' }),
+  },
+  {
+    operationId: 'deactivateContact',
+    method: 'POST',
+    path: '/v1/contacts/%s/deactivate',
+    id: (s) => s.contactId,
+  },
+  {
+    operationId: 'reactivateContact',
+    method: 'POST',
+    path: '/v1/contacts/%s/reactivate',
+    id: (s) => s.contactId,
+  },
+  // Last of the contact rows: the control pass succeeds here and the row is gone.
+  {
+    operationId: 'deleteContact',
+    method: 'DELETE',
+    path: '/v1/contacts/%s',
+    id: (s) => s.contactId,
+  },
+  {
+    operationId: 'getDimension',
+    method: 'GET',
+    path: '/v1/dimensions/%s',
+    id: (s) => s.dimensionId,
+  },
+  {
+    operationId: 'updateDimension',
+    method: 'PATCH',
+    path: '/v1/dimensions/%s',
+    id: (s) => s.dimensionId,
+    payload: () => ({ name: 'Cost centre' }),
+  },
+  {
+    operationId: 'listDimensionValues',
+    method: 'GET',
+    path: '/v1/dimensions/%s/values',
+    id: (s) => s.dimensionId,
+  },
+  {
+    operationId: 'createDimensionValue',
+    method: 'POST',
+    path: '/v1/dimensions/%s/values',
+    id: (s) => s.dimensionId,
+    payload: () => ({ code: 'OPS', name: 'Operations' }),
+  },
+  {
+    operationId: 'getDimensionValue',
+    method: 'GET',
+    path: '/v1/dimension-values/%s',
+    id: (s) => s.dimensionValueId,
+  },
+  {
+    operationId: 'updateDimensionValue',
+    method: 'PATCH',
+    path: '/v1/dimension-values/%s',
+    id: (s) => s.dimensionValueId,
+    payload: () => ({ name: 'Sales team' }),
+  },
+  {
+    operationId: 'archiveDimensionValue',
+    method: 'POST',
+    path: '/v1/dimension-values/%s/archive',
+    id: (s) => s.dimensionValueId,
+  },
+  {
+    operationId: 'unarchiveDimensionValue',
+    method: 'POST',
+    path: '/v1/dimension-values/%s/unarchive',
+    id: (s) => s.dimensionValueId,
+  },
+  {
+    operationId: 'deleteDimensionValue',
+    method: 'DELETE',
+    path: '/v1/dimension-values/%s',
+    id: (s) => s.dimensionValueId,
+  },
+  {
+    operationId: 'archiveDimension',
+    method: 'POST',
+    path: '/v1/dimensions/%s/archive',
+    id: (s) => s.dimensionId,
+  },
+  {
+    operationId: 'unarchiveDimension',
+    method: 'POST',
+    path: '/v1/dimensions/%s/unarchive',
+    id: (s) => s.dimensionId,
+  },
+  /**
+   * The owner's own call here is a `precondition_failed`, not a success: the row
+   * above created a second value on this axis. That is still not a `404`, which is
+   * all this matrix asks — the control exists to prove the path is real, not that
+   * the operation is applicable.
+   */
+  {
+    operationId: 'deleteDimension',
+    method: 'DELETE',
+    path: '/v1/dimensions/%s',
+    id: (s) => s.dimensionId,
+  },
+  /**
+   * The two rows whose id is not a uuid. `journal_lines.id` is a `BIGINT` on the
+   * wire, so the nonexistent id these are asked with is *malformed* rather than
+   * merely absent — and the answer has to be the same `404`, or the shape of an id
+   * becomes an oracle of its own.
+   */
+  {
+    operationId: 'getJournalLineDimensions',
+    method: 'GET',
+    path: '/v1/journal-lines/%s/dimensions',
+    id: (s) => s.journalLineId,
+  },
+  {
+    operationId: 'setJournalLineDimensions',
+    method: 'PUT',
+    path: '/v1/journal-lines/%s/dimensions',
+    id: (s) => s.journalLineId,
+    payload: () => ({ valueIds: [] }),
+  },
+  {
+    operationId: 'getDraft',
+    method: 'GET',
+    path: '/v1/journal-drafts/%s',
+    id: (s) => s.draftId,
+  },
+  {
+    operationId: 'updateDraft',
+    method: 'PATCH',
+    path: '/v1/journal-drafts/%s',
+    id: (s) => s.draftId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  // Consumes `draftId`; `discardDraft` below uses the second draft for that reason.
+  {
+    operationId: 'postDraft',
+    method: 'POST',
+    path: '/v1/journal-drafts/%s/post',
+    id: (s) => s.draftId,
+  },
+  {
+    operationId: 'discardDraft',
+    method: 'DELETE',
+    path: '/v1/journal-drafts/%s',
+    id: (s) => s.discardableDraftId,
+  },
+  /**
+   * A membership is addressed by the *user*, and the two rows below are the surface
+   * that would otherwise enumerate the users of every tenant. The owner's own calls
+   * are a no-op re-role and a refused self-removal (the last-Owner rule) — neither
+   * is a `404`.
+   */
+  {
+    operationId: 'changeMemberRole',
+    method: 'PATCH',
+    path: '/v1/members/%s',
+    id: (s) => s.owner.userId,
+    payload: () => ({ roleId: OWNER_ROLE_ID }),
+  },
+  {
+    operationId: 'removeMember',
+    method: 'DELETE',
+    path: '/v1/members/%s',
+    id: (s) => s.owner.userId,
+  },
+  {
+    operationId: 'revokeInvite',
+    method: 'POST',
+    path: '/v1/invites/%s/revoke',
+    id: (s) => s.inviteId,
   },
   {
     /**
