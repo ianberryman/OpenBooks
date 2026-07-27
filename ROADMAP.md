@@ -45,14 +45,32 @@ across several accounts) is not expressible, because a line clears once (`uq_blc
 
 ### Outstanding tickets, none blocking M4
 
-Three follow-ups came out of M3 and were deliberately not folded into other commits,
-because each touches a contract, a kernel, or a seed rather than the module that found it.
+Five follow-ups, deliberately not folded into other commits because each touches a contract,
+a kernel, a seed, or a decision rather than the module that found it. The first three came
+out of M3; the last two out of M4 wave 4, and both were explicitly deferred by decision.
 
-| ID         | What                                                        | Why it was deferred                                 |
-| ---------- | ----------------------------------------------------------- | --------------------------------------------------- |
-| **OB-091** | `PostJournalInput` gains a `source`                         | Ledger kernel — `plugin-api` + `posting.service.ts` |
-| **OB-092** | Reconcile the AR/AP refusal vocabulary onto the AP spelling | Wire-contract change; tokens are published          |
-| **OB-093** | Decide whether `ar_only`/`ap_only` may finish a document    | Migration + product decision, not a test fix        |
+| ID         | What                                                        | Why it was deferred                                                             |
+| ---------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **OB-091** | `PostJournalInput` gains a `source`                         | Ledger kernel — `plugin-api` + `posting.service.ts`                             |
+| **OB-092** | Reconcile the AR/AP refusal vocabulary onto the AP spelling | Wire-contract change; tokens are published                                      |
+| **OB-093** | Decide whether `ar_only`/`ap_only` may finish a document    | Migration + product decision, not a test fix                                    |
+| **OB-094** | Split coding: one statement line across several accounts    | Clearing contract + migration + service + screen — a decision taken to defer it |
+| **OB-095** | A bank-account setup screen (create/deactivate/reactivate)  | `createBankAccount` is API-only; no UI creates one yet                          |
+
+**OB-094** — the matching screen (OB-086) does accept/correct/defer/undo, but a **split** is
+not expressible: a line clears once (`uq_blc_line`) and a clearing codes it to one target.
+Splitting means a clearing that carries several coded portions (an array of
+`{ accountId, amount }` summing to the line) and posts an N-line journal, with the difference
+logic generalised. That is a contract, a migration, a service change and a screen — its own
+ticket, and the decision was taken to defer it rather than widen wave 4. None of E1–E10
+requires it; it is a real bookkeeping convenience (QuickBooks and Xero have it) for later.
+
+**OB-095** — the three banking screens pick a bank account from `GET /v1/bank-accounts`, but
+nothing in the UI _creates_ one: `createBankAccount`/`updateBankAccount` are routes without a
+screen, and `deactivate`/`reactivate` were deferred at OB-084 because the guard (refusing an
+account with an open session) is business logic. A small banking-settings screen closes both.
+Until it exists a bank account is created by API only, which is why OB-090's E2E seeds one
+that way.
 
 **OB-091** — every document journal currently posts with `source = 'manual'`, because
 `PostJournalInput` has no `source` field and `postJournal` hardcodes it. Reported
