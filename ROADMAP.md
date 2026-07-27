@@ -13,7 +13,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below**    |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below**    |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below**    |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–1 built — see below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–2 built — see below** |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                      |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                      |
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                      |
@@ -24,22 +24,21 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4's waves 0–1 are built; waves 2–5 are not started.** Read this
+**M1, M2 and M3 are built. M4's waves 0–2 are built; waves 3–5 are not started.** Read this
 section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                                           |
-| ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                                             |
-| Gate   | `yarn check` passes — 1,922 tests across 154 files, ~2.5 min                                                              |
-| Push   | **43 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                         |
-| Next   | M4 wave 2: **OB-079** (match engine) and **OB-080** (bank rules) are parallel; **OB-081** (accept a match) follows OB-079 |
+|        |                                                                                                                  |
+| ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                                    |
+| Gate   | `yarn check` passes — 1,992 tests across 160 files, ~2.5 min                                                     |
+| Push   | **45 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                |
+| Next   | M4 wave 3: **OB-082** (reconciliation sessions + reopen), then **OB-083** (reporting) — sequential, not parallel |
 
-Wave 1 built the ingest pipeline (CSV + OFX/QFX parsers, the dedupe/fingerprint statement
-service), the in-process queue [D-49](#d-49) settles, and the async import path — flipping the
-worker's Compose restart policy to `unless-stopped` in the same change. It also took
-`banking.import` and `banking.read` live in the permission matrix (the wave-1 slice of
-OB-089), because a service that enforces a code must move it out of `LATENT_GRANTS` in the
-same commit. See [Status — Milestone 4](#status--milestone-4).
+Wave 2 built the matching pipeline: the read-only proposal engine (OB-079), bank rules and
+their evaluator (OB-080), and clearing — the one write path (OB-081) — and took `banking.match`
+live in the permission matrix. **Wave 3 turns on one open decision: E5 vs D-45, whether an
+unpresented cheque blocks finalisation** — recorded in
+[Status — Milestone 4](#status--milestone-4) and not yet settled.
 
 ### Outstanding tickets, none blocking M4
 
@@ -1066,7 +1065,36 @@ decision, both of which M4 is the first milestone to actually need. Both are now
 
 ### Status — Milestone 4
 
-**Waves 0–1 are built.** Waves 2–5 are not started.
+**Waves 0–2 are built.** Waves 3–5 are not started.
+
+#### Wave 2 — the matching pipeline (OB-079, OB-080, OB-081)
+
+Fanned out around a committed `RuleEvaluator` seam (`modules/banking/rule-evaluator.ts`), so
+the read-only engine and the rules stayed parallel without importing each other; they meet
+at the banking barrel, which pairs the engine with the concrete evaluator the way
+`parseStatement` pairs the import service with the concrete parsers.
+
+- **Matching proposes, it never writes (D-43, E3).** The engine ranks candidates from four
+  sources loaded once per page — existing journals (`link_entry`), open documents
+  (`allocate_document`, reusing aging's outstanding), a rule match, and the org's own coding
+  history — and emits `rank` plus the reasons behind it, **never a score** ([D-48](#d-48)).
+  The tie-break is on each candidate's durable identity, not the per-call proposal id, so a
+  statement ranks identically twice. E10 held: ~7 reads for a whole page, proven by a
+  `Com_select` delta that does not grow with line count.
+- **Rules are a deterministic lookup (D-44), first match by `(priority, created_at, id)`.**
+  The winner is proven invariant under all 720 permutations of a six-rule set. No regex, and
+  no backward reach (E8) — there is no re-run-over-existing-lines shape.
+- **Clearing is the one write path (E4).** `clearedAmount + differenceAmount = line.amount`
+  is an invariant that closes by construction: a £990 line settling a £1,000 invoice records
+  the payment in full (the subledger stays in agreement, C2) and reconciles only the bank to
+  the line via a charges journal. Undo reverses, never deletes (D-16), and is refused once a
+  finalised session has counted the line. Contention proven with two real connections on the
+  clearing insert keys, since the append-only line and journal cannot be locked (D-14).
+- `banking.match` is now enforced (rules and clearing) and moved into the matrix — the wave-2
+  slice of OB-089. `banking.reconcile`/`reopen` stay latent for wave 3.
+- A contract fix landed: `bankRuleConditionSchema`'s "match on something" refinement counted
+  `bankAccountId`, so a condition naming only an account passed the wire and then failed the
+  DB CHECK as a 500. Narrowed to the four real predicates.
 
 #### Wave 1 — ingest, the queue, the async import path (OB-076, OB-077, OB-078)
 
@@ -1129,18 +1157,18 @@ Two things wave 0 decided against its own brief, both worth knowing before wave 
   proprietary tags and one parser; a second token would be a second name for one thing.
   OB-077's title still says "OFX/QFX" and means this.
 
-#### Carried forward (waves 2–3)
+#### Carried forward (wave 3)
 
-| What                                                              | Owner  |
-| ----------------------------------------------------------------- | ------ |
-| `bank_match_proposals` carries `rank`, no `score` ([D-48](#d-48)) | OB-079 |
-| Session membership is by date and is not frozen at finalisation   | OB-082 |
-| E5 vs D-45: does an unpresented cheque block finalisation?        | OB-082 |
+| What                                                            | Owner  |
+| --------------------------------------------------------------- | ------ |
+| Session membership is by date and is not frozen at finalisation | OB-082 |
+| **E5 vs D-45: does an unpresented cheque block finalisation?**  | OB-082 |
 
-`bank_statement_imports` gaining a `status` (carried out of wave 0) is done — OB-078 built
-it, and the append-only-vs-mutable resolution is recorded above.
+Done and recorded above: `bank_statement_imports` gaining a `status` (OB-078), and
+`bank_match_proposals` carrying `rank` and no `score` ([D-48](#d-48), OB-079).
 
-The last row is a genuine ambiguity in this roadmap, not an implementation question.
+The last row is a genuine ambiguity in this roadmap, not an implementation question, and it
+is the decision wave 3 opens on.
 E5 says "book balance = statement balance at the date"; read literally, an uncleared item —
 a written cheque not yet presented — would block finalisation, which is wrong for a bank
 reconciliation. The contracts model `clearedBalance` alongside `bookBalance` with
