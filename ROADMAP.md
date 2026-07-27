@@ -24,23 +24,24 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4's waves 0–3 are built; waves 4–5 are not started.** Read this
-section first; the per-milestone Status sections below carry the detail.
+**M1, M2 and M3 are built. M4's waves 0–4 are built; wave 5 (verification) remains.** Read
+this section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                         |
-| ------ | ------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                           |
-| Gate   | `yarn check` passes — 2,016 tests across 164 files, ~2.5 min                                            |
-| Push   | **50 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold       |
-| Next   | M4 wave 4: **OB-084** (`/v1` surface), then **OB-085/086/087** (screens, parallel) — OB-086 is the crux |
+|        |                                                                                                             |
+| ------ | ----------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                               |
+| Gate   | `yarn check` passes — 2,041 tests across 168 files, ~2.5 min                                                |
+| Push   | **52 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold           |
+| Next   | M4 wave 5: **OB-088** (banking property suite), **OB-090** (E2E). OB-089's coverage core landed with OB-084 |
 
-Wave 3 built reconciliation: sessions with the finalise/reopen lock (OB-082) and the
-reconciliation report that ties to the ledger (OB-083). Finalisation asserts the _cleared_
-balance ([D-50](#d-50)) and freezes membership by stamping ([D-51](#d-51)); D-51 also
-corrected OB-081's undo refusal to read the stamp rather than the line's date. **Every
-`banking.*` permission code is now enforced** — the banking half of the latent-grants table
-is empty, emptied over three waves with no migration. The server side of M4 is complete;
-wave 4 is transport and the React screens. See [Status — Milestone 4](#status--milestone-4).
+Wave 4 built the `/v1` banking surface (OB-084 — 27 operations) and the three screens: import
+with a column-mapping editor (OB-085), the keyboard-driven matching screen (OB-086), and the
+reconciliation screen (OB-087), wired into a tabbed **Banking** section. Publishing the routes
+forced all three enforcement coverage matrices (permission-matrix, cross-org A7,
+cross-org-references B11), so **OB-089's coverage core landed with OB-084** — every banking
+operationId is covered. One known deviation is flagged, not faked: a **split** (one line coded
+across several accounts) is not expressible, because a line clears once (`uq_blc_line`). See
+[Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1067,8 +1068,43 @@ decision, both of which M4 is the first milestone to actually need. Both are now
 
 ### Status — Milestone 4
 
-**Waves 0–3 are built** — the entire server side of banking. Wave 4 (transport + screens)
-and wave 5 (verification) are not started.
+**Waves 0–4 are built.** Only wave 5 (verification: OB-088 property suite, OB-090 E2E)
+remains — OB-089's coverage core landed early, forced by OB-084's routes.
+
+#### Wave 4 — the `/v1` surface and the three screens (OB-084–OB-087)
+
+- **Transport (OB-084)** — 27 banking operations across five route files, thin handlers that
+  map arguments (dependency-cruiser enforces no business logic in transport). The wire schemas
+  gained their `.meta({ id })`; spec and client regenerated; `yarn drift` clean. Two thin read
+  services (bank-account register/list, statement-line list) that waves 1–3 never needed
+  because they only ever read one at a time.
+- **The async import got a poll surface.** `startImport` answers `202` with a queued row; a new
+  `GET /v1/bank-statement-imports/:id` polls it. `bankStatementImportSchema` now carries the
+  lifecycle — `status`, `result` nullable (present only when `complete`), `failureReason` (only
+  when `failed`) — with a refinement mirroring `0006`'s CHECK, so an impossible import neither
+  parses nor emits. `listBankImportMappings` became a query filter, not a nested collection:
+  the service answers an unknown account with an empty page, and a path-nested list would
+  promise a 404 it does not give (the A7/B11 distinction).
+- **The screens.** Import with a mapping editor that encodes the contract's two traps — the date
+  order is chosen not guessed, the credit column is money in (OB-085). The matching screen,
+  keyboard-driven, one batch of proposals per visible window (E10), accept mapping a proposal's
+  `kind` one-to-one onto a clearing method, and **no score rendered** because confidence is the
+  ordering (OB-086, D-43/D-48). The reconciliation screen splitting "what must agree to finalise"
+  from "reconciling differences — expected", so an unpresented cheque reads as a difference the
+  report explains, and finalise defers to the server's assertion (OB-087). Wired into a tabbed
+  **Banking** section gated on `banking.read` (advisory, D-25 — the services enforce).
+- **Publishing the routes forced all three enforcement coverage matrices**, not one: a gated
+  operation must appear in permission-matrix (coverage), cross-org (A7) and cross-org-references
+  (B11). One shared banking scene extends all three — the 27 operations each a real service
+  call, cross-org ids 404-parity, body refs scoped. This is OB-089's coverage core, landed with
+  OB-084 because the gate couples them.
+
+**Known deviation — split is a decision, not a screen.** OB-086's definition of done lists
+"accept, correct, split, or defer", but a **split** — one statement line coded across several
+accounts — is not expressible: a line clears once (`uq_blc_line`) and a clearing codes it to
+one target. The screen does accept/correct/defer/undo cleanly. Split needs a clearing contract
+that carries multiple coded portions under one clearing (an array of `{ accountId, amount }`
+summing to the line), which is a schema and product decision, deferred pending that call.
 
 #### Wave 3 — reconciliation (OB-082, OB-083)
 
