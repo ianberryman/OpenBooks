@@ -124,3 +124,58 @@ export {
   reportRangeShape,
   reportSliceShape,
 } from '@openbooks/shared-types';
+
+/**
+ * The profit and loss (OB-042). A projection over `getAccountBalances`, with no
+ * query of its own — read `profit-and-loss.service.ts` for the sign convention,
+ * for why it reads `movement` rather than `closing`, and for why M2 ships no
+ * comparative period.
+ */
+export type {
+  ProfitAndLoss,
+  ProfitAndLossGroup,
+  ProfitAndLossQuery,
+  ProfitAndLossRow,
+  ProfitAndLossSection,
+  ProfitAndLossTotals,
+} from './profit-and-loss.service';
+export { getProfitAndLoss } from './profit-and-loss.service';
+
+export { PROFIT_AND_LOSS_ACCOUNT_TYPES, profitAndLossQuerySchema } from '@openbooks/shared-types';
+export type { ProfitAndLossAccountType } from '@openbooks/shared-types';
+
+/**
+ * The general ledger and the drill-down (OB-044; B4, B6). The three balances come
+ * from `getAccountBalances`; the entries are a keyset-paged list of the lines that
+ * moved the account. Read `general-ledger.service.ts` for how a running balance
+ * survives paging and for what a client sees when a back-dated entry lands between
+ * two page fetches — and `shared-types`' `general-ledger.ts` for what "the other
+ * side" means on a journal with more than two lines.
+ */
+export type { GeneralLedgerQuery } from './general-ledger.service';
+export { getGeneralLedger } from './general-ledger.service';
+
+export { GL_COUNTERPARTY_ACCOUNTS_MAX, generalLedgerQuerySchema } from '@openbooks/shared-types';
+export type { GeneralLedger, GeneralLedgerEntry } from '@openbooks/shared-types';
+
+/**
+ * The balance sheet (OB-043; B2, B3, B6, B7). A projection over
+ * `getAccountBalances` reading `closing` for the accounts it prints — and, on the
+ * revenue and expense rows of the same call, `opening` and `movement` for the two
+ * derived equity lines D-20 requires in place of a year-end closing journal. Read
+ * `balance-sheet.service.ts` for why the derivation is split at the fiscal-year
+ * boundary, and for the rule that becomes wrong the day a close is built.
+ */
+export type {
+  BalanceSheet,
+  BalanceSheetFiscalYear,
+  BalanceSheetGroup,
+  BalanceSheetQuery,
+  BalanceSheetRow,
+  BalanceSheetSection,
+  BalanceSheetTotals,
+} from './balance-sheet.service';
+export { getBalanceSheet } from './balance-sheet.service';
+
+export { BALANCE_SHEET_ACCOUNT_TYPES, balanceSheetQuerySchema } from '@openbooks/shared-types';
+export type { BalanceSheetAccountType } from '@openbooks/shared-types';

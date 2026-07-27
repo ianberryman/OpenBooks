@@ -71,3 +71,16 @@ export {
   listPeriods,
   reopenPeriod,
 } from './periods.service';
+
+/**
+ * The org's fiscal-year start month (D-17), on the public surface because the
+ * balance sheet needs it.
+ *
+ * It is a read of `orgs`, not of a period, and it is exported from here rather than
+ * from `modules/orgs/` because a fiscal year is what this module is about — the
+ * reason `periods.repository.ts` holds the query at all. `getBalanceSheet` resolves
+ * D-20's derivation window from it, and without this export the only route was a
+ * cross-module `.repository` import, which would have been the single instance of
+ * that shape in the codebase.
+ */
+export { selectFiscalYearStartMonth } from './periods.repository';

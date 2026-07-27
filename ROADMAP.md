@@ -368,19 +368,19 @@ rather than tested.
 
 Every criterion is verified by an automated test, not by inspection.
 
-| #   | Acceptance criterion                                                                                    | Verified by    |
-| --- | ------------------------------------------------------------------------------------------------------- | -------------- |
-| B1  | A full month of books runs end to end in a real browser against the Compose stack                       | OB-055         |
-| B2  | P&L and balance sheet tie to the trial balance for any date range                                       | OB-053         |
-| B3  | The balance sheet balances without a closing journal — assets = liabilities + equity + current earnings | OB-043, OB-053 |
-| B4  | GL opening balance + movement = closing balance, for every account and every range                      | OB-044, OB-053 |
-| B5  | A draft is freely editable and discardable; posting it is the only path to the ledger, exactly once     | OB-038, OB-054 |
-| B6  | Dimension tagging never moves money — every report unsliced equals its slices plus unassigned           | OB-041, OB-053 |
-| B7  | Hierarchy subtotals equal the sum of descendants, and a cycle is unrepresentable                        | OB-035, OB-039 |
-| B8  | A retried register / create-org / switch-org yields exactly one of the thing (M1 gap 1 closed)          | OB-028, OB-054 |
-| B9  | No component names a raw colour, spacing, or radius — tokens only, lint-enforced                        | OB-046, OB-056 |
-| B10 | Every screen's affordances follow the caller's permission set, and the service refuses regardless       | OB-030, OB-054 |
-| B11 | The new resources hold the A7 line — a cross-org read is a 404 with a byte-identical body               | OB-054         |
+| #   | Acceptance criterion                                                                                | Verified by    |
+| --- | --------------------------------------------------------------------------------------------------- | -------------- |
+| B1  | A full month of books runs end to end in a real browser against the Compose stack                   | OB-055         |
+| B2  | P&L and balance sheet tie to the trial balance for any date range                                   | OB-053         |
+| B3  | The balance sheet balances without a closing journal — corrected identity in [D-20](#d-20)          | OB-043, OB-053 |
+| B4  | GL opening balance + movement = closing balance, for every account and every range                  | OB-044, OB-053 |
+| B5  | A draft is freely editable and discardable; posting it is the only path to the ledger, exactly once | OB-038, OB-054 |
+| B6  | Dimension tagging never moves money — every report unsliced equals its slices plus unassigned       | OB-041, OB-053 |
+| B7  | Hierarchy subtotals equal the sum of descendants, and a cycle is unrepresentable                    | OB-035, OB-039 |
+| B8  | A retried register / create-org / switch-org yields exactly one of the thing (M1 gap 1 closed)      | OB-028, OB-054 |
+| B9  | No component names a raw colour, spacing, or radius — tokens only, lint-enforced                    | OB-046, OB-056 |
+| B10 | Every screen's affordances follow the caller's permission set, and the service refuses regardless   | OB-030, OB-054 |
+| B11 | The new resources hold the A7 line — a cross-org read is a 404 with a byte-identical body           | OB-054         |
 
 ### Explicitly out of M2
 
@@ -661,6 +661,9 @@ passes: 1,081 tests across 86 files, ~59s.
 | **OB-058** | Built | jsdom harness; 87 web tests. New ticket — see below                              |
 | **OB-059** | Built | A posted draft carries its contacts and tags. New ticket — the wave-2 defect     |
 | **OB-041** | Built | Report core: `getAccountBalances`, differential-tested against the trial balance |
+| **OB-042** | Built | P&L; sign keyed off `type`, never `normalBalance` — contra accounts              |
+| **OB-043** | Built | Balance sheet; **two** derived equity lines, not one ([D-20](#d-20))             |
+| **OB-044** | Built | General ledger; running balance recomputed per page, not carried in the cursor   |
 | Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because
@@ -715,11 +718,19 @@ the chain, since `done(failure)` only skips what comes after. That guarantee now
 registration order in `app.ts` rather than on a hook choice, which is a more fragile place
 to hold it — worth knowing before anyone reorders that file.
 
-Wave 2 left one thing that is work rather than a note (a second, retagging in a closed
-period, is settled as [D-32](#d-32); a third, drafts dropping what they held, is fixed as
-OB-059 below):
+Outstanding work, as against notes:
 
-1. **The starter chart is not applied at org creation.** OB-039's service is complete and
+1. **Three cleanups the report core wants, now that three tickets have been written
+   against it.** Each was flagged independently and each was correctly left alone rather
+   than made three ways: `dimensionFilterPredicate` is private to `balances.repository.ts`,
+   so OB-044 restates the `EXISTS` semi-join (guarded — the B4 and B6 properties assert the
+   two agree, so a divergence fails a test rather than shipping); the core has no
+   per-account filter, so the general ledger runs a whole-chart aggregation narrowed only by
+   type in order to read one row; and the three-field dimension group key is now declared in
+   three wire schemas. None is a defect and none is urgent at M2 volumes. They are what a
+   young core looks like after its first real consumers.
+
+2. **The starter chart is not applied at org creation.** OB-039's service is complete and
    callable; `createOrg` lives in `modules/orgs/`, which another agent held during the wave.
    It is more than a call site: `applyChartTemplate` takes a `RequestContext` and at
    org-creation time the caller's context is not yet scoped to the org being created. It
@@ -978,13 +989,49 @@ retained earnings and in the derived line. Retained earnings is an ordinary acco
 current-year earnings never is. Deriving something that also exists as an account is how
 it gets double-counted.
 
+**Correction, found by building it (OB-043): there are two derived lines, not one.** B3 as
+originally stated — `assets = liabilities + equity + current-year earnings` — holds only
+for an org in its **first** fiscal year. With no closing journal anywhere, a prior year's
+income is still sitting in the revenue and expense accounts, so a sheet carrying only the
+current year's earnings is out of balance by exactly last year's profit. The identity that
+holds for an org of any age is
+
+```
+assets = liabilities + equity + priorYearEarnings + currentYearEarnings
+```
+
+where `priorYearEarnings` is the revenue/expense `opening` — everything strictly before the
+fiscal-year start — and `currentYearEarnings` is their `movement` within it. Neither is an
+account. An org's own retained-earnings account is an ordinary equity account, counted once
+in `equity` and never derived.
+
+This also sharpens which line the future close must learn about. `currentYearEarnings` is
+already safe, because it is scoped to a single fiscal year. It is `priorYearEarnings` whose
+`from` bound has to become "since the last closed year end" rather than "since inception",
+or a closed year is counted both in retained earnings and here. The constraint is recorded
+at the top of `balance-sheet.service.ts` under a heading saying to read it before building
+the close.
+
+One measurement worth keeping: forcing the fiscal year to January **did not fail the
+balance assertion**. A wrong year boundary moves money between the two derived lines
+without changing their sum, so the sheet still foots. It was caught only by checking each
+line against the trial balance at both ends of the year — which is why B2 is asserted per
+row and not only in total.
+
 <a id="d-21"></a>
 **D-21 — Keyset pagination, not offset.** Offset pagination assumes the rows behind you do
 not move. In an append-only ledger they do — entries arrive while a user pages through the
 general ledger, and with `OFFSET` that shifts the window, so a row is skipped or shown
 twice with nothing in the response indicating it happened. Keyset over a total ordering has
 no such failure: `(entry_date, sequence_number)` for journals and the GL, `(created_at, id)`
-elsewhere. The sequence number exists in part to make that ordering total (`entry_date`
+elsewhere.
+
+One extension, found by OB-044: those two columns are total over _journals_ and **not** over
+a general ledger's rows, because one journal can post to the same account twice — an
+allocation — and its two lines compare equal under both. The line-level read therefore keys
+on `(entry_date, sequence_number, journal_lines.id)`. The third column is legitimate for the
+same reason the first two are: `journal_lines.id` is `AUTO_INCREMENT` and the app user holds
+no `UPDATE` on the table, so it cannot move under a cursor. The sequence number exists in part to make that ordering total (`entry_date`
 alone is not), so this is a use of [D-14](#d-14) rather than a new requirement.
 
 <a id="d-22"></a>
