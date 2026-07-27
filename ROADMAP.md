@@ -13,7 +13,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below**    |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below**    |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below**    |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–2 built — see below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–3 built — see below** |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                      |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                      |
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                      |
@@ -24,22 +24,23 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4's waves 0–2 are built; waves 3–5 are not started.** Read this
+**M1, M2 and M3 are built. M4's waves 0–3 are built; waves 4–5 are not started.** Read this
 section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                                  |
-| ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                                    |
-| Gate   | `yarn check` passes — 1,992 tests across 160 files, ~2.5 min                                                     |
-| Push   | **45 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                |
-| Next   | M4 wave 3: **OB-082** (reconciliation sessions + reopen), then **OB-083** (reporting) — sequential, not parallel |
+|        |                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                           |
+| Gate   | `yarn check` passes — 2,016 tests across 164 files, ~2.5 min                                            |
+| Push   | **50 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold       |
+| Next   | M4 wave 4: **OB-084** (`/v1` surface), then **OB-085/086/087** (screens, parallel) — OB-086 is the crux |
 
-Wave 2 built the matching pipeline: the read-only proposal engine (OB-079), bank rules and
-their evaluator (OB-080), and clearing — the one write path (OB-081) — and took `banking.match`
-live in the permission matrix. Wave 3's two open questions are now settled:
-[D-50](#d-50) (finalisation asserts the _cleared_ balance, so an unpresented cheque is a
-reconciling difference and not a blocker) and [D-51](#d-51) (membership frozen at
-finalisation). See [Status — Milestone 4](#status--milestone-4).
+Wave 3 built reconciliation: sessions with the finalise/reopen lock (OB-082) and the
+reconciliation report that ties to the ledger (OB-083). Finalisation asserts the _cleared_
+balance ([D-50](#d-50)) and freezes membership by stamping ([D-51](#d-51)); D-51 also
+corrected OB-081's undo refusal to read the stamp rather than the line's date. **Every
+`banking.*` permission code is now enforced** — the banking half of the latent-grants table
+is empty, emptied over three waves with no migration. The server side of M4 is complete;
+wave 4 is transport and the React screens. See [Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1066,7 +1067,33 @@ decision, both of which M4 is the first milestone to actually need. Both are now
 
 ### Status — Milestone 4
 
-**Waves 0–2 are built.** Waves 3–5 are not started.
+**Waves 0–3 are built** — the entire server side of banking. Wave 4 (transport + screens)
+and wave 5 (verification) are not started.
+
+#### Wave 3 — reconciliation (OB-082, OB-083)
+
+- **A session is the assertion the milestone exists to make.** Open, update, finalise,
+  reopen, with every balance computed on read (D-46) except the statement's closing figure —
+  the one claim from outside. Finalisation asserts `clearedBalance === statementClosingBalance`
+  ([D-50](#d-50)): an unpresented cheque is a reconciling difference the session reports, not
+  a blocker. Membership is frozen at finalisation by stamping the session id onto the
+  clearings it counted ([D-51](#d-51)); reopen unstamps. E7 independence is proven (closing a
+  fiscal period then finalising leaves the period row byte-identical), and contention is
+  proven on the session row with two real connections.
+- **D-51 reached back into OB-081.** Its undo refusal read the line's date against any
+  finalised session's window; after D-51 that is the wrong notion of membership — it would
+  refuse undoing a straggler the assertion never counted. It now reads the clearing's own
+  stamp. The date query is gone and `0006`'s "falsifiable" comment is rewritten.
+- **The reconciliation report ties to the ledger (OB-083).** The reconciling items — bank
+  account journal movements in the window not linked to a counted clearing — sum exactly to
+  `unclearedAmount`, so `clearedBalance + Σ items === bookBalance`. Uncleared statement lines
+  are a separate labelled list, because a line with no journal moves neither balance and
+  cannot belong to that sum — the honest reading of D-50. This is D-40's C8 for reconciliation:
+  a report that does not tie to the gap is a list of hopes. Reproducible as at a past date
+  because a finalised report reads the frozen membership, not a re-query.
+- **`banking.reconcile` and `banking.reopen` are now enforced**, the last two latent banking
+  codes. `reopen` is its own operation and its own code because withdrawing an assertion (E6)
+  is a power held apart from making one.
 
 #### Wave 2 — the matching pipeline (OB-079, OB-080, OB-081)
 
@@ -1158,18 +1185,22 @@ Two things wave 0 decided against its own brief, both worth knowing before wave 
   proprietary tags and one parser; a second token would be a second name for one thing.
   OB-077's title still says "OFX/QFX" and means this.
 
-#### Wave 3 — both open decisions now settled
+#### Carried into wave 4
 
-The two questions the contracts left for wave 3 are answered, so OB-082 builds against a
-fixed target:
+The server side is done, so what wave 4 (transport + screens) inherits is small and known:
 
-- **E5 vs D-45 → [D-50](#d-50):** finalisation asserts the _cleared_ balance equals the
-  statement; an unpresented cheque is a reconciling difference, not a blocker.
-- **Session membership → [D-51](#d-51):** frozen at finalisation by stamping the session id
-  onto the clearings it counted, so the assertion cannot be falsified afterward.
+- **The permission-matrix `OPERATIONS` rows for banking carry `operationId: null`.** Every
+  banking service is enforced and represented, but by a service call rather than a route,
+  the way `getPeriod` has been since M2. OB-084 gives them routes and OB-089 fills the ids
+  in; until then the coverage check ignores them and the source scan carries the guarantee.
+- **Truncating an account's first reconciliation past its history is an M7 onboarding
+  concern**, not a wave-4 one — there is no `start_date` column and the opening balance a
+  truncated first session needs is not something the ledger can supply. The contract comment
+  was corrected to stop promising it.
 
-Done and recorded above from earlier waves: `bank_statement_imports` gaining a `status`
-(OB-078), and `bank_match_proposals` carrying `rank` and no `score` ([D-48](#d-48), OB-079).
+All of wave 3's own open questions were settled before it started: [D-50](#d-50) and
+[D-51](#d-51) above. Earlier waves closed `bank_statement_imports.status` (OB-078) and
+`bank_match_proposals` rank-not-score ([D-48](#d-48), OB-079).
 E5 says "book balance = statement balance at the date"; read literally, an uncleared item —
 a written cheque not yet presented — would block finalisation, which is wrong for a bank
 reconciliation. The contracts model `clearedBalance` alongside `bookBalance` with
