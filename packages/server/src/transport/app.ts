@@ -35,6 +35,17 @@ import { registerOpenApi } from './openapi';
 import { registerV1Routes } from './routes';
 import type { App } from './types';
 
+/**
+ * Routes that establish or destroy a session, and therefore must be reachable despite the
+ * cookie the caller arrived with. See the identity hook below for why. Matched on the route
+ * template (`request.routeOptions.url`), which is stable across query strings and casing.
+ */
+const IDENTITY_ESTABLISHING_ROUTES: ReadonlySet<string> = new Set([
+  '/v1/auth/login',
+  '/v1/auth/register',
+  '/v1/auth/logout',
+]);
+
 export interface BuildAppOptions {
   /**
    * Required rather than defaulted to `getConfig()`.
@@ -178,6 +189,21 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   const { resolveIdentity } = options;
   if (resolveIdentity !== undefined) {
     app.addHook('onRequest', (request, _reply, done) => {
+      // The identity-establishing routes ignore the incoming session entirely.
+      //
+      // The resolver *throws* on a presented-but-invalid session cookie by design
+      // (`context.ts`: a forged cookie is worth a 401 on a tenant route). But that hook
+      // runs before every route, so a stale or revoked `HttpOnly` cookie would 401 the
+      // exact routes that exist to clear it — login, register, logout — and the browser
+      // cannot clear an `HttpOnly` cookie itself. The result is a lockout with no way
+      // back in. These three routes do not need the incoming identity: login and register
+      // replace the session, and logout's own contract is that it "succeeds whether or not
+      // the cookie names a live session". So they skip resolution and run in the pre-auth
+      // scope, and the session they establish overwrites whatever cookie arrived.
+      if (IDENTITY_ESTABLISHING_ROUTES.has(request.routeOptions.url ?? '')) {
+        done();
+        return;
+      }
       resolveIdentity(request).then((identity) => {
         if (identity === null) {
           done();

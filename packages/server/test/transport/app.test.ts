@@ -197,6 +197,31 @@ describe('request context', () => {
     expect(response.statusCode).toBe(401);
     expect(errorBody(response.body).error.code).toBe('unauthenticated');
   });
+
+  /**
+   * A stale or revoked `HttpOnly` session cookie makes the resolver reject, and the browser
+   * cannot clear such a cookie itself — so if that rejection 401'd `login`/`register`/`logout`
+   * too, the holder would be locked out of the only routes that can replace or clear it. The
+   * hook therefore skips resolution on those three routes. They reach their handlers here
+   * (and fail on their own terms — this transport-only app has no database — rather than on
+   * the hook's `unauthenticated`), while every other route still 401s, as the test above pins.
+   */
+  it('does not let a rejecting resolver 401 the routes that establish or clear a session', async () => {
+    const { app } = await build({
+      resolveIdentity: () => Promise.reject(new UnauthenticatedError()),
+    });
+
+    for (const url of ['/v1/auth/login', '/v1/auth/register', '/v1/auth/logout']) {
+      const response = await app.inject({
+        method: 'POST',
+        url,
+        headers: { [IDEMPOTENCY_KEY_HEADER]: 'stale-cookie-must-not-lock-the-door' },
+        payload: {},
+      });
+
+      expect(response.statusCode, `${url} must not be blocked by the identity hook`).not.toBe(401);
+    }
+  });
 });
 
 describe('error handling', () => {
