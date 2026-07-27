@@ -572,13 +572,13 @@ not four separate implementations.
 
 #### Wave 6 — Verification and delivery (5)
 
-| ID         | Title                                              | Size | Depends on |
-| ---------- | -------------------------------------------------- | ---- | ---------- |
-| **OB-053** | Report property suite (fast-check)                 | L    | 041–044    |
-| **OB-054** | Enforcement and permission matrix for M2 resources | M    | 045, 051   |
-| **OB-055** | Playwright e2e — the B1 narrative                  | M    | 047–052    |
-| **OB-056** | CI: web build, token lint, e2e job                 | M    | all        |
-| **OB-057** | Walk ACH Pro's QBO integration → findings doc      | M    | —          |
+| ID         | Title                                                       | Size | Depends on |
+| ---------- | ----------------------------------------------------------- | ---- | ---------- |
+| **OB-053** | Report property suite (fast-check)                          | L    | 041–044    |
+| **OB-054** | Enforcement and permission matrix for M2 resources          | M    | 045, 051   |
+| **OB-055** | Playwright e2e — the B1 narrative                           | M    | 047–052    |
+| **OB-056** | CI: web build, token lint, e2e job                          | M    | all        |
+| ~~OB-057~~ | ~~Walk ACH Pro's QBO integration~~ — dropped, [D-33](#d-33) | —    | —          |
 
 **OB-053** — The M1 property suite's lesson applies directly: two mutations survived the
 entire example suite and were caught only by property tests, because the examples were all
@@ -598,11 +598,10 @@ periods, apply a chart, add a contact and a dimension, draft and post a month of
 reverse one, close the month, and read all four reports. Playwright — see
 [D-26](#d-26).
 
-**OB-057** — Not code, and it is on the board so it does not slip. Spec §14 says to walk
-ACH Pro's existing QBO integration before Phase 2 and Phase 4 endpoint design is frozen,
-because you own both ends. AR/AP is exactly what it informs, and doing it after M3's shapes
-are set discards the advantage. Independent of every other ticket; schedule it early in the
-milestone, not at the end.
+**OB-057** — **Dropped ([D-33](#d-33)).** ACH Pro connectivity is not a primary v1
+objective, so the walkthrough's findings would shape endpoints against a consumer v1 does
+not commit to serving. What it would have bought, and what declining it costs, is in the
+decision.
 
 ### Parallelization plan
 
@@ -640,8 +639,8 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 ### M2 status
 
 All of M2 is built on `develop`. `yarn check` passes: 1,319 tests across 118 files, plus
-the B1 e2e narrative in a real browser. **Every M2 ticket is complete.** What remains
-before M3 is OB-057, the QuickBooks walkthrough, which is not a code task.
+the B1 e2e narrative in a real browser. **Every M2 ticket is complete**, and OB-057 is
+dropped rather than outstanding ([D-33](#d-33)). M3 is scopeable now.
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -1226,6 +1225,29 @@ way this goes wrong is not a refused retag — a caller would notice that immedi
 the period lock quietly ceasing to apply to the ledger. Mutation-checked: leaving the
 period open fails the test.
 
+<a id="d-33"></a>
+**D-33 — The QuickBooks walkthrough is dropped; ACH Pro connectivity is not a v1
+objective.** Spec §14 recommends walking ACH Pro's existing QBO integration before Phase 2
+and Phase 4 endpoint design is frozen, on the argument that you own both ends and can fix
+a mismatch on either side. That argument only pays if ACH Pro is a consumer v1 commits to
+serving, and it is not. Designing AR/AP endpoints around one integrator's current shapes
+would be fitting a public API to a private client — the same mistake in kind as
+`plugin-api` being designed against a single consumer, which the roadmap already treats as
+a known risk.
+
+What declining it costs, stated rather than waved past: the walkthrough would have
+surfaced how vendor and bill sync, payment recording, status writeback, and entity
+correlation actually behave in a system that has run against real books. Those are M3's
+hardest shapes, and M3 will now design them from the accounting model alone. That is the
+right basis, but it is a _less informed_ one, and if ACH Pro integration is later wanted,
+whatever mismatch exists will have to be absorbed on the ACH Pro side or in an adapter
+rather than by having chosen differently here.
+
+The reversible half is worth noting: nothing in M3 needs to be built _against_ QBO to be
+compatible with it later. `external_refs` and the change feed are already M5's job (spec
+§4), and they are the seam an integration would use. Dropping the walkthrough removes an
+input to M3's design, not an option from M5's.
+
 ## Status
 
 All 27 M1 tickets are built and committed on `develop`. The gate — `yarn check`, which runs
@@ -1286,16 +1308,18 @@ move on its own as M2 gives `plugin-api` its second, third, and fourth consumer.
 
 ### Before scoping M3
 
-Spec §14 says to walk ACH Pro's existing QBO integration before finalizing Phase 2 and
-Phase 4 endpoint design, because you own both ends and can fix mismatches on either.
-AR/AP is exactly what that informs — vendor/bill sync, payment recording, status
-writeback, entity correlation. Doing it after the endpoints are frozen wastes the
-advantage. See also D-16: invoicing is where the deferred draft state first bites, since
-an invoice has a lifecycle a journal does not — M2's OB-038 builds that draft state for
-journals, so M3 inherits a pattern rather than inventing one.
+The QuickBooks walkthrough spec §14 recommended is **not being done** — see
+[D-33](#d-33). What still holds is [D-16](#d-16): invoicing is where the deferred draft
+state first bites, because an invoice has a lifecycle a journal does not. M2's OB-038
+built that draft state for journals, so M3 inherits a pattern rather than inventing one —
+but an invoice's states (draft, sent, part-paid, paid, void) are richer than a draft's two,
+and the mapping is not free.
 
-This is now on the M2 board as **OB-057**, independent of every other ticket and scheduled
-early in the milestone rather than at its end.
+The other thing to settle before M3 is scoped is what a _subledger_ is in this system.
+Spec §2.1 says no module holds financial state independently, so an invoice cannot carry
+its own balance — the amount outstanding has to be derivable from the ledger plus the
+payments applied to it. That is the decision M3 turns on, and nothing in M1 or M2 forced
+it.
 
 ---
 
@@ -1339,6 +1363,5 @@ Per spec §14, none block M1. Recorded here so they aren't lost:
 | Recurring transaction and QuickBooks import staging schemas      | M3, M7                       |
 | Hosted pricing/tiers and data portability principle              | M7                           |
 
-Additionally, spec §14 recommends walking ACH Pro's existing QBO integration before finalizing
-M3 and M5 endpoint design. That review should be scheduled during M2 so its findings land before
-AR/AP shapes are frozen.
+Spec §14's recommendation to walk ACH Pro's QBO integration before M3 and M5 is
+**declined** — [D-33](#d-33).
