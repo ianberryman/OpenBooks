@@ -11,7 +11,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | Milestone | Spec phase | Outcome                                                                                                | Status                       |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Scoped — see below**       |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
 | M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Scoped — see below**       |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
@@ -19,6 +19,68 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import.
+
+---
+
+## Where things stand
+
+**M1, M2 and M3 are built. M4 is scoped and not started.** Read this section first; the
+per-milestone Status sections below carry the detail.
+
+|        |                                                                                                    |
+| ------ | -------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                      |
+| Gate   | `yarn check` passes — 1,745 tests across 146 files, ~2 min                                         |
+| Push   | **37 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold  |
+| Next   | M4 wave 0: **OB-074** (banking schema) and **OB-075** (banking wire contracts), which are parallel |
+
+### Outstanding tickets, none blocking M4
+
+Three follow-ups came out of M3 and were deliberately not folded into other commits,
+because each touches a contract, a kernel, or a seed rather than the module that found it.
+
+| ID         | What                                                        | Why it was deferred                                 |
+| ---------- | ----------------------------------------------------------- | --------------------------------------------------- |
+| **OB-091** | `PostJournalInput` gains a `source`                         | Ledger kernel — `plugin-api` + `posting.service.ts` |
+| **OB-092** | Reconcile the AR/AP refusal vocabulary onto the AP spelling | Wire-contract change; tokens are published          |
+| **OB-093** | Decide whether `ar_only`/`ap_only` may finish a document    | Migration + product decision, not a test fix        |
+
+**OB-091** — every document journal currently posts with `source = 'manual'`, because
+`PostJournalInput` has no `source` field and `postJournal` hardcodes it. Reported
+independently by three agents. `0005_subledger`'s header already claims the journal carries
+`'invoice'`/`'bill'`, so the schema documentation and the runtime disagree today.
+
+**OB-092** — AR and AP spell the same refusals differently (`document_not_draft` vs
+`document_approved`, `document_allocated` vs `document_has_allocations`), and worse, AR
+raises `ConflictError` for double-approve and double-void, which carries **no `details` bag
+at all**. A client gets `409` with prose and nothing to branch on, where AP gives `412` plus
+`document_already_approved`. That is a functional gap rather than a naming preference, so
+the AP vocabulary should win. `test/enforcement/refusal-vocabulary.test.ts` pins the current
+divergence, including a property asserting the two vocabularies are _unequal_ — so
+reconciling them to a third spelling would also fail, deliberately.
+
+**OB-093** — `ar_only` and `ap_only` hold `invoices.*`/`bills.*`/`payments_*.*` but not
+`journals.post` or `journals.reverse`, so the two roles that exist to enter AR and AP
+documents cannot approve, void, or record a payment. Ten published operations refuse them.
+Pinned as a known gap across the matrix and the service suites rather than fixed, because
+seeding those codes is a migration and a decision about what those roles are _for_. A clerk
+can still allocate, because allocation posts no journal — so the line currently falls
+exactly at the ledger, which is a defensible place for it.
+
+### Environment notes that cost time to rediscover
+
+- A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
+  MySQL on `DATABASE_HOST_PORT` (default **13307**) and the API on `API_HOST_PORT` (default
+  **3100**). Those are deliberately separate from `DATABASE_PORT`/`HTTP_PORT`, which are
+  what the processes bind _inside_ the network — setting those to dodge a host clash
+  silently repoints the application. See the comments in `docker-compose.yml`.
+- **The Compose `api` and `migrate` services cannot be built here**: Docker Hub pulls hang
+  on this machine's credential helper, first recorded in OB-027. Run the server from the
+  host instead (`yarn dev`, which needs the env from `.env.example`), against the Compose
+  database. The e2e suite's `scripts/start-stack.mjs` already does exactly this.
+- Editing a migration in place (D-15) leaves an already-migrated local database
+  inconsistent, and `migrate:down` is what discovers it. Drop and recreate the schema; the
+  reset procedure is in `src/db/migrations/README.md`.
 
 ---
 
@@ -1700,12 +1762,12 @@ blocks on a queue — it becomes `unless-stopped`. And the open decision "Redis 
 in-process queue for self-host" must be answered, because a self-hosted single-container
 install should not require Redis to import a CSV.
 
-## Status
+## Status — Milestone 1
 
-All 27 M1 tickets are built and committed on `develop`. The gate — `yarn check`, which runs
-formatting, lint, dependency boundaries, typecheck, both artifact drift gates, and the
-test suite — passes. 667 tests across 51 files against real MySQL 8.4 via testcontainers,
-roughly 28 seconds.
+All 27 M1 tickets are built and committed on `develop`. The figures below are M1's at the
+time it closed; the current whole-repo figures are in
+[Where things stand](#where-things-stand). The gate — `yarn check` — passed at 667 tests
+across 51 files against real MySQL 8.4 via testcontainers, roughly 28 seconds.
 
 ### Acceptance criteria
 
@@ -1758,7 +1820,7 @@ move on its own as M2 gives `plugin-api` its second, third, and fourth consumer.
    returns immediately; once it blocks on a queue, a clean exit becomes an outage and it
    needs `unless-stopped`.
 
-### Before scoping M3
+### Before scoping M3 — answered, kept for the reasoning
 
 The QuickBooks walkthrough spec §14 recommended is **not being done** — see
 [D-33](#d-33). What still holds is [D-16](#d-16): invoicing is where the deferred draft

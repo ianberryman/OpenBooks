@@ -1,9 +1,15 @@
 # CLAUDE.md
 
 Working notes for OpenBooks. `ROADMAP.md` is the execution plan and the record of
-decisions (`D-01` … `D-17`); the v1 Development Scope is the source of truth for intent.
-Read the roadmap's **Status** section first — it lists what is proven, what is a known
-gap, and what to do before scoping M3.
+decisions (`D-01` … `D-47`); the v1 Development Scope is the source of truth for intent.
+
+**Read `ROADMAP.md`'s "Where things stand" section first.** It is the top of that file and
+answers, in one place: which milestones are built, what the gate currently reports, that
+the branch is unpushed, which three tickets are outstanding, and the environment quirks
+that cost time to rediscover. The per-milestone Status sections below it carry the detail
+and the acceptance criteria.
+
+M1, M2 and M3 are built; M4 (banking) is scoped and not started.
 
 ## Commands
 
@@ -74,14 +80,23 @@ service-layer only. Enforced by dependency-cruiser.
 packages/plugin-api     the internal module contract (spec §8), 0.x, unpublished
 packages/shared-types   Zod schemas + the money primitive
 packages/server         Fastify API, MCP server (M5), worker — one image, three roles
-packages/web            React shell; a building shell only until M2
-packages/eslint-plugin  the three project-specific lint rules
+packages/web            React app — auth, chart, contacts, journals, sales, purchases,
+                        money, reports, settings
+packages/e2e            Playwright; one narrative per milestone, not a suite (D-26)
+packages/eslint-plugin  the project-specific lint rules — no-float-money,
+                        no-journal-writes, no-process-env, no-raw-color
 infra/terraform         hosted topology, plan-clean, never applied
 ```
 
 `src/db/migrations/README.md` is worth reading before touching the schema — it covers
-the composite-key tenancy pattern, the UUID byte order, and the two codegen overrides
-that exist because the generator maps `BIGINT` to `number` and `DATE` to `Date`.
+the composite-key tenancy pattern, the UUID byte order, the codegen overrides that exist
+because the generator maps `BIGINT` to `number` and `DATE` to `Date`, and the reset
+procedure an in-place migration edit (D-15) forces on an already-migrated database.
+
+**`0999_app_grants` runs last and must keep doing so.** MySQL refuses a table-level
+`GRANT` on a table that does not exist, so every table it names is created before it.
+`0999` is the ceiling of the four-digit prefix convention rather than a large gap, so
+nothing following the convention can sort after it; a registry test asserts it.
 
 ## Conventions
 
