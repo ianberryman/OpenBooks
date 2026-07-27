@@ -1,0 +1,410 @@
+import type { ChangeEvent, ReactElement, ReactNode } from 'react';
+import { useId, useState } from 'react';
+
+import { presentApiError } from '../../api';
+import {
+  Button,
+  CONTROL_CLASSES,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  ErrorBanner,
+  Field,
+  FieldLabel,
+  TextInput,
+  useFieldControl,
+} from '../../components';
+import { cx } from '../../lib/cx';
+import type { Contact, CreateContactRequest, UpdateContactRequest } from './queries';
+import { useCreateContact, useIntentKey, useUpdateContact } from './queries';
+
+/**
+ * The one form for creating and editing a contact.
+ *
+ * ## The form does not ask what kind of contact this is
+ *
+ * `isCustomer` and `isVendor` are two independent checkboxes, both allowed to be off, and
+ * there is no "type" control anywhere on this screen. The same legal entity is routinely
+ * both — one contact with both flags, which is why the server holds one table and not two
+ * — and a party named on a journal line need take part in no subledger at all, an employee
+ * expense reimbursement being the ordinary case. The server states this by having no
+ * `CHECK (is_customer OR is_vendor)` (migration `0002_ledger`); a radio group here would
+ * put the constraint back at the only layer the user meets.
+ *
+ * ## `code` is an ordinary editable field, and that is deliberate (D-28)
+ *
+ * An account's code is immutable and a contact's is not. Nothing cites a contact code —
+ * `journal_lines` references the contact by row — and a contact the ledger names can never
+ * be deleted, so an immutable code would be permanent from the first posting rather than
+ * fixable by delete-and-recreate the way an account's is. Codes also usually arrive from
+ * whatever system the org migrated off, where renumbering after an import is ordinary. The
+ * field's hint says so, because the surprising thing is the *account* screen, not this one.
+ */
+export interface ContactFormDialogProps {
+  /** `null` creates; a contact edits it. */
+  readonly contact: Contact | null;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+interface FormValues {
+  code: string;
+  displayName: string;
+  legalName: string;
+  email: string;
+  phone: string;
+  notes: string;
+  isCustomer: boolean;
+  isVendor: boolean;
+}
+
+const EMPTY_VALUES: FormValues = {
+  code: '',
+  displayName: '',
+  legalName: '',
+  email: '',
+  phone: '',
+  notes: '',
+  isCustomer: false,
+  isVendor: false,
+};
+
+function valuesOf(contact: Contact | null): FormValues {
+  if (contact === null) return EMPTY_VALUES;
+  return {
+    code: contact.code ?? '',
+    displayName: contact.displayName,
+    legalName: contact.legalName ?? '',
+    email: contact.email ?? '',
+    phone: contact.phone ?? '',
+    notes: contact.notes ?? '',
+    isCustomer: contact.isCustomer,
+    isVendor: contact.isVendor,
+  };
+}
+
+/** An empty box means "no value": the API models that as `null`, never as `''`. */
+function orNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+function toCreateRequest(values: FormValues): CreateContactRequest {
+  return {
+    displayName: values.displayName.trim(),
+    code: orNull(values.code),
+    legalName: orNull(values.legalName),
+    email: orNull(values.email),
+    phone: orNull(values.phone),
+    notes: orNull(values.notes),
+    isCustomer: values.isCustomer,
+    isVendor: values.isVendor,
+  };
+}
+
+/**
+ * Only what changed.
+ *
+ * `updateContactRequestSchema` refuses a patch in which every field is absent, and an
+ * unchanged field resent is a write with a new `updatedAt` and nothing else to show for
+ * it. Computing the difference here means "Save" on an untouched form is a no-op rather
+ * than either a validation failure or a spurious revision.
+ */
+function toPatch(values: FormValues, contact: Contact): UpdateContactRequest {
+  const patch: Record<string, string | boolean | null> = {};
+  const next = toCreateRequest(values);
+
+  if (next.displayName !== contact.displayName) patch['displayName'] = next.displayName;
+  if ((next.code ?? null) !== contact.code) patch['code'] = next.code ?? null;
+  if ((next.legalName ?? null) !== contact.legalName) patch['legalName'] = next.legalName ?? null;
+  if ((next.email ?? null) !== contact.email) patch['email'] = next.email ?? null;
+  if ((next.phone ?? null) !== contact.phone) patch['phone'] = next.phone ?? null;
+  if ((next.notes ?? null) !== contact.notes) patch['notes'] = next.notes ?? null;
+  if (values.isCustomer !== contact.isCustomer) patch['isCustomer'] = values.isCustomer;
+  if (values.isVendor !== contact.isVendor) patch['isVendor'] = values.isVendor;
+
+  return patch;
+}
+
+export function ContactFormDialog({
+  contact,
+  open,
+  onOpenChange,
+}: ContactFormDialogProps): ReactElement {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Keyed on the contact so a second "Edit" starts from that row's values rather than
+          from the previous one's — the state below is initialised, not synchronised. */}
+      {open && (
+        <ContactFormContent
+          key={contact?.id ?? 'new'}
+          contact={contact}
+          onDone={() => {
+            onOpenChange(false);
+          }}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function ContactFormContent({
+  contact,
+  onDone,
+}: {
+  readonly contact: Contact | null;
+  readonly onDone: () => void;
+}): ReactElement {
+  const formId = useId();
+  const [values, setValues] = useState<FormValues>(() => valuesOf(contact));
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
+
+  const create = useCreateContact();
+  const update = useUpdateContact();
+  const intentKey = useIntentKey();
+
+  const pending = create.isPending || update.isPending;
+  const error: unknown = create.error ?? update.error;
+  const fieldErrors = presentApiError(error).fieldErrors;
+
+  function set<K extends keyof FormValues>(field: K, value: FormValues[K]): void {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function submit(): void {
+    /**
+     * The only check made here. Everything else — the email format, the lengths, the
+     * uniqueness of `code` — is checked by the schema the server shares with every other
+     * client, and a second copy of those rules in this file would be a second contract
+     * that disagrees with the first the day either moves. `displayName` is duplicated
+     * because it is the one rule a user hits by pressing Save on an empty form, where a
+     * round trip to be told the obvious is worse than the duplication.
+     */
+    if (values.displayName.trim() === '') {
+      setNameError('Enter a name.');
+      return;
+    }
+    setNameError(undefined);
+
+    if (contact === null) {
+      const body = toCreateRequest(values);
+      create.mutate(
+        { ...body, idempotencyKey: intentKey(`create:${JSON.stringify(body)}`) },
+        { onSuccess: onDone },
+      );
+      return;
+    }
+
+    const patch = toPatch(values, contact);
+    if (Object.keys(patch).length === 0) {
+      onDone();
+      return;
+    }
+
+    update.mutate(
+      {
+        contactId: contact.id,
+        patch,
+        idempotencyKey: intentKey(`update:${contact.id}:${JSON.stringify(patch)}`),
+      },
+      { onSuccess: onDone },
+    );
+  }
+
+  return (
+    <DialogContent
+      title={contact === null ? 'New contact' : 'Edit contact'}
+      description="A contact can be a customer, a vendor, both, or neither."
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button disabled={pending}>Cancel</Button>
+          </DialogClose>
+          <Button type="submit" form={formId} variant="primary" disabled={pending}>
+            {pending ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        noValidate
+        className="flex flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        {error !== undefined && error !== null && <ErrorBanner error={error} />}
+
+        <Field error={nameError ?? fieldErrors['displayName']}>
+          <FieldLabel>Name</FieldLabel>
+          <TextInput
+            value={values.displayName}
+            aria-required
+            autoComplete="off"
+            onChange={(event) => {
+              set('displayName', event.target.value);
+            }}
+          />
+        </Field>
+
+        <Field
+          error={fieldErrors['code']}
+          hint="Optional, and editable later — unlike an account code, nothing in the ledger cites it."
+        >
+          <FieldLabel>Code</FieldLabel>
+          <TextInput
+            value={values.code}
+            autoComplete="off"
+            onChange={(event) => {
+              set('code', event.target.value);
+            }}
+          />
+        </Field>
+
+        <Field
+          error={fieldErrors['legalName']}
+          hint="The registered name, when it differs from the one above."
+        >
+          <FieldLabel>Legal name</FieldLabel>
+          <TextInput
+            value={values.legalName}
+            autoComplete="off"
+            onChange={(event) => {
+              set('legalName', event.target.value);
+            }}
+          />
+        </Field>
+
+        <Field error={fieldErrors['email']}>
+          <FieldLabel>Email</FieldLabel>
+          <TextInput
+            type="email"
+            value={values.email}
+            autoComplete="off"
+            onChange={(event) => {
+              set('email', event.target.value);
+            }}
+          />
+        </Field>
+
+        <Field error={fieldErrors['phone']}>
+          <FieldLabel>Phone</FieldLabel>
+          <TextInput
+            value={values.phone}
+            autoComplete="off"
+            onChange={(event) => {
+              set('phone', event.target.value);
+            }}
+          />
+        </Field>
+
+        {/* A fieldset, so the two flags are announced as one group and the sentence below
+            is read as belonging to both rather than to whichever one focus landed on. */}
+        <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+          <legend className="px-1 text-sm font-medium text-text">Roles</legend>
+          <p className="text-xs text-text-subtle">
+            Independent, and both may be off. A contact that is neither is named on journal lines
+            without taking part in any subledger — an employee expense reimbursement is the ordinary
+            case.
+          </p>
+          <CheckboxField
+            label="Customer"
+            checked={values.isCustomer}
+            onCheckedChange={(next) => {
+              set('isCustomer', next);
+            }}
+          />
+          <CheckboxField
+            label="Vendor"
+            checked={values.isVendor}
+            onCheckedChange={(next) => {
+              set('isVendor', next);
+            }}
+          />
+        </fieldset>
+
+        <Field error={fieldErrors['notes']}>
+          <FieldLabel>Notes</FieldLabel>
+          <TextArea
+            value={values.notes}
+            onChange={(event) => {
+              set('notes', event.target.value);
+            }}
+          />
+        </Field>
+      </form>
+    </DialogContent>
+  );
+}
+
+/**
+ * A checkbox and a multi-line box, wired through `Field` rather than around it.
+ *
+ * `src/components` has no checkbox and no textarea, and this screen is not the place to
+ * decide what the application's are (D-24 — a component arrives with the screen that needs
+ * it, and two screens need these). What these two do *not* do is invent a second way to
+ * label a control or report an error against one: both take their id and their
+ * `aria-describedby` from `useFieldControl`, so a `Field` above them behaves exactly as it
+ * does around a `TextInput`, and the shared `CONTROL_CLASSES` keeps the text box one
+ * appearance rather than two.
+ */
+function CheckboxField({
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  readonly label: ReactNode;
+  readonly checked: boolean;
+  readonly onCheckedChange: (checked: boolean) => void;
+}): ReactElement {
+  return (
+    <Field className="gap-0">
+      <div className="flex items-center gap-2">
+        <CheckboxControl checked={checked} onCheckedChange={onCheckedChange} />
+        <FieldLabel>{label}</FieldLabel>
+      </div>
+    </Field>
+  );
+}
+
+function CheckboxControl({
+  checked,
+  onCheckedChange,
+}: {
+  readonly checked: boolean;
+  readonly onCheckedChange: (checked: boolean) => void;
+}): ReactElement {
+  const control = useFieldControl();
+  return (
+    <input
+      {...control}
+      type="checkbox"
+      checked={checked}
+      className="size-4 rounded-sm border border-border accent-accent"
+      onChange={(event) => {
+        onCheckedChange(event.target.checked);
+      }}
+    />
+  );
+}
+
+function TextArea({
+  value,
+  onChange,
+}: {
+  readonly value: string;
+  readonly onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+}): ReactElement {
+  const control = useFieldControl();
+  return (
+    <textarea
+      {...control}
+      value={value}
+      rows={3}
+      className={cx(CONTROL_CLASSES, 'border-border h-auto py-1.5')}
+      onChange={onChange}
+    />
+  );
+}

@@ -121,10 +121,17 @@ export function registerAuthRoutes(app: App, config: Config): void {
               name: org.name,
               // Spread, not `fiscalYearStartMonth: org.fiscalYearStartMonth`:
               // exactOptionalPropertyTypes makes an explicit `undefined` a different
-              // type from an absent key, and the service defaults on absence.
+              // type from an absent key, and the service defaults on absence. The same
+              // shape carries `chartTemplateId` (D-23), which this handler forwards
+              // rather than rebuilds around — an omitted field here is a field the
+              // published schema accepts and the server silently discards, which is the
+              // failure `requireIdempotencyKey` exists to prevent one layer up.
               ...(org.fiscalYearStartMonth === undefined
                 ? {}
                 : { fiscalYearStartMonth: org.fiscalYearStartMonth }),
+              ...(org.chartTemplateId === undefined
+                ? {}
+                : { chartTemplateId: org.chartTemplateId }),
             },
           });
 

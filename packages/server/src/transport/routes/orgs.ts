@@ -90,6 +90,14 @@ export function registerOrgRoutes(app: App): void {
             ...(request.body.fiscalYearStartMonth === undefined
               ? {}
               : { fiscalYearStartMonth: request.body.fiscalYearStartMonth }),
+            // Forwarded, not rebuilt around (D-23). `createOrgRequestSchema` publishes
+            // `chartTemplateId` and `createOrg` applies it inside its own transaction;
+            // a handler that dropped it would leave the API documenting a field it
+            // silently discards, and the caller would get an org with no chart and no
+            // error to explain why.
+            ...(request.body.chartTemplateId === undefined
+              ? {}
+              : { chartTemplateId: request.body.chartTemplateId }),
           }),
       );
 

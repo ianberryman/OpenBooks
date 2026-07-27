@@ -982,3 +982,66 @@ async function profitAndLoss(
   if (response.statusCode !== 200) throw new Error(`profit and loss failed: ${response.body}`);
   return response.json<{ totals: { revenue: string } }>();
 }
+
+/**
+ * The starter chart, asserted **through HTTP** rather than at the service.
+ *
+ * This is the shape of bug that reached `develop`: `createOrg` applied the template
+ * correctly and its service tests passed, `createOrgRequestSchema` published
+ * `chartTemplateId`, and the route in between rebuilt the input field by field
+ * without it. Every layer was individually right and the feature did nothing — a
+ * field the API documents and silently discards, which is precisely what the
+ * idempotency-key rule exists to prevent one layer up.
+ *
+ * Nothing below the transport can catch that, which is why these two cases live here
+ * and assert the accounts actually exist afterwards rather than that the request was
+ * accepted. A 201 was never in doubt.
+ */
+describe('the starter chart travels through transport', () => {
+  it('applies a template named on POST /v1/orgs', async () => {
+    const session = await registerUser(harness.app(), {
+      email: 'chart-post@example.invalid',
+      orgName: 'Chart By Post',
+    });
+
+    const created = await harness.app().inject({
+      method: 'POST',
+      url: '/v1/orgs',
+      headers: authorizedWrite(session, 'org-with-chart'),
+      payload: { name: 'Second Books', chartTemplateId: 'general_small_business' },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const switched = await harness.app().inject({
+      method: 'POST',
+      url: '/v1/orgs/active',
+      headers: authorizedWrite(session, 'switch-to-chart-org'),
+      payload: { orgId: created.json().org.id },
+    });
+    expect(switched.statusCode).toBe(200);
+
+    const listed = await harness.app().inject({
+      method: 'GET',
+      url: '/v1/accounts?limit=200',
+      headers: { cookie: session.cookie },
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().items.length).toBeGreaterThan(20);
+  });
+
+  it('leaves an org with no accounts when no template is named', async () => {
+    const session = await registerUser(harness.app(), {
+      email: 'chart-absent@example.invalid',
+      orgName: 'No Chart Please',
+    });
+
+    const listed = await harness.app().inject({
+      method: 'GET',
+      url: '/v1/accounts',
+      headers: { cookie: session.cookie },
+    });
+
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().items).toEqual([]);
+  });
+});

@@ -639,9 +639,8 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 
 ### M2 status
 
-Waves 0 through 4 plus OB-046 are built on `develop`. `yarn check`
-passes: 1,151 tests across 94 files, ~80s. What remains is wave 5 (the screens) and
-wave 6 (verification).
+Waves 0 through 5 are built on `develop`. `yarn check`
+passes: 1,285 tests across 113 files, ~82s. What remains is wave 6 (verification).
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -666,6 +665,12 @@ wave 6 (verification).
 | **OB-043** | Built | Balance sheet; **two** derived equity lines, not one ([D-20](#d-20))             |
 | **OB-044** | Built | General ledger; running balance recomputed per page, not carried in the cursor   |
 | **OB-045** | Built | 42 operations over 27 new paths; the whole M2 surface is now reachable           |
+| **OB-047** | Built | Auth, org switch, routing; three route tables rather than in-route redirects     |
+| **OB-048** | Built | Chart of accounts; detached rows named rather than dropped                       |
+| **OB-049** | Built | Contacts; the two delete refusals get different remedies                         |
+| **OB-050** | Built | Settings — periods first, because a fresh org cannot post without them           |
+| **OB-051** | Built | Journal entry; balancing stays in `bigint`, one idempotency key per draft        |
+| **OB-052** | Built | Four report viewers, shared controls, drill-through                              |
 | Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because

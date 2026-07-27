@@ -386,10 +386,29 @@
   --default-transition-duration: var(--ob-duration-fast);
   --default-transition-timing-function: var(--ob-ease-standard);
 
-  --breakpoint-sm: var(--ob-breakpoint-sm);
-  --breakpoint-md: var(--ob-breakpoint-md);
-  --breakpoint-lg: var(--ob-breakpoint-lg);
-  --breakpoint-xl: var(--ob-breakpoint-xl);
+  /*
+   * Literal values, and the only tokens here that are not a `var()` reference.
+   *
+   * A breakpoint is consumed inside `@media (width >= …)`, and **CSS does not
+   * permit `var()` in a media query** — a custom property is resolved per element
+   * and a media query has no element. Tailwind's responsive variants happen to
+   * work anyway because it inlines the value at build time, so the indirection
+   * looks correct right up until something emits a media query that keeps the
+   * reference. The `container` utility does exactly that, and the failure is not a
+   * wrong breakpoint: lightningcss rejects the declaration and the **build dies**,
+   * from the bare word `container` appearing anywhere Tailwind scans — including
+   * inside a string in a test file, which is how it was found.
+   *
+   * So these four duplicate the `--ob-breakpoint-*` values above rather than
+   * referencing them, and that duplication is the honest shape: a breakpoint is a
+   * build-time constant, not a runtime-themeable value, and pretending otherwise
+   * is what broke. The `--ob-*` copies stay because a component may legitimately
+   * read one in a `calc()`, where `var()` does work.
+   */
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
 
   --container-form: var(--ob-width-form);
   --container-dialog: var(--ob-width-dialog);

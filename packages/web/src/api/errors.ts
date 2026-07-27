@@ -107,3 +107,28 @@ export function unwrap<T>(result: {
 
   return result.data;
 }
+
+/**
+ * `unwrap`'s sibling for the routes that answer `204 No Content`.
+ *
+ * `unwrap` refuses a bodiless 2xx deliberately — a `data` of `undefined` is
+ * indistinguishable from a body the client failed to parse, and silently returning
+ * it would make a broken read look like an empty one. Its message says a 204 route
+ * needs a different helper. This is that helper, and it landed here rather than in a
+ * screen because five screens reached this line at once: the delete routes for
+ * accounts, contacts, dimensions, dimension values and members, plus logout, are all
+ * 204, and every one of the six wave-5 screens had written its own copy by the time
+ * the wave finished.
+ *
+ * The error path is deliberately identical to `unwrap`'s — same `ApiError.from`, so a
+ * failed delete presents exactly like a failed read and `presentApiError` needs no
+ * case for it. The only difference is what success means.
+ */
+export function expectNoContent(result: {
+  readonly error?: unknown;
+  readonly response: Response;
+}): void {
+  if (!result.response.ok || result.error !== undefined) {
+    throw ApiError.from(result.response, result.error);
+  }
+}
