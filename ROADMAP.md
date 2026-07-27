@@ -1836,18 +1836,22 @@ instrumenting a run rather than querying a column.
 
 <a id="d-49"></a>
 
-**D-49 — An in-process queue, with Redis behind the interface.** The in-process
-implementation ships as the first consumer of the queue interface; the Redis adapter has
-none yet, exactly as [D-41](#d-41) left the hosted feed adapter.
+**D-49 — An in-process queue, the hosted broker (SQS) behind the interface.** The in-process
+implementation ships as the first consumer of the queue interface; the hosted adapter has
+none yet, exactly as [D-41](#d-41) left the hosted feed adapter. The open decision was
+recorded as "Redis vs in-process", but the `QueueConfig` union already resolved the hosted
+half to `sqs` — the terraform topology is AWS end to end (SQS, S3, Secrets Manager, SES),
+so a Redis dependency would be a second broker nothing else needs. The decision here is the
+half that was still open: **in-process for self-host**. Redis is retired from the record.
 
 This is [D-07](#d-07)'s rule applied for the third time, and the constraint driving it is
-the one D-47 stated: a self-hosted single-container install should not require Redis to
-import a CSV. Requiring it would make the smallest deployment pay for the largest one's
+the one D-47 stated: a self-hosted single-container install should not require a broker to
+import a CSV. Requiring one would make the smallest deployment pay for the largest one's
 problem.
 
 The limits are worth stating rather than discovering. An in-process queue does not survive
 a worker restart and does not span instances, so a hosted multi-instance deployment needs
-the Redis adapter before it runs more than one worker. That is a present constraint, not a
+the SQS adapter before it runs more than one worker. That is a present constraint, not a
 deferred one: it means an interrupted 5,000-line import is re-run rather than resumed, and
 E1's idempotent re-import is what makes re-running it safe. The dedupe property therefore
 carries more weight than it appears to — it is also the crash-recovery story.
@@ -1963,15 +1967,15 @@ is accepted; OB-027 should reuse a single container across the suite rather than
 
 Per spec §14, none block M1. Recorded here so they aren't lost:
 
-| Decision                                                         | Needed by                    |
-| ---------------------------------------------------------------- | ---------------------------- |
-| Redis vs. in-process queue for self-host Compose                 | M1–M5 (interface only in M1) |
-| SSE vs. polling for live queue and reconciliation updates        | M4–M5                        |
-| Event log retention policy — also bounds integrator resync depth | M5                           |
-| Security-event logging for revoked credentials                   | M5                           |
-| Workflow action catalog                                          | M6                           |
-| Recurring transaction and QuickBooks import staging schemas      | M3, M7                       |
-| Hosted pricing/tiers and data portability principle              | M7                           |
+| Decision                                                                         | Needed by     |
+| -------------------------------------------------------------------------------- | ------------- |
+| ~~Redis vs. in-process queue for self-host Compose~~ — [D-49](#d-49): in-process | Settled in M4 |
+| SSE vs. polling for live queue and reconciliation updates                        | M4–M5         |
+| Event log retention policy — also bounds integrator resync depth                 | M5            |
+| Security-event logging for revoked credentials                                   | M5            |
+| Workflow action catalog                                                          | M6            |
+| Recurring transaction and QuickBooks import staging schemas                      | M3, M7        |
+| Hosted pricing/tiers and data portability principle                              | M7            |
 
 Spec §14's recommendation to walk ACH Pro's QBO integration before M3 and M5 is
 **declined** — [D-33](#d-33).
