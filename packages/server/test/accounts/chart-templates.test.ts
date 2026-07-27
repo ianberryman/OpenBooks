@@ -15,6 +15,7 @@ import {
 } from '../../src/modules/accounts';
 import type { ChartTemplate } from '../../src/modules/accounts';
 import { getTrialBalance, postJournal } from '../../src/modules/ledger';
+import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
 import { actorIn, useServiceDatabase } from './support';
 
 /**
@@ -211,6 +212,57 @@ describe('applying a template to a new org', () => {
   });
 });
 
+/**
+ * D-23 makes a chart template opt-in, and OB-066a makes applying one nominate the
+ * control accounts it creates — because the org that takes the template is the org
+ * that would otherwise meet `receivable_control_account_not_set` on a chart that
+ * obviously contains the answer.
+ */
+describe('applying a template nominates the control accounts', () => {
+  it('points the org at the accounts the template just created', async () => {
+    const actor = await actorIn(db);
+    const applied = await applyChartTemplate({ templateId: 'general_small_business' }, actor.ctx);
+
+    const byCode = new Map(applied.accounts.map((account) => [account.code, account.id]));
+    const { receivable, payable } = GENERAL.controlAccountCodes;
+
+    expect(await getControlAccounts(actor.ctx)).toEqual({
+      receivableControlAccountId: receivable === null ? null : byCode.get(receivable),
+      payableControlAccountId: payable === null ? null : byCode.get(payable),
+    });
+  });
+
+  /**
+   * An org that had already chosen its control accounts and then applied a template
+   * must not have its postings silently redirected — which is the failure the
+   * nomination exists to remove, arriving from the other direction.
+   */
+  it('leaves an existing nomination alone', async () => {
+    const actor = await actorIn(db);
+    const mine = await createAccount(
+      {
+        code: '1101',
+        name: 'Trade debtors',
+        type: 'asset',
+        normalBalance: 'debit',
+        parentAccountId: null,
+      },
+      actor.ctx,
+    );
+    await updateControlAccounts({ receivableControlAccountId: mine.id }, actor.ctx);
+
+    const applied = await applyChartTemplate({ templateId: 'general_small_business' }, actor.ctx);
+    const byCode = new Map(applied.accounts.map((account) => [account.code, account.id]));
+
+    const settings = await getControlAccounts(actor.ctx);
+    // Kept, and the untouched side still filled in from the template.
+    expect(settings.receivableControlAccountId).toBe(mine.id);
+    expect(settings.payableControlAccountId).toBe(
+      byCode.get(GENERAL.controlAccountCodes.payable ?? ''),
+    );
+  });
+});
+
 describe('applying a template to an org that already has accounts', () => {
   it('applies cleanly when nothing collides', async () => {
     const actor = await actorIn(db);
@@ -345,6 +397,21 @@ describe('the surface around applying', () => {
  */
 describe('the shipped template data', () => {
   const templates: readonly ChartTemplate[] = Object.values(CHART_TEMPLATES);
+
+  /**
+   * A template that named a control account it does not create would be an
+   * `InternalError` at apply time — in somebody's org, on the one operation that is
+   * supposed to be the easy path. Checked here, against the data.
+   */
+  it('names control accounts it creates, of the type each side requires', () => {
+    for (const template of templates) {
+      const byCode = new Map(template.accounts.map((entry) => [entry.code, entry]));
+      const { receivable, payable } = template.controlAccountCodes;
+
+      if (receivable !== null) expect(byCode.get(receivable)?.type).toBe('asset');
+      if (payable !== null) expect(byCode.get(payable)?.type).toBe('liability');
+    }
+  });
 
   it('registers every template under the id it carries', () => {
     for (const [key, template] of Object.entries(CHART_TEMPLATES)) {

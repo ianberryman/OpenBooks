@@ -204,6 +204,12 @@ export interface JournalInput {
   readonly amountMinor?: bigint;
 }
 
+export interface ControlAccountsInput {
+  readonly orgId: Buffer;
+  readonly receivableId?: Buffer;
+  readonly payableId?: Buffer;
+}
+
 export interface Factories {
   org(input?: OrgInput): Promise<OrgFixture>;
   user(input?: UserInput): Promise<UserFixture>;
@@ -212,6 +218,16 @@ export interface Factories {
   fiscalPeriod(input?: FiscalPeriodInput): Promise<FiscalPeriodFixture>;
   journal(input?: JournalInput): Promise<JournalFixture>;
   ledger(): Promise<LedgerFixture>;
+  /**
+   * Nominates the org's control accounts (OB-066a), which every approval in the
+   * subledger now needs.
+   *
+   * A fixture rather than a call to `updateControlAccounts` because a scene should
+   * not have to hold `orgs.write` to be able to approve an invoice — the
+   * permission tests are about the operation under test, and a setup step that
+   * needed a second permission would couple them.
+   */
+  controlAccounts(input: ControlAccountsInput): Promise<void>;
 }
 
 /**
@@ -545,7 +561,30 @@ export function createFactories(db: Kysely<DB>): Factories {
     return row.start_date;
   }
 
-  return { org, user, orgMember, account, fiscalPeriod, journal, ledger };
+  /**
+   * Runs as the **app** user like every other factory here, so a missing UPDATE
+   * grant on `org_accounting_settings` surfaces in the suite rather than in
+   * production. The upsert is the one the settings repository performs, for the
+   * same reason `allocateSequenceNumber` uses the real counter: a fixture that
+   * wrote differently from production would leave the production path untested at
+   * exactly the point it is used.
+   */
+  async function controlAccounts(input: ControlAccountsInput): Promise<void> {
+    const columns = {
+      ...(input.receivableId === undefined
+        ? {}
+        : { receivable_control_account_id: input.receivableId }),
+      ...(input.payableId === undefined ? {} : { payable_control_account_id: input.payableId }),
+    };
+
+    await db
+      .insertInto('org_accounting_settings')
+      .values({ org_id: input.orgId, ...columns })
+      .onDuplicateKeyUpdate(Object.keys(columns).length === 0 ? { org_id: input.orgId } : columns)
+      .execute();
+  }
+
+  return { org, user, orgMember, account, fiscalPeriod, journal, ledger, controlAccounts };
 }
 
 function defaultLines(

@@ -147,6 +147,11 @@ const MUTABLE_TABLES = [
   // `journal_sequences` exists for. And the document tables are lockable at all only
   // because they are here, which is what lets the allocation service refuse an
   // over-allocation (C3) by taking the document row before summing against it.
+  // Which accounts an org has nominated as its AR and AP control accounts
+  // (OB-066a). Mutable because the nomination is a setting and changing it is an
+  // ordinary act — it moves where *future* postings land and cannot reach past
+  // ones, which stay in `journals` where no grant here permits an UPDATE.
+  'org_accounting_settings',
   'tax_rates',
   'document_sequences',
   'ar_documents',

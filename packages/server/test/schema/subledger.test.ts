@@ -818,3 +818,121 @@ describe('a document row can be locked by the app user', () => {
     }
   });
 });
+
+/**
+ * `org_accounting_settings` (OB-066a), and the two properties that made it a table
+ * rather than two columns on `orgs`.
+ *
+ * The composite foreign key is the whole argument. `orgs` has no `org_id`, so the
+ * only reference it could carry is a single-column one that another org's account
+ * satisfies — the shape the tenancy pattern exists to forbid. Here it is
+ * `(org_id, id)` and the database says so.
+ */
+describe('org_accounting_settings', () => {
+  it('refuses a nomination naming another org’s account', async () => {
+    const [mine, theirs] = await Promise.all([party(), party()]);
+    const foreign = await db.factories.account({
+      orgId: theirs.orgId,
+      type: 'asset',
+      normalBalance: 'debit',
+    });
+
+    await expect(
+      db.app
+        .insertInto('org_accounting_settings')
+        .values({ org_id: mine.orgId, receivable_control_account_id: foreign.id })
+        .execute(),
+    ).rejects.toMatchObject({ errno: NO_REFERENCED_ROW });
+  });
+
+  /**
+   * RESTRICT, so a nominated account cannot be deleted out from under the org
+   * posting to it. The service layer never sees this — `deleteAccount` already
+   * refuses an account with postings — and it is the backstop for the account that
+   * was nominated before anything was ever posted.
+   */
+  it('pins the account it names', async () => {
+    const p = await party();
+    const account = await db.factories.account({
+      orgId: p.orgId,
+      type: 'asset',
+      normalBalance: 'debit',
+    });
+    await db.app
+      .insertInto('org_accounting_settings')
+      .values({ org_id: p.orgId, receivable_control_account_id: account.id })
+      .execute();
+
+    await expect(
+      db.app.deleteFrom('accounts').where('id', '=', account.id).execute(),
+    ).rejects.toMatchObject({ errno: ROW_IS_REFERENCED });
+  });
+
+  /** Both sides separately nullable: an org that only invoices needs one of them. */
+  it('accepts a row nominating one side only', async () => {
+    const p = await party();
+    const account = await db.factories.account({
+      orgId: p.orgId,
+      type: 'asset',
+      normalBalance: 'debit',
+    });
+
+    await expect(
+      db.app
+        .insertInto('org_accounting_settings')
+        .values({ org_id: p.orgId, receivable_control_account_id: account.id })
+        .execute(),
+    ).resolves.toBeDefined();
+  });
+
+  /** One row per org, which is what makes the settings repository's upsert safe. */
+  it('refuses a second row for the same org', async () => {
+    const p = await party();
+    await db.app.insertInto('org_accounting_settings').values({ org_id: p.orgId }).execute();
+
+    await expect(
+      db.app.insertInto('org_accounting_settings').values({ org_id: p.orgId }).execute(),
+    ).rejects.toMatchObject({ errno: DUPLICATE_KEY });
+  });
+});
+
+/**
+ * The two columns OB-066a added to tables that already existed.
+ *
+ * Both are asserted against `information_schema` rather than by exercising them,
+ * because what is being claimed is a property of the schema: `applies_to` defaults
+ * to `both` — the value every row meant while the column did not exist — and
+ * `payments` carries the index its keyset needs. A behavioural test of the latter
+ * would pass on a filesort, which is the thing it exists to rule out.
+ */
+describe('the columns and indexes OB-066a added', () => {
+  it('defaults tax_rates.applies_to to both', async () => {
+    const { rows } = await sql<{ column_default: string | null; column_type: string }>`
+      SELECT COLUMN_DEFAULT AS column_default, COLUMN_TYPE AS column_type
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'tax_rates' AND COLUMN_NAME = 'applies_to'
+    `.execute(db.migrator);
+
+    expect(rows[0]?.column_default).toBe('both');
+    expect(rows[0]?.column_type).toBe("enum('sales','purchases','both')");
+  });
+
+  /**
+   * `paymentPageSchema` mandates `(created_at, id)` (D-21), and without this index
+   * every page is a filesort. Asserted as the index's exact column order, because
+   * an index on `(org_id, created_at)` alone would satisfy a laxer test and would
+   * still leave the tiebreak unsorted.
+   */
+  it('gives payments the keyset index its contract requires', async () => {
+    const { rows } = await sql<{ column_name: string }>`
+      SELECT COLUMN_NAME AS column_name
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'payments' AND INDEX_NAME = 'idx_payments_org_created'
+      ORDER BY SEQ_IN_INDEX
+    `.execute(db.migrator);
+
+    expect(rows.map((row) => row.column_name)).toEqual(['org_id', 'created_at', 'id']);
+  });
+});

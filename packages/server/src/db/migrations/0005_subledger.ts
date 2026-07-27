@@ -77,6 +77,90 @@ import type { MigrationDb } from './types';
  */
 export async function up(db: MigrationDb): Promise<void> {
   // ---------------------------------------------------------------------------
+  // org_accounting_settings — where an org nominates its control accounts
+  // (OB-066a; ROADMAP D-23, D-34, D-40).
+  //
+  // An approved invoice debits *the* receivables control account and an approved
+  // bill credits *the* payables one; C2 and C8 are statements about those two
+  // accounts specifically. Nothing else in this file names them, and until this
+  // table existed three services each resolved the account by the code the shipped
+  // chart template happens to use (`1100`, `2010`) and refused loudly otherwise.
+  // That is unusable as a permanent answer because D-23 makes chart templates
+  // opt-in and unenforced: an org that declined the template, or renumbered its
+  // chart, has no `1100`, and AR then fails a precondition on every approval with
+  // no setting anywhere to correct.
+  //
+  // ## Why a table rather than two columns on `orgs`
+  //
+  // `orgs` already carries `fiscal_year_start_month`, so a per-org accounting
+  // setting has precedent there — and that precedent does not extend to this one,
+  // because a fiscal-year start is a bounded scalar and a control account is a
+  // *reference into tenant data*.
+  //
+  // Every tenant reference in this schema is a composite `(org_id, id)` foreign
+  // key, which is what makes another org's id structurally unusable rather than
+  // merely unlikely (see `src/db/migrations/README.md`). That key is inexpressible
+  // on `orgs`: `orgs` has no `org_id` column, so the only available form is
+  // `FOREIGN KEY (receivable_control_account_id) REFERENCES accounts (id)` — a
+  // single-column reference that another org's account satisfies, which is the one
+  // shape the tenancy pattern exists to forbid. It would also close a foreign-key
+  // cycle, `orgs` → `accounts` → `orgs`, in which the `ON DELETE CASCADE` every
+  // tenant table hangs off `orgs` runs into a `RESTRICT` pointing back at it.
+  //
+  // A table with `org_id NOT NULL` avoids both, and it is reachable only through
+  // `tenantDb(orgId)` by construction (`src/db/tenant-tables.ts` derives the tenant
+  // set from the schema), so "which account did *this* org nominate" has no
+  // unscoped spelling.
+  //
+  // ## The row is absent until something nominates, and both columns are nullable
+  //
+  // Absent means "not nominated", which is the state every org is in on the day it
+  // is created and the state an org that declined a chart template stays in. It is
+  // not an error until something needs the account, and then it is a refusal that
+  // names the setting rather than an account code somebody guessed. The columns are
+  // separately nullable because the two sides are separately usable: an org that
+  // only invoices never needs a payables control account, and requiring one to
+  // record the other would invent a prerequisite.
+  //
+  // ## Changing a nomination restates nothing, and that is structural
+  //
+  // A posted journal names the account it was posted to, by id, and no column in
+  // `journals` or `journal_lines` can be updated (spec §12). So repointing this
+  // setting moves *future* postings and cannot reach past ones — there is no code
+  // path that could rewrite them and no grant that would permit one. The
+  // consequence a reader needs is the other direction: while documents posted to
+  // the old account are still outstanding, the subledger ties to the two accounts
+  // together rather than to the new one alone. That is stated in
+  // `modules/settings/index.ts`, where the operation that permits the change lives.
+  //
+  // RESTRICT on both, so a nominated account cannot be deleted out from under the
+  // orgs that post to it — the same shape `fk_ar_document_lines_account` takes, and
+  // `deleteAccount` already refuses an account with postings for the related reason.
+  // ---------------------------------------------------------------------------
+  await sql`
+    CREATE TABLE org_accounting_settings (
+      org_id                        BINARY(16)  NOT NULL,
+      receivable_control_account_id BINARY(16)  NULL,
+      payable_control_account_id    BINARY(16)  NULL,
+      created_at                    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at                    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                                ON UPDATE CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (org_id),
+      -- Declared rather than left to InnoDB's automatic index for a composite
+      -- foreign key, so the covering index is visible where the constraint is.
+      KEY idx_oas_receivable (org_id, receivable_control_account_id),
+      KEY idx_oas_payable (org_id, payable_control_account_id),
+      CONSTRAINT fk_oas_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
+      CONSTRAINT fk_oas_receivable
+        FOREIGN KEY (org_id, receivable_control_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_oas_payable
+        FOREIGN KEY (org_id, payable_control_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `.execute(db);
+
+  // ---------------------------------------------------------------------------
   // tax_rates — the per-org rate list (ROADMAP D-35).
   //
   // A rate is a name, a percentage, and the liability account tax posts to. One
@@ -110,6 +194,23 @@ export async function up(db: MigrationDb): Promise<void> {
   // cannot express a CHECK that reads another table. The tax rates service (OB-066)
   // enforces it.
   //
+  // ## applies_to, and why it defaults to 'both'
+  //
+  // Which documents may carry the rate. A rate posts to *one* account, so an org
+  // that reclaims input VAT holds a sales rate and a purchases rate rather than one
+  // rate with two accounts, and this column is what keeps a bill's rate picker from
+  // offering the sales one (D-35, `taxRateSchema.appliesTo`). Enforced where a
+  // document line cites a rate — `resolveLines` in both document services — because
+  // that is the moment a wrong rate becomes a wrong posting; a rate already on an
+  // approved document is never re-checked, for the reason the archived-rate check
+  // is not either.
+  //
+  // ENUM and not two booleans: `sales`/`purchases`/`both` is a closed set of three,
+  // and a pair of flags admits a fourth state (neither) that means a rate nothing
+  // may use. Default `'both'` because that is what every row meant while the column
+  // did not exist — the ordinary sales-tax regime where nothing is reclaimed — so
+  // the default is a restatement of the prior meaning rather than a policy choice.
+  //
   // `is_active` rather than deletion once a rate is in use: a posted document's
   // lines reference the rate, and the RESTRICT below makes removal structurally
   // impossible from the first line that cites it — the same shape `dimensions`
@@ -122,6 +223,7 @@ export async function up(db: MigrationDb): Promise<void> {
       name           VARCHAR(120) NOT NULL,
       rate_ppm       INT UNSIGNED NOT NULL,
       tax_account_id BINARY(16)   NOT NULL,
+      applies_to     ENUM('sales','purchases','both') NOT NULL DEFAULT 'both',
       is_active      TINYINT(1)   NOT NULL DEFAULT 1,
       created_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
@@ -605,6 +707,14 @@ export async function up(db: MigrationDb): Promise<void> {
       -- balance needs them by contact.
       KEY idx_payments_org_contact_date (org_id, contact_id, payment_date),
       KEY idx_payments_org_date (org_id, payment_date, id),
+      -- The keyset paymentPageSchema mandates (D-21), which is not the ordering of
+      -- either index above. payment_date is what a user sorts on and is the wrong
+      -- cursor column: payments are recorded in whatever order the paperwork
+      -- surfaces, so a back-dated one lands behind a cursor that has already passed
+      -- its date and appears on no page at all. created_at cannot move under a
+      -- cursor. Without this index every page is a filesort — the same index
+      -- idx_ar_documents_org_created is, for the documents beside it.
+      KEY idx_payments_org_created (org_id, created_at, id),
       CONSTRAINT fk_payments_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_payments_contact
         FOREIGN KEY (org_id, contact_id) REFERENCES contacts (org_id, id) ON DELETE RESTRICT,
@@ -763,4 +873,7 @@ export async function down(db: MigrationDb): Promise<void> {
   await sql`DROP TABLE IF EXISTS ar_documents`.execute(db);
   await sql`DROP TABLE IF EXISTS document_sequences`.execute(db);
   await sql`DROP TABLE IF EXISTS tax_rates`.execute(db);
+  // Last, because its RESTRICT on `accounts` outlives every table above it and
+  // `0002_ledger`'s down() drops `accounts`.
+  await sql`DROP TABLE IF EXISTS org_accounting_settings`.execute(db);
 }

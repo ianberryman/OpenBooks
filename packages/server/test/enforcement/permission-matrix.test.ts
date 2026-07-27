@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -18,6 +18,22 @@ import {
   reactivateAccount,
   updateAccount,
 } from '../../src/modules/accounts';
+import {
+  approveBill,
+  approveVendorCredit,
+  createBill,
+  createVendorCredit,
+  discardBill,
+  discardVendorCredit,
+  getBill,
+  getVendorCredit,
+  listBills,
+  listVendorCredits,
+  updateBill,
+  updateVendorCredit,
+  voidBill,
+  voidVendorCredit,
+} from '../../src/modules/bills';
 import {
   createContact,
   deactivateContact,
@@ -54,6 +70,22 @@ import {
   updateDraft,
 } from '../../src/modules/drafts';
 import {
+  approveCreditNote,
+  approveInvoice,
+  createCreditNote,
+  createInvoice,
+  discardCreditNote,
+  discardInvoice,
+  getCreditNote,
+  getInvoice,
+  listCreditNotes,
+  listInvoices,
+  updateCreditNote,
+  updateInvoice,
+  voidCreditNote,
+  voidInvoice,
+} from '../../src/modules/invoices';
+import {
   getTrialBalance,
   listJournals,
   postJournal,
@@ -68,6 +100,17 @@ import {
   removeMember,
   revokeInvite,
 } from '../../src/modules/members';
+import {
+  allocateCreditNote,
+  allocatePayment,
+  allocateVendorCredit,
+  deleteAllocation,
+  getPayment,
+  listPayments,
+  recordPayment,
+  updatePayment,
+  voidPayment,
+} from '../../src/modules/payments';
 import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
@@ -84,6 +127,20 @@ import {
   getGeneralLedger,
   getProfitAndLoss,
 } from '../../src/modules/reports';
+// Not through `modules/reports`' index: OB-065 landed `getAging` without exporting
+// it there, and reaching for the file is what keeps the operation in the matrix
+// rather than out of it until OB-067 notices.
+import { getAging } from '../../src/modules/reports/aging.service';
+import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
+import {
+  archiveTaxRate,
+  createTaxRate,
+  deleteTaxRate,
+  getTaxRate,
+  listTaxRates,
+  unarchiveTaxRate,
+  updateTaxRate,
+} from '../../src/modules/tax';
 import { generateOpenApiDocument } from '../../src/transport';
 import { buildTestApp } from '../transport/harness';
 import { newUuid, SYSTEM_ROLE_UUIDS, systemRoleId, type SystemRoleName } from '../db';
@@ -121,15 +178,59 @@ import { contextFor } from './support';
  * key the row declares. So each row's declared permission is verified against the
  * one the service actually checks, rather than being a comment.
  *
- * ## What this file is for beyond today
+ * ## What happened at M3 (OB-072, acceptance C11)
  *
- * Known gap 6: the catalog seeds all 48 codes including AR/AP, so a Bookkeeper
- * already holds `invoices.write` — it is simply that nothing checks it yet. When
- * M3 adds its first invoice operation, `GRANTED_TO` gains a row reading
- * `invoices.write: owner, bookkeeper, arOnly` and `LATENT_GRANTS` loses that code
- * from four roles, in the same commit, with no migration between them. The
- * widening becomes two edits a reviewer has to approve rather than a fact nobody
- * ever writes down. `LATENT_GRANTS` is that fact, written down.
+ * The paragraph that stood here predicted this: "when M3 adds its first invoice
+ * operation, `GRANTED_TO` gains a row reading `invoices.write: owner, bookkeeper,
+ * arOnly` and `LATENT_GRANTS` loses that code from four roles, in the same commit,
+ * with no migration between them." That is what this commit is. It is recorded
+ * rather than deleted because the mechanism only means something if someone can
+ * see it fire.
+ *
+ * **Eighteen codes moved** out of `LATENT_GRANTS` and into `GRANTED_TO`, taking the
+ * enforced set from seventeen to thirty-five and the latent set from thirty-one to
+ * thirteen. Sixteen came from the five subledger services —
+ * `invoices.{read,write,void}`, `credit_notes.{read,write}`,
+ * `bills.{read,write,void}`, `vendor_credits.{read,write}`,
+ * `payments_received.{read,write}`, `payments_made.{read,write}`,
+ * `tax_rates.{read,write}` — and two from `modules/settings`, which gave `orgs.read`
+ * and `orgs.write` their first enforcement point anywhere in the system by making
+ * the control accounts a per-org nomination. Not one line of `0001_tenancy`
+ * changed. Who gained what:
+ *
+ * | Role       | Codes gained | What it can now do that it could not last week |
+ * | ---------- | ------------ | ---------------------------------------------- |
+ * | owner      | 18           | everything AR and AP, and the org's settings   |
+ * | bookkeeper | 17           | everything AR and AP; reads the settings       |
+ * | apOnly     | 8            | bills, vendor credits, payments made           |
+ * | arOnly     | 8            | invoices, credit notes, payments received      |
+ * | readOnly   | 8            | reads both subledgers and the settings         |
+ * | approver   | 8            | reads both subledgers and the settings         |
+ *
+ * Bookkeeper is the headline the roadmap named, and it is worth stating plainly:
+ * **a role was widened by writing a service.** `apOnly` and `arOnly` went from
+ * eight latent codes each to none — every code they hold is now live, which is the
+ * first time either role has meant anything at all. Owner is the one to look at
+ * twice: it gained `orgs.write`, which decides where every future invoice and bill
+ * posts, and no migration recorded that either.
+ *
+ * What is left latent is `banking.*` (M4), `agents.review` and `integrations.*`
+ * (M5), `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at
+ * all. Thirteen codes across six roles, and the same table will lose the banking
+ * five at M4.
+ *
+ * ## Two things this milestone made visible, and neither is fixed here
+ *
+ * `ar_only` and `ap_only` **cannot finish a document they are entitled to enter**:
+ * approving posts through `postJournal` and voiding through `reverseJournal`, each
+ * of which checks the caller's own `journals.post` / `journals.reverse`, and
+ * neither role holds either. See `known gap — an AR or AP clerk cannot finish what
+ * they started` at the foot of this file. Fixing it is a seed migration and a
+ * product decision, not a test change.
+ *
+ * `credit_notes.void` and `bills.approve` **do not exist in the catalog**, so those
+ * two operations take the corresponding `.write`. Asserted below against the
+ * catalog itself, so adding either code has to come past this file.
  */
 const db = useServiceDatabase();
 
@@ -156,8 +257,10 @@ const ROLES = [
  * database by construction can never disagree with it. This table is the claim; the
  * database is what it is checked against.
  *
- * Seventeen rows, because seventeen of the catalog's forty-eight codes are checked
- * by a service. The other thirty-one are `LATENT_GRANTS` below.
+ * Thirty-five rows, because thirty-five of the catalog's forty-eight codes are
+ * checked by a service. The other thirteen are `LATENT_GRANTS` below. Eighteen of
+ * the thirty-five arrived with M3 and are marked; every one of them is a role
+ * widened by a service rather than by a migration (C11, known gap 6).
  */
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
@@ -175,8 +278,8 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'journals.post': ['owner', 'bookkeeper', 'approver'],
   'journals.reverse': ['owner', 'bookkeeper'],
   'members.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
-  // The one code Bookkeeper is excluded from among the seventeen: a bookkeeper runs
-  // the books, they do not decide who has access.
+  // One of the two codes Bookkeeper is excluded from — `orgs.write` below is the
+  // other. A bookkeeper runs the books; they do not decide who has access.
   'members.write': ['owner'],
   'periods.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   'periods.write': ['owner', 'bookkeeper'],
@@ -186,6 +289,63 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'periods.reopen': ['owner', 'bookkeeper'],
   'reports.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   'roles.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+
+  // ---------------------------------------------------------------------------
+  // M3 — the sixteen codes OB-062 … OB-066 gave an enforcement point.
+  //
+  // Every row below is read off the two `IN (…)` lists in `0001_tenancy`'s
+  // `seedSystemRoles`, not derived from them: `ar_only` and `ap_only` are literal
+  // enumerations, `read_only` and `approver` are `%.read` minus `api_keys.read`,
+  // and `bookkeeper` is the whole catalog minus six administration codes. The
+  // asymmetry a reviewer should look at first is that the AR and AP lists are
+  // mirror images *of the document codes only* — neither list contains
+  // `journals.post` or `journals.reverse`.
+  // ---------------------------------------------------------------------------
+
+  'invoices.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'invoices.write': ['owner', 'bookkeeper', 'arOnly'],
+  'invoices.void': ['owner', 'bookkeeper', 'arOnly'],
+  'credit_notes.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  // Also what a credit note is *voided* with: the catalog holds no
+  // `credit_notes.void`, argued on `ArDocumentKind` in `invoices/kinds.ts` and
+  // asserted against the catalog under `the codes the catalog does not hold`.
+  'credit_notes.write': ['owner', 'bookkeeper', 'arOnly'],
+  'bills.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  // And what a bill is *approved* with, for the same reason: no `bills.approve`.
+  'bills.write': ['owner', 'bookkeeper', 'apOnly'],
+  'bills.void': ['owner', 'bookkeeper', 'apOnly'],
+  'vendor_credits.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'vendor_credits.write': ['owner', 'bookkeeper', 'apOnly'],
+  // The direction split is authorization, not a filter: `payments.service.ts`
+  // resolves the payment's own direction and then checks one of these two, so an
+  // AR clerk is refused a vendor payment they can see the id of.
+  'payments_received.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'payments_received.write': ['owner', 'bookkeeper', 'arOnly'],
+  'payments_made.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'payments_made.write': ['owner', 'bookkeeper', 'apOnly'],
+  // The one M3 code every seeded role holds for reading: both clerks need the rate
+  // list to enter a document at all, which is why it is in both `IN (…)` lists.
+  'tax_rates.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  // And the one M3 write neither clerk holds. A tax rate is configuration, not a
+  // document — `0001_tenancy` gives the clerks `tax_rates.read` and stops there.
+  'tax_rates.write': ['owner', 'bookkeeper'],
+
+  /**
+   * The two codes that had waited since M1 with no enforcement point anywhere, and
+   * got one from `modules/settings` — the org's control-account nominations.
+   *
+   * `orgs.write` is the widening in this milestone worth the most scrutiny, and it
+   * is the only one Bookkeeper did *not* get. `0001_tenancy` excludes `orgs.write`
+   * from the bookkeeper bundle by name, and `control-accounts.ts` chose that code
+   * over `accounts.write` precisely because of the exclusion: nominating a control
+   * account decides where every future invoice and bill lands, and the role that
+   * enters documents is not the role that decides the shape of the books. The
+   * consequence, stated because a reviewer should weigh it: a Bookkeeper cannot fix
+   * an org that has nominated nothing, and every approval in that org refuses until
+   * an Owner acts.
+   */
+  'orgs.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'orgs.write': ['owner'],
 };
 
 /**
@@ -193,13 +353,21 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  *
  * A code in this table is a capability the role has been granted and cannot
  * currently exercise, because no service calls `requirePermission` with it. The
- * moment M3 writes that call, the code moves from here into `GRANTED_TO` and the
- * role silently gains a power it always held. Bookkeeper's twenty-six entries are
- * the headline: `invoices.write`, `bills.void`, `payments_made.write` and the rest
- * are already granted, so M3 widens the role by writing a service, not a migration.
+ * moment someone writes that call, the code moves from here into `GRANTED_TO` and
+ * the role silently gains a power it always held.
  *
- * `agents.review` on Approver is the same shape from M5, and `banking.*` on
- * Bookkeeper from M4.
+ * M3 is the first time that happened at scale, and the diff is the record of it:
+ * Bookkeeper's list went from twenty-six entries to nine, Owner's from thirty-one
+ * to thirteen, and **`apOnly` and `arOnly` emptied entirely** — the two roles that
+ * existed to make the AR/AP half of the catalog meaningful now hold nothing they
+ * cannot use. No migration ran.
+ *
+ * What is left is three milestones' worth. `banking.*` goes at M4, which will take
+ * five codes off Bookkeeper and Owner and one off each reader; `agents.review` and
+ * `integrations.*` at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner as
+ * the only pair with no milestone scoped at all — granted, administrative-looking,
+ * and checked by nothing. It is the last of the original gap-6 set that has no
+ * plan behind it.
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   owner: [
@@ -211,26 +379,8 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
     'banking.read',
     'banking.reconcile',
     'banking.reopen',
-    'bills.read',
-    'bills.void',
-    'bills.write',
-    'credit_notes.read',
-    'credit_notes.write',
     'integrations.read',
     'integrations.write',
-    'invoices.read',
-    'invoices.void',
-    'invoices.write',
-    'orgs.read',
-    'orgs.write',
-    'payments_made.read',
-    'payments_made.write',
-    'payments_received.read',
-    'payments_received.write',
-    'tax_rates.read',
-    'tax_rates.write',
-    'vendor_credits.read',
-    'vendor_credits.write',
     'workflows.activate',
     'workflows.read',
     'workflows.write',
@@ -242,74 +392,18 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
     'banking.read',
     'banking.reconcile',
     'banking.reopen',
-    'bills.read',
-    'bills.void',
-    'bills.write',
-    'credit_notes.read',
-    'credit_notes.write',
     'integrations.read',
-    'invoices.read',
-    'invoices.void',
-    'invoices.write',
-    'orgs.read',
-    'payments_made.read',
-    'payments_made.write',
-    'payments_received.read',
-    'payments_received.write',
-    'tax_rates.read',
-    'tax_rates.write',
-    'vendor_credits.read',
-    'vendor_credits.write',
     'workflows.read',
     'workflows.write',
   ],
-  apOnly: [
-    'bills.read',
-    'bills.void',
-    'bills.write',
-    'payments_made.read',
-    'payments_made.write',
-    'tax_rates.read',
-    'vendor_credits.read',
-    'vendor_credits.write',
-  ],
-  arOnly: [
-    'credit_notes.read',
-    'credit_notes.write',
-    'invoices.read',
-    'invoices.void',
-    'invoices.write',
-    'payments_received.read',
-    'payments_received.write',
-    'tax_rates.read',
-  ],
-  readOnly: [
-    'banking.read',
-    'bills.read',
-    'credit_notes.read',
-    'integrations.read',
-    'invoices.read',
-    'orgs.read',
-    'payments_made.read',
-    'payments_received.read',
-    'tax_rates.read',
-    'vendor_credits.read',
-    'workflows.read',
-  ],
-  approver: [
-    'agents.review',
-    'banking.read',
-    'bills.read',
-    'credit_notes.read',
-    'integrations.read',
-    'invoices.read',
-    'orgs.read',
-    'payments_made.read',
-    'payments_received.read',
-    'tax_rates.read',
-    'vendor_credits.read',
-    'workflows.read',
-  ],
+  // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
+  // enforcement point — which is also what makes the gap at the foot of this file
+  // legible: the role is fully wired and still cannot approve a bill, because the
+  // code it is missing was never in its bundle to begin with.
+  apOnly: [],
+  arOnly: [],
+  readOnly: ['banking.read', 'integrations.read', 'workflows.read'],
+  approver: ['agents.review', 'banking.read', 'integrations.read', 'workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -330,6 +424,51 @@ interface Scene {
   readonly inviteId: string;
   readonly otherUserId: string;
   readonly actorId: string;
+
+  /**
+   * M3's fixtures (OB-062 … OB-066), every one of them built by an Owner.
+   *
+   * There are four of most document kinds rather than one, and that is what makes
+   * the compound rows below mean anything. A row is judged on whether the gate
+   * refused, so an `approveInvoice` that failed on "already approved" reads
+   * `allowed` and would hide the `journals.post` refusal that is the whole finding
+   * — and a single shared document would be consumed by whichever row ran first.
+   * One document per operation removes the ordering dependency entirely.
+   */
+  readonly partyId: string;
+  readonly receivableId: string;
+  readonly payableId: string;
+  readonly expenseId: string;
+  readonly bankId: string;
+  readonly taxAccountId: string;
+  readonly taxRateId: string;
+  readonly deletableTaxRateId: string;
+  readonly draftInvoiceId: string;
+  readonly discardableInvoiceId: string;
+  readonly approvableInvoiceId: string;
+  readonly voidableInvoiceId: string;
+  /** Approved, with room left on it for three allocations. */
+  readonly targetInvoiceId: string;
+  readonly draftCreditNoteId: string;
+  readonly discardableCreditNoteId: string;
+  readonly approvableCreditNoteId: string;
+  readonly voidableCreditNoteId: string;
+  readonly allocatableCreditNoteId: string;
+  readonly draftBillId: string;
+  readonly discardableBillId: string;
+  readonly approvableBillId: string;
+  readonly voidableBillId: string;
+  readonly targetBillId: string;
+  readonly draftVendorCreditId: string;
+  readonly discardableVendorCreditId: string;
+  readonly approvableVendorCreditId: string;
+  readonly voidableVendorCreditId: string;
+  readonly allocatableVendorCreditId: string;
+  readonly receivedPaymentId: string;
+  readonly voidableReceivedPaymentId: string;
+  readonly madePaymentId: string;
+  readonly voidableMadePaymentId: string;
+  readonly allocationId: string;
 }
 
 /**
@@ -339,13 +478,37 @@ interface Scene {
  * check below can compare this table against the generated OpenAPI document — the
  * same mechanism `cross-org.test.ts` uses, and for the same reason: a hand-kept
  * list of operations is only as complete as whoever last added a route remembered
- * to make it. The two rows without one are services with no route yet.
+ * to make it. Most rows now carry `null`: transport for everything M3 added is
+ * OB-067, so its services are in the matrix before they are on the wire — the same
+ * position `getPeriod` and `getAccountBalances` have held since M2, and for the
+ * same reason. A row with a `null` `operationId` is invisible to the coverage check
+ * below, which is exactly why the source scan exists as a second axis.
  */
 interface Operation {
   readonly name: string;
   readonly operationId: string | null;
   readonly permission: PermissionKey;
+  /**
+   * Further gates the call reaches **after** its own, in the order it reaches them.
+   *
+   * M3 is what forced this field, and it is not a convenience. Approving an invoice
+   * checks `invoices.write` and then posts through `postJournal`, which checks the
+   * caller's own `journals.post` (spec §2.4 — the ledger kernel authorizes its own
+   * writes, and OB-062's header argues why a document permission must not stand in
+   * for one). A row that declared only the first key would assert that `arOnly` may
+   * approve an invoice, which is false, and the reason it is false is the finding
+   * this milestone produced.
+   *
+   * The declared `permission` stays the *first* gate, so the `nobody` pass below is
+   * unaffected: a role holding nothing is refused before anything downstream runs.
+   */
+  readonly thenRequires?: readonly PermissionKey[];
   readonly call: (scene: Scene) => Promise<unknown>;
+}
+
+/** Every key a call is gated on, in the order the call reaches them. */
+function gatesOf(operation: Operation): readonly PermissionKey[] {
+  return [operation.permission, ...(operation.thenRequires ?? [])];
 }
 
 const OPERATIONS: readonly Operation[] = [
@@ -739,7 +902,501 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'reports.read',
     call: (s) => getAccountBalances({}, s.ctx),
   },
+  /**
+   * Aging (OB-065). `reports.read` and only that, which is the decision
+   * `aging.service.ts` argues at length: `ap_only` already holds `reports.read` and
+   * `journals.read`, so it can read the receivables control account's general
+   * ledger contact by contact, and adding `invoices.read` here would gate a report
+   * on a boundary the caller can already walk around. The row exists so that
+   * argument is asserted rather than only written down — if a second check is ever
+   * added, this row fails and whoever added it has to come here.
+   */
+  {
+    name: 'getAging',
+    operationId: null,
+    permission: 'reports.read',
+    call: (s) => getAging({ asOf: s.date, ledger: 'receivable' }, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
+  // M3 — AR documents (OB-062). No `operationId` on any of them: transport is
+  // OB-067, so these are in the matrix before they are on the wire, for
+  // `getPeriod`'s reason — the alternative is that their first authorization check
+  // is written by whoever adds the route.
+  // ---------------------------------------------------------------------------
+
+  {
+    name: 'createInvoice',
+    operationId: null,
+    permission: 'invoices.write',
+    call: (s) =>
+      createInvoice(
+        { contactId: s.partyId, issueDate: s.date, taxMode: 'exclusive', lines: [arLine(s)] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getInvoice',
+    operationId: null,
+    permission: 'invoices.read',
+    call: (s) => getInvoice(s.targetInvoiceId, s.ctx),
+  },
+  {
+    name: 'listInvoices',
+    operationId: null,
+    permission: 'invoices.read',
+    call: (s) => listInvoices({}, s.ctx),
+  },
+  {
+    name: 'updateInvoice',
+    operationId: null,
+    permission: 'invoices.write',
+    call: (s) => updateInvoice(s.draftInvoiceId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'discardInvoice',
+    operationId: null,
+    permission: 'invoices.write',
+    call: (s) => discardInvoice(s.discardableInvoiceId, s.ctx),
+  },
+  {
+    name: 'approveInvoice',
+    operationId: null,
+    permission: 'invoices.write',
+    thenRequires: ['journals.post'],
+    call: (s) => approveInvoice(s.approvableInvoiceId, s.ctx),
+  },
+  {
+    name: 'voidInvoice',
+    operationId: null,
+    permission: 'invoices.void',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidInvoice(s.voidableInvoiceId, { date: s.date }, s.ctx),
+  },
+  {
+    name: 'createCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    call: (s) =>
+      createCreditNote(
+        { contactId: s.partyId, issueDate: s.date, taxMode: 'exclusive', lines: [arLine(s)] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getCreditNote',
+    operationId: null,
+    permission: 'credit_notes.read',
+    call: (s) => getCreditNote(s.allocatableCreditNoteId, s.ctx),
+  },
+  {
+    name: 'listCreditNotes',
+    operationId: null,
+    permission: 'credit_notes.read',
+    call: (s) => listCreditNotes({}, s.ctx),
+  },
+  {
+    name: 'updateCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    call: (s) => updateCreditNote(s.draftCreditNoteId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'discardCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    call: (s) => discardCreditNote(s.discardableCreditNoteId, s.ctx),
+  },
+  {
+    name: 'approveCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    thenRequires: ['journals.post'],
+    call: (s) => approveCreditNote(s.approvableCreditNoteId, s.ctx),
+  },
+  /**
+   * `credit_notes.write`, not a `credit_notes.void` — the catalog holds no such
+   * code. Declared here rather than assumed, so the day one is seeded this row is
+   * one of the two places that has to change.
+   */
+  {
+    name: 'voidCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidCreditNote(s.voidableCreditNoteId, { date: s.date }, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
+  // M3 — AP documents (OB-063).
+  // ---------------------------------------------------------------------------
+
+  {
+    name: 'createBill',
+    operationId: null,
+    permission: 'bills.write',
+    call: (s) =>
+      createBill(
+        {
+          contactId: s.partyId,
+          issueDate: s.date,
+          dueDate: s.date,
+          taxMode: 'exclusive',
+          lines: [apLine(s)],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getBill',
+    operationId: null,
+    permission: 'bills.read',
+    call: (s) => getBill(s.targetBillId, s.ctx),
+  },
+  {
+    name: 'listBills',
+    operationId: null,
+    permission: 'bills.read',
+    call: (s) => listBills({}, s.ctx),
+  },
+  {
+    name: 'updateBill',
+    operationId: null,
+    permission: 'bills.write',
+    call: (s) => updateBill(s.draftBillId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'discardBill',
+    operationId: null,
+    permission: 'bills.write',
+    call: (s) => discardBill(s.discardableBillId, s.ctx),
+  },
+  /**
+   * `bills.write`, because the catalog holds no `bills.approve` — the same shape as
+   * `voidCreditNote` above and the mirror image of it. AP has a `void` code and no
+   * `approve`; AR's credit notes have an `approve`-by-`write` and no `void`.
+   * Neither asymmetry is defensible on its own terms; both are what spec §5's fixed
+   * catalog says, and both are asserted below.
+   */
+  {
+    name: 'approveBill',
+    operationId: null,
+    permission: 'bills.write',
+    thenRequires: ['journals.post'],
+    call: (s) => approveBill(s.approvableBillId, s.ctx),
+  },
+  {
+    name: 'voidBill',
+    operationId: null,
+    permission: 'bills.void',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidBill(s.voidableBillId, { date: s.date }, s.ctx),
+  },
+  {
+    name: 'createVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    call: (s) =>
+      createVendorCredit(
+        { contactId: s.partyId, issueDate: s.date, taxMode: 'exclusive', lines: [apLine(s)] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.read',
+    call: (s) => getVendorCredit(s.allocatableVendorCreditId, s.ctx),
+  },
+  {
+    name: 'listVendorCredits',
+    operationId: null,
+    permission: 'vendor_credits.read',
+    call: (s) => listVendorCredits({}, s.ctx),
+  },
+  {
+    name: 'updateVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    call: (s) => updateVendorCredit(s.draftVendorCreditId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'discardVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    call: (s) => discardVendorCredit(s.discardableVendorCreditId, s.ctx),
+  },
+  {
+    name: 'approveVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    thenRequires: ['journals.post'],
+    call: (s) => approveVendorCredit(s.approvableVendorCreditId, s.ctx),
+  },
+  {
+    name: 'voidVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidVendorCredit(s.voidableVendorCreditId, { date: s.date }, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
+  // M3 — payments and allocation (OB-064).
+  //
+  // Both directions are listed rather than one, because the direction *is* the
+  // authorization: `payments.service.ts` reads the payment's own direction and then
+  // checks one of two codes. A matrix carrying only the received side would leave
+  // `payments_made.*` declared and never exercised, which is exactly the vacuity
+  // the `nobody` pass exists to prevent.
+  // ---------------------------------------------------------------------------
+
+  {
+    name: 'recordPaymentReceived',
+    operationId: null,
+    permission: 'payments_received.write',
+    thenRequires: ['journals.post'],
+    call: (s) =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: s.partyId,
+          date: s.date,
+          amount: '5000',
+          accountId: s.bankId,
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getPaymentReceived',
+    operationId: null,
+    permission: 'payments_received.read',
+    call: (s) => getPayment(s.receivedPaymentId, s.ctx),
+  },
+  {
+    name: 'updatePaymentReceived',
+    operationId: null,
+    permission: 'payments_received.write',
+    call: (s) => updatePayment(s.receivedPaymentId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'voidPaymentReceived',
+    operationId: null,
+    permission: 'payments_received.write',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidPayment(s.voidableReceivedPaymentId, { date: s.date }, s.ctx),
+  },
+  {
+    name: 'recordPaymentMade',
+    operationId: null,
+    permission: 'payments_made.write',
+    thenRequires: ['journals.post'],
+    call: (s) =>
+      recordPayment(
+        {
+          direction: 'made',
+          contactId: s.partyId,
+          date: s.date,
+          amount: '5000',
+          accountId: s.bankId,
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getPaymentMade',
+    operationId: null,
+    permission: 'payments_made.read',
+    call: (s) => getPayment(s.madePaymentId, s.ctx),
+  },
+  {
+    name: 'updatePaymentMade',
+    operationId: null,
+    permission: 'payments_made.write',
+    call: (s) => updatePayment(s.madePaymentId, { memo: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'voidPaymentMade',
+    operationId: null,
+    permission: 'payments_made.write',
+    thenRequires: ['journals.reverse'],
+    call: (s) => voidPayment(s.voidableMadePaymentId, { date: s.date }, s.ctx),
+  },
+  /**
+   * The one operation in the system that needs **both** halves of a pair.
+   *
+   * An unfiltered list spans both subledgers, so `listPayments` requires the
+   * authority to read both rather than silently returning the caller's own side —
+   * the service's own commentary argues that a filtered result would turn a missing
+   * permission into an empty page nobody can distinguish from real emptiness. So an
+   * AR clerk is refused with `payments_made.read`, which is the key naming what they
+   * are actually missing.
+   */
+  {
+    name: 'listPayments',
+    operationId: null,
+    permission: 'payments_received.read',
+    thenRequires: ['payments_made.read'],
+    call: (s) => listPayments({}, s.ctx),
+  },
+  {
+    name: 'allocatePayment',
+    operationId: null,
+    permission: 'payments_received.write',
+    call: (s) =>
+      allocatePayment(
+        s.receivedPaymentId,
+        { allocations: [{ targetType: 'invoice', targetId: s.targetInvoiceId, amount: '10000' }] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'allocateCreditNote',
+    operationId: null,
+    permission: 'credit_notes.write',
+    call: (s) =>
+      allocateCreditNote(
+        s.allocatableCreditNoteId,
+        { allocations: [{ targetType: 'invoice', targetId: s.targetInvoiceId, amount: '10000' }] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'allocateVendorCredit',
+    operationId: null,
+    permission: 'vendor_credits.write',
+    call: (s) =>
+      allocateVendorCredit(
+        s.allocatableVendorCreditId,
+        { allocations: [{ targetType: 'bill', targetId: s.targetBillId, amount: '10000' }] },
+        s.ctx,
+      ),
+  },
+  /**
+   * Un-applying takes the *source's* write permission, and the fixture is an
+   * allocation made by a received payment — so this row is `payments_received.write`
+   * rather than an allocation code of its own. Nothing posts here (D-37), which is
+   * why there is no `thenRequires`: an allocation moved no money, so removing one
+   * restates nothing and needs no ledger authority.
+   */
+  {
+    name: 'deleteAllocation',
+    operationId: null,
+    permission: 'payments_received.write',
+    call: (s) => deleteAllocation(s.allocationId, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
+  // M3 — tax rates (OB-066). Configuration, not documents, which is why neither
+  // clerk holds the write.
+  // ---------------------------------------------------------------------------
+
+  {
+    name: 'createTaxRate',
+    operationId: null,
+    permission: 'tax_rates.write',
+    call: (s) =>
+      createTaxRate({ name: 'Sales tax 5%', percentage: '5', accountId: s.taxAccountId }, s.ctx),
+  },
+  {
+    name: 'getTaxRate',
+    operationId: null,
+    permission: 'tax_rates.read',
+    call: (s) => getTaxRate(s.taxRateId, s.ctx),
+  },
+  {
+    name: 'listTaxRates',
+    operationId: null,
+    permission: 'tax_rates.read',
+    call: (s) => listTaxRates({}, s.ctx),
+  },
+  {
+    name: 'updateTaxRate',
+    operationId: null,
+    permission: 'tax_rates.write',
+    call: (s) => updateTaxRate(s.taxRateId, { name: 'VAT (standard)' }, s.ctx),
+  },
+  {
+    name: 'archiveTaxRate',
+    operationId: null,
+    permission: 'tax_rates.write',
+    call: (s) => archiveTaxRate(s.taxRateId, s.ctx),
+  },
+  {
+    name: 'unarchiveTaxRate',
+    operationId: null,
+    permission: 'tax_rates.write',
+    call: (s) => unarchiveTaxRate(s.taxRateId, s.ctx),
+  },
+  // A second rate, because no document cites it — `deleteTaxRate` is refused for
+  // one that is cited, and a refusal on those grounds would read `allowed`.
+  {
+    name: 'deleteTaxRate',
+    operationId: null,
+    permission: 'tax_rates.write',
+    call: (s) => deleteTaxRate(s.deletableTaxRateId, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
+  // M3 — the org's control-account nominations (`modules/settings`).
+  //
+  // Last in the list on purpose: `updateControlAccounts` decides where every
+  // approval above posts, so a row that repointed it earlier would change what the
+  // rows after it were judged on. It repoints to the accounts already nominated,
+  // which exercises the gate and moves nothing.
+  // ---------------------------------------------------------------------------
+
+  {
+    name: 'getControlAccounts',
+    operationId: null,
+    permission: 'orgs.read',
+    call: (s) => getControlAccounts(s.ctx),
+  },
+  {
+    name: 'updateControlAccounts',
+    operationId: null,
+    permission: 'orgs.write',
+    call: (s) =>
+      updateControlAccounts(
+        {
+          receivableControlAccountId: s.receivableId,
+          payableControlAccountId: s.payableId,
+        },
+        s.ctx,
+      ),
+  },
 ];
+
+/** One line worth 1,000.00, on the revenue account an AR document credits. */
+function arLine(s: Scene): {
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitAmount: string;
+  readonly accountId: string;
+} {
+  return {
+    description: 'Consulting',
+    quantity: '1',
+    unitAmount: '100000',
+    accountId: s.revenueId,
+  };
+}
+
+/** The payables mirror, on the expense account an AP document debits. */
+function apLine(s: Scene): {
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitAmount: string;
+  readonly accountId: string;
+} {
+  return {
+    description: 'Paper',
+    quantity: '1',
+    unitAmount: '100000',
+    accountId: s.expenseId,
+  };
+}
 
 /**
  * The route operations that reach no `requirePermission` at all, and why.
@@ -789,6 +1446,56 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     type: 'revenue',
     normalBalance: 'credit',
   });
+
+  /**
+   * The two control accounts, the tax account, an expense account, and the bank a
+   * payment moves money through.
+   *
+   * **The codes are deliberately not the shipped chart's `1100` and `2010`.**
+   * Control accounts are a per-org nomination now (`modules/settings`) and no
+   * service resolves one by code, so a fixture that used the conventional numbers
+   * would keep passing if that resolution silently reverted — and the failure mode
+   * matters here more than usual, because a control account that cannot be resolved
+   * refuses *before* `postJournal` runs and every `journals.post` refusal this file
+   * asserts would quietly become `allowed`.
+   */
+  const [receivable, payable, expense, bank, taxAccount] = await Promise.all([
+    db.factories.account({
+      orgId: org.id,
+      code: '1150',
+      name: 'Accounts receivable',
+      type: 'asset',
+      normalBalance: 'debit',
+    }),
+    db.factories.account({
+      orgId: org.id,
+      code: '2050',
+      name: 'Accounts payable',
+      type: 'liability',
+      normalBalance: 'credit',
+    }),
+    db.factories.account({
+      orgId: org.id,
+      code: '5000',
+      name: 'Office expenses',
+      type: 'expense',
+      normalBalance: 'debit',
+    }),
+    db.factories.account({
+      orgId: org.id,
+      code: '1010',
+      name: 'Business checking',
+      type: 'asset',
+      normalBalance: 'debit',
+    }),
+    db.factories.account({
+      orgId: org.id,
+      code: '2100',
+      name: 'VAT payable',
+      type: 'liability',
+      normalBalance: 'credit',
+    }),
+  ]);
   const journal = await db.factories.journal({
     orgId: org.id,
     periodId: period.id,
@@ -831,7 +1538,30 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     setup,
   );
 
+  // The nomination, before anything can be approved. `orgs.write`, which is why it
+  // is the Owner setup context doing it and not the role under test — an org whose
+  // control accounts are unset refuses every approval with a precondition, and a
+  // precondition reads `allowed` here.
+  await updateControlAccounts(
+    { receivableControlAccountId: receivable.uuid, payableControlAccountId: payable.uuid },
+    setup,
+  );
+
+  const subledger = await subledgerFixtures(setup, {
+    date: period.startDate,
+    revenueId: revenue.uuid,
+    expenseId: expense.uuid,
+    bankId: bank.uuid,
+    taxAccountId: taxAccount.uuid,
+  });
+
   return {
+    ...subledger,
+    receivableId: receivable.uuid,
+    payableId: payable.uuid,
+    expenseId: expense.uuid,
+    bankId: bank.uuid,
+    taxAccountId: taxAccount.uuid,
     ctx: contextFor(org.uuid, SYSTEM_ROLE_UUIDS[role], user.uuid),
     orgUuid: org.uuid,
     cashId: cash.uuid,
@@ -848,6 +1578,188 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     inviteId: invite.invitation.id,
     otherUserId: other.uuid,
     actorId: user.uuid,
+  };
+}
+
+/** The accounts M3's fixtures post against, resolved before any of them is built. */
+interface SubledgerAccounts {
+  readonly date: string;
+  readonly revenueId: string;
+  readonly expenseId: string;
+  readonly bankId: string;
+  readonly taxAccountId: string;
+}
+
+type SubledgerFixtures = Pick<
+  Scene,
+  | 'allocatableCreditNoteId'
+  | 'allocatableVendorCreditId'
+  | 'allocationId'
+  | 'approvableBillId'
+  | 'approvableCreditNoteId'
+  | 'approvableInvoiceId'
+  | 'approvableVendorCreditId'
+  | 'deletableTaxRateId'
+  | 'discardableBillId'
+  | 'discardableCreditNoteId'
+  | 'discardableInvoiceId'
+  | 'discardableVendorCreditId'
+  | 'draftBillId'
+  | 'draftCreditNoteId'
+  | 'draftInvoiceId'
+  | 'draftVendorCreditId'
+  | 'madePaymentId'
+  | 'partyId'
+  | 'receivedPaymentId'
+  | 'targetBillId'
+  | 'targetInvoiceId'
+  | 'taxRateId'
+  | 'voidableBillId'
+  | 'voidableCreditNoteId'
+  | 'voidableInvoiceId'
+  | 'voidableMadePaymentId'
+  | 'voidableReceivedPaymentId'
+  | 'voidableVendorCreditId'
+>;
+
+/**
+ * One org's worth of AR and AP, built by an Owner through the real services.
+ *
+ * Through the services and not through raw inserts, for the reason the setup block
+ * above gives — but there is a second reason here that is stronger. An approved
+ * document is a document *plus a journal plus a sequence number*, tied together by
+ * `chk_ar_documents_approved`; a fixture that wrote the rows itself would be this
+ * file's own idea of what approval means, and the first thing to diverge from the
+ * service would be the thing every `void` row is judged against.
+ *
+ * Everything that posts runs inside `runInContext`, because `assertPostable` —
+ * reached through `postJournal` — reads the ambient context rather than taking one
+ * (spec §4 forbids threading `orgId` through signatures).
+ */
+async function subledgerFixtures(
+  setup: RequestContext,
+  accounts: SubledgerAccounts,
+): Promise<SubledgerFixtures> {
+  const asOwner = async <T>(body: () => Promise<T>): Promise<T> => runInContext(setup, body);
+
+  // Both flags: one contact carries the invoices and the bills, because the AR
+  // services refuse a non-customer and the AP services refuse a non-vendor.
+  const party = await createContact(
+    { displayName: 'Subledger Party', isCustomer: true, isVendor: true },
+    setup,
+  );
+
+  const taxRate = await createTaxRate(
+    { name: 'VAT 20%', percentage: '20', accountId: accounts.taxAccountId },
+    setup,
+  );
+  // A second rate no document cites, because `deleteTaxRate` is refused for one
+  // that is — and a refusal on those grounds reads `allowed` in this matrix.
+  const deletableTaxRate = await createTaxRate(
+    { name: 'Zero rated', percentage: '0', accountId: accounts.taxAccountId },
+    setup,
+  );
+
+  const arLines = [
+    {
+      description: 'Consulting',
+      quantity: '1',
+      unitAmount: '100000',
+      accountId: accounts.revenueId,
+    },
+  ];
+  const apLines = [
+    { description: 'Paper', quantity: '1', unitAmount: '100000', accountId: accounts.expenseId },
+  ];
+  const arInput = {
+    contactId: party.id,
+    issueDate: accounts.date,
+    taxMode: 'exclusive' as const,
+    lines: arLines,
+  };
+  const billInput = { ...arInput, dueDate: accounts.date, lines: apLines };
+  const vendorCreditInput = { ...arInput, lines: apLines };
+
+  const invoice = async (): Promise<string> => (await createInvoice(arInput, setup)).id;
+  const creditNote = async (): Promise<string> => (await createCreditNote(arInput, setup)).id;
+  const bill = async (): Promise<string> => (await createBill(billInput, setup)).id;
+  const vendorCredit = async (): Promise<string> =>
+    (await createVendorCredit(vendorCreditInput, setup)).id;
+
+  const approved = async (
+    create: () => Promise<string>,
+    approve: (id: string) => Promise<unknown>,
+  ): Promise<string> => {
+    const id = await create();
+    await asOwner(() => approve(id));
+    return id;
+  };
+
+  const targetInvoiceId = await approved(invoice, (id) => approveInvoice(id, setup));
+  const targetBillId = await approved(bill, (id) => approveBill(id, setup));
+
+  const payment = async (direction: 'made' | 'received'): Promise<string> =>
+    (
+      await asOwner(() =>
+        recordPayment(
+          {
+            direction,
+            contactId: party.id,
+            date: accounts.date,
+            // Ten times what anything applies, so the three allocation rows and the
+            // fixture's own can all fit: over-allocating a *document* is refused
+            // (C3), and that refusal would read `allowed`.
+            amount: '100000',
+            accountId: accounts.bankId,
+          },
+          setup,
+        ),
+      )
+    ).id;
+
+  const receivedPaymentId = await payment('received');
+  const [allocation] = await asOwner(() =>
+    allocatePayment(
+      receivedPaymentId,
+      { allocations: [{ targetType: 'invoice', targetId: targetInvoiceId, amount: '10000' }] },
+      setup,
+    ),
+  );
+  if (allocation === undefined) {
+    throw new Error(
+      'The fixture allocation was not written; every `deleteAllocation` row is void.',
+    );
+  }
+
+  return {
+    partyId: party.id,
+    taxRateId: taxRate.id,
+    deletableTaxRateId: deletableTaxRate.id,
+    draftInvoiceId: await invoice(),
+    discardableInvoiceId: await invoice(),
+    approvableInvoiceId: await invoice(),
+    voidableInvoiceId: await approved(invoice, (id) => approveInvoice(id, setup)),
+    targetInvoiceId,
+    draftCreditNoteId: await creditNote(),
+    discardableCreditNoteId: await creditNote(),
+    approvableCreditNoteId: await creditNote(),
+    voidableCreditNoteId: await approved(creditNote, (id) => approveCreditNote(id, setup)),
+    allocatableCreditNoteId: await approved(creditNote, (id) => approveCreditNote(id, setup)),
+    draftBillId: await bill(),
+    discardableBillId: await bill(),
+    approvableBillId: await bill(),
+    voidableBillId: await approved(bill, (id) => approveBill(id, setup)),
+    targetBillId,
+    draftVendorCreditId: await vendorCredit(),
+    discardableVendorCreditId: await vendorCredit(),
+    approvableVendorCreditId: await vendorCredit(),
+    voidableVendorCreditId: await approved(vendorCredit, (id) => approveVendorCredit(id, setup)),
+    allocatableVendorCreditId: await approved(vendorCredit, (id) => approveVendorCredit(id, setup)),
+    receivedPaymentId,
+    voidableReceivedPaymentId: await payment('received'),
+    madePaymentId: await payment('made'),
+    voidableMadePaymentId: await payment('made'),
+    allocationId: allocation.id,
   };
 }
 
@@ -881,13 +1793,23 @@ async function pass(role: SystemRoleName): Promise<Record<string, Verdict>> {
 
 function expectedFor(role: SystemRoleName): Record<string, Verdict> {
   return Object.fromEntries(
-    OPERATIONS.map((operation) => [
-      operation.name,
-      GRANTED_TO[operation.permission]?.includes(role) === true
-        ? 'allowed'
-        : `refused ${operation.permission}`,
-    ]),
+    OPERATIONS.map((operation) => [operation.name, expectedVerdict(operation, role)]),
   );
+}
+
+/**
+ * The first gate the role fails, or `allowed`.
+ *
+ * "First" is what makes this a prediction rather than a restatement: an
+ * `approveInvoice` by an AR clerk must be refused with `journals.post` and not with
+ * `invoices.write`, and getting the order wrong is exactly the mistake a matrix
+ * that only compared allowed-versus-refused could not catch.
+ */
+function expectedVerdict(operation: Operation, role: SystemRoleName): Verdict {
+  for (const key of gatesOf(operation)) {
+    if (GRANTED_TO[key]?.includes(role) !== true) return `refused ${key}`;
+  }
+  return 'allowed';
 }
 
 describe('B10 — the permission matrix, at the service layer', () => {
@@ -965,18 +1887,38 @@ describe('B10 — the permission matrix, at the service layer', () => {
    * defined: its commentary spells `requirePermission(ctx, 'invoices.write')` as
    * the example spec §5 gives, and a scan that counted the documentation would
    * report an enforcement point that does not exist.
+   *
+   * ## What M3 cost this scan, and why it was widened rather than narrowed
+   *
+   * Through M2 every enforcement point was a string literal, and a `\'([a-z_.]+)\'`
+   * regex was the whole of it. OB-062 carries the AR lifecycle once and selects the
+   * document type with `ArDocumentKind`, so its five calls read
+   * `requirePermission(ctx, kind.writePermission)` — five real gates the old scan
+   * could not see, which would have let `invoices.*` and `credit_notes.read` sit in
+   * `GRANTED_TO` with nothing proving a service checks them.
+   *
+   * `payments.service.ts` took the other road and says so: "two literal
+   * `requirePermission` calls rather than one on a computed key, so the enforcement
+   * points stay greppable". That convention is the right one and OB-062 did not
+   * follow it, so the scan resolves the indirection instead — one level, through the
+   * constants declared in the *same module directory*, which is what `kinds.ts` is.
+   * It over-approximates on purpose: `invoices.service.ts` alone enforces only
+   * `invoices.*`, but the module as a whole enforces both kinds' codes, and a scan
+   * that guessed which constant each file meant would be interpreting TypeScript.
+   *
+   * Anything it cannot resolve — a computed key, a context argument that is not
+   * `ctx` — throws rather than being skipped. A scan that silently ignores what it
+   * does not understand is how an enforcement point goes missing, which is the one
+   * failure this test exists to make impossible.
    */
   it('names every permission any service enforces', () => {
     const enforced = new Set<string>();
     for (const file of serviceSources()) {
-      for (const match of file.matchAll(/requirePermission\(\s*ctx,\s*'([a-z_.]+)'\s*\)/g)) {
-        const [, key] = match;
-        if (key !== undefined) enforced.add(key);
-      }
+      for (const key of enforcementPointsIn(file)) enforced.add(key);
     }
 
     expect([...enforced].sort()).toEqual(Object.keys(GRANTED_TO).sort());
-    expect([...new Set(OPERATIONS.map((operation) => operation.permission))].sort()).toEqual(
+    expect([...new Set(OPERATIONS.flatMap(gatesOf))].sort()).toEqual(
       Object.keys(GRANTED_TO).sort(),
     );
   });
@@ -1062,7 +2004,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the seventeen codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the thirty-five codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -1072,7 +2014,35 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     const latent = catalog.filter((code) => !enforced.has(code)).sort();
 
     expect(latent).toEqual([...new Set(Object.values(LATENT_GRANTS).flat())].sort());
-    expect(latent).toHaveLength(31);
+    // Thirty-one before M3. The eighteen that left are the diff C11 asks a reviewer
+    // to look at, and this number is the only place it is asserted rather than
+    // described.
+    expect(latent).toHaveLength(13);
+  });
+
+  /**
+   * The two roles that emptied, called out separately from the per-role check
+   * below.
+   *
+   * A role with nothing latent is the state the whole mechanism is aiming at, and
+   * it is worth an assertion of its own because it is silent otherwise: the general
+   * check would pass just as happily against `[]` produced by a deleted seed as
+   * against `[]` produced by sixteen enforcement points arriving. So the count of
+   * codes each clerk *holds* is asserted alongside it.
+   */
+  it.each([
+    ['apOnly', 15],
+    ['arOnly', 15],
+  ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
+    const rows = await db.app
+      .selectFrom('role_permissions')
+      .select('permission_code')
+      .where('role_id', '=', systemRoleId(role))
+      .execute();
+
+    expect(rows).toHaveLength(held);
+    const enforced = new Set(Object.keys(GRANTED_TO));
+    expect(rows.filter((row) => !enforced.has(row.permission_code))).toEqual([]);
   });
 
   it.each(ROLES)('%s holds these codes and can exercise none of them', async (role) => {
@@ -1089,11 +2059,303 @@ describe('gap 6 — the grants that nothing checks yet', () => {
   });
 });
 
+/**
+ * **The finding M3 produced, pinned rather than fixed.**
+ *
+ * `ar_only` and `ap_only` exist so that a clerk can enter the documents of one
+ * subledger and nothing else. `0001_tenancy` gives each of them the document codes
+ * for their side and **neither `journals.post` nor `journals.reverse`** — and
+ * approving a document posts a journal, voiding one reverses a journal, and
+ * recording a payment posts a journal. `postJournal` and `reverseJournal` check the
+ * caller's own permission, which is the correct design (the ledger kernel is the
+ * only writer and it authorizes its own writes, spec §2.4) with a consequence
+ * nobody wrote down until the services were built: **the two roles that exist to
+ * run AR and AP cannot complete a single document between them.**
+ *
+ * These tests assert the *current* behaviour and none of them says it is right.
+ * They are a tripwire: the day someone adds the two codes to either bundle, they
+ * fail, and whoever sees the failure reads this paragraph. Two alternatives were
+ * available and neither belongs in a test file — seed the codes, which is a
+ * migration and a decision about what a "clerk" is allowed to do to the ledger; or
+ * let a document permission authorize a posting, which would make `journals.post`
+ * describable as "unless you go through a document" and is worse.
+ *
+ * The AP half is also pinned at the module, in `test/bills/permissions.test.ts`,
+ * which is where OB-063 found it. It is repeated here because this is the file that
+ * claims to describe every role's whole authority, and a gap of this size stated
+ * only in one module's suite is a gap stated nowhere a reviewer of C11 will look.
+ */
+describe('known gap — an AR or AP clerk cannot finish what they started', () => {
+  it('lets an AR clerk write an invoice and refuses to let them issue it', async () => {
+    const built = await scene('arOnly');
+
+    const invoice = await runInContext(built.ctx, () =>
+      createInvoice(
+        {
+          contactId: built.partyId,
+          issueDate: built.date,
+          taxMode: 'exclusive',
+          lines: [arLine(built)],
+        },
+        built.ctx,
+      ),
+    );
+
+    // Everything up to the ledger works, which is what makes the refusal a gap
+    // rather than a role that simply does not do this.
+    expect(invoice.status).toBe('draft');
+    await expect(
+      runInContext(built.ctx, () => approveInvoice(invoice.id, built.ctx)),
+    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+  });
+
+  it('refuses an AR clerk the void of an invoice they hold `invoices.void` for', async () => {
+    const built = await scene('arOnly');
+
+    // The document permission is held and is not what refuses: the clerk gets past
+    // `invoices.void` and is stopped by the reversal the void has to post.
+    await expect(
+      runInContext(built.ctx, () =>
+        voidInvoice(built.voidableInvoiceId, { date: built.date }, built.ctx),
+      ),
+    ).rejects.toMatchObject({ details: { permission: 'journals.reverse' } });
+  });
+
+  it('refuses an AR clerk the payment that would settle their own invoice', async () => {
+    const built = await scene('arOnly');
+
+    await expect(
+      runInContext(built.ctx, () =>
+        recordPayment(
+          {
+            direction: 'received',
+            contactId: built.partyId,
+            date: built.date,
+            amount: '5000',
+            accountId: built.bankId,
+          },
+          built.ctx,
+        ),
+      ),
+    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+  });
+
+  it('refuses an AP clerk approve, void and payment for the same reason', async () => {
+    const built = await scene('apOnly');
+
+    await expect(
+      runInContext(built.ctx, () => approveBill(built.approvableBillId, built.ctx)),
+    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+
+    await expect(
+      runInContext(built.ctx, () =>
+        voidBill(built.voidableBillId, { date: built.date }, built.ctx),
+      ),
+    ).rejects.toMatchObject({ details: { permission: 'journals.reverse' } });
+
+    await expect(
+      runInContext(built.ctx, () =>
+        recordPayment(
+          {
+            direction: 'made',
+            contactId: built.partyId,
+            date: built.date,
+            amount: '5000',
+            accountId: built.bankId,
+          },
+          built.ctx,
+        ),
+      ),
+    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+  });
+
+  /**
+   * The half that does work, asserted so the gap is bounded rather than vague.
+   *
+   * Allocation posts nothing (D-37), so a clerk can apply a credit their colleague
+   * approved. The line falls exactly at the ledger: everything that writes a journal
+   * is refused and everything that does not is allowed.
+   */
+  it('lets an AR clerk allocate, because an allocation posts no journal', async () => {
+    const built = await scene('arOnly');
+
+    const allocations = await runInContext(built.ctx, () =>
+      allocateCreditNote(
+        built.allocatableCreditNoteId,
+        {
+          allocations: [
+            { targetType: 'invoice', targetId: built.targetInvoiceId, amount: '10000' },
+          ],
+        },
+        built.ctx,
+      ),
+    );
+
+    expect(allocations).toHaveLength(1);
+  });
+});
+
+/**
+ * **The second finding: two codes the catalog does not hold.**
+ *
+ * `invoices.void` and `bills.void` exist; `credit_notes.void` and a `bills.approve`
+ * of any kind do not. So voiding a credit note takes `credit_notes.write` and
+ * approving a bill takes `bills.write`, which `invoices/kinds.ts` and
+ * `bills/index.ts` each argue for on their own terms — and both arguments are
+ * reasonable, and neither is checked by anything until here.
+ *
+ * Asserted against the *catalog* rather than restated as a comment, because the
+ * cost of the arrangement is asymmetric: adding `credit_notes.void` later would
+ * silently *narrow* every role that can currently void a credit note through
+ * `credit_notes.write`, and nothing else in the system would notice. This test
+ * makes that a change someone has to come here and make deliberately.
+ */
+describe('the codes the catalog does not hold, and what stands in for them', () => {
+  it('holds a void code for the two documents that carry an amount owed, and no other', async () => {
+    const catalog = new Set(await selectCatalogCodes());
+
+    expect(catalog.has('invoices.void')).toBe(true);
+    expect(catalog.has('bills.void')).toBe(true);
+    expect(catalog.has('credit_notes.void')).toBe(false);
+    expect(catalog.has('vendor_credits.void')).toBe(false);
+    // No approve code of any kind: approval is the write, on all four documents.
+    expect(catalog.has('bills.approve')).toBe(false);
+    expect(catalog.has('invoices.approve')).toBe(false);
+  });
+
+  it('refuses the two operations with the `.write` code that stands in', async () => {
+    // Read-only holds every `.read` and no `.write`, so the key it is refused with
+    // is exactly the key each operation actually checks.
+    const built = await scene('readOnly');
+
+    await expect(
+      runInContext(built.ctx, () =>
+        voidCreditNote(built.voidableCreditNoteId, { date: built.date }, built.ctx),
+      ),
+    ).rejects.toMatchObject({ details: { permission: 'credit_notes.write' } });
+
+    await expect(
+      runInContext(built.ctx, () => approveBill(built.approvableBillId, built.ctx)),
+    ).rejects.toMatchObject({ details: { permission: 'bills.write' } });
+  });
+});
+
 const MODULES_DIR = fileURLToPath(new URL('../../src/modules/', import.meta.url));
 
-function serviceSources(): readonly string[] {
+interface ServiceSource {
+  /** Absolute, and the scope in which an indirected key is resolved. */
+  readonly directory: string;
+  readonly source: string;
+}
+
+/**
+ * Every module source that could hold an enforcement point.
+ *
+ * Not `*.service.ts` any more, and the widening is a finding of its own. That
+ * filter held through M2 because every service file was named for the convention;
+ * `modules/settings/control-accounts.ts` is not, and it carries the only two
+ * `orgs.read` / `orgs.write` checks in the system. Under the old filter those two
+ * gates were invisible, so the codes could have been declared in `GRANTED_TO` with
+ * nothing proving a service checked them — or, worse, left latent while a service
+ * quietly enforced them.
+ *
+ * A naming convention is the wrong thing for an exhaustiveness check to depend on:
+ * it fails open, silently, and only for files somebody named differently. Reading
+ * every `.ts` under `src/modules` costs nothing (repositories contain no
+ * `requirePermission`, so they contribute nothing) and cannot fail that way.
+ */
+function serviceSources(): readonly ServiceSource[] {
   return readdirSync(MODULES_DIR, { recursive: true, encoding: 'utf8' })
-    .filter((name) => name.endsWith('.service.ts'))
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
     .filter((name) => !name.startsWith('permissions'))
-    .map((name) => readFileSync(join(MODULES_DIR, name), 'utf8'));
+    .map((name) => ({
+      directory: join(MODULES_DIR, dirname(name)),
+      source: readFileSync(join(MODULES_DIR, name), 'utf8'),
+    }));
+}
+
+/**
+ * Every `requirePermission` call in one service file, deliberately naive about
+ * *nothing*.
+ *
+ * `[^)]*` rather than a shape, so a call this scan cannot interpret is found and
+ * then rejected, instead of failing to match and being counted as absent.
+ */
+const REQUIRE_PERMISSION = /requirePermission\(\s*([^)]*?)\s*\)/g;
+const LITERAL_KEY = /^'([a-z_.]+)'$/;
+const MEMBER_KEY = /^[A-Za-z_$][\w$]*\.([\w$]+)$/;
+
+function enforcementPointsIn(file: ServiceSource): readonly string[] {
+  const keys: string[] = [];
+
+  for (const match of file.source.matchAll(REQUIRE_PERMISSION)) {
+    const args = match[1] ?? '';
+    const comma = args.indexOf(',');
+    const context = args.slice(0, comma).trim();
+    const key = args.slice(comma + 1).trim();
+
+    // The context argument is checked as well as the key. Every service in the
+    // codebase names it `ctx`, and a call that named it something else would slip
+    // past a scan keyed on the literal — an enforcement point invisible to the one
+    // test whose job is to see all of them.
+    if (comma === -1 || context !== 'ctx') {
+      throw new Error(
+        `Unreadable enforcement point in ${file.directory}: requirePermission(${args}). ` +
+          'The matrix reads the enforced key set out of the source; a call it cannot parse is a ' +
+          'gate no exhaustiveness check can see. Pass the context as `ctx`.',
+      );
+    }
+
+    const literal = LITERAL_KEY.exec(key)?.[1];
+    if (literal !== undefined) {
+      keys.push(literal);
+      continue;
+    }
+
+    const property = MEMBER_KEY.exec(key)?.[1];
+    if (property === undefined) {
+      throw new Error(
+        `Computed permission key in ${file.directory}: requirePermission(ctx, ${key}). ` +
+          'Use a literal, as `payments.service.ts` does deliberately, or a constant declared in ' +
+          'the same module directory — anything else is an enforcement point this matrix is ' +
+          'blind to.',
+      );
+    }
+
+    keys.push(...permissionConstants(file.directory, property));
+  }
+
+  return keys;
+}
+
+/**
+ * Every code assigned to `property` by a constant in `directory`.
+ *
+ * One level, no imports followed, and only within the module — `ArDocumentKind`'s
+ * two instances live beside the service that reads them, which is what makes the
+ * resolution tractable at all. Empty is an error rather than an empty set: a
+ * property that resolves to nothing is a gate that silently disappeared from the
+ * enforced set.
+ */
+function permissionConstants(directory: string, property: string): readonly string[] {
+  const assignment = new RegExp(`\\b${property}:\\s*'([a-z_.]+)'`, 'g');
+  const codes: string[] = [];
+
+  for (const name of readdirSync(directory)) {
+    if (!name.endsWith('.ts') || name.endsWith('.service.ts')) continue;
+    for (const match of readFileSync(join(directory, name), 'utf8').matchAll(assignment)) {
+      const code = match[1];
+      if (code !== undefined) codes.push(code);
+    }
+  }
+
+  if (codes.length === 0) {
+    throw new Error(
+      `\`${property}\` is enforced in ${directory} and no constant there declares it. The key ` +
+        'set this matrix checks is read from the source, so an unresolvable indirection hides a ' +
+        'permission rather than failing loudly.',
+    );
+  }
+
+  return codes;
 }

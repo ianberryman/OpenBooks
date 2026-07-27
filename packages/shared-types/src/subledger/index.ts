@@ -139,11 +139,17 @@ export {
   updatePaymentRequestSchema,
 } from './payments';
 
-export { AGING_BUCKETS, AGING_BUCKET_UPPER_BOUNDS, AGING_LEDGERS } from './aging';
+export {
+  AGING_BUCKETS,
+  AGING_BUCKET_UPPER_BOUNDS,
+  AGING_DETAIL_TYPES,
+  AGING_LEDGERS,
+} from './aging';
 export type {
   Aging,
   AgingAmounts,
   AgingBucket,
+  AgingDetailType,
   AgingDocument,
   AgingLedger,
   AgingQueryParams,
@@ -152,6 +158,7 @@ export type {
 export {
   agingAmountsSchema,
   agingBucketSchema,
+  agingDetailTypeSchema,
   agingDocumentSchema,
   agingLedgerSchema,
   agingQuerySchema,

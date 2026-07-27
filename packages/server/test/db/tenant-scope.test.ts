@@ -182,6 +182,7 @@ describe('the tenant table set is derived from the schema', () => {
       'journal_lines',
       'journal_sequences',
       'journals',
+      'org_accounting_settings',
       'org_invites',
       'org_members',
       'payments',

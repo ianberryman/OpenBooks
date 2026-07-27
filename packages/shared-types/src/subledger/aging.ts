@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { calendarDateSchema, minorUnitsSchema } from '../wire';
 
-import { ALLOCATION_TARGET_TYPES } from './allocations';
+import { ALLOCATION_SOURCE_TYPES, ALLOCATION_TARGET_TYPES } from './allocations';
 
 /**
  * The aging report (OB-061, for OB-065; ROADMAP D-40, acceptance C8).
@@ -22,13 +22,14 @@ import { ALLOCATION_TARGET_TYPES } from './allocations';
  *
  * ## Why the report does not state the control-account balance itself
  *
- * It would make C8 visible to a user rather than only to a test, and it is left out
- * anyway: naming a control account per ledger requires an org-level setting that
- * this contract has no business inventing while the M3 schema is being written next
- * door, and a nullable "we could not check" field would be worse than the absence —
- * a reconciliation that is sometimes reported is one nobody trusts. OB-071 asserts
- * C8 against the trial balance, which is the oracle the whole milestone is built to
- * agree with, and OB-065 may add the field once an org can nominate the account.
+ * It would make C8 visible to a user rather than only to a test. The setting this
+ * originally waited on now exists — an org nominates its control accounts, see
+ * `orgs/settings.ts` — and the field is still left out, because the remaining half
+ * of the argument survives the setting arriving: an org that has nominated nothing
+ * has no balance to compare against, so the field would be nullable, and a
+ * reconciliation that is sometimes reported is one nobody trusts. OB-071 asserts C8
+ * against the trial balance, which is the oracle the whole milestone is built to
+ * agree with.
  */
 
 /**
@@ -90,7 +91,35 @@ export const agingAmountsSchema = z.strictObject({
 export type AgingAmounts = z.infer<typeof agingAmountsSchema>;
 
 /**
- * One outstanding document, for the drill-through.
+ * Everything a detail row can be: the two documents that carry an amount owed, and
+ * the three things that carry credit against them.
+ *
+ * The credit half is [OB-066a]'s correction to this contract, and the bug it fixes
+ * was arithmetic rather than cosmetic. `agingAmounts.total` has to equal the control
+ * account (C8), which means it nets the unapplied credit a contact is holding —
+ * D-37's payment on account and D-39's unallocated credit note are money already
+ * sitting in the control account. While this enum was the two target types only,
+ * that credit had no representable row, so on any contact holding one the
+ * `documents` array summed to *more* than the `amounts.total` printed above it.
+ *
+ * Netting the credit across the open invoices was the alternative and is refused:
+ * it would invent an allocation nobody made, move money between buckets, and make
+ * this report disagree with the invoice's own outstanding amount everywhere else in
+ * the system — outstanding has exactly one definition, total minus allocations
+ * (D-34). Showing the credit as its own row states what the data actually says.
+ */
+export const AGING_DETAIL_TYPES = [...ALLOCATION_TARGET_TYPES, ...ALLOCATION_SOURCE_TYPES] as const;
+
+export type AgingDetailType = (typeof AGING_DETAIL_TYPES)[number];
+
+export const agingDetailTypeSchema = z.enum(AGING_DETAIL_TYPES).meta({
+  description:
+    'What the row is. `invoice` and `bill` carry an amount owed and are positive; `payment`, ' +
+    '`credit_note` and `vendor_credit` carry unapplied credit and are negative.',
+});
+
+/**
+ * One open item, for the drill-through.
  *
  * `outstanding` is **as at the report's date**, not as at now: it is the document's
  * total less the allocations dated on or before `asOf` (D-40). Using today's
@@ -98,22 +127,39 @@ export type AgingAmounts = z.infer<typeof agingAmountsSchema>;
  * reproduced tomorrow, which D-40 explicitly refuses — and a detail row showing a
  * figure the buckets above it were not computed from is how that mistake gets
  * shipped without anyone noticing.
+ *
+ * On a credit row `total` and `outstanding` are **negative**, matching the sign the
+ * credit contributes to the buckets. The alternative — a positive amount plus a
+ * type the reader must consult to know the sign — makes summing the array a
+ * conditional, and the one property this array now has is that it sums to
+ * `amounts.total`.
+ *
+ * `dueDate` and `daysPastDue` are nullable together and are null on exactly the
+ * credit rows. A credit is allocated, not chased: `0005_subledger` makes `due_date`
+ * NULL on a credit note for that reason, and a payment has no due date to have. A
+ * zero would read as "due today", which is a different and false statement.
  */
 export const agingDocumentSchema = z.strictObject({
-  documentType: z.enum(ALLOCATION_TARGET_TYPES),
+  documentType: agingDetailTypeSchema,
   documentId: z.uuid(),
   documentNumber: z.string(),
   reference: z.string().nullable(),
   issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema,
+  dueDate: calendarDateSchema.nullable(),
   total: minorUnitsSchema,
   outstanding: minorUnitsSchema.meta({
     description:
-      'Total less the allocations dated on or before `asOf`. Computed, never stored (D-34).',
+      'Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). ' +
+      'Negative on a credit row.',
   }),
-  daysPastDue: z.int().meta({
-    description: 'Negative when the document is not yet due. Measured from `dueDate` to `asOf`.',
-  }),
+  daysPastDue: z
+    .int()
+    .nullable()
+    .meta({
+      description:
+        'Negative when the document is not yet due. Measured from `dueDate` to `asOf`, and null ' +
+        'wherever `dueDate` is — a credit is allocated rather than chased.',
+    }),
   bucket: agingBucketSchema,
 });
 
@@ -130,6 +176,11 @@ export type AgingDocument = z.infer<typeof agingDocumentSchema>;
  * matching the convention every response schema here follows: a field that is
  * sometimes missing and sometimes present is two shapes, and under
  * `exactOptionalPropertyTypes` they are two types.
+ *
+ * When it is present, its `outstanding` values sum to `amounts.total` — the credit
+ * rows carry their own sign, which is what `AGING_DETAIL_TYPES` was widened for.
+ * A row is present only while something is outstanding on it, so a settled invoice
+ * and a fully applied payment are both absent and both contribute zero.
  */
 export const agingRowSchema = z.strictObject({
   contactId: z.uuid(),

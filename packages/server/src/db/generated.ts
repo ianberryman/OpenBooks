@@ -310,6 +310,14 @@ export interface JournalSequences {
   updated_at: Generated<Date>;
 }
 
+export interface OrgAccountingSettings {
+  created_at: Generated<Date>;
+  org_id: Buffer;
+  payable_control_account_id: Buffer | null;
+  receivable_control_account_id: Buffer | null;
+  updated_at: Generated<Date>;
+}
+
 export interface OrgInvites {
   accepted_at: Date | null;
   accepted_by_user_id: Buffer | null;
@@ -394,6 +402,7 @@ export interface Sessions {
 }
 
 export interface TaxRates {
+  applies_to: Generated<"both" | "purchases" | "sales">;
   created_at: Generated<Date>;
   id: Buffer;
   is_active: Generated<number>;
@@ -439,6 +448,7 @@ export interface DB {
   journal_lines: JournalLines;
   journal_sequences: JournalSequences;
   journals: Journals;
+  org_accounting_settings: OrgAccountingSettings;
   org_invites: OrgInvites;
   org_members: OrgMembers;
   orgs: Orgs;

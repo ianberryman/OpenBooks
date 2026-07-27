@@ -81,6 +81,26 @@ export interface ChartTemplate {
    * template.
    */
   readonly accounts: readonly ChartTemplateAccount[];
+  /**
+   * Which of this template's own codes are the AR and AP control accounts
+   * (OB-066a).
+   *
+   * Applying the template nominates them in the org's accounting settings, if the
+   * org has nominated nothing yet — which is what makes the path most orgs take
+   * work without a setup step, and what removes the last reason for anything to
+   * resolve a control account by hardcoding `1100`.
+   *
+   * Declared here rather than assumed by `applyChartTemplate`, because a second
+   * template will number its chart differently and the point of D-23 is that a
+   * chart is the org's. A template that nominates nothing sets nothing, which is
+   * the honest answer for a chart with no obvious candidate rather than a guess.
+   * `test/accounts/chart-templates.test.ts` checks each named code is in the
+   * template and is of the type its side requires.
+   */
+  readonly controlAccountCodes: {
+    readonly receivable: string | null;
+    readonly payable: string | null;
+  };
 }
 
 /**
@@ -130,6 +150,7 @@ const GENERAL_SMALL_BUSINESS: ChartTemplate = {
     'receivables, payables and payroll, owner equity, revenue, cost of sales, and operating ' +
     'expenses. Around sixty accounts grouped two levels deep. Delete what you do not need — an ' +
     'account with no postings deletes outright.',
+  controlAccountCodes: { receivable: '1100', payable: '2010' },
   accounts: [
     account('1000', 'Current assets', 'asset', 'debit', null),
     account('1010', 'Business checking', 'asset', 'debit', '1000'),

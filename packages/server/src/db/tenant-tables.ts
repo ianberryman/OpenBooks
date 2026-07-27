@@ -63,6 +63,7 @@ export const TENANT_TABLES = [
   'journal_lines',
   'journal_sequences',
   'journals',
+  'org_accounting_settings',
   'org_invites',
   'org_members',
   'payments',

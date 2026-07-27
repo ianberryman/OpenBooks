@@ -7,8 +7,11 @@ import type {
 import { applyChartTemplateRequestSchema } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
+import type { TenantDatabase } from '../../db';
+import { uuidToBuffer } from '../../db';
 import { ConflictError, InternalError, parseInput } from '../../errors';
 import { requirePermission } from '../permissions';
+import { nominateControlAccountsIfUnset } from '../settings';
 import { createAccount } from './accounts.service';
 import { orgScope, selectExistingCodes } from './accounts.repository';
 import type { ChartTemplate } from './chart-templates';
@@ -155,8 +158,65 @@ export async function applyChartTemplate(
       created.push(account);
     }
 
+    await nominateControlAccounts(trx, template, idsByCode);
+
     return { templateId: template.id, accounts: created };
   });
+}
+
+/**
+ * Points the org's control accounts at the ones this template just created
+ * (OB-066a), unless the org has already nominated its own.
+ *
+ * This is the path most orgs take, and the reason it exists here is that the
+ * alternative is a setup step nobody knows to perform: a template that creates
+ * `Accounts receivable` and leaves the setting empty produces an org whose first
+ * invoice approval is a `receivable_control_account_not_set`, on a chart that
+ * obviously contains the answer.
+ *
+ * It never overwrites. An org that had already chosen its control accounts and then
+ * applied a template would otherwise have its postings silently redirected — which
+ * is the failure the nomination exists to remove, arriving from the other
+ * direction. The settings module makes that the rule rather than this call site.
+ *
+ * No permission check of its own: the caller has already been through
+ * `accounts.write`, and requiring `orgs.write` in addition would make applying a
+ * template need two permissions to describe, so a bookkeeper applying a starter
+ * chart would be refused halfway through it.
+ */
+async function nominateControlAccounts(
+  db: TenantDatabase,
+  template: ChartTemplate,
+  idsByCode: ReadonlyMap<string, string>,
+): Promise<void> {
+  const { receivable, payable } = template.controlAccountCodes;
+
+  await nominateControlAccountsIfUnset(db, {
+    ...(receivable === null ? {} : { receivable: idBytes(template, receivable, idsByCode) }),
+    ...(payable === null ? {} : { payable: idBytes(template, payable, idsByCode) }),
+  });
+}
+
+/**
+ * An `InternalError` and not a refusal, on `resolveParentId`'s reasoning: a template
+ * naming a control account it does not create is a defect in data this repository
+ * ships, and reporting it as the caller's mistake would send someone looking at
+ * their request instead of at the file.
+ */
+function idBytes(
+  template: ChartTemplate,
+  code: string,
+  idsByCode: ReadonlyMap<string, string>,
+): Buffer {
+  const id = idsByCode.get(code);
+  if (id === undefined) {
+    throw new InternalError(
+      `Chart template ${JSON.stringify(template.id)} names ${JSON.stringify(code)} as a control ` +
+        'account, and the template does not create an account with that code.',
+    );
+  }
+
+  return uuidToBuffer(id);
 }
 
 /**
