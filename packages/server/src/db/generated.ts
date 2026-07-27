@@ -48,6 +48,44 @@ export interface ApiKeys {
   role_id: Buffer;
 }
 
+export interface Contacts {
+  code: string | null;
+  created_at: Generated<Date>;
+  display_name: string;
+  email: string | null;
+  id: Buffer;
+  is_active: Generated<number>;
+  is_customer: Generated<number>;
+  is_vendor: Generated<number>;
+  legal_name: string | null;
+  notes: string | null;
+  org_id: Buffer;
+  phone: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface Dimensions {
+  code: string;
+  created_at: Generated<Date>;
+  description: string | null;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface DimensionValues {
+  code: string;
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface FiscalPeriods {
   closed_at: Date | null;
   closed_by_user_id: Buffer | null;
@@ -75,8 +113,52 @@ export interface IdempotencyKeys {
   response_status: number | null;
 }
 
+export interface JournalDraftLineDimensions {
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  dimension_value_id: Buffer;
+  draft_line_id: bigint;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface JournalDraftLines {
+  account_id: Buffer | null;
+  contact_id: Buffer | null;
+  created_at: Generated<Date>;
+  credit_minor: bigint;
+  debit_minor: bigint;
+  draft_id: Buffer;
+  id: Generated<bigint>;
+  line_number: number;
+  memo: string | null;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface JournalDrafts {
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  entry_date: string | null;
+  id: Buffer;
+  memo: string | null;
+  org_id: Buffer;
+  reference: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface JournalLineDimensions {
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  dimension_value_id: Buffer;
+  journal_line_id: bigint;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface JournalLines {
   account_id: Buffer;
+  contact_id: Buffer | null;
   created_at: Generated<Date>;
   credit_minor: bigint;
   debit_minor: bigint;
@@ -188,8 +270,15 @@ export interface Users {
 export interface DB {
   accounts: Accounts;
   api_keys: ApiKeys;
+  contacts: Contacts;
+  dimension_values: DimensionValues;
+  dimensions: Dimensions;
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
+  journal_draft_line_dimensions: JournalDraftLineDimensions;
+  journal_draft_lines: JournalDraftLines;
+  journal_drafts: JournalDrafts;
+  journal_line_dimensions: JournalLineDimensions;
   journal_lines: JournalLines;
   journal_sequences: JournalSequences;
   journals: Journals;

@@ -12,5 +12,13 @@
 
 export { postJournal, reverseJournal, postingService } from './posting.service';
 
+/**
+ * Reading the ledger, keyset-paginated over `(entry_date, sequence_number)` — the
+ * list D-21 was decided for, and the use D-14's sequence number was partly created
+ * to serve. See `journal-list.service.ts` for why a back-dated entry is what
+ * breaks an offset implementation.
+ */
+export { listJournals } from './journal-list.service';
+
 export { getTrialBalance } from './trial-balance.service';
 export type { TrialBalance, TrialBalanceQuery, TrialBalanceRow } from './trial-balance.service';

@@ -46,6 +46,11 @@ x-app-env: &app-env
   DATABASE_PASSWORD: ${DATABASE_PASSWORD:-change-me-app}
   SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me-0123456789abcdef0123456789abcdef}
   SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+  # Both unset by default: the Compose stack is same-origin and needs no CORS
+  # layer. They are declared here as a pair because the config module refuses a
+  # CORS allowlist without a cookie domain covering it — see .env.example.
+  SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:-}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
   QUEUE_PROVIDER: ${QUEUE_PROVIDER:-in-process}
   STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
   SECRETS_PROVIDER: ${SECRETS_PROVIDER:-env}

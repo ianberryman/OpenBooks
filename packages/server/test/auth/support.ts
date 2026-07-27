@@ -66,18 +66,53 @@ export function runAsIdentity<T>(identity: ResolvedIdentity, fn: () => Promise<T
   return runInContext(contextFor(identity), fn);
 }
 
-/** The pre-auth scope: what a request with no credentials runs in. */
-export function runUnauthenticated<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * The same, carrying an `Idempotency-Key`.
+ *
+ * Separate rather than an optional argument on `runAsIdentity`, so a suite that is not
+ * about idempotency cannot accidentally establish a claim — `withGlobalIdempotency`
+ * reads the key from context and a stray one would guard a write silently.
+ */
+export function runAsIdentityWithKey<T>(
+  identity: ResolvedIdentity,
+  idempotencyKey: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   return runInContext(
     createRequestContext({
-      orgId: UNAUTHENTICATED_ID,
-      roleId: UNAUTHENTICATED_ID,
-      userId: null,
-      actorType: 'user',
-      actorId: UNAUTHENTICATED_ID,
+      orgId: identity.orgId,
+      roleId: identity.roleId,
+      userId: identity.userId,
+      actorType: identity.actorType,
+      actorId: identity.actorId,
+      idempotencyKey,
     }),
     fn,
   );
+}
+
+/** The pre-auth scope: what a request with no credentials runs in. */
+export function runUnauthenticated<T>(fn: () => Promise<T>): Promise<T> {
+  return runInContext(preAuthContext(null), fn);
+}
+
+/** The pre-auth scope a register or login request arrives in, with its key. */
+export function runUnauthenticatedWithKey<T>(
+  idempotencyKey: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return runInContext(preAuthContext(idempotencyKey), fn);
+}
+
+function preAuthContext(idempotencyKey: string | null): RequestContext {
+  return createRequestContext({
+    orgId: UNAUTHENTICATED_ID,
+    roleId: UNAUTHENTICATED_ID,
+    userId: null,
+    actorType: 'user',
+    actorId: UNAUTHENTICATED_ID,
+    idempotencyKey,
+  });
 }
 
 /** A password that satisfies the registration policy. */

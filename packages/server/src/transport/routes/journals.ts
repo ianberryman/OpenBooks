@@ -1,27 +1,33 @@
 import type { PostedJournal } from '@openbooks/plugin-api';
 import {
+  PAGE_SIZE_DEFAULT,
+  PAGE_SIZE_MAX,
   fromMinorString,
+  journalPageSchema,
+  pageCursorSchema,
   postedJournalSchema,
   postJournalRequestSchema,
   reverseJournalRequestSchema,
 } from '@openbooks/shared-types';
-import type { PostedJournalResponse } from '@openbooks/shared-types';
+import type { JournalPage, PostedJournalResponse } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import { withIdempotency } from '../../modules/idempotency';
-import { postJournal, reverseJournal } from '../../modules/ledger';
+import { listJournals, postJournal, reverseJournal } from '../../modules/ledger';
 import type { App } from '../types';
 import {
   ERROR_RESPONSES,
   ORG_SCOPED_WRITE_HOOKS,
   idempotencyKeyHeaderSchema,
   idempotentBody,
+  requireOrgScope,
 } from './support';
 
 /**
- * `/v1/journals` — the two operations that write the ledger (spec §7). This is the
- * route acceptance **A1** runs through.
+ * `/v1/journals` — the two operations that write the ledger, and the paginated read
+ * over what they wrote (spec §7). The post route is what acceptance **A1** runs
+ * through.
  *
  * ## Money crosses this boundary as a string and is converted here
  *
@@ -61,7 +67,58 @@ const TAG = 'journals';
 
 const journalParamsSchema = z.strictObject({ journalId: z.uuid() });
 
+/**
+ * Local and carrying no `id`, like the accounts list query: a querystring is
+ * emitted as individual `parameters`, so a component for the object would be
+ * referenced by nothing. The coercion is here because this is the only layer that
+ * knows the value arrived as text.
+ */
+const listJournalsWireQuerySchema = z.strictObject({
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(PAGE_SIZE_MAX)
+    .default(PAGE_SIZE_DEFAULT)
+    .meta({
+      description:
+        'How many journals to return, at most. Over the maximum is refused rather than clamped, ' +
+        'so a short page always means the list is short.',
+    }),
+  cursor: pageCursorSchema.optional(),
+});
+
 export function registerJournalRoutes(app: App): void {
+  /**
+   * The read side of the ledger, and the reason D-21 exists.
+   *
+   * `requireOrgScope` and no `Idempotency-Key`: this writes nothing, and requiring
+   * a key on a read would make a cached GET impossible to express.
+   */
+  app.get(
+    '/v1/journals',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'listJournals',
+        summary: 'List posted journals',
+        description:
+          'One page, oldest first by entry date and then by the org’s own entry number — the ' +
+          'ordering `sequence_number` exists to make total (ROADMAP D-14). Send back ' +
+          '`nextCursor` verbatim for the next page. Because the cursor names the last row seen ' +
+          'rather than a count of rows behind it, an entry posted — or back-dated — while you ' +
+          'page cannot cause a journal to be skipped or returned twice.',
+        tags: [TAG],
+        querystring: listJournalsWireQuerySchema,
+        response: { 200: journalPageSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<JournalPage> => {
+      const { limit, cursor } = request.query;
+      return listJournals({ limit, ...(cursor === undefined ? {} : { cursor }) }, getContext());
+    },
+  );
+
   app.post(
     '/v1/journals',
     {

@@ -1,4 +1,4 @@
-import type { CreateAccountRequest } from '@openbooks/shared-types';
+import type { CreateAccountRequest, UpdateAccountRequest } from '@openbooks/shared-types';
 import { describe, expect, it } from 'vitest';
 
 import { bufferToUuid, newUuidBuffer, uuidToBuffer } from '../../src/db';
@@ -61,7 +61,7 @@ describe('accounts service', () => {
       expect(fetched).toEqual(created);
 
       const listed = await listAccounts({}, actor.ctx);
-      expect(listed.accounts).toEqual([created]);
+      expect(listed.items).toEqual([created]);
     });
 
     it('applies a partial update and leaves absent fields alone', async () => {
@@ -98,6 +98,13 @@ describe('accounts service', () => {
       expect(created.code).toBe('2000');
     });
 
+    /**
+     * By `code` since D-27, and the accounts are deliberately created out of code
+     * order so the assertion is about the ordering rather than about insertion.
+     * Nothing is stamped: the ordering columns are `code` and `id`, neither of
+     * which has anything to do with the clock, which is the ergonomic half of
+     * making the code immutable.
+     */
     it('orders a list by code and filters by type and active flag', async () => {
       const actor = await actorIn(db);
 
@@ -113,16 +120,17 @@ describe('accounts service', () => {
       await deactivateAccount(retired.id, actor.ctx);
 
       const all = await listAccounts({}, actor.ctx);
-      expect(all.accounts.map((account) => account.code)).toEqual(['1000', '1100', '4000']);
+      expect(all.items.map((account) => account.code)).toEqual(['1000', '1100', '4000']);
+      expect(all.nextCursor).toBeNull();
 
       const assets = await listAccounts({ type: 'asset' }, actor.ctx);
-      expect(assets.accounts.map((account) => account.id)).toEqual([cash.id, retired.id]);
+      expect(assets.items.map((account) => account.id)).toEqual([cash.id, retired.id]);
 
       const active = await listAccounts({ isActive: true }, actor.ctx);
-      expect(active.accounts.map((account) => account.id)).toEqual([cash.id, revenue.id]);
+      expect(active.items.map((account) => account.id)).toEqual([cash.id, revenue.id]);
 
       const inactive = await listAccounts({ isActive: false }, actor.ctx);
-      expect(inactive.accounts.map((account) => account.id)).toEqual([retired.id]);
+      expect(inactive.items.map((account) => account.id)).toEqual([retired.id]);
     });
 
     it('lists only the caller org’s accounts', async () => {
@@ -133,7 +141,7 @@ describe('accounts service', () => {
       await createAccount(CASH, theirs.ctx);
 
       const listed = await listAccounts({}, mine.ctx);
-      expect(listed.accounts).toHaveLength(1);
+      expect(listed.items).toHaveLength(1);
     });
   });
 
@@ -210,7 +218,16 @@ describe('accounts service', () => {
       ).rejects.toBeInstanceOf(ConflictError);
     });
 
-    it('is a ConflictError when an update collides', async () => {
+    /**
+     * D-27, at the service rather than at the schema.
+     *
+     * `test/accounts/schemas.test.ts` asserts that the field is rejected by name;
+     * this asserts the consequence a caller cares about — the stored code does not
+     * change — and it is here because the M1 test it replaces asserted the
+     * opposite. A code collision on update was a `ConflictError` then, and the way
+     * that failure is now unreachable is that the operation does not exist.
+     */
+    it('refuses a code change outright rather than resolving a collision', async () => {
       const actor = await actorIn(db);
       await createAccount(CASH, actor.ctx);
       const other = await createAccount(
@@ -218,9 +235,24 @@ describe('accounts service', () => {
         actor.ctx,
       );
 
-      await expect(updateAccount(other.id, { code: '1000' }, actor.ctx)).rejects.toBeInstanceOf(
-        ConflictError,
+      const patch = { code: '1000' } as unknown as UpdateAccountRequest;
+      const error = await updateAccount(other.id, patch, actor.ctx).catch(
+        (caught: unknown) => caught,
       );
+
+      expect(error).toBeInstanceOf(ValidationError);
+      expect(toWireError(error)).toMatchObject({
+        code: 'validation_failed',
+        details: { issues: [{ path: 'code' }] },
+      });
+
+      // A free code, not just a taken one: the refusal is about the field, not
+      // about the collision.
+      await expect(
+        updateAccount(other.id, { code: '3000' } as unknown as UpdateAccountRequest, actor.ctx),
+      ).rejects.toBeInstanceOf(ValidationError);
+
+      expect((await getAccount(other.id, actor.ctx)).code).toBe('2000');
     });
   });
 
@@ -232,7 +264,7 @@ describe('accounts service', () => {
       await deleteAccount(created.id, actor.ctx);
 
       await expect(getAccount(created.id, actor.ctx)).rejects.toBeInstanceOf(NotFoundError);
-      expect((await listAccounts({}, actor.ctx)).accounts).toEqual([]);
+      expect((await listAccounts({}, actor.ctx)).items).toEqual([]);
     });
 
     it('refuses to delete an account with postings, and deactivates it instead', async () => {
@@ -416,7 +448,7 @@ describe('accounts service', () => {
       const readerCtx = contextFor(owner.orgUuid, SYSTEM_ROLE_UUIDS.readOnly, readerUser.uuid);
 
       expect(await getAccount(created.id, readerCtx)).toEqual(created);
-      expect((await listAccounts({}, readerCtx)).accounts).toEqual([created]);
+      expect((await listAccounts({}, readerCtx)).items).toEqual([created]);
     });
 
     /**

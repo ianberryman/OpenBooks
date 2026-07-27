@@ -1,9 +1,13 @@
+import type { Kysely } from 'kysely';
+
 import { getContext } from '../../context';
-import type { TenantDatabase } from '../../db';
-import { tenantDb } from '../../db';
+import type { DB, TenantDatabase } from '../../db';
+import { systemDb, tenantDb } from '../../db';
 import type { JsonValue } from '../../errors';
 import { IdempotencyKeyConflictError, InternalError, ValidationError } from '../../errors';
-import { requestFingerprint } from './fingerprint';
+import type { ClaimStore, NewClaim } from './claims';
+import { globalClaims, orgClaims } from './claims';
+import { globalRequestFingerprint, requestFingerprint } from './fingerprint';
 import { newIdBuffer, uuidToBuffer } from './ids';
 import { normalizeResponseBody, readStoredResponseBody, serializeResponseBody } from './response';
 
@@ -32,6 +36,20 @@ import { normalizeResponseBody, readStoredResponseBody, serializeResponseBody } 
  * the response commit together in one transaction. `settleExistingClaim` treats a
  * committed-but-incomplete row as a fault rather than as a state to wait on, and
  * that is why there is nothing to poll and no lease to expire.
+ *
+ * ## Two namespaces (OB-028)
+ *
+ * Everything above holds for an org-less claim too, because the serialization is
+ * `uq_idempotency_scope_key` and `claim_scope` is the sentinel for those rows rather
+ * than a NULL. What differs is only *how the row is addressed*, which is `claims.ts`
+ * and nowhere else, and *what makes two requests the same*, which for a shared
+ * namespace has to include the caller — see `globalRequestFingerprint`.
+ *
+ * The five endpoints that need it are register, login, logout, create-org, and
+ * switch-org: the first two predate any org, the third may run with a session whose
+ * org is already gone, and the last two would otherwise record the claim against the
+ * org being created or the org being left. Until OB-028 they accepted an
+ * `Idempotency-Key` and ignored it, which is worse than not accepting one.
  *
  * Nothing here locks a journal row, and nothing can: the app user holds no
  * `UPDATE`/`DELETE` on `journals`, and MySQL requires one of those alongside
@@ -105,6 +123,17 @@ export interface IdempotencySpec {
  */
 export type IdempotentOperation = (db: TenantDatabase) => Promise<unknown>;
 
+/**
+ * The guarded write for an org-less claim.
+ *
+ * It takes nothing, and that is the whole difference: there is no org, so there is
+ * no scoped handle to hand over and no seam for a caller to get wrong. The write
+ * joins the claim's transaction ambiently — `systemDb()` inside `register` or
+ * `createOrg` returns it (`src/db/transaction-scope.ts`), which is what makes the
+ * claim and the write commit together.
+ */
+export type GlobalIdempotentOperation = () => Promise<unknown>;
+
 export type IdempotentOutcome = 'executed' | 'replayed';
 
 export interface IdempotentResult {
@@ -170,28 +199,38 @@ export async function withIdempotency(
   // AsyncLocalStorage scope, because an async body runs synchronously up to its first
   // `await`.
   const context = getContext('withIdempotency()');
-  const key = context.idempotencyKey;
-
-  // `RouteDefinition.requiresIdempotencyKey` declares the requirement and this
-  // enforces it, exactly as plugin-api's `OperationContext` comment says. A 400
-  // rather than a silent unguarded write: spec §12 requires the key on every write
-  // endpoint, so a request without one has not asked for what the endpoint offers.
-  if (key === null) {
-    throw new ValidationError('This operation requires an Idempotency-Key.', [
-      {
-        path: 'Idempotency-Key',
-        message:
-          'Required on every write. Send one unique value per logical request and reuse it ' +
-          'verbatim when retrying.',
-      },
-    ]);
-  }
+  const key = requireIdempotencyKey(context.idempotencyKey);
 
   return await runIdempotent(tenantDb(uuidToBuffer(context.orgId)), key, spec, operation, options);
 }
 
 /**
- * The core, with every dependency explicit.
+ * The org-less entry point (OB-028): the same guarantee for a write that has no org
+ * to claim against.
+ *
+ * A separate function rather than a flag on `IdempotencySpec`, because the choice of
+ * namespace is a property of the operation and is settled at the call site once. A
+ * flag would default one way, and the direction it defaults is the direction it gets
+ * forgotten in — an org write that quietly claimed globally would share a namespace
+ * with every tenant.
+ *
+ * The principal is the caller's `userId`, read here for the same reason the org is:
+ * spec §4 keeps scope out of parameters. It is null for register and login, which
+ * run before there is a caller to name.
+ */
+export async function withGlobalIdempotency(
+  spec: IdempotencySpec,
+  operation: GlobalIdempotentOperation,
+  options?: IdempotencyOptions,
+): Promise<IdempotentResult> {
+  const context = getContext('withGlobalIdempotency()');
+  const key = requireIdempotencyKey(context.idempotencyKey);
+
+  return await runGlobalIdempotent(systemDb(), context.userId, key, spec, operation, options);
+}
+
+/**
+ * The core for an org claim, with every dependency explicit.
  *
  * Split from `withIdempotency` the way `createLogger` is split from `getLogger`: the
  * ambient resolution is one small function and the behaviour under test takes its
@@ -206,6 +245,51 @@ export async function runIdempotent(
   operation: IdempotentOperation,
   options?: IdempotencyOptions,
 ): Promise<IdempotentResult> {
+  return runClaimed(
+    orgClaims(db),
+    key,
+    requestFingerprint(spec.endpoint, spec.request),
+    spec,
+    operation,
+    options,
+  );
+}
+
+/** The same core for a global claim. Split from `withGlobalIdempotency` for the same reason. */
+export async function runGlobalIdempotent(
+  db: Kysely<DB>,
+  principal: string | null,
+  key: string,
+  spec: IdempotencySpec,
+  operation: GlobalIdempotentOperation,
+  options?: IdempotencyOptions,
+): Promise<IdempotentResult> {
+  return runClaimed(
+    globalClaims(db),
+    key,
+    globalRequestFingerprint(principal, spec.endpoint, spec.request),
+    spec,
+    operation,
+    options,
+  );
+}
+
+/**
+ * The claim protocol, stated once for both namespaces.
+ *
+ * The fingerprint arrives already computed, because it is the one thing the two
+ * namespaces genuinely disagree about; everything below — the fast path, the
+ * transaction, the insert race, the retry bound — is identical, and it has to stay
+ * identical or A8 holds for one namespace and not the other.
+ */
+async function runClaimed<H>(
+  store: ClaimStore<H>,
+  key: string,
+  fingerprint: string,
+  spec: IdempotencySpec,
+  operation: (handle: H) => Promise<unknown>,
+  options?: IdempotencyOptions,
+): Promise<IdempotentResult> {
   const clock = options?.clock ?? defaultClock;
   const retentionMs = options?.retentionMs ?? IDEMPOTENCY_RETENTION_MS;
   const status = spec.successStatus ?? DEFAULT_SUCCESS_STATUS;
@@ -213,19 +297,17 @@ export async function runIdempotent(
   assertUsableKey(key);
   assertUsableStatus(status);
 
-  const fingerprint = requestFingerprint(spec.endpoint, spec.request);
-
   for (let attempt = 1; attempt <= MAX_CLAIM_ATTEMPTS; attempt += 1) {
     // Fast path. A retry that arrives after the original completed is the common
     // case by a wide margin, and answering it costs one indexed read instead of a
     // transaction opened only to be rolled back by the duplicate insert. Racing this
     // read is harmless: it can only miss a row, and the `INSERT` below is the
     // authority on whether the key is free.
-    const replay = await settleExistingClaim(db, key, fingerprint, clock());
+    const replay = await settleExistingClaim(store, key, fingerprint, clock());
     if (replay !== undefined) return replay;
 
     try {
-      return await db.transaction(async (trx) => {
+      return await store.transaction(async (trx) => {
         const claimId = newIdBuffer();
         const claimedAt = clock();
 
@@ -237,7 +319,7 @@ export async function runIdempotent(
           expiresAt: new Date(claimedAt.getTime() + retentionMs),
         });
 
-        const body = normalizeResponseBody(await operation(trx));
+        const body = normalizeResponseBody(await operation(trx.handle));
         await completeClaim(trx, claimId, status, body, clock());
 
         return { outcome: 'executed', status, body };
@@ -254,6 +336,26 @@ export async function runIdempotent(
       'the insert race and then found no committed claim, which means the winner rolled back ' +
       'every time — the guarded operation is failing, not the claim.',
   );
+}
+
+/**
+ * `RouteDefinition.requiresIdempotencyKey` declares the requirement and this
+ * enforces it, exactly as plugin-api's `OperationContext` comment says. A 400 rather
+ * than a silent unguarded write: spec §12 requires the key on every write endpoint,
+ * so a request without one has not asked for what the endpoint offers.
+ */
+function requireIdempotencyKey(key: string | null): string {
+  if (key === null) {
+    throw new ValidationError('This operation requires an Idempotency-Key.', [
+      {
+        path: 'Idempotency-Key',
+        message:
+          'Required on every write. Send one unique value per logical request and reuse it ' +
+          'verbatim when retrying.',
+      },
+    ]);
+  }
+  return key;
 }
 
 /**
@@ -275,18 +377,31 @@ export async function purgeExpiredIdempotencyKeys(
   db: TenantDatabase,
   options?: PurgeOptions,
 ): Promise<number> {
+  return purgeStore(orgClaims(db), options);
+}
+
+/**
+ * The same, for the org-less namespace (OB-028).
+ *
+ * A second function rather than a parameter, because it is called a different number
+ * of times: the org sweep runs once per org inside the worker's `runInDerivedContext`
+ * loop, and this runs **once** per sweep — there is no org to derive a scope from, and
+ * calling it per org would delete the same rows N times over.
+ */
+export async function purgeExpiredGlobalIdempotencyKeys(
+  db: Kysely<DB>,
+  options?: PurgeOptions,
+): Promise<number> {
+  return purgeStore(globalClaims(db), options);
+}
+
+async function purgeStore<H>(store: ClaimStore<H>, options?: PurgeOptions): Promise<number> {
   const now = (options?.clock ?? defaultClock)();
   const batchSize = options?.batchSize ?? DEFAULT_PURGE_BATCH_SIZE;
   let purged = 0;
 
   for (;;) {
-    const results = await db
-      .deleteFrom('idempotency_keys')
-      .where('expires_at', '<=', now)
-      .limit(batchSize)
-      .execute();
-
-    const deleted = Number(results[0]?.numDeletedRows ?? 0n);
+    const deleted = await store.purgeExpired(now, batchSize);
     purged += deleted;
     if (deleted < batchSize) return purged;
   }
@@ -305,27 +420,13 @@ function defaultClock(): Date {
  * check-then-act to protect, because the acting is done by the unique index in
  * `insertClaim`.
  */
-async function settleExistingClaim(
-  db: TenantDatabase,
+async function settleExistingClaim<H>(
+  store: ClaimStore<H>,
   key: string,
   fingerprint: string,
   now: Date,
 ): Promise<IdempotentResult | undefined> {
-  const row = await db
-    .selectFrom('idempotency_keys')
-    .select([
-      'id',
-      'request_fingerprint',
-      'response_status',
-      'response_body',
-      'completed_at',
-      'expires_at',
-    ])
-    // The unique index is `(org_id, idempotency_key)` and the wrapper has already
-    // added `org_id`, so this is one index lookup. It is also why the same key in
-    // two orgs is two independent claims.
-    .where('idempotency_key', '=', key)
-    .executeTakeFirst();
+  const row = await store.find(key);
 
   if (row === undefined) return undefined;
 
@@ -340,7 +441,7 @@ async function settleExistingClaim(
   // `IDEMPOTENCY_RETENTION_MS` is chosen against client retry horizons rather than
   // against disk.
   if (row.expires_at.getTime() <= now.getTime()) {
-    await db.deleteFrom('idempotency_keys').where('id', '=', row.id).execute();
+    await store.discard(row.id);
     return undefined;
   }
 
@@ -366,26 +467,9 @@ async function settleExistingClaim(
   };
 }
 
-interface ClaimRow {
-  readonly id: Buffer;
-  readonly key: string;
-  readonly endpoint: string;
-  readonly fingerprint: string;
-  readonly expiresAt: Date;
-}
-
-async function insertClaim(db: TenantDatabase, row: ClaimRow): Promise<void> {
+async function insertClaim<H>(store: ClaimStore<H>, row: NewClaim): Promise<void> {
   try {
-    await db
-      .insertInto('idempotency_keys')
-      .values({
-        id: row.id,
-        idempotency_key: row.key,
-        endpoint: row.endpoint,
-        request_fingerprint: row.fingerprint,
-        expires_at: row.expiresAt,
-      })
-      .execute();
+    await store.insert(row);
   } catch (error) {
     // Under contention this statement *blocked* until the holder committed, which is
     // where the serialization happens. Two other outcomes are possible and both are
@@ -396,28 +480,20 @@ async function insertClaim(db: TenantDatabase, row: ClaimRow): Promise<void> {
   }
 }
 
-async function completeClaim(
-  db: TenantDatabase,
+async function completeClaim<H>(
+  store: ClaimStore<H>,
   id: Buffer,
   status: number,
   body: JsonValue,
   completedAt: Date,
 ): Promise<void> {
-  const results = await db
-    .updateTable('idempotency_keys')
-    .set({
-      response_status: status,
-      response_body: serializeResponseBody(body),
-      completed_at: completedAt,
-    })
-    .where('id', '=', id)
-    .execute();
+  const updated = await store.complete(id, status, serializeResponseBody(body), completedAt);
 
   // Zero rows would commit a claim with no response — the one state
   // `settleExistingClaim` declares unreachable, and `chk_idempotency_completion`
   // permits it (both columns NULL is a valid *unclaimed* row). Cheap to assert, and
   // it fails the write rather than leaving a key that replays nothing.
-  if (Number(results[0]?.numUpdatedRows ?? 0n) === 0) {
+  if (updated === 0) {
     throw new InternalError('The idempotency claim inserted by this transaction disappeared.');
   }
 }

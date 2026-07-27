@@ -51,6 +51,19 @@
             ],
             "type": "string"
           },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
             "enum": [
@@ -74,6 +87,7 @@
           "name",
           "type",
           "normalBalance",
+          "parentAccountId",
           "description",
           "isActive",
           "createdAt",
@@ -131,6 +145,19 @@
             ],
             "type": "string"
           },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
             "enum": [
@@ -154,6 +181,7 @@
           "name",
           "type",
           "normalBalance",
+          "parentAccountId",
           "description",
           "isActive",
           "createdAt",
@@ -161,35 +189,59 @@
         ],
         "type": "object"
       },
-      "AccountList": {
+      "AccountPage": {
         "additionalProperties": false,
-        "description": "The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart.",
+        "description": "One page of the org’s chart of accounts, ordered by `code`. Comparison follows the column’s `utf8mb4_0900_ai_ci` collation, so it is case-insensitive and textual — `1100` sorts before `900`. Codes are immutable, which is what makes a cursor into this list stable while accounts are being created and edited.",
         "properties": {
-          "accounts": {
+          "items": {
             "items": {
               "$ref": "#/components/schemas/Account"
             },
             "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
           }
         },
         "required": [
-          "accounts"
+          "items",
+          "nextCursor"
         ],
         "type": "object"
       },
-      "AccountListInput": {
+      "AccountPageInput": {
         "additionalProperties": false,
-        "description": "The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart.",
+        "description": "One page of the org’s chart of accounts, ordered by `code`. Comparison follows the column’s `utf8mb4_0900_ai_ci` collation, so it is case-insensitive and textual — `1100` sorts before `900`. Codes are immutable, which is what makes a cursor into this list stable while accounts are being created and edited.",
         "properties": {
-          "accounts": {
+          "items": {
             "items": {
               "$ref": "#/components/schemas/AccountInput"
             },
             "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
           }
         },
         "required": [
-          "accounts"
+          "items",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -257,9 +309,89 @@
         "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
         "type": "string"
       },
+      "CallerIdentity": {
+        "additionalProperties": false,
+        "description": "The caller, their organizations, the active one, and the permission codes their role carries there. `permissions` is advisory — it is what a screen hides affordances with, never what authorizes an operation, which every service checks for itself.",
+        "properties": {
+          "activeOrgId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembership"
+            },
+            "type": "array"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUser"
+          }
+        },
+        "required": [
+          "user",
+          "memberships",
+          "activeOrgId",
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "CallerIdentityInput": {
+        "additionalProperties": false,
+        "description": "The caller, their organizations, the active one, and the permission codes their role carries there. `permissions` is advisory — it is what a screen hides affordances with, never what authorizes an operation, which every service checks for itself.",
+        "properties": {
+          "activeOrgId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembershipInput"
+            },
+            "type": "array"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthenticatedUserInput"
+          }
+        },
+        "required": [
+          "user",
+          "memberships",
+          "activeOrgId",
+          "permissions"
+        ],
+        "type": "object"
+      },
       "CreateAccountRequest": {
         "additionalProperties": false,
-        "description": "Creates one account. Accounts are created active.",
+        "description": "Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given.",
         "properties": {
           "code": {
             "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
@@ -292,6 +424,19 @@
               "credit"
             ],
             "type": "string"
+          },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
@@ -315,7 +460,7 @@
       },
       "CreateAccountRequestInput": {
         "additionalProperties": false,
-        "description": "Creates one account. Accounts are created active.",
+        "description": "Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given.",
         "properties": {
           "code": {
             "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
@@ -348,6 +493,19 @@
               "credit"
             ],
             "type": "string"
+          },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
@@ -935,6 +1093,214 @@
         ],
         "type": "object"
       },
+      "JournalPage": {
+        "additionalProperties": false,
+        "description": "One page of posted journals, oldest first by entry date and then by the org’s entry number. Both ordering columns are immutable, so a cursor into this list stays exact while entries — including back-dated ones — are being posted.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JournalSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "JournalPageInput": {
+        "additionalProperties": false,
+        "description": "One page of posted journals, oldest first by entry date and then by the org’s entry number. Both ordering columns are immutable, so a cursor into this list stays exact while entries — including back-dated ones — are being posted.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JournalSummaryInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "JournalSummary": {
+        "additionalProperties": false,
+        "description": "One posted journal, without its lines.",
+        "properties": {
+          "actorId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postedAt": {
+            "description": "When the journal was written. An instant, not an accounting date.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reversesJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02)."
+          },
+          "sequenceNumber": {
+            "description": "The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total.",
+            "type": "string"
+          },
+          "source": {
+            "description": "`manual` for an entry a person posted, `reversal` for one posted by reversing.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "journalId",
+          "sequenceNumber",
+          "date",
+          "memo",
+          "source",
+          "postedAt",
+          "actorType",
+          "actorId",
+          "reversesJournalId"
+        ],
+        "type": "object"
+      },
+      "JournalSummaryInput": {
+        "additionalProperties": false,
+        "description": "One posted journal, without its lines.",
+        "properties": {
+          "actorId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postedAt": {
+            "description": "When the journal was written. An instant, not an accounting date.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reversesJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02)."
+          },
+          "sequenceNumber": {
+            "description": "The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total.",
+            "type": "string"
+          },
+          "source": {
+            "description": "`manual` for an entry a person posted, `reversal` for one posted by reversing.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "journalId",
+          "sequenceNumber",
+          "date",
+          "memo",
+          "source",
+          "postedAt",
+          "actorType",
+          "actorId",
+          "reversesJournalId"
+        ],
+        "type": "object"
+      },
       "LoginRequest": {
         "additionalProperties": false,
         "description": "Exchanges a password for a session cookie. Reachable without credentials. Every failure answers `unauthenticated` with no detail — a wrong password and an unknown address are indistinguishable by design.",
@@ -1126,6 +1492,18 @@
           "fiscalYearStartMonth"
         ],
         "type": "object"
+      },
+      "PageCursor": {
+        "description": "An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change.",
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+      },
+      "PageCursorInput": {
+        "description": "An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change.",
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
       },
       "PostJournalRequest": {
         "additionalProperties": false,
@@ -1761,14 +2139,8 @@
       },
       "UpdateAccountRequest": {
         "additionalProperties": false,
-        "description": "Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings.",
+        "description": "Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings.",
         "properties": {
-          "code": {
-            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
-            "maxLength": 32,
-            "minLength": 1,
-            "type": "string"
-          },
           "description": {
             "anyOf": [
               {
@@ -1794,6 +2166,19 @@
               "credit"
             ],
             "type": "string"
+          },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
@@ -1811,14 +2196,8 @@
       },
       "UpdateAccountRequestInput": {
         "additionalProperties": false,
-        "description": "Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings.",
+        "description": "Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings.",
         "properties": {
-          "code": {
-            "description": "Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed.",
-            "maxLength": 32,
-            "minLength": 1,
-            "type": "string"
-          },
           "description": {
             "anyOf": [
               {
@@ -1844,6 +2223,19 @@
               "credit"
             ],
             "type": "string"
+          },
+          "parentAccountId": {
+            "anyOf": [
+              {
+                "description": "The account this one rolls up into, or `null` for a top-level account. A parent must share this account’s `type`, must not be this account or any of its descendants, and the resulting tree may be at most 6 generations deep. An unknown or another organization’s id is a `not_found`, not a validation failure.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "type": {
             "description": "Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.",
@@ -1919,6 +2311,7 @@
     },
     "/v1/accounts": {
       "get": {
+        "description": "One page, in `code` order — case-insensitive, so `1100` precedes `900`. Send back `nextCursor` verbatim for the next page; `null` means this was the last. Paging is safe against a cursor because `code` is immutable once an account exists (ROADMAP D-27): a sort column that could change would silently drop the rows that moved behind the cursor.",
         "operationId": "listAccounts",
         "parameters": [
           {
@@ -1944,6 +2337,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "How many accounts to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
           }
         ],
         "responses": {
@@ -1951,7 +2364,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AccountList"
+                  "$ref": "#/components/schemas/AccountPage"
                 }
               }
             },
@@ -2377,14 +2790,14 @@
     },
     "/v1/auth/me": {
       "get": {
-        "description": "Answers for any live session, including one whose user is a member of no organization — `activeOrgId` is then null.",
+        "description": "Answers for any live session, including one whose user is a member of no organization — `activeOrgId` is then null and `permissions` is empty. `permissions` is advisory: it is what a screen hides buttons with, never what authorizes an operation (ROADMAP D-25).",
         "operationId": "getCurrentIdentity",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Identity"
+                  "$ref": "#/components/schemas/CallerIdentity"
                 }
               }
             },
@@ -2401,7 +2814,7 @@
             "description": "Default Response"
           }
         },
-        "summary": "The caller, their organizations, and the active one",
+        "summary": "The caller, their organizations, the active one, and what they may do in it",
         "tags": [
           "auth"
         ]
@@ -2722,6 +3135,58 @@
       }
     },
     "/v1/journals": {
+      "get": {
+        "description": "One page, oldest first by entry date and then by the org’s own entry number — the ordering `sequence_number` exists to make total (ROADMAP D-14). Send back `nextCursor` verbatim for the next page. Because the cursor names the last row seen rather than a count of rows behind it, an entry posted — or back-dated — while you page cannot cause a journal to be skipped or returned twice.",
+        "operationId": "listJournals",
+        "parameters": [
+          {
+            "description": "How many journals to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List posted journals",
+        "tags": [
+          "journals"
+        ]
+      },
       "post": {
         "description": "At least two lines, debits equal to credits exactly, every account active and in this org, and the entry date inside an open fiscal period. All of it in one transaction, so a rejected posting leaves nothing behind.",
         "operationId": "postJournal",

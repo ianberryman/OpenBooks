@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { getContext } from '../../context';
 import type { DB } from '../../db';
-import { newUuid, systemDb, uuidToBuffer } from '../../db';
+import { newUuid, systemDb, uuidToBuffer, withTransaction } from '../../db';
 import { InternalError, NotFoundError, UnauthenticatedError, ValidationError } from '../../errors';
 import { resolveMembership } from '../permissions';
 import type { Kysely } from 'kysely';
@@ -79,14 +79,16 @@ export interface OrgCreationInput {
  * that the caller is a real user, which is why it reads the context rather than
  * taking a user id — an org created on behalf of someone else is not a thing this
  * surface should be able to express.
+ *
+ * `withTransaction` rather than `systemDb().transaction()`, because OB-028 guards this
+ * operation with an org-less idempotency claim whose transaction is already open by the
+ * time this runs — see `src/db/transaction-scope.ts`.
  */
 export async function createOrg(input: OrgCreationInput): Promise<OrgMembership> {
   const { userId } = getContext('createOrg()');
   if (userId === null) throw new UnauthenticatedError();
 
-  return systemDb()
-    .transaction()
-    .execute((trx) => createOrgIn(trx, input, uuidToBuffer(userId)));
+  return withTransaction(systemDb(), (trx) => createOrgIn(trx, input, uuidToBuffer(userId)));
 }
 
 /**

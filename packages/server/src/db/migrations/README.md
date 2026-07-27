@@ -51,12 +51,24 @@ check.
 
 ## Ordering
 
-| File               | Contents                                          |
-| ------------------ | ------------------------------------------------- |
-| `0001_tenancy`     | Orgs, users, membership, roles, permissions, keys |
-| `0002_ledger`      | Accounts, fiscal periods, journals, journal lines |
-| `0003_idempotency` | Idempotency keys for every write endpoint         |
-| `0004_app_grants`  | Narrows the app user so journals are append-only  |
+| File               | Contents                                                  |
+| ------------------ | --------------------------------------------------------- |
+| `0001_tenancy`     | Orgs, users, membership, roles, permissions, keys         |
+| `0002_ledger`      | Accounts, contacts, dimensions, periods, journals, drafts |
+| `0003_idempotency` | Idempotency keys for every write endpoint                 |
+| `0004_app_grants`  | Narrows the app user so journals are append-only          |
+
+The grants migration must run last. `0004_app_grants` issues a table-level `GRANT`
+per mutable table and MySQL resolves the table name as it runs — it refuses a grant
+on a table that does not exist (`ERROR 1146`, measured on 8.4) — so a table created
+after it can never be granted.
+
+Pre-release that ordering holds by construction rather than by convention: every
+table is declared in one of the three migrations above, so there is nothing to
+number around (ROADMAP D-15). Adding a mutable table is therefore two edits in two
+files — the table in `0002_ledger`, and its name in `MUTABLE_TABLES`. At first
+release, when a new table does mean a new migration, the grants migration has to be
+renumbered to stay last.
 
 Registration is static, in `index.ts` — not `FileMigrationProvider`. The server is
 bundled into a single file (ROADMAP D-12), so there is no migrations directory in
@@ -65,6 +77,35 @@ the production image to read.
 `down` migrations exist and are tested, but production rollback is a restore, not
 a `down`. A `down` that drops `journals` is a data-loss event; treat these as a
 development and test convenience.
+
+## Reset your local database after a migration is edited in place
+
+Pre-release, migrations are edited rather than appended to (ROADMAP D-15), and the
+cost lands here: a database migrated _before_ an edit is inconsistent with the code
+_after_ it, and `down` is what discovers this. Adding a table to `MUTABLE_TABLES`
+and running `yarn migrate:down` against a database migrated before the edit fails
+with
+
+```
+There is no such grant defined for user 'openbooks_app' on host '%' on table '…'
+```
+
+because `down` revokes the list the code now holds, which includes a grant that
+database never received. Worse, `GRANT`/`REVOKE` are not transactional in MySQL, so
+the revokes issued before the failure stay revoked and a second `down` fails
+somewhere earlier in the list.
+
+There is nothing to repair and no reason to write a migration for it. Drop and
+recreate the schema, then migrate up:
+
+```sql
+DROP DATABASE openbooks; CREATE DATABASE openbooks
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+The test suite never hits this — testcontainers builds a fresh database per run,
+which is exactly why the failure only appears on a developer's long-lived local
+stack. It disappears at first release, when migrations become append-only.
 
 ## MySQL cannot roll back DDL
 

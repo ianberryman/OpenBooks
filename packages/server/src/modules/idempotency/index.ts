@@ -54,6 +54,28 @@
  *     `.dependency-cruiser.cjs`'s `transport-holds-no-business-logic` forbids that
  *     edge, correctly.
  *
+ * ## Writes that have no org (OB-028)
+ *
+ * `withGlobalIdempotency(spec, operation)` is the same guarantee for register, login,
+ * logout, create-org, and switch-org — the five writes that either predate the org or
+ * would record the claim against the wrong one. It claims in the org-less namespace
+ * `claim_scope` was added for (migration `0003`), and its operation takes no handle at
+ * all, because there is no org-scoped one to give it: the write joins the claim's
+ * transaction ambiently, which is what `src/db/transaction-scope.ts` exists for.
+ *
+ * Two things about that namespace are worth knowing before using it:
+ *
+ *  - It is **shared by every caller**, so the fingerprint carries the caller's user id
+ *    (`globalRequestFingerprint`). Without it, two clients that picked the same key
+ *    would be one another's retries.
+ *  - A replay does **not** re-issue a session cookie. The token exists only during
+ *    execution and is deliberately never stored (D-03), so a replayed register or
+ *    login answers with the identity and no `Set-Cookie`. That is right for the case
+ *    the guard is for — a double-submitted form, where the browser already holds the
+ *    cookie — and it means a client that lost the original response must log in
+ *    again rather than retry. Stated in `src/transport/routes/auth.ts` too, at the
+ *    line that decides it.
+ *
  * ## Retention and cleanup
  *
  * `IDEMPOTENCY_RETENTION_MS` is 7 days, argued in `service.ts`. Expiry is enforced on
@@ -64,6 +86,7 @@
  * out of reach rather than one the code can eliminate.
  */
 export type {
+  GlobalIdempotentOperation,
   IdempotencyOptions,
   IdempotencySpec,
   IdempotentOperation,
@@ -73,9 +96,12 @@ export type {
 } from './service';
 export {
   IDEMPOTENCY_RETENTION_MS,
+  purgeExpiredGlobalIdempotencyKeys,
   purgeExpiredIdempotencyKeys,
+  runGlobalIdempotent,
   runIdempotent,
+  withGlobalIdempotency,
   withIdempotency,
 } from './service';
 
-export { canonicalize, requestFingerprint } from './fingerprint';
+export { canonicalize, globalRequestFingerprint, requestFingerprint } from './fingerprint';

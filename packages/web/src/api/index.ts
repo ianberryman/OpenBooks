@@ -6,6 +6,8 @@
 export { api, createApiClient, MissingIdempotencyKeyError } from './client';
 export { ApiError, unwrap } from './errors';
 export type { ApiErrorBody, ApiErrorCode } from './errors';
+export { presentApiError } from './presentation';
+export type { ErrorRecovery, PresentedError } from './presentation';
 export { idempotencyHeader, IDEMPOTENCY_KEY_HEADER, newIdempotencyKey } from './idempotency';
 export type { IdempotentVariables } from './idempotency';
 

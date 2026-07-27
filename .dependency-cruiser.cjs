@@ -91,6 +91,8 @@ module.exports = {
           // RuleTester needs the fixture to exist inside a TS program for
           // type-aware rules; importing it would defeat the point.
           '^packages/eslint-plugin/test/fixtures/',
+          // Vitest `setupFiles` is loaded by the runner, not imported (OB-058).
+          '^packages/web/src/test/setup\\.ts$',
         ],
       },
       to: {},

@@ -28,6 +28,7 @@ import {
   readIdempotencyKeyOrFailure,
   resolveRequestId,
 } from './context';
+import { registerCors } from './cors';
 import { createErrorHandler, createNotFoundHandler } from './errors';
 import { registerHealthRoute } from './health';
 import { registerOpenApi } from './openapi';
@@ -92,7 +93,7 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
    * Fastify runs `onRequest` hooks in the order they were added, and `addHook` calls
    * made here run synchronously while `await app.register(...)` completes the plugin's
    * own registration — so calling it *after* the hooks below would put its parse hook
-   * last, and the identity resolver (step 2) would read `null` and fail with a
+   * last, and the identity resolver (step 3) would read `null` and fail with a
    * `TypeError` on every request. Found by OB-023 the moment a resolver was wired in;
    * before that nothing read a cookie and the ordering was invisible.
    */
@@ -128,7 +129,16 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
    * precede route registration: Fastify assembles a route's hook chain from the
    * instance's hooks, so a hook added after a route does not run for it.
    *
-   * 1. Open the context scope. `runInContext(context, done)` works because
+   * 1. CORS, when a deployment has declared cross-origin callers (OB-029).
+   *    Registers nothing when `config.cors.enabled` is false, which is every
+   *    same-origin deployment. First, and `src/transport/cors.ts` explains why
+   *    it has to be: the hook below can reject a request, and everything after a
+   *    rejection is skipped.
+   */
+  await registerCors(app, config.cors, logger);
+
+  /**
+   * 2. Open the context scope. `runInContext(context, done)` works because
    *    Fastify's hook runner invokes the next step synchronously from `done()`,
    *    so the remainder of the request lifecycle runs nested inside the
    *    `AsyncLocalStorage.run()` call and inherits the scope across every
@@ -156,7 +166,7 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   });
 
   /**
-   * 2. Authenticate, and re-scope. Second so that the derived context inherits the
+   * 3. Authenticate, and re-scope. Second so that the derived context inherits the
    *    `requestId` established above rather than minting a new one, and so an
    *    authentication failure is already inside a scope and therefore logged with a
    *    correlation id.
@@ -179,7 +189,7 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   }
 
   /**
-   * 3. Request logging, inside the scope and after authentication, so both lines
+   * 4. Request logging, inside the scope and after authentication, so both lines
    *    carry actor provenance from the mixin. Nothing is attached by hand here —
    *    `requestId`, `orgId`, `userId`, `roleId`, `actorType`, and `actorId` come
    *    from `provenanceOf(context)` via pino's `mixin` (A13, `src/logging/`), and

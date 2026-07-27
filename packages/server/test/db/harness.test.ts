@@ -23,6 +23,9 @@ describe('test database harness', () => {
         SELECT name FROM kysely_migration ORDER BY name
       `.execute(db.migrator);
 
+      // Ordered by name, which is also the order they ran in. `0004_app_grants` is
+      // last on purpose: MySQL refuses a table-level GRANT on a table that does not
+      // exist yet, so every table it names is created in one of the three above it.
       expect(rows.map((row) => row.name)).toEqual([
         '0001_tenancy',
         '0002_ledger',

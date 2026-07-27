@@ -102,6 +102,7 @@ describe('the /v1 route table', () => {
         'reopenFiscalPeriod',
         'postJournal',
         'reverseJournal',
+        'listJournals',
         'getTrialBalance',
       ]),
     );

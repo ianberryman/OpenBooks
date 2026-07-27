@@ -3,16 +3,19 @@ import type { ReactElement } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { api, unwrap } from './api';
+import { ErrorBanner } from './components';
+import { AppShell } from './shell/app-shell';
 
 /**
- * The shell. **There are no screens here and there must not be** — login, the chart of
- * accounts, and the journal-entry form are all M2 (ROADMAP, "Explicitly out of M1").
+ * The application root. **There are still no screens here** — auth, the chart of accounts,
+ * contacts, settings, the journal editor, and the reports are OB-047 through OB-052, and
+ * OB-046 delivers only what they mount into.
  *
- * What this does instead is exercise the pipeline the ticket exists to prove: a call
- * through the client generated from `openapi.json`, run by TanStack Query, rendered. If
- * `openapi.json`, `schema.d.ts`, `openapi-fetch`, the query client, and the dev proxy are
- * not all wired correctly, this one line of output says so — which is a considerably
- * cheaper place to discover it than the first screen.
+ * What this does instead is exercise the pipeline the M1 ticket proved and this one
+ * re-frames: a call through the client generated from `openapi.json`, run by TanStack
+ * Query, rendered inside the shell with the token-styled error surface. If `openapi.json`,
+ * `schema.d.ts`, `openapi-fetch`, the query client, the dev proxy, the token layer, or the
+ * theme hook are not all wired correctly, this one line of output says so.
  */
 
 /**
@@ -35,13 +38,22 @@ export function App(): ReactElement {
   );
 }
 
+/**
+ * `orgIndicator` is a placeholder string rather than an empty slot, so the shell's layout
+ * is exercised in the shape OB-047 will fill: the switcher goes here, and it is the
+ * control that must call `clearForOrgSwitch` (spec §5).
+ */
 function Shell(): ReactElement {
   return (
-    <main>
-      <h1>OpenBooks</h1>
-      <p>API-only in M1. Application screens land in M2.</p>
-      <ApiStatus />
-    </main>
+    <AppShell orgIndicator={<span className="text-sm text-text-muted">No organization</span>}>
+      <div className="flex flex-col gap-4">
+        <h1 className="text-xl font-semibold">Manual bookkeeping</h1>
+        <p className="text-text-muted">
+          The design system and app shell are in place. Screens land in OB-047 through OB-052.
+        </p>
+        <ApiStatus />
+      </div>
+    </AppShell>
   );
 }
 
@@ -60,8 +72,23 @@ function ApiStatus(): ReactElement {
     queryFn: async () => unwrap(await api.GET('/health')),
   });
 
-  if (health.isPending) return <p>Checking the API…</p>;
-  if (health.isError) return <p>API unreachable: {health.error.message}</p>;
+  if (health.isPending) return <p className="text-text-subtle">Checking the API…</p>;
 
-  return <p>API: {health.data.status}</p>;
+  /**
+   * Through `ErrorBanner` rather than `health.error.message`. It is the first consumer of
+   * the code-to-presentation table, so the mapping is exercised by the shell itself
+   * instead of waiting for the first screen to be the thing that discovers it is wrong.
+   */
+  if (health.isError) {
+    return (
+      <ErrorBanner
+        error={health.error}
+        onRetry={() => {
+          void health.refetch();
+        }}
+      />
+    );
+  }
+
+  return <p className="text-text-muted">API: {health.data.status}</p>;
 }

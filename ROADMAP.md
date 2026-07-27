@@ -11,7 +11,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | Milestone | Spec phase | Outcome                                                                                                | Status                       |
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | Not scoped                   |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Scoped — see below**       |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | Not scoped                   |
 | M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | Not scoped                   |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
@@ -319,7 +319,7 @@ run as a non-blocking job until credentials exist.
 
 ---
 
-## Parallelization plan
+### Parallelization plan
 
 ```
 Wave 0   OB-001
@@ -353,6 +353,377 @@ milestone's hardest guarantees.
 
 Wave 1 is the widest parallel band (six independent tickets). OB-006 and OB-007 are fully
 independent of the application code and can run at any point.
+
+---
+
+## Milestone 2 — Manual bookkeeping usable
+
+### Definition of done
+
+A solo owner or their bookkeeper runs a full month of manual books **in the browser**,
+unassisted: create the org, generate the year's periods, build a chart of accounts, add
+contacts and dimensions, enter and correct journal entries, close the month, and read the
+four reports. M1 proved the kernel; M2 is the first milestone where the product is used
+rather than tested.
+
+Every criterion is verified by an automated test, not by inspection.
+
+| #   | Acceptance criterion                                                                                    | Verified by    |
+| --- | ------------------------------------------------------------------------------------------------------- | -------------- |
+| B1  | A full month of books runs end to end in a real browser against the Compose stack                       | OB-055         |
+| B2  | P&L and balance sheet tie to the trial balance for any date range                                       | OB-053         |
+| B3  | The balance sheet balances without a closing journal — assets = liabilities + equity + current earnings | OB-043, OB-053 |
+| B4  | GL opening balance + movement = closing balance, for every account and every range                      | OB-044, OB-053 |
+| B5  | A draft is freely editable and discardable; posting it is the only path to the ledger, exactly once     | OB-038, OB-054 |
+| B6  | Dimension tagging never moves money — every report unsliced equals its slices plus unassigned           | OB-041, OB-053 |
+| B7  | Hierarchy subtotals equal the sum of descendants, and a cycle is unrepresentable                        | OB-035, OB-039 |
+| B8  | A retried register / create-org / switch-org yields exactly one of the thing (M1 gap 1 closed)          | OB-028, OB-054 |
+| B9  | No component names a raw colour, spacing, or radius — tokens only, lint-enforced                        | OB-046, OB-056 |
+| B10 | Every screen's affordances follow the caller's permission set, and the service refuses regardless       | OB-030, OB-054 |
+| B11 | The new resources hold the A7 line — a cross-org read is a 404 with a byte-identical body               | OB-054         |
+
+### Explicitly out of M2
+
+- Invoices, bills, credit notes, payment application, tax, aging — all M3.
+- **Cash-basis reporting.** It needs a payment date to switch on, and there is no subledger
+  until M3. See [D-22](#d-22).
+- Bank feeds, import, reconciliation (M4). Attachments ride with them.
+- Recurring entries, budgets, and the year-end closing journal. The balance sheet derives
+  current-year earnings instead — see [D-20](#d-20).
+- Multi-currency (spec §13), custom roles, MCP tools, OAuth (M5).
+- Any `terraform apply`. Unchanged from [D-05](#d-05); M2 is still demonstrated on Compose.
+
+---
+
+### Ticket board
+
+30 tickets across 7 waves, numbered on from M1. Sizes as before: **S** ≈ one focused
+change, **M** ≈ a coherent subsystem, **L** ≈ non-trivial design or test surface.
+
+#### Wave 0 — Carried debt and conventions (4 parallel)
+
+| ID         | Title                                      | Size | Depends on |
+| ---------- | ------------------------------------------ | ---- | ---------- |
+| **OB-028** | Org-less idempotency claims                | M    | —          |
+| **OB-029** | CORS layer and cross-site cookie posture   | S    | —          |
+| **OB-030** | `GET /v1/me` — the caller's permission set | S    | —          |
+| **OB-031** | Keyset pagination and the list envelope    | M    | —          |
+
+This wave is first because each of the four sets a convention every later ticket inherits.
+Doing them after the screens exist means retrofitting seven of them.
+
+**OB-028** — M1 known gap 1, and the milestone's cheapest real win. The schema already
+carries `claim_scope` (`0003_idempotency`); `withIdempotency` still resolves `orgId` from
+context unconditionally, so register, login, logout, create-org, and switch-org accept an
+`Idempotency-Key` and ignore it. M2's auth screens are the first client that will actually
+retry these — a double-submitted org-creation form currently makes two orgs.
+
+**OB-029** — M1 known gap 2. `Idempotency-Key` is not CORS-safelisted, so every write needs
+a preflight; the session cookie is `SameSite=Lax`, so the API must be a same-site subdomain
+with `SESSION_COOKIE_DOMAIN` set. Not needed for M2 development, where Vite proxies
+same-origin — which is exactly why it will be forgotten if it is not done now.
+
+**OB-031** — `listAccounts` returns everything. Contacts, the journal list, and the general
+ledger cannot. One convention, decided once, applied to all four. Keyset, not offset — see
+[D-21](#d-21).
+
+#### Wave 1 — Schema (4 parallel)
+
+| ID         | Title                                                  | Size | Depends on |
+| ---------- | ------------------------------------------------------ | ---- | ---------- |
+| **OB-032** | DDL: contacts, and `journal_lines.contact_id`          | M    | 031        |
+| **OB-033** | DDL: dimensions, values, and line tags                 | M    | 031        |
+| **OB-034** | DDL: journal drafts, and the grant allowlist extension | M    | 031        |
+| **OB-035** | Account hierarchy: activate `parent_account_id`        | M    | 031        |
+
+Read `src/db/migrations/README.md` first. Three of these add tables and get their own
+migration files; the two that touch `journal_lines` and `0004_app_grants` are **edited in
+place**, per [D-15](#d-15) — and the grants edit is the one to be careful with, because it
+is the file that makes A6 true.
+
+**OB-032** — One `contacts` table with `is_customer` / `is_vendor` flags rather than two
+tables. The same legal entity is routinely both, and modelling them separately means
+either duplicating it or discovering at M3 that a vendor credit and a customer refund need
+the same row. `journal_lines.contact_id` is nullable and added in place to `0002_ledger`.
+
+**OB-033** — `dimensions`, `dimension_values`, and `journal_line_dimensions`. Unlimited
+user-defined axes, tagged per **line** — see [D-18](#d-18) for the shape and the two costs
+it carries. A unique key on `(org_id, journal_line_id, dimension_id)` is what stops a line
+being tagged twice on one axis; without it "slices sum to the whole" (B6) is false and the
+report is the place you'd find out.
+
+**OB-034** — `journal_drafts` and `journal_draft_lines`, mutable, and therefore the first
+tables since M1 to need `UPDATE`/`DELETE` in `0004_app_grants`. That allowlist is the
+milestone's most load-bearing edit: it is an explicit grant per table, and the reason it is
+an allowlist rather than a schema-level grant is that MySQL cannot revoke a schema-level
+privilege afterwards. Adding these two tables must not widen anything else. A test asserts
+the app user still cannot touch `journals` — the existing A6 test, which must keep passing
+unchanged.
+
+**OB-035** — The column ships already; this makes it real. Two rules the schema does not
+give you: cycle prevention (a self-referencing FK permits `a → b → a`), and resolving the
+parent through `tenantDb` + `assertFound` first, or a cross-org parent id arrives as errno
+1452 and becomes a 500 instead of the 404 A7 requires. Both are called out in
+`modules/accounts/index.ts`; that note was written for this ticket.
+
+#### Wave 2 — Domain services (5 parallel)
+
+| ID         | Title                                           | Size | Depends on |
+| ---------- | ----------------------------------------------- | ---- | ---------- |
+| **OB-036** | Contacts service                                | M    | 032, 031   |
+| **OB-037** | Dimensions service                              | M    | 033        |
+| **OB-038** | Draft journal service                           | L    | 034, 028   |
+| **OB-039** | CoA hierarchy rules and chart templates         | M    | 035        |
+| **OB-040** | Members, invites, and the first `EmailProvider` | M    | 028        |
+
+**OB-037** — Create, list, archive. Archive rather than delete once a value has been used:
+deleting a dimension value that journal lines carry would restate every sliced report
+silently, which is [D-16](#d-16)'s argument applied one level down. An unused value deletes
+freely, matching `deleteAccount`.
+
+**OB-038** — [D-16](#d-16)'s deferred answer, and the reason a typo noticed ten seconds
+after posting need not produce three journal entries. A draft is not a posting: it may be
+edited and discarded because it has not reached the ledger. Posting one runs
+`postJournal` and deletes the draft **in a single transaction**, keyed on the draft id, so
+a double-clicked Post button cannot produce two journals. Drafts carry no sequence
+number — numbers are allocated at post, from the counter row, or the gapless guarantee in
+[D-14](#d-14) is not gapless. See [D-19](#d-19).
+
+**OB-039** — Hierarchy rules (depth bound, no cycle, a parent's type must match its
+children's or subtotals are meaningless), plus an opt-in starter chart applied at org
+creation. Opt-in and not enforced: a chart that arrives uninvited is a chart the user
+deletes account by account.
+
+**OB-040** — `org_invites` has existed since M1 with nothing to send. A bookkeeper plus an
+owner is the common shape of the target business (spec §1), so member management is table
+stakes for "usable". This is where [D-07](#d-07) fires: the first consumer arrives, so the
+first concrete `EmailProvider` adapters ship with it — SES for hosted, and a log adapter
+for self-host and tests. Interfaces do not change.
+
+#### Wave 3 — Reporting (4)
+
+| ID         | Title                                           | Size | Depends on    |
+| ---------- | ----------------------------------------------- | ---- | ------------- |
+| **OB-041** | Report core: ranges, dimension filters, rollups | L    | 036, 037, 039 |
+| **OB-042** | Profit and loss                                 | M    | 041           |
+| **OB-043** | Balance sheet and current-year earnings         | L    | 041           |
+| **OB-044** | General ledger and account drill-down           | M    | 041, 031      |
+
+**OB-041** — The shared aggregation the other three are thin projections of: a date range
+rather than M1's single `asOf` bound, optional dimension and contact filters, and
+subtotalling over the account tree. Still no balance cache and no denormalized totals
+(spec §2.6) — correctness first, and the trial balance is the oracle every property test
+in OB-053 checks against.
+
+**OB-043** — The hard one, and the reason is [D-20](#d-20): with no year-end closing
+journal, revenue and expense balances have nowhere to land, so the sheet does not balance
+unless current-year earnings is derived and presented as its own equity line.
+
+**OB-044** — Per-account running balance over a range, ordered by `(entry_date,
+sequence_number)` — which is the ordering the sequence number exists to make total, and
+the one that makes keyset pagination stable when new entries are posted mid-read.
+
+#### Wave 4 — Transport
+
+| ID         | Title                                | Size | Depends on             |
+| ---------- | ------------------------------------ | ---- | ---------------------- |
+| **OB-045** | `/v1` surface for everything M2 adds | M    | 036–040, 042, 043, 044 |
+
+Contacts, dimensions, drafts, members and invites, and the three reports. Unchanged rules:
+handlers map arguments and hold no logic, every write requires an `Idempotency-Key`, and
+`openapi.json` drift stays a build failure (A10).
+
+#### Wave 5 — Web (7)
+
+| ID         | Title                                                | Size | Depends on |
+| ---------- | ---------------------------------------------------- | ---- | ---------- |
+| **OB-046** | Design tokens, Tailwind, Radix primitives, app shell | L    | 024        |
+| **OB-047** | Auth screens, org switch, permission-aware shell     | M    | 046, 030   |
+| **OB-048** | Chart of accounts screen                             | M    | 046, 045   |
+| **OB-049** | Contacts screen                                      | M    | 046, 045   |
+| **OB-050** | Org settings: dimensions, members, periods           | M    | 046, 045   |
+| **OB-051** | Journal entry screen — draft editor, post, reverse   | L    | 046, 045   |
+| **OB-052** | Report viewers with drill-through                    | L    | 046, 045   |
+
+OB-046 gates the other six, so it is the ticket to start first and the one most worth
+getting right. The rest are genuinely parallel.
+
+**OB-046** — **A global token layer, and it is a build gate rather than a convention.** One
+source of truth defines colour, spacing, radius, type scale, elevation, and motion as CSS
+custom properties; Tailwind's theme is configured to read from those variables and from
+nothing else; components reference tokens only. A lint rule fails the build on a raw hex,
+`rgb()`, or arbitrary-value colour in any component — the same shape as
+`openbooks/no-float-money`, and for the same reason: a rule everyone agrees with and
+nothing enforces is a rule that decays at the first deadline. Because the tokens are custom
+properties rather than compiled Tailwind values, a theme is a re-binding at `:root` — light
+and dark ship from the start, and a future white-label needs no component to change. Also
+here: the app shell, the money input built on `toDecimalString` (never `cents / 100` —
+[D-13](#d-13)), and the mapping from the typed error codes to what a screen actually shows.
+
+**OB-051** — The screen the milestone is named for. A multi-line editor with a live
+balancing indicator, account and contact combo-boxes, and per-line dimension tagging. It
+edits a **draft**; Post is a separate, deliberate action, and after posting the entry is
+immutable and the only affordance is Reverse. The Post button carries one idempotency key
+minted per draft, not per click.
+
+**OB-052** — Trial balance, P&L, balance sheet, general ledger, with drill-through from a
+report line to the entries behind it. Dimension and date-range filters are shared controls,
+not four separate implementations.
+
+#### Wave 6 — Verification and delivery (5)
+
+| ID         | Title                                              | Size | Depends on |
+| ---------- | -------------------------------------------------- | ---- | ---------- |
+| **OB-053** | Report property suite (fast-check)                 | L    | 041–044    |
+| **OB-054** | Enforcement and permission matrix for M2 resources | M    | 045, 051   |
+| **OB-055** | Playwright e2e — the B1 narrative                  | M    | 047–052    |
+| **OB-056** | CI: web build, token lint, e2e job                 | M    | all        |
+| **OB-057** | Walk ACH Pro's QBO integration → findings doc      | M    | —          |
+
+**OB-053** — The M1 property suite's lesson applies directly: two mutations survived the
+entire example suite and were caught only by property tests, because the examples were all
+two-line journals. Reports are worse in this respect — an example with one dimension and
+three accounts will pass against a rollup that is wrong for four. Properties: every report
+ties to the trial balance; slices plus unassigned equals the whole; GL opening + movement =
+closing; report values are independent of posting order; a reversal nets its journal to
+zero on every report and every slice.
+
+**OB-054** — The new resources against the A7 line (byte-identical 404s), plus a permission
+matrix over the six seeded roles: every M2 operation, every role, asserted allowed or
+refused. That matrix is also the thing that makes M1 known gap 6 visible when M3 widens
+Bookkeeper — the diff will show in a test rather than in production.
+
+**OB-055** — B1, in a real browser against Compose. Register, create the org, generate
+periods, apply a chart, add a contact and a dimension, draft and post a month of entries,
+reverse one, close the month, and read all four reports. Playwright — see
+[D-26](#d-26).
+
+**OB-057** — Not code, and it is on the board so it does not slip. Spec §14 says to walk
+ACH Pro's existing QBO integration before Phase 2 and Phase 4 endpoint design is frozen,
+because you own both ends. AR/AP is exactly what it informs, and doing it after M3's shapes
+are set discards the advantage. Independent of every other ticket; schedule it early in the
+milestone, not at the end.
+
+### Parallelization plan
+
+```
+Wave 0   028   029   030   031
+                      │     │
+Wave 1         ┌──────┴──┬──┴───┬──────┐
+              032       033    034    035
+               │         │      │      │
+Wave 2   ┌─────┴───┬─────┴┬─────┴┬─────┴──┐
+        036       037    038    039      040
+         └────┬────┘             │
+Wave 3       041 ──┬── 042 ── 043 ── 044
+                   │
+Wave 4            045                     046 (needs only 024 — starts at wave 0)
+                   │                       │
+Wave 5             └───────┬───────────────┴── 047 048 049 050 051 052
+                           │
+Wave 6            053 ── 054 ── 055 ── 056        057 (independent, schedule early)
+```
+
+Critical path: **031 → 034 → 038 → 045 → 051 → 055 → 056**.
+
+The milestone's real shape is two halves that meet at OB-045: a backend half
+(031 → 044) and a frontend half rooted at OB-046, which depends on M1's OB-024 and
+nothing else. **Start OB-046 in wave 0**, alongside the carried debt — it gates six
+tickets, and every day it waits is a day six screens cannot start. OB-041 and OB-051 are
+the two most likely to expand, for the same reason OB-013 and OB-020 were in M1: they carry
+the milestone's hardest guarantees.
+
+If a shorter cycle is wanted, the natural cut is **M2a = waves 0–4** (the API is complete
+and drift-gated, screens still absent) and **M2b = waves 5–6**. The cut is clean because
+OB-045 is a real boundary; nothing in wave 5 changes anything below it.
+
+### M2 status
+
+Waves 0 and 1 and OB-046 are built and uncommitted on `develop`. `yarn check` passes:
+863 tests across 68 files, ~39s.
+
+| Ticket     | State | Note                                                                             |
+| ---------- | ----- | -------------------------------------------------------------------------------- |
+| **OB-028** | Built | Global claim namespace; five identity writes now replay-guarded. Gap 1 closed    |
+| **OB-029** | Built | `@fastify/cors`, registered first in the chain — see below. Gap 2 closed         |
+| **OB-030** | Built | On the existing `GET /v1/auth/me`, not a new `/v1/me`                            |
+| **OB-031** | Built | Keyset applied to accounts and a new `GET /v1/journals`                          |
+| **OB-032** | Built | `contacts`, one table with `is_customer`/`is_vendor`; `journal_lines.contact_id` |
+| **OB-033** | Built | Dimensions, values, tags. Tags are **mutable** — see the block in `0004`         |
+| **OB-034** | Built | Drafts, their lines, and their tags; three additions to the grant allowlist      |
+| **OB-035** | Built | Hierarchy with cycle, depth (6) and type rules; `D-27` code immutability         |
+| **OB-046** | Built | Token layer, `openbooks/no-raw-color`, Radix wrappers, shell                     |
+| **OB-058** | Built | jsdom harness; 87 web tests. New ticket — see below                              |
+| Waves 2–6  | —     | Not started                                                                      |
+
+**OB-058, web component test harness**, was not in the original board. It exists because
+OB-046 shipped a hand-built combobox — Radix has no combobox primitive — into a package
+whose vitest project was `environment: 'node'` and whose glob was `*.test.ts`, so no
+component test could even be discovered. The harness found three real bugs, one of which
+would have been expensive: the combobox reopened on the first option rather than the
+selected one, so pressing Enter on a picker showing the right account silently committed
+whichever account sorts first, with the correct label still displayed. OB-051's account
+picker is that component.
+
+All four schema tickets were consolidated into `0002_ledger` rather than shipping as
+separate migrations. Pre-release that is what D-15 asks for, and it also removes a trap:
+MySQL refuses a table-level `GRANT` on a table that does not exist, so a migration added
+after `0004_app_grants` can never be granted, and numbering around it (`0003a`, `0003b`, …)
+accumulates forever. With every table in one file the ordering holds by construction. The
+cost is written up in `migrations/README.md`: editing a migration in place leaves an
+already-migrated local database inconsistent, and `down` is what discovers it.
+
+Three findings from wave 0 that the tickets did not anticipate, recorded because each one
+constrains work that has not started yet:
+
+**`systemDb().transaction()` throws inside an ambient transaction.** MySQL has savepoints,
+not nested transactions, so once `systemDb()` learned to return the ambient
+`Transaction<DB>` (M1), any service that opened its own — `register` and `createOrg` both
+did — could not be wrapped in an idempotency claim at all. Fixed by `withTransaction` in
+`src/db/transaction-scope.ts`, the system-table twin of `TenantDatabase.transaction`. Any
+future service that opens a transaction directly has the same problem and the same fix.
+
+**A global idempotency namespace needs the caller folded into the fingerprint.** Keys are
+client-chosen and the namespace is shared, so without it two callers who picked the same
+key are each other's replays — the second `createOrg` would be answered with the first
+caller's org id and slug, which is a cross-tenant leak, and their own org would never be
+created. Now a 409. Mutation-tested: dropping the principal from the hash fails exactly the
+cross-caller test and nothing else.
+
+**Keyset ordering cannot use a mutable column.** OB-031 ordered accounts by
+`(created_at, id)` rather than `code`, because `code` is editable and a rename moves a row
+behind a cursor that has already passed it — silently dropping it, which is the failure
+keyset was chosen to eliminate, arriving through a mutable key instead of through `OFFSET`.
+Resolved by making `code` immutable ([D-27](#d-27)); the ordering is now `(code, id)`, which
+is what OB-048's screen wants anyway, and `uq_accounts_org_code` covers it for free.
+
+**CORS headers on a rejection that happens before routing.** `@fastify/cors` sets its
+headers in `onRequest`, and the request-context hook rejects a malformed `Idempotency-Key`
+with `done(failure)`, which skips every hook registered after it — so the 400 a cross-origin
+client most needs to read came back with no `Access-Control-Allow-Origin` and an opaque
+console error instead. Measured, not assumed. The library's `hook` option is not the fix:
+at `onSend` it fails outright with `ERR_HTTP_HEADERS_SENT`, because it answers a preflight
+by calling `reply.send()` from inside the hook. What works is registering CORS **first** in
+the chain, since `done(failure)` only skips what comes after. That guarantee now rests on
+registration order in `app.ts` rather than on a hook choice, which is a more fragile place
+to hold it — worth knowing before anyone reorders that file.
+
+Two threads left loose:
+
+- **A preflight and an allowlist refusal carry no `requestId`.** Registering CORS first puts
+  it ahead of the request-context hook, so a short-circuited preflight's 204 has no
+  `x-request-id` and the refusal `warn` — the line you would grep to diagnose a
+  misconfigured allowlist — has no correlation id. That brushes against A13. Recovering it
+  means splitting the context hook so the scope opens before CORS while the
+  `Idempotency-Key` rejection stays after it. Also, `strictPreflight` answers a non-preflight
+  `OPTIONS` with a `text/plain` 400 rather than the typed JSON error envelope, and the
+  library offers no setting that restores it.
+- **A local MySQL on `127.0.0.1:3306` shadows the Compose stack.** Docker's publish falls
+  back to IPv6 `*:3306` when a host `mysqld` already holds the IPv4 address, so host-side
+  `yarn migrate` and `yarn codegen` silently reach the wrong database and fail as
+  `Access denied for user 'openbooks_migrator'@'localhost'`. Publish on another port
+  (`DATABASE_PORT=13307 docker compose up -d mysql`). Costs nothing to know and a while to
+  work out from the error.
 
 ---
 
@@ -527,9 +898,159 @@ which is the reverse of what closing a year is for. The cost is that onboarding 
 periods before the first entry — a prerequisite rather than a nicety, and a real M1 acceptance
 dependency for "a user runs a full month of manual books".
 
+<a id="d-18"></a>
+**D-18 — Dimensions are unlimited, user-defined, and tagged per line.** Three models were
+on the table: QBO's fixed Class + Location, Xero's two user-defined tracking categories,
+and unlimited user-defined axes. Unlimited was chosen, and it is the most expensive of the
+three, so the costs are worth stating rather than discovering.
+
+`journal_line_dimensions` is a join table, not two columns on `journal_lines`. Report
+grouping therefore costs a join per axis rather than a column reference, and a `GROUP BY`
+over three axes on a large ledger is the first query in this system likely to need an index
+designed for it rather than inherited from the tenancy pattern. There is also no natural
+bound on how many axes an org creates, and an org with thirty of them makes the general
+ledger pathological — a bound belongs in the service, chosen and written down, not left to
+be found in production.
+
+Tagging is on the **line**, not the journal header, and that is not a detail. A single
+entry legitimately splits rent across three departments; header tagging would make that
+entry unrepresentable and would push the user into posting three journals for one event —
+which then misstates the entry count, the reference, and anything that reconciles on it.
+
+The property that must hold, and that OB-053 asserts, is that tagging never moves money:
+any report sliced by an axis sums, with an explicit "unassigned" bucket, to the same report
+unsliced. The unassigned bucket is not optional. A slice view that silently omits untagged
+lines shows a smaller business than exists, and it does it most on the accounts nobody
+remembered to tag.
+
+<a id="d-19"></a>
+**D-19 — Drafts are their own tables, and posting one is a single transaction.** A draft
+cannot be a status column on `journals`, and not for style reasons: no journal column's
+value changes after insert, and the app user holds no `UPDATE` grant on the table at all
+(A6). Anything editable has to live elsewhere. So `journal_drafts` and
+`journal_draft_lines`, which are ordinary mutable tables and are named in the
+`0004_app_grants` allowlist for exactly that reason.
+
+A draft is not a weaker journal — it is a different kind of thing, and the distinction is
+the whole point of [D-16](#d-16). It has no sequence number, because numbers come from the
+counter row at post time and a draft that reserved one and was then discarded would leave a
+gap, which is indistinguishable from a deleted entry (see [D-14](#d-14)). It is not in the
+trial balance, is not in any report, and no invariant test applies to it. It has not
+happened yet.
+
+Posting runs `postJournal` and deletes the draft inside one transaction, keyed on the draft
+id. Two transactions would let a crash between them leave a posted journal and a live draft
+of it, and a user would then post the same entry twice believing the first had failed.
+
+<a id="d-20"></a>
+**D-20 — The balance sheet derives current-year earnings; no closing journal in M2.** With
+no year-end close, revenue and expense balances have nowhere to go, and a balance sheet
+built from account balances alone does not balance — the difference is exactly the year's
+net income. Two ways to fix that: post a real closing journal at year end, or derive the
+figure and present it as its own equity line. M2 derives it.
+
+Deriving means the sheet balances on the org's first day with no close ritual to perform,
+and closing is a workflow M2 does not otherwise need. The cost is a rule that has to be
+written down now because it becomes wrong later: once a closing journal exists (M7, or
+whenever a hard close is built), the derivation must be scoped to the current fiscal year
+only and exclude any year already closed, or the closed year's income is counted both in
+retained earnings and in the derived line. Retained earnings is an ordinary account;
+current-year earnings never is. Deriving something that also exists as an account is how
+it gets double-counted.
+
+<a id="d-21"></a>
+**D-21 — Keyset pagination, not offset.** Offset pagination assumes the rows behind you do
+not move. In an append-only ledger they do — entries arrive while a user pages through the
+general ledger, and with `OFFSET` that shifts the window, so a row is skipped or shown
+twice with nothing in the response indicating it happened. Keyset over a total ordering has
+no such failure: `(entry_date, sequence_number)` for journals and the GL, `(created_at, id)`
+elsewhere. The sequence number exists in part to make that ordering total (`entry_date`
+alone is not), so this is a use of [D-14](#d-14) rather than a new requirement.
+
+<a id="d-22"></a>
+**D-22 — Reports are accrual-only in M2.** Cash basis is not a report option, it is a
+different definition of when a transaction counts, and it needs a payment date to key on.
+There is no payment and no subledger until M3, so a "cash basis" toggle in M2 would either
+do nothing or quietly report accrual figures under a cash-basis heading — the second being
+worse than its absence, since it is a number someone might file. It lands with AR/AP, where
+there is something to switch on.
+
+<a id="d-23"></a>
+**D-23 — Chart templates are opt-in and unenforced.** A starter chart can be applied at org
+creation and is a copy, not a link — no template versioning, no upgrade path, no
+relationship after the fact. The alternative, a chart that arrives uninvited, is a chart the
+user deletes account by account, and M1's `deleteAccount` rule makes that possible but
+tedious. Post-M1 rules are unchanged: an account with postings is never deletable, only
+deactivatable.
+
+<a id="d-24"></a>
+**D-24 — Tailwind on a token layer, with Radix primitives, and the token layer is a build
+gate.** Radix supplies the behaviour that is genuinely hard and genuinely not the product —
+focus traps, combo-box keyboard semantics, dialog and popover accessibility — while
+supplying no visual language to fight. A batteries-included kit (Mantine, MUI) was the
+faster route to a usable form and the slower route to the two screens that matter, since
+the balancing journal-line editor and the general ledger are hand-built grids under any
+library.
+
+The part that is not a preference: **a single global token layer, enforced.** Colour,
+spacing, radius, type scale, elevation, and motion are defined once as CSS custom
+properties; Tailwind's theme reads from those variables and from nothing else; no component
+names a raw value. A lint rule fails the build on a hex, an `rgb()`, or an arbitrary-value
+colour outside the token definitions — the same construction as `openbooks/no-float-money`
+and for the same reason, which is that a convention everybody agrees with and nothing
+enforces survives until the first deadline and then does not.
+
+Custom properties rather than compiled Tailwind values, specifically, because that makes a
+theme a re-binding at `:root` instead of a rebuild: light and dark ship together from the
+first screen, high-contrast is reachable, and a white-label needs no component to change.
+Retrofitting this after seven screens exist means touching all seven, which is the argument
+for doing OB-046 before any of them rather than in parallel with them.
+
+<a id="d-25"></a>
+**D-25 — Permission-aware UI is advisory; the service is the gate.** `GET /v1/me` returns
+the caller's permission set for the active org so screens can hide what the user cannot do —
+an interface offering actions that always fail is not a usable one. Stated as a decision
+because the failure mode is predictable: a UI that gates well enough becomes a UI someone
+trusts as the gate, and then a permission check gets omitted from a service "because the
+button is hidden". `requirePermission` stays service-layer only and lint-enforced (spec
+§2.4, §5), and OB-054's matrix asserts every operation against every seeded role at the
+service, where hiding a button proves nothing.
+
+<a id="d-26"></a>
+**D-26 — Playwright for the B1 narrative, against Compose.** B1 is the only criterion that
+cannot be proven below the browser: it asserts a person can run a month of books, and every
+layer below has already been proven separately. Playwright runs against the real Compose
+stack — real MySQL, real migrations, the same image — for the reason spec §11 gives about
+mocks, which does not stop applying at the transport boundary. One narrative, not a suite:
+e2e is the slowest and most brittle test available, so it is used for the claim nothing else
+can make, and the enforcement and property suites keep carrying everything else.
+
+<a id="d-27"></a>
+**D-27 — An account code is immutable once created.** Forced by OB-031 and decided on its
+own merits. The mechanical argument first: the chart of accounts is ordered by code on the
+one screen accountants use most, keyset pagination orders by the column it sorts on, and a
+keyset over a **mutable** column silently drops rows — rename an account and it moves behind
+a cursor that has already passed it, so it never appears on any page. That is precisely the
+failure [D-21](#d-21) chose keyset to eliminate, arriving through a mutable sort key instead
+of through `OFFSET`.
+
+The accounting argument is the one that makes it right rather than merely convenient. A
+code is not a label, it is the reference other things cite — a journal, an export, a filed
+schedule, a bookkeeper's memory. `updateAccount` already refuses `type` and
+`normalBalance` once an account has postings, because those decide what every report means;
+a code decides what every _reader_ thinks the account is, and renaming `4000` from "Sales"
+to "Consulting income" is a labelling change while renumbering `4000` to `4100` is a
+different account wearing the old one's history.
+
+So `code` leaves `updateAccountRequestSchema` entirely, and unlike `type` it is refused
+from creation rather than from first posting: an account with no postings can be deleted
+outright (that rule is unchanged), so a typo is fixed by delete-and-recreate, which costs
+one call and leaves nothing behind. `name` and `description` stay mutable — those are
+labels and nothing cites them.
+
 ## Status
 
-All 27 tickets are built and committed on `develop`. The gate — `yarn check`, which runs
+All 27 M1 tickets are built and committed on `develop`. The gate — `yarn check`, which runs
 formatting, lint, dependency boundaries, typecheck, both artifact drift gates, and the
 test suite — passes. 667 tests across 51 files against real MySQL 8.4 via testcontainers,
 roughly 28 seconds.
@@ -553,6 +1074,10 @@ roughly 28 seconds.
 | A13 | Structured logs carry actor provenance              | pino `mixin` reads the context; the mixin wins over call-site fields             |
 
 ### Known gaps, carried deliberately
+
+Gaps 1 and 2 are **closed** by OB-028 and OB-029 (M2 wave 0); they are left described below
+because the reasoning still explains why the code looks as it does. Gap 4 is expected to
+move on its own as M2 gives `plugin-api` its second, third, and fourth consumer.
 
 1. **Org-less idempotency claims are half-wired.** The schema now supports them
    (`claim_scope`, see `0003_idempotency`), but `withIdempotency` still resolves `orgId`
@@ -588,7 +1113,11 @@ Phase 4 endpoint design, because you own both ends and can fix mismatches on eit
 AR/AP is exactly what that informs — vendor/bill sync, payment recording, status
 writeback, entity correlation. Doing it after the endpoints are frozen wastes the
 advantage. See also D-16: invoicing is where the deferred draft state first bites, since
-an invoice has a lifecycle a journal does not.
+an invoice has a lifecycle a journal does not — M2's OB-038 builds that draft state for
+journals, so M3 inherits a pattern rather than inventing one.
+
+This is now on the M2 board as **OB-057**, independent of every other ticket and scheduled
+early in the milestone rather than at its end.
 
 ---
 

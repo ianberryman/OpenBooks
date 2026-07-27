@@ -1,5 +1,5 @@
 import type { RequestContext } from '../../context';
-import { isAuthenticatedContext } from '../../context';
+import { getContext, isAuthenticatedContext } from '../../context';
 import { InternalError, PermissionDeniedError, UnauthenticatedError } from '../../errors';
 import type { PermissionKey } from './catalog';
 import { isUuid, selectMembershipRole, selectRolePermissionKeys } from './permissions.repository';
@@ -161,6 +161,43 @@ export async function requirePermission(
   if (!(await hasPermission(ctx, permission))) {
     throw new PermissionDeniedError(permission);
   }
+}
+
+/**
+ * Everything the caller holds in the active org, for `GET /v1/auth/me` (OB-030).
+ *
+ * ## This is advisory and must never become an enforcement point (ROADMAP D-25)
+ *
+ * It answers "what would you be allowed to do", so a screen can hide an action the
+ * caller cannot take. It authorizes nothing. `requirePermission` above is the gate,
+ * it is service-layer only (spec §2.4, §5), and OB-054's matrix asserts every
+ * operation against every seeded role *there*, where hiding a button proves nothing.
+ *
+ * D-25 exists because the failure is predictable rather than exotic: a UI that gates
+ * well enough becomes a UI somebody trusts as the gate, and the next service written
+ * omits its check "because the button is hidden". If a caller of this function is
+ * ever branching on the result to decide whether to perform an operation, the bug is
+ * that call site and not this list.
+ *
+ * ## Why it reads the context and reuses the memo
+ *
+ * The set is `permissionsForContext`'s, unchanged — the same promise the first
+ * `requirePermission` of the request awaits, so a screen asking what it may do and a
+ * service deciding what it will allow cannot disagree. A second resolution path would
+ * be a second answer to the question, and the one that got stale would be the one
+ * nobody was watching.
+ *
+ * An empty array for a caller with no active org, rather than an error: that is a
+ * real state (a user removed from their last org) and it is exactly what `me()`
+ * answers for, so the response is "you may do nothing" and not a failure. Sorted, so
+ * the wire body is stable across calls and a client diffing it sees only real
+ * changes.
+ */
+export async function currentPermissions(): Promise<readonly PermissionKey[]> {
+  const ctx = getContext('currentPermissions()');
+  if (!isAuthenticatedContext(ctx)) return [];
+
+  return [...(await permissionsForContext(ctx))].sort();
 }
 
 /**

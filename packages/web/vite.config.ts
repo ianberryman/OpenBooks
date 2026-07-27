@@ -1,9 +1,13 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  // Tailwind as a Vite plugin rather than through PostCSS: the token layer is scanned and
+  // compiled in the same pass that resolves `@import './tokens.css'`, so there is no
+  // second config file describing where the theme lives (D-24).
+  plugins: [react(), tailwindcss()],
   build: {
     outDir: 'dist',
     sourcemap: true,
@@ -35,18 +39,28 @@ export default defineConfig({
   },
   /**
    * Vitest reads this file when run with `packages/web` as its root, so the package's test
-   * configuration lives here rather than in a second config file.
-   *
-   * The root `vitest.config.ts` enumerates its projects and has no entry for this package;
-   * that file is outside this ticket's scope. Adding `'./packages/web'` to its `projects`
-   * array is all that is needed, plus `vitest` declared in this package's devDependencies
-   * (this ticket may not edit any `package.json`). Until then:
-   * `yarn vitest run --root packages/web`.
+   * configuration lives here rather than in a second config file. The root
+   * `vitest.config.ts` has a `web` project that `extends` it, which is what puts these
+   * tests inside `yarn test`.
    */
   test: {
-    // `node`, not `jsdom`: the tests here are pure functions, and jsdom is neither a
-    // declared dependency nor a substitute for a real browser if component tests arrive.
-    environment: 'node',
-    include: ['src/**/*.test.ts'],
+    /**
+     * `jsdom` for the whole package rather than a second project for the components
+     * (OB-058). The alternative — a `node` project for `src/money` and a `jsdom` one for
+     * `src/components` — buys about a second of startup and costs a rule about which
+     * directory a new test file belongs in, which is the kind of rule that is discovered
+     * by a test failing for the wrong reason.
+     *
+     * jsdom is not a browser and the components are not verified here in the sense B1
+     * means; OB-055's Playwright run is. What this environment is good for is the
+     * keyboard and ARIA contract of the hand-built combobox, which is a pure function of
+     * events and attributes and does not need a compositor to be wrong.
+     */
+    environment: 'jsdom',
+    // `.tsx` as well as `.ts`. The glob was `*.test.ts` alone through OB-046, so a
+    // component test could not have been *discovered*, let alone run — the failure would
+    // have been a green suite, which is the one that does not get investigated.
+    include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['./src/test/setup.ts'],
   },
 });

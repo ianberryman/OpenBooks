@@ -318,6 +318,12 @@ describe('the grant lists and the live server agree', () => {
     // `permissions` joined this list when the omission above was resolved: the ledger
     // tables are append-only for immutability (spec §2.2), the catalog because only a
     // migration may change it (spec §5). Different reasons, same grant.
+    // `journal_line_dimensions` is deliberately NOT here, and it is the one table
+    // whose absence is a decision rather than an oversight: a tag names which slice of
+    // the business an amount belongs to, not a term of the entry, so editing one moves
+    // no total on any report — see the block in `0004_app_grants`. A table moving
+    // *into* this list is a widening of immutability and fine; `journals` or
+    // `journal_lines` moving *out* is the regression this literal exists to catch.
     expect(APPEND_ONLY_TABLES).toEqual(['journals', 'journal_lines', 'permissions']);
     expect(MUTABLE_TABLES.length).toBeGreaterThan(10);
     expect(MUTABLE_TABLES).not.toContain('journals');

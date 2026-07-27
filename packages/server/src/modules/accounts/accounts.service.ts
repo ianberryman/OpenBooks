@@ -1,6 +1,6 @@
 import type {
   Account,
-  AccountList,
+  AccountPage,
   CreateAccountRequest,
   ListAccountsQuery,
   UpdateAccountRequest,
@@ -12,10 +12,12 @@ import {
 } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
+import { resolvePageLimit } from '../../db';
 import { assertFound, PreconditionFailedError } from '../../errors';
 import { requirePermission } from '../permissions';
 import type { AccountPatch } from './accounts.repository';
 import {
+  ACCOUNT_RESOURCE as RESOURCE,
   accountIdBytes,
   accountReferencedError,
   deleteAccountRow,
@@ -24,18 +26,26 @@ import {
   orgScope,
   selectAccountById,
   selectAccountByIdForUpdate,
-  selectAccounts,
+  selectAccountsPage,
   toAccount,
   updateAccountRow,
 } from './accounts.repository';
+import {
+  assertParentTypeMatches,
+  deleteBlockedByChildrenError,
+  hasChildren,
+  reclassifyBlockedByChildrenError,
+  resolveAssignableParent,
+} from './hierarchy';
 import { parseInput } from './input';
 
 /**
- * The chart of accounts (OB-018; spec §2.1).
+ * The chart of accounts (OB-018, OB-035; spec §2.1).
  *
- * Read `index.ts` for the two decisions this module exists to record — hard
- * deletion, and `parent_account_id` — and
- * `packages/shared-types/src/accounts/accounts.ts` for the wire contract.
+ * Read `index.ts` for the three decisions this module exists to record — hard
+ * deletion, the immutable code, and the hierarchy rules — `hierarchy.ts` for the
+ * rules themselves, and `packages/shared-types/src/accounts/accounts.ts` for the
+ * wire contract.
  *
  * Three things are uniform across every operation below and stated once here
  * rather than at each:
@@ -56,17 +66,22 @@ import { parseInput } from './input';
  *    that could leak the difference.
  */
 
-/** The resource token for `NotFoundError`. Validated as an identifier by the class. */
-const RESOURCE = 'account';
-
 /**
- * Creates one account, active.
+ * Creates one account, active, and optionally under a parent.
  *
  * `accounts.write` alone, not `accounts.write` plus `accounts.read`, even though
  * this returns the created row. Reading back what you just wrote is part of the
  * write — a caller who could create an account but not see the result would have to
  * guess its id — and requiring both would make every write role a read role for no
  * gain. The same reasoning covers `update`, `deactivate`, and `reactivate`.
+ *
+ * The transaction is what ties the parent's resolution to the insert. Between
+ * validating the parent and writing the row, the parent could be deleted — and
+ * `hierarchy.ts` holds a row lock on it precisely so that it cannot be, which is
+ * only true if both statements are in the same transaction. It is opened
+ * unconditionally rather than only when a parent is named: `TenantDatabase`
+ * joins an ambient one (`transaction-scope.ts`), so the cost when there is
+ * nothing to protect is one `BEGIN`.
  */
 export async function createAccount(
   input: CreateAccountRequest,
@@ -75,15 +90,27 @@ export async function createAccount(
   await requirePermission(ctx, 'accounts.write');
   const request = parseInput(createAccountRequestSchema, input);
 
-  const row = await insertAccount(orgScope(ctx), {
-    code: request.code,
-    name: request.name,
-    type: request.type,
-    normalBalance: request.normalBalance,
-    description: request.description ?? null,
-  });
+  return orgScope(ctx).transaction(async (trx) => {
+    const parentAccountId =
+      request.parentAccountId === undefined || request.parentAccountId === null
+        ? null
+        : await resolveAssignableParent(
+            trx,
+            { id: null, type: request.type },
+            request.parentAccountId,
+          );
 
-  return toAccount(row);
+    const row = await insertAccount(trx, {
+      code: request.code,
+      name: request.name,
+      type: request.type,
+      normalBalance: request.normalBalance,
+      parentAccountId,
+      description: request.description ?? null,
+    });
+
+    return toAccount(row);
+  });
 }
 
 export async function getAccount(accountId: string, ctx: RequestContext): Promise<Account> {
@@ -95,19 +122,36 @@ export async function getAccount(accountId: string, ctx: RequestContext): Promis
   return toAccount(assertFound(await selectAccountById(db, id), RESOURCE));
 }
 
+/**
+ * One page of the chart of accounts, in code order (D-21, D-27).
+ *
+ * `resolvePageLimit` and not the parsed `limit`, even though the schema declares
+ * the same bounds. The schema is a restatement for `openapi.json`'s benefit; the
+ * function is the authority, and it has to be, because spec §12 puts an MCP tool
+ * and the workflow engine on the same service with no schema in front of them.
+ */
 export async function listAccounts(
   query: ListAccountsQuery,
   ctx: RequestContext,
-): Promise<AccountList> {
+): Promise<AccountPage> {
   await requirePermission(ctx, 'accounts.read');
   const filters = parseInput(listAccountsQuerySchema, query);
+  const limit = resolvePageLimit(filters.limit);
 
-  const rows = await selectAccounts(orgScope(ctx), filters);
-  return { accounts: rows.map(toAccount) };
+  const page = await selectAccountsPage(orgScope(ctx), filters, limit);
+  return { items: page.rows.map(toAccount), nextCursor: page.nextCursor };
 }
 
 /**
  * Updates the mutable fields of one account.
+ *
+ * ## Why `code` is not one of them (D-27)
+ *
+ * It is absent from `updateAccountRequestSchema` entirely, so sending it is a
+ * `validation_failed` naming the field rather than a silent drop. The full
+ * argument is on that schema; the short form is that a keyset ordering over a
+ * mutable column drops rows without saying so, and the chart of accounts is
+ * ordered by `code`.
  *
  * ## Why `type` and `normalBalance` are refused once the account has postings
  *
@@ -138,6 +182,15 @@ export async function listAccounts(
  * type change commits and the posting is made against the account as changed.
  * Neither order produces a posting that predates a change to its account's
  * meaning.
+ *
+ * ## Re-parenting
+ *
+ * `parentAccountId: null` detaches the account and makes it top-level; a uuid
+ * moves it, subject to the three rules in `hierarchy.ts`. The lock this path
+ * already takes on the account is half of what makes the cycle check exact — the
+ * other half is the lock `hierarchy.ts` takes walking up from the new parent, and
+ * the two together are why "make A a child of B" and "make B a child of A" cannot
+ * both succeed.
  */
 export async function updateAccount(
   accountId: string,
@@ -164,11 +217,30 @@ export async function updateAccount(
       throw accountTypeLockedError();
     }
 
+    const nextType = request.type ?? current.type;
+
+    const parentAccountId =
+      request.parentAccountId === undefined || request.parentAccountId === null
+        ? request.parentAccountId
+        : await resolveAssignableParent(trx, { id, type: nextType }, request.parentAccountId);
+
+    // The invariant is that a parent and its children share a type, so a
+    // reclassification has to be checked in both directions. Downwards always:
+    // this account's children keep their own type and would stop agreeing with
+    // it. Upwards only when the parent is being kept, because `parentAccountId`
+    // above has already checked the pair against the new one.
+    if (nextType !== current.type) {
+      if (await hasChildren(trx, id)) throw reclassifyBlockedByChildrenError();
+      if (request.parentAccountId === undefined && current.parent_account_id !== null) {
+        await assertParentTypeMatches(trx, current.parent_account_id, nextType);
+      }
+    }
+
     const patch: AccountPatch = {
-      ...(request.code === undefined ? {} : { code: request.code }),
       ...(request.name === undefined ? {} : { name: request.name }),
       ...(request.type === undefined ? {} : { type: request.type }),
       ...(request.normalBalance === undefined ? {} : { normalBalance: request.normalBalance }),
+      ...(parentAccountId === undefined ? {} : { parentAccountId }),
       // `null` clears, absent leaves alone. `.nullish()` makes both expressible and
       // only `undefined` means "absent" — JSON has no way to send `undefined`, so a
       // client wanting to clear the field sends `null` and gets exactly that.
@@ -248,20 +320,40 @@ export async function reactivateAccount(accountId: string, ctx: RequestContext):
  * Deliberately no cascade and no "delete and reassign its postings": both are ways
  * for a chart of accounts to lose entries quietly, which is the failure this
  * ticket names.
+ *
+ * ## Why the children check needs the lock and the postings check does not
+ *
+ * `fk_accounts_parent` is `ON DELETE RESTRICT` too, so a parent account is
+ * refused by the database exactly as a posted-to one is — with the same errno,
+ * which the repository cannot use to say *which* reference it was. Two rules
+ * would collapse into one message.
+ *
+ * The lock removes the ambiguity rather than a second query doing it. Both paths
+ * that make an account a parent — `createAccount` and re-parenting — take a row
+ * lock on the prospective parent, so holding that lock here means no child can
+ * appear between the check and the delete, and errno 1451 is left meaning
+ * postings and nothing else. Postings need no such treatment: journals are
+ * append-only and the app user holds no `DELETE` on `journal_lines`, so a
+ * posting's arrival is serialized by the same foreign key and answered with the
+ * message the pre-check would have given.
  */
 export async function deleteAccount(accountId: string, ctx: RequestContext): Promise<void> {
   await requirePermission(ctx, 'accounts.write');
 
   const db = orgScope(ctx);
-  const id = assertFound(accountIdBytes(accountId), RESOURCE);
 
-  // Establishes existence, so deleting an account that never existed — or one
-  // belonging to another org — is a 404 rather than a silent success.
-  assertFound(await selectAccountById(db, id), RESOURCE);
+  await db.transaction(async (trx) => {
+    const id = assertFound(accountIdBytes(accountId), RESOURCE);
 
-  if (await hasPostings(db, id)) throw accountReferencedError();
+    // Establishes existence, so deleting an account that never existed — or one
+    // belonging to another org — is a 404 rather than a silent success.
+    assertFound(await selectAccountByIdForUpdate(trx, id), RESOURCE);
 
-  await deleteAccountRow(db, id);
+    if (await hasPostings(trx, id)) throw accountReferencedError();
+    if (await hasChildren(trx, id)) throw deleteBlockedByChildrenError();
+
+    await deleteAccountRow(trx, id);
+  });
 }
 
 async function setActive(
@@ -295,7 +387,7 @@ function accountTypeLockedError(): PreconditionFailedError {
     'account_has_postings',
     'This account has postings, so its type and normal balance are fixed. Changing either ' +
       'would restate what past reports said about entries that have already been made. Create ' +
-      'the account you intended and reverse and re-post the affected entries; `code`, `name`, ' +
-      'and `description` remain editable.',
+      'the account you intended and reverse and re-post the affected entries; `name` and ' +
+      '`description` remain editable, and `code` never was.',
   );
 }

@@ -10,29 +10,30 @@ import { registerReportRoutes } from './reports';
 /**
  * The `/v1` route surface (OB-023).
  *
- * | Method   | Path                                    | operationId           | Idempotency-Key | Replay-guarded |
+ * | Method   | Path                                    | operationId           | Idempotency-Key | Claim scope    |
  * | -------- | --------------------------------------- | --------------------- | --------------- | -------------- |
- * | `POST`   | `/v1/auth/register`                     | `register`            | required        | no             |
- * | `POST`   | `/v1/auth/login`                        | `login`               | required        | no             |
- * | `POST`   | `/v1/auth/logout`                       | `logout`              | required        | no             |
+ * | `POST`   | `/v1/auth/register`                     | `register`            | required        | global         |
+ * | `POST`   | `/v1/auth/login`                        | `login`               | required        | global         |
+ * | `POST`   | `/v1/auth/logout`                       | `logout`              | required        | global         |
  * | `GET`    | `/v1/auth/me`                           | `getCurrentIdentity`  | —               | —              |
- * | `POST`   | `/v1/orgs`                              | `createOrg`           | required        | no             |
+ * | `POST`   | `/v1/orgs`                              | `createOrg`           | required        | global         |
  * | `GET`    | `/v1/orgs`                              | `listOrgMemberships`  | —               | —              |
- * | `POST`   | `/v1/orgs/active`                       | `switchActiveOrg`     | required        | no             |
- * | `POST`   | `/v1/accounts`                          | `createAccount`       | required        | yes            |
+ * | `POST`   | `/v1/orgs/active`                       | `switchActiveOrg`     | required        | global         |
+ * | `POST`   | `/v1/accounts`                          | `createAccount`       | required        | org            |
  * | `GET`    | `/v1/accounts`                          | `listAccounts`        | —               | —              |
  * | `GET`    | `/v1/accounts/:accountId`               | `getAccount`          | —               | —              |
- * | `PATCH`  | `/v1/accounts/:accountId`               | `updateAccount`       | required        | yes            |
- * | `POST`   | `/v1/accounts/:accountId/deactivate`    | `deactivateAccount`   | required        | yes            |
- * | `POST`   | `/v1/accounts/:accountId/reactivate`    | `reactivateAccount`   | required        | yes            |
- * | `DELETE` | `/v1/accounts/:accountId`               | `deleteAccount`       | required        | yes            |
- * | `POST`   | `/v1/fiscal-years`                      | `generateFiscalYear`  | required        | yes            |
- * | `POST`   | `/v1/fiscal-periods`                    | `createFiscalPeriod`  | required        | yes            |
+ * | `PATCH`  | `/v1/accounts/:accountId`               | `updateAccount`       | required        | org            |
+ * | `POST`   | `/v1/accounts/:accountId/deactivate`    | `deactivateAccount`   | required        | org            |
+ * | `POST`   | `/v1/accounts/:accountId/reactivate`    | `reactivateAccount`   | required        | org            |
+ * | `DELETE` | `/v1/accounts/:accountId`               | `deleteAccount`       | required        | org            |
+ * | `POST`   | `/v1/fiscal-years`                      | `generateFiscalYear`  | required        | org            |
+ * | `POST`   | `/v1/fiscal-periods`                    | `createFiscalPeriod`  | required        | org            |
  * | `GET`    | `/v1/fiscal-periods`                    | `listFiscalPeriods`   | —               | —              |
- * | `POST`   | `/v1/fiscal-periods/:periodId/close`    | `closeFiscalPeriod`   | required        | yes            |
- * | `POST`   | `/v1/fiscal-periods/:periodId/reopen`   | `reopenFiscalPeriod`  | required        | yes            |
- * | `POST`   | `/v1/journals`                          | `postJournal`         | required        | yes            |
- * | `POST`   | `/v1/journals/:journalId/reverse`       | `reverseJournal`      | required        | yes            |
+ * | `POST`   | `/v1/fiscal-periods/:periodId/close`    | `closeFiscalPeriod`   | required        | org            |
+ * | `POST`   | `/v1/fiscal-periods/:periodId/reopen`   | `reopenFiscalPeriod`  | required        | org            |
+ * | `POST`   | `/v1/journals`                          | `postJournal`         | required        | org            |
+ * | `GET`    | `/v1/journals`                          | `listJournals`        | —               | —              |
+ * | `POST`   | `/v1/journals/:journalId/reverse`       | `reverseJournal`      | required        | org            |
  * | `GET`    | `/v1/reports/trial-balance`             | `getTrialBalance`     | —               | —              |
  *
  * ## What a handler in this directory is allowed to contain
@@ -101,18 +102,21 @@ import { registerReportRoutes } from './reports';
  * transaction ambiently — `tenantDb()` inside the service joins the claim's
  * transaction, so the claim and the write commit together.
  *
- * **The gap, named.** The five identity and org-lifecycle writes — register, login,
- * logout, create org, switch active org — carry the header requirement and are *not*
- * replay-guarded. They cannot be: `idempotency_keys` is a tenant table whose `org_id`
- * has a foreign key to `orgs` (migration `0003`), and these operations either run
- * before the org exists (register, create-org for a user with no memberships) or would
- * record the claim against the org the caller is *leaving* (switch). Passing the
- * pre-auth sentinel org would fail that foreign key and surface as a 500. The
- * practical consequence is bounded — a retried register answers `conflict`, a retried
- * logout is a no-op by construction, and a retried login mints a second session — but
- * it is a real divergence from spec §12 and it needs a decision in `src/modules/`
- * (an org-less claim namespace, or a nullable `org_id` with a partial unique key),
- * which this ticket may not make. Flagged in the OB-023 report.
+ * `withGlobalIdempotency(spec, operation)` covers the five identity and org-lifecycle
+ * writes — register, login, logout, create org, switch active org — which have no org
+ * to scope a claim to. They run either before any org exists or, in the case of
+ * switch, against the org the caller is *leaving*. The claim goes to the same table
+ * with `org_id` null and the zero-byte `claim_scope` that migration `0003` exists to
+ * provide, and the fingerprint folds in the calling user, because the global namespace
+ * is shared and keys are client-chosen: without that, two callers who picked the same
+ * key would be each other's replays and the second `createOrg` would be answered with
+ * the first caller's org. It is a separate function rather than a flag on
+ * `IdempotencySpec` so the namespace cannot default wrong.
+ *
+ * One asymmetry to know about: a replayed `register` or `login` returns the identity
+ * with no `Set-Cookie`, because the session token exists only during execution and is
+ * deliberately never stored (D-03). That is right for the double-submit this guards
+ * against; a caller who genuinely lost the response has to log in again.
  */
 export function registerV1Routes(app: App, config: Config): void {
   registerAuthRoutes(app, config);

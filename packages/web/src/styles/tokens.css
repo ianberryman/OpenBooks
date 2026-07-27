@@ -1,0 +1,406 @@
+/**
+ * The token layer (ROADMAP D-24). **This is the only file in the application permitted to
+ * name a raw colour**, and `openbooks/no-raw-color` is what makes that true rather than
+ * aspirational — see the `allow` entry in `eslint.config.js`.
+ *
+ * Three layers, in one file because the whole value of the arrangement is that the
+ * mapping between them is readable in one screen:
+ *
+ * 1. **Palette** (`--ob-palette-*`) — the raw ramps. No component and no `@theme` entry
+ *    may reference these; they exist only to be bound by layer 2.
+ * 2. **Role** (`--ob-color-*`, `--ob-space-*`, `--ob-radius-*`, …) — what a thing is *for*
+ *    rather than what it looks like. This is the layer a theme re-binds, and the reason a
+ *    theme is a re-binding at `:root` rather than a rebuild: only the right-hand side of
+ *    these declarations changes between light and dark.
+ * 3. **`@theme`** — Tailwind's view of layer 2, and nothing else. Every value below is a
+ *    `var(--ob-…)`; there is no literal on the right of a `--color-*` declaration.
+ *
+ * The layer that is easy to skip is 1→2. Without it, dark mode is written as
+ * `--color-surface: white` overridden to `--color-surface: near-black`, and every future
+ * theme re-states the whole palette. With it, a white-label supplies a palette and
+ * re-binds a dozen roles.
+ */
+
+/**
+ * Palette. Values are `oklch()` rather than hex because the ramps were built by holding
+ * lightness and chroma to a schedule and varying hue — which is arithmetic in OkLCh and
+ * guesswork in sRGB hex. It also makes `color-mix(in oklab, …)` below behave: mixing a
+ * scrim in a perceptual space keeps it neutral instead of drifting purple.
+ */
+:root {
+  --ob-palette-neutral-0: oklch(1 0 0);
+  --ob-palette-neutral-50: oklch(0.985 0.003 264);
+  --ob-palette-neutral-100: oklch(0.967 0.005 264);
+  --ob-palette-neutral-200: oklch(0.928 0.008 264);
+  --ob-palette-neutral-300: oklch(0.872 0.011 264);
+  --ob-palette-neutral-400: oklch(0.714 0.015 264);
+  --ob-palette-neutral-500: oklch(0.594 0.017 264);
+  --ob-palette-neutral-600: oklch(0.494 0.018 264);
+  --ob-palette-neutral-700: oklch(0.402 0.018 265);
+  --ob-palette-neutral-800: oklch(0.31 0.018 266);
+  --ob-palette-neutral-850: oklch(0.256 0.017 266);
+  --ob-palette-neutral-900: oklch(0.209 0.016 266);
+  --ob-palette-neutral-950: oklch(0.163 0.014 267);
+  --ob-palette-neutral-1000: oklch(0.121 0.012 267);
+
+  --ob-palette-accent-100: oklch(0.943 0.028 258);
+  --ob-palette-accent-200: oklch(0.885 0.058 258);
+  --ob-palette-accent-300: oklch(0.786 0.104 258);
+  --ob-palette-accent-400: oklch(0.685 0.152 259);
+  --ob-palette-accent-500: oklch(0.588 0.187 259);
+  --ob-palette-accent-600: oklch(0.522 0.196 261);
+  --ob-palette-accent-700: oklch(0.452 0.176 262);
+  --ob-palette-accent-800: oklch(0.376 0.142 263);
+  --ob-palette-accent-900: oklch(0.298 0.106 264);
+
+  --ob-palette-red-100: oklch(0.945 0.028 22);
+  --ob-palette-red-200: oklch(0.888 0.062 22);
+  --ob-palette-red-500: oklch(0.605 0.212 25);
+  --ob-palette-red-600: oklch(0.547 0.204 26);
+  --ob-palette-red-700: oklch(0.475 0.176 27);
+  --ob-palette-red-900: oklch(0.312 0.112 27);
+
+  --ob-palette-green-100: oklch(0.948 0.036 155);
+  --ob-palette-green-200: oklch(0.892 0.072 155);
+  --ob-palette-green-500: oklch(0.618 0.136 156);
+  --ob-palette-green-600: oklch(0.545 0.124 157);
+  --ob-palette-green-700: oklch(0.468 0.104 158);
+  --ob-palette-green-900: oklch(0.312 0.07 158);
+
+  --ob-palette-amber-100: oklch(0.958 0.042 92);
+  --ob-palette-amber-200: oklch(0.907 0.096 88);
+  --ob-palette-amber-500: oklch(0.762 0.148 76);
+  --ob-palette-amber-700: oklch(0.552 0.114 66);
+  --ob-palette-amber-900: oklch(0.362 0.074 62);
+}
+
+/**
+ * Role tokens — light.
+ *
+ * Bound on `:root` unconditionally, so an element outside any theme scope is never
+ * unstyled. The dark block below re-binds this same set and adds nothing to it: a role
+ * that exists in one theme and not the other is a component that renders differently by
+ * accident, which is the failure the whole layer exists to prevent.
+ */
+:root {
+  color-scheme: light;
+
+  --ob-color-canvas: var(--ob-palette-neutral-50);
+  --ob-color-surface: var(--ob-palette-neutral-0);
+  --ob-color-surface-sunken: var(--ob-palette-neutral-100);
+  --ob-color-surface-overlay: var(--ob-palette-neutral-0);
+  --ob-color-surface-hover: var(--ob-palette-neutral-100);
+  --ob-color-surface-selected: var(--ob-palette-accent-100);
+
+  --ob-color-border: var(--ob-palette-neutral-200);
+  --ob-color-border-strong: var(--ob-palette-neutral-300);
+
+  --ob-color-text: var(--ob-palette-neutral-900);
+  --ob-color-text-muted: var(--ob-palette-neutral-600);
+  --ob-color-text-subtle: var(--ob-palette-neutral-500);
+  --ob-color-text-inverse: var(--ob-palette-neutral-0);
+
+  --ob-color-accent: var(--ob-palette-accent-600);
+  --ob-color-accent-hover: var(--ob-palette-accent-700);
+  --ob-color-accent-soft: var(--ob-palette-accent-100);
+  --ob-color-accent-on: var(--ob-palette-neutral-0);
+  --ob-color-focus: var(--ob-palette-accent-500);
+
+  --ob-color-danger: var(--ob-palette-red-600);
+  --ob-color-danger-hover: var(--ob-palette-red-700);
+  --ob-color-danger-soft: var(--ob-palette-red-100);
+  --ob-color-danger-border: var(--ob-palette-red-200);
+  --ob-color-danger-on: var(--ob-palette-neutral-0);
+  --ob-color-danger-text: var(--ob-palette-red-700);
+
+  --ob-color-warning: var(--ob-palette-amber-500);
+  --ob-color-warning-soft: var(--ob-palette-amber-100);
+  --ob-color-warning-border: var(--ob-palette-amber-200);
+  --ob-color-warning-text: var(--ob-palette-amber-700);
+
+  --ob-color-success: var(--ob-palette-green-600);
+  --ob-color-success-soft: var(--ob-palette-green-100);
+  --ob-color-success-border: var(--ob-palette-green-200);
+  --ob-color-success-text: var(--ob-palette-green-700);
+
+  /**
+   * Signed amounts, and deliberately not the same tokens as success/danger. A negative
+   * balance is not an error and a credit is not a success; binding them to the status
+   * ramp is how a ledger ends up colouring every credit line green. They are separate
+   * roles so a locale that inverts the convention re-binds two declarations.
+   */
+  --ob-color-amount-positive: var(--ob-palette-neutral-900);
+  --ob-color-amount-negative: var(--ob-palette-red-700);
+
+  --ob-color-scrim: color-mix(in oklab, var(--ob-palette-neutral-1000) 40%, transparent);
+
+  /**
+   * Elevation is a role, not a blur radius. It is re-bound in dark because a shadow tuned
+   * for a white canvas is invisible on a near-black one — dark elevation reads through a
+   * lighter surface and a tighter, denser shadow rather than a softer one.
+   */
+  --ob-shadow-raised: 0 1px 2px color-mix(in oklab, var(--ob-palette-neutral-1000) 8%, transparent);
+  --ob-shadow-overlay:
+    0 4px 6px -1px color-mix(in oklab, var(--ob-palette-neutral-1000) 10%, transparent),
+    0 10px 24px -4px color-mix(in oklab, var(--ob-palette-neutral-1000) 12%, transparent);
+}
+
+/**
+ * Role tokens — dark.
+ *
+ * `[data-theme='dark']` on `<html>` is the **single** theme hook, and the choice against
+ * `prefers-color-scheme` as a second one is deliberate. A media query cannot express a
+ * user override, so shipping both means two independent mechanisms selecting the same
+ * declarations and the cascade deciding which wins — which is where "the toggle does
+ * nothing after a reload" lives. The system preference is still honoured: it is read once
+ * in `index.html` and resolved *into* this attribute before first paint (see the inline
+ * script there), so there is exactly one thing to read to know which theme is active,
+ * from CSS, from JavaScript, and in the DOM inspector.
+ *
+ * The other reason is that themes are not a binary. High-contrast is a third value of this
+ * attribute; a white-label is a fourth. Neither is expressible as a media query.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ob-color-canvas: var(--ob-palette-neutral-1000);
+  --ob-color-surface: var(--ob-palette-neutral-950);
+  --ob-color-surface-sunken: var(--ob-palette-neutral-1000);
+  --ob-color-surface-overlay: var(--ob-palette-neutral-900);
+  --ob-color-surface-hover: var(--ob-palette-neutral-850);
+  --ob-color-surface-selected: var(--ob-palette-accent-900);
+
+  --ob-color-border: var(--ob-palette-neutral-850);
+  --ob-color-border-strong: var(--ob-palette-neutral-700);
+
+  --ob-color-text: var(--ob-palette-neutral-100);
+  --ob-color-text-muted: var(--ob-palette-neutral-400);
+  --ob-color-text-subtle: var(--ob-palette-neutral-500);
+  --ob-color-text-inverse: var(--ob-palette-neutral-1000);
+
+  --ob-color-accent: var(--ob-palette-accent-500);
+  --ob-color-accent-hover: var(--ob-palette-accent-400);
+  --ob-color-accent-soft: var(--ob-palette-accent-900);
+  --ob-color-accent-on: var(--ob-palette-neutral-0);
+  --ob-color-focus: var(--ob-palette-accent-400);
+
+  --ob-color-danger: var(--ob-palette-red-500);
+  --ob-color-danger-hover: var(--ob-palette-red-600);
+  --ob-color-danger-soft: var(--ob-palette-red-900);
+  --ob-color-danger-border: var(--ob-palette-red-700);
+  --ob-color-danger-on: var(--ob-palette-neutral-0);
+  --ob-color-danger-text: var(--ob-palette-red-200);
+
+  --ob-color-warning: var(--ob-palette-amber-500);
+  --ob-color-warning-soft: var(--ob-palette-amber-900);
+  --ob-color-warning-border: var(--ob-palette-amber-700);
+  --ob-color-warning-text: var(--ob-palette-amber-200);
+
+  --ob-color-success: var(--ob-palette-green-500);
+  --ob-color-success-soft: var(--ob-palette-green-900);
+  --ob-color-success-border: var(--ob-palette-green-700);
+  --ob-color-success-text: var(--ob-palette-green-200);
+
+  --ob-color-amount-positive: var(--ob-palette-neutral-100);
+  --ob-color-amount-negative: var(--ob-palette-red-200);
+
+  --ob-color-scrim: color-mix(in oklab, var(--ob-palette-neutral-1000) 65%, transparent);
+
+  --ob-shadow-raised: 0 1px 2px color-mix(in oklab, black 40%, transparent);
+  --ob-shadow-overlay:
+    0 4px 6px -1px color-mix(in oklab, black 50%, transparent),
+    0 10px 24px -4px color-mix(in oklab, black 55%, transparent);
+}
+
+/**
+ * Non-colour roles. Theme-invariant today; declared in the same layer so that a
+ * high-contrast or compact theme has one place to re-bind them and no component changes.
+ */
+:root {
+  /**
+   * One spacing unit, not a scale of named steps. Tailwind multiplies this for every
+   * numeric spacing utility, so `p-4` is `calc(var(--ob-space-unit) * 4)` — a token
+   * reference, not a raw value, at every call site. A named scale on top of it would add
+   * a second vocabulary (`p-gutter` vs `p-4`) for the same measurements.
+   */
+  --ob-space-unit: 0.25rem;
+
+  --ob-radius-sm: 0.25rem;
+  --ob-radius-md: 0.375rem;
+  --ob-radius-lg: 0.5rem;
+  --ob-radius-xl: 0.75rem;
+  --ob-radius-full: 9999px;
+
+  /**
+   * `ui-monospace` first for amounts and account codes. Money is right-aligned digits in
+   * a column, and a proportional font makes a mis-keyed magnitude look the same width as
+   * a correct one.
+   */
+  --ob-font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ob-font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --ob-text-xs: 0.75rem;
+  --ob-text-xs-leading: 1rem;
+  --ob-text-sm: 0.8125rem;
+  --ob-text-sm-leading: 1.25rem;
+  --ob-text-base: 0.875rem;
+  --ob-text-base-leading: 1.375rem;
+  --ob-text-md: 1rem;
+  --ob-text-md-leading: 1.5rem;
+  --ob-text-lg: 1.125rem;
+  --ob-text-lg-leading: 1.625rem;
+  --ob-text-xl: 1.375rem;
+  --ob-text-xl-leading: 1.875rem;
+  --ob-text-2xl: 1.75rem;
+  --ob-text-2xl-leading: 2.125rem;
+
+  --ob-weight-normal: 400;
+  --ob-weight-medium: 500;
+  --ob-weight-semibold: 600;
+
+  /**
+   * Motion. Three durations and two curves, because the alternative is a rule nobody can
+   * apply: "how long should this be" has no answer per component, only per category —
+   * a state change (fast), an element entering (base), a panel travelling (slow).
+   *
+   * Every consumer must still sit behind `prefers-reduced-motion`; the base layer in
+   * `index.css` collapses these globally, so honouring it is not per-component work.
+   */
+  --ob-duration-fast: 120ms;
+  --ob-duration-base: 180ms;
+  --ob-duration-slow: 260ms;
+  --ob-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ob-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --ob-breakpoint-sm: 40rem;
+  --ob-breakpoint-md: 48rem;
+  --ob-breakpoint-lg: 64rem;
+  --ob-breakpoint-xl: 80rem;
+
+  --ob-width-form: 28rem;
+  --ob-width-dialog: 32rem;
+  --ob-width-content: 80rem;
+}
+
+/**
+ * Tailwind's theme, and D-24's actual requirement: it reads from the role layer above and
+ * from nothing else.
+ *
+ * `--*: initial` clears Tailwind's built-in theme wholesale. Without it the defaults
+ * remain reachable — `bg-red-500`, `p-4` from the stock spacing scale, `rounded-md` from
+ * the stock radii — and a component naming one of those is naming a raw value that no
+ * theme re-binds and no lint rule can see, because `bg-red-500` is not a hex. Clearing
+ * first is what makes "tokens only" checkable by the compiler rather than by review: a
+ * class with no token behind it produces no CSS at all.
+ *
+ * The cost is that anything used must be declared here. That is the intended cost.
+ */
+@theme {
+  --*: initial;
+
+  --color-canvas: var(--ob-color-canvas);
+  --color-surface: var(--ob-color-surface);
+  --color-surface-sunken: var(--ob-color-surface-sunken);
+  --color-surface-overlay: var(--ob-color-surface-overlay);
+  --color-surface-hover: var(--ob-color-surface-hover);
+  --color-surface-selected: var(--ob-color-surface-selected);
+
+  --color-border: var(--ob-color-border);
+  --color-border-strong: var(--ob-color-border-strong);
+
+  --color-text: var(--ob-color-text);
+  --color-text-muted: var(--ob-color-text-muted);
+  --color-text-subtle: var(--ob-color-text-subtle);
+  --color-text-inverse: var(--ob-color-text-inverse);
+
+  --color-accent: var(--ob-color-accent);
+  --color-accent-hover: var(--ob-color-accent-hover);
+  --color-accent-soft: var(--ob-color-accent-soft);
+  --color-accent-on: var(--ob-color-accent-on);
+  --color-focus: var(--ob-color-focus);
+
+  --color-danger: var(--ob-color-danger);
+  --color-danger-hover: var(--ob-color-danger-hover);
+  --color-danger-soft: var(--ob-color-danger-soft);
+  --color-danger-border: var(--ob-color-danger-border);
+  --color-danger-on: var(--ob-color-danger-on);
+  --color-danger-text: var(--ob-color-danger-text);
+
+  --color-warning: var(--ob-color-warning);
+  --color-warning-soft: var(--ob-color-warning-soft);
+  --color-warning-border: var(--ob-color-warning-border);
+  --color-warning-text: var(--ob-color-warning-text);
+
+  --color-success: var(--ob-color-success);
+  --color-success-soft: var(--ob-color-success-soft);
+  --color-success-border: var(--ob-color-success-border);
+  --color-success-text: var(--ob-color-success-text);
+
+  --color-amount-positive: var(--ob-color-amount-positive);
+  --color-amount-negative: var(--ob-color-amount-negative);
+
+  --color-scrim: var(--ob-color-scrim);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --spacing: var(--ob-space-unit);
+
+  --radius-sm: var(--ob-radius-sm);
+  --radius-md: var(--ob-radius-md);
+  --radius-lg: var(--ob-radius-lg);
+  --radius-xl: var(--ob-radius-xl);
+  --radius-full: var(--ob-radius-full);
+
+  --font-sans: var(--ob-font-sans);
+  --font-mono: var(--ob-font-mono);
+
+  --text-xs: var(--ob-text-xs);
+  --text-xs--line-height: var(--ob-text-xs-leading);
+  --text-sm: var(--ob-text-sm);
+  --text-sm--line-height: var(--ob-text-sm-leading);
+  --text-base: var(--ob-text-base);
+  --text-base--line-height: var(--ob-text-base-leading);
+  --text-md: var(--ob-text-md);
+  --text-md--line-height: var(--ob-text-md-leading);
+  --text-lg: var(--ob-text-lg);
+  --text-lg--line-height: var(--ob-text-lg-leading);
+  --text-xl: var(--ob-text-xl);
+  --text-xl--line-height: var(--ob-text-xl-leading);
+  --text-2xl: var(--ob-text-2xl);
+  --text-2xl--line-height: var(--ob-text-2xl-leading);
+
+  --font-weight-normal: var(--ob-weight-normal);
+  --font-weight-medium: var(--ob-weight-medium);
+  --font-weight-semibold: var(--ob-weight-semibold);
+
+  --shadow-raised: var(--ob-shadow-raised);
+  --shadow-overlay: var(--ob-shadow-overlay);
+
+  --duration-fast: var(--ob-duration-fast);
+  --duration-base: var(--ob-duration-base);
+  --duration-slow: var(--ob-duration-slow);
+  --ease-standard: var(--ob-ease-standard);
+  --ease-exit: var(--ob-ease-exit);
+  --default-transition-duration: var(--ob-duration-fast);
+  --default-transition-timing-function: var(--ob-ease-standard);
+
+  --breakpoint-sm: var(--ob-breakpoint-sm);
+  --breakpoint-md: var(--ob-breakpoint-md);
+  --breakpoint-lg: var(--ob-breakpoint-lg);
+  --breakpoint-xl: var(--ob-breakpoint-xl);
+
+  --container-form: var(--ob-width-form);
+  --container-dialog: var(--ob-width-dialog);
+  --container-content: var(--ob-width-content);
+}
+
+/**
+ * Tailwind's stock `dark:` variant is `@media (prefers-color-scheme: dark)`, which is not
+ * this application's theme hook and would therefore fire at times the theme is light.
+ * Redefined so that it cannot be silently wrong — not as an invitation to use it. A
+ * component reaching for `dark:` is a component that found a role token missing, and the
+ * fix is to add the role above.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));

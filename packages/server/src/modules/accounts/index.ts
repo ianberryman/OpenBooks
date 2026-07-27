@@ -1,9 +1,10 @@
 /**
- * The chart of accounts (OB-018; spec §2.1).
+ * The chart of accounts (OB-018, OB-035; spec §2.1).
  *
- * Deliberately small. Templates and hierarchy are M2 (ROADMAP, "Explicitly out of
- * M1"); what is here is the CRUD the ledger kernel needs in order to reference an
- * account, plus the two removal rules an accounting system cannot be casual about.
+ * The CRUD the ledger kernel needs in order to reference an account, the two
+ * removal rules an accounting system cannot be casual about, and — since
+ * OB-035 — the hierarchy `parent_account_id` had been holding a column for since
+ * M1. Chart templates are still OB-039's.
  *
  * ## Surface
  *
@@ -16,6 +17,11 @@
  * | `deactivateAccount(id, ctx)`             | `accounts.write`  |
  * | `reactivateAccount(id, ctx)`             | `accounts.write`  |
  * | `deleteAccount(id, ctx)`                 | `accounts.write`  |
+ *
+ * `listAccounts` returns one bounded page and an opaque cursor, not the whole
+ * chart. It is keyset-paginated (D-21) over `(code, id)`, which OB-031 could not
+ * use and D-27 made possible by fixing an account's code at creation — see
+ * `ACCOUNT_KEYSET` in `accounts.repository.ts`.
  *
  * `(input, ctx)` follows plugin-api's `PostingService`, and `ctx` is where the org
  * comes from — spec §4 forbids it as a loose parameter, so there is no signature
@@ -33,35 +39,41 @@
  * `createAccountRequestSchema` for why guessing it would be wrong exactly where it
  * matters.
  *
- * ## Two decisions worth reading before changing anything here
+ * ## Three decisions worth reading before changing anything here
  *
- * **Hard deletion is allowed, for an account with no postings only.** The argument
- * is on `deleteAccount`: an account is configuration rather than a record of what
- * happened, so deleting an unreferenced one restates nothing, while refusing would
- * leave a mistyped code occupying that code permanently (`uq_accounts_org_code`
- * covers inactive rows too). Safety rests on `ON DELETE RESTRICT`, not on the
- * service's check.
+ * **Hard deletion is allowed, for an account with no postings and no children.**
+ * The argument is on `deleteAccount`: an account is configuration rather than a
+ * record of what happened, so deleting an unreferenced one restates nothing, while
+ * refusing would leave a mistyped code occupying that code permanently
+ * (`uq_accounts_org_code` covers inactive rows too). Safety rests on `ON DELETE
+ * RESTRICT`, not on the service's check.
  *
- * **`parent_account_id` is not in the API.** The column ships in M1 so that M2 does
- * not have to `ALTER` a table holding every customer's chart, but hierarchy is a
- * set of rules that do not exist yet, and accepting the field now would persist
- * data whose meaning is decided later. The request schemas are `strictObject`s, so
- * sending it is a `validation_failed` naming the field rather than a silent drop —
- * see the decision block in `packages/shared-types/src/accounts/accounts.ts`.
+ * **A code is immutable once created (D-27).** It is the reference other things
+ * cite, and it is also the list's sort key — a keyset over a mutable column drops
+ * rows silently. `code` is therefore absent from `updateAccountRequestSchema`,
+ * which is a `strictObject`, so sending it is a `validation_failed` naming the
+ * field. `name` and `description` stay mutable.
  *
- * A note for whoever implements the M2 hierarchy: the composite foreign key
- * `(org_id, parent_account_id) → accounts (org_id, id)` already makes a cross-org
- * parent unrepresentable, so no application check is needed for *integrity*. One is
- * still needed for the error surface — resolve the parent through `tenantDb` and
- * `assertFound` first, or another org's account id arrives as errno 1452 and
- * becomes a 500 instead of the 404 that A7 requires. Cycles are a separate problem
- * and the schema says nothing about them: a self-referencing foreign key permits
- * `a → b → a`, so that check has to be written.
+ * **Hierarchy is three rules, and none of them is in the schema.** The composite
+ * foreign key `(org_id, parent_account_id) → accounts (org_id, id)` makes a
+ * cross-org parent unrepresentable, so nothing above the database does integrity
+ * work — but it permits `a → b → a`, says nothing about depth, and says nothing
+ * about type. Those live in `hierarchy.ts`, together with the reason the parent is
+ * resolved through `tenantDb` and `assertFound` before any statement names it:
+ * otherwise another org's id arrives as errno 1452 and becomes a 500 instead of
+ * the 404 that A7 requires.
+ *
+ * One question the M1 note listed is deliberately still open: **deactivating a
+ * parent does not deactivate its children.** Nothing here needs an answer — an
+ * inactive account keeps its postings and its place in the tree — and the question
+ * is really "what does a subtotal do with an inactive parent", which belongs with
+ * the reports that compute one (OB-039, OB-043).
  */
 
+export { ACCOUNT_MAX_DEPTH } from '@openbooks/shared-types';
 export type {
   Account,
-  AccountList,
+  AccountPage,
   AccountType,
   CreateAccountRequest,
   ListAccountsQuery,

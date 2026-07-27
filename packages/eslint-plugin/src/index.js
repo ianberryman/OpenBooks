@@ -1,6 +1,7 @@
 import { noProcessEnv } from './rules/no-process-env.js';
 import { noFloatMoney } from './rules/no-float-money.js';
 import { noJournalWrites } from './rules/no-journal-writes.js';
+import { noRawColor } from './rules/no-raw-color.js';
 
 /**
  * Project-specific lint rules. Each one enforces a guarantee the spec states in
@@ -18,6 +19,7 @@ const plugin = {
     'no-process-env': noProcessEnv,
     'no-float-money': noFloatMoney,
     'no-journal-writes': noJournalWrites,
+    'no-raw-color': noRawColor,
   },
 };
 

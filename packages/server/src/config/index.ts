@@ -9,6 +9,7 @@ import { loadConfig } from './config';
 export type {
   BankFeedConfig,
   Config,
+  CorsConfig,
   EmailConfig,
   QueueConfig,
   SecretsConfig,

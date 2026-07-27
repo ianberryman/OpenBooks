@@ -4,16 +4,22 @@ import type {
   ListAccountsQuery,
   NormalBalance,
 } from '@openbooks/shared-types';
+import { ACCOUNT_CODE_MAX_LENGTH } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
-import type { TenantDatabase } from '../../db';
+import type { KeysetOrdering, KeysetPage, TenantDatabase } from '../../db';
 import {
+  applyKeyset,
   bufferToUuid,
-  isUuid,
+  isDuplicateEntryError,
+  isStillReferencedError,
   newUuidBuffer,
+  orgScope as toOrgId,
   tenantDb,
+  textKey,
+  toKeysetPage,
   tryUuidToBuffer,
-  uuidToBuffer,
+  uuidKey,
 } from '../../db';
 import { ConflictError, InternalError, PreconditionFailedError } from '../../errors';
 
@@ -32,14 +38,15 @@ import { ConflictError, InternalError, PreconditionFailedError } from '../../err
  * otherwise reach `toWireError` unrecognised and become an opaque 500.
  */
 
-/** mysql2 `errno` for `ER_DUP_ENTRY` — a unique index rejected the row. */
-const DUPLICATE_ENTRY_ERRNO = 1062;
-
 /**
- * mysql2 `errno` for `ER_ROW_IS_REFERENCED_2` — a foreign key with `ON DELETE
- * RESTRICT` refused the delete.
+ * The resource token every miss in this module reports (A7).
+ *
+ * Here rather than in the service because `hierarchy.ts` raises the same 404 for
+ * an unresolvable parent, and two copies of the token are two things that can
+ * drift — which for `NotFoundError` means two distinguishable answers to what has
+ * to be one.
  */
-const ROW_IS_REFERENCED_ERRNO = 1451;
+export const ACCOUNT_RESOURCE = 'account';
 
 /** The columns every read in this module selects, so one mapper covers them all. */
 const ACCOUNT_COLUMNS = [
@@ -48,6 +55,7 @@ const ACCOUNT_COLUMNS = [
   'name',
   'type',
   'normal_balance',
+  'parent_account_id',
   'description',
   'is_active',
   'created_at',
@@ -60,6 +68,7 @@ interface AccountRow {
   readonly name: string;
   readonly type: AccountType;
   readonly normal_balance: NormalBalance;
+  readonly parent_account_id: Buffer | null;
   readonly description: string | null;
   readonly is_active: number;
   readonly created_at: Date;
@@ -71,14 +80,20 @@ export interface NewAccountRow {
   readonly name: string;
   readonly type: AccountType;
   readonly normalBalance: NormalBalance;
+  readonly parentAccountId: Buffer | null;
   readonly description: string | null;
 }
 
+/**
+ * `code` is absent: an account code is immutable once created (D-27), so there is
+ * no shape here through which one could be changed. `null` on `parentAccountId`
+ * detaches the account and makes it top-level.
+ */
 export interface AccountPatch {
-  readonly code?: string;
   readonly name?: string;
   readonly type?: AccountType;
   readonly normalBalance?: NormalBalance;
+  readonly parentAccountId?: Buffer | null;
   readonly description?: string | null;
   readonly isActive?: boolean;
 }
@@ -86,23 +101,13 @@ export interface AccountPatch {
 /**
  * The org-scoped handle for the current operation.
  *
- * `ctx.orgId` is a UUID string and `tenantDb` takes the `BINARY(16)` form, so the
- * conversion happens here. A malformed one is an `InternalError`, not a
- * `ValidationError`: the context is host-built from a session or an API key, so a
- * non-UUID org id is a wiring bug in whoever opened the scope and not something a
- * caller could have sent. This is the same reasoning — and the third copy of the
- * same six lines — as `src/modules/idempotency/ids.ts` and
- * `permissions.repository.ts`. It wants to be `orgScope(ctx)` in `src/db/`; that
- * module is not this ticket's to edit, and the note is in the OB-018 report.
+ * The conversion this used to open-code now lives in `src/db/org-scope.ts`, which
+ * arrived after OB-018 wrote the fourth copy of it. What stays here is only the
+ * shape the rest of this module wants — a `TenantDatabase` from a context — so
+ * that no function below takes an org as a parameter (spec §4).
  */
 export function orgScope(ctx: RequestContext): TenantDatabase {
-  if (!isUuid(ctx.orgId)) {
-    throw new InternalError(
-      'Request context carries an orgId that is not a UUID; the context was built from an ' +
-        'untrusted value or the wrong field.',
-    );
-  }
-  return tenantDb(uuidToBuffer(ctx.orgId));
+  return tenantDb(toOrgId(ctx.orgId));
 }
 
 /**
@@ -130,12 +135,7 @@ export async function insertAccount(db: TenantDatabase, input: NewAccountRow): P
         type: input.type,
         normal_balance: input.normalBalance,
         description: input.description,
-        // Written explicitly rather than left to the column's implicit NULL. The
-        // column ships in M1 and the API does not accept it (see the decision
-        // block in `packages/shared-types/src/accounts/accounts.ts`), so stating
-        // the value makes the omission a fact of the write path. `Insertable`
-        // requires it anyway, which is the schema helping.
-        parent_account_id: null,
+        parent_account_id: input.parentAccountId,
       })
       .execute();
   } catch (error) {
@@ -159,10 +159,11 @@ export async function selectAccountById(
 /**
  * The same read, taking an exclusive row lock.
  *
- * Only `updateAccount` uses it, and only because it has a check to protect — see
- * the has-postings commentary there. `accounts` is in `0004_app_grants`'s mutable
- * allowlist, so the app user may take a locking read on it; the journal tables are
- * not, which is why nothing in this codebase locks a journal row.
+ * Used wherever a check has to survive a concurrent writer: the has-postings rule
+ * in `updateAccount`, the ancestor walk in `hierarchy.ts`, and the delete path's
+ * children check. `accounts` is in `0004_app_grants`'s mutable allowlist, so the
+ * app user may take a locking read on it; the journal tables are not, which is
+ * why nothing in this codebase locks a journal row.
  */
 export async function selectAccountByIdForUpdate(
   db: TenantDatabase,
@@ -177,17 +178,35 @@ export async function selectAccountByIdForUpdate(
 }
 
 /**
- * Ordered by `code`, which is a lexical sort and not a numeric one.
+ * `(code, id)` — the order an accountant reads a chart in (D-27).
  *
- * That is the right answer for a chart of accounts rather than a limitation:
- * codes are strings (`1000`, `1000-A`, `COGS`) and the convention that makes them
- * useful is fixed width, under which lexical and numeric order agree. Sorting
- * numerically would need a parse that fails on every non-numeric code.
+ * OB-031 could not use it. `code` was editable then, and a keyset over a mutable
+ * column drops rows silently: rename an account and it moves behind a cursor that
+ * has already passed it, so it appears on no page. That list therefore shipped
+ * ordered by `(created_at, id)`, which is safe and is not what anyone wants from
+ * a chart of accounts. D-27 removed the obstacle rather than the requirement —
+ * `code` is immutable, so this ordering is now as stable as that one was.
+ *
+ * `uq_accounts_org_code` is the covering index for it at no cost, because a
+ * secondary index leaf carries the primary key: `(org_id, code)` is scanned in
+ * `(org_id, code, id)` order, which is exactly the tuple the predicate compares.
+ * The `(created_at, id)` ordering had no such index and sorted every page.
+ *
+ * Ordering is textual and case-insensitive, under the column's
+ * `utf8mb4_0900_ai_ci` collation — `'1100'` sorts before `'900'`. That is a
+ * property of codes, not a defect: a chart is numbered so that its lexical order
+ * *is* its statement order, which is why real charts use fixed-width codes.
  */
-export async function selectAccounts(
+const ACCOUNT_KEYSET: KeysetOrdering<AccountRow> = [
+  textKey('accounts.code', (row) => row.code, ACCOUNT_CODE_MAX_LENGTH),
+  uuidKey('accounts.id', (row) => row.id),
+];
+
+export async function selectAccountsPage(
   db: TenantDatabase,
   filters: ListAccountsQuery,
-): Promise<readonly AccountRow[]> {
+  limit: number,
+): Promise<KeysetPage<AccountRow>> {
   let query = db.selectFrom('accounts').select(ACCOUNT_COLUMNS);
 
   if (filters.type !== undefined) query = query.where('type', '=', filters.type);
@@ -195,30 +214,42 @@ export async function selectAccounts(
     query = query.where('is_active', '=', filters.isActive ? 1 : 0);
   }
 
-  return query.orderBy('code', 'asc').execute();
+  // The filters go on first so the keyset predicate composes with them rather than
+  // with a different result set: a page of "assets only" has to end where the next
+  // page of "assets only" begins, not where the unfiltered list did.
+  const rows = await applyKeyset(query, ACCOUNT_KEYSET, limit, filters.cursor).execute();
+
+  return toKeysetPage(rows, ACCOUNT_KEYSET, limit);
 }
 
+/**
+ * No error translation here, unlike `insertAccount`.
+ *
+ * Nothing this statement can set is covered by a unique key — `code` left the
+ * patch shape with D-27 — so `ER_DUP_ENTRY` is no longer reachable from an
+ * update. The foreign key on `parent_account_id` is reachable in principle, and
+ * deliberately is not caught: the service resolves the parent through `tenantDb`
+ * and `assertFound` before reaching this line, so an errno 1452 here would mean
+ * the row vanished between the two statements inside one transaction — a fault,
+ * not a client's situation, and it should surface as one.
+ */
 export async function updateAccountRow(
   db: TenantDatabase,
   id: Buffer,
   patch: AccountPatch,
 ): Promise<void> {
-  try {
-    await db
-      .updateTable('accounts')
-      .set({
-        ...(patch.code === undefined ? {} : { code: patch.code }),
-        ...(patch.name === undefined ? {} : { name: patch.name }),
-        ...(patch.type === undefined ? {} : { type: patch.type }),
-        ...(patch.normalBalance === undefined ? {} : { normal_balance: patch.normalBalance }),
-        ...(patch.description === undefined ? {} : { description: patch.description }),
-        ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
-      })
-      .where('id', '=', id)
-      .execute();
-  } catch (error) {
-    throw translateDuplicateCode(error, patch.code);
-  }
+  await db
+    .updateTable('accounts')
+    .set({
+      ...(patch.name === undefined ? {} : { name: patch.name }),
+      ...(patch.type === undefined ? {} : { type: patch.type }),
+      ...(patch.normalBalance === undefined ? {} : { normal_balance: patch.normalBalance }),
+      ...(patch.parentAccountId === undefined ? {} : { parent_account_id: patch.parentAccountId }),
+      ...(patch.description === undefined ? {} : { description: patch.description }),
+      ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
+    })
+    .where('id', '=', id)
+    .execute();
 
   /**
    * The affected-row count is deliberately not consulted.
@@ -245,9 +276,37 @@ export async function deleteAccountRow(db: TenantDatabase, id: Buffer): Promise<
   try {
     await db.deleteFrom('accounts').where('id', '=', id).execute();
   } catch (error) {
-    if (!hasErrno(error, ROW_IS_REFERENCED_ERRNO)) throw error;
+    if (!isStillReferencedError(error)) throw error;
     throw accountReferencedError();
   }
+}
+
+/**
+ * The ids of the accounts whose parent is one of `parentIds`.
+ *
+ * One level, not a subtree, and the caller iterates. A recursive CTE would read
+ * better and cannot be written here: `TenantDatabase` exposes the four statement
+ * builders and nothing else, so a `WITH RECURSIVE` would need the raw handle —
+ * which is the path spec §4 requires not to exist. Iterating is bounded by
+ * `ACCOUNT_MAX_DEPTH` anyway, so the CTE would buy a constant factor, not an
+ * asymptote.
+ *
+ * Reads `idx_accounts_org_parent` (`0002_ledger`), which exists for this query
+ * and for the delete path's `RESTRICT` check.
+ */
+export async function selectChildIds(
+  db: TenantDatabase,
+  parentIds: readonly Buffer[],
+): Promise<readonly Buffer[]> {
+  if (parentIds.length === 0) return [];
+
+  const rows = await db
+    .selectFrom('accounts')
+    .select('id')
+    .where('parent_account_id', 'in', parentIds)
+    .execute();
+
+  return rows.map((row) => row.id);
 }
 
 /**
@@ -293,6 +352,7 @@ export function toAccount(row: AccountRow): Account {
     name: row.name,
     type: row.type,
     normalBalance: row.normal_balance,
+    parentAccountId: row.parent_account_id === null ? null : bufferToUuid(row.parent_account_id),
     description: row.description,
     isActive: row.is_active !== 0,
     // `timezone: 'Z'` on the pool and `DATETIME(3)` left as a `Date`
@@ -316,22 +376,13 @@ export function toAccount(row: AccountRow): Account {
  * is correct — this function knows about exactly one constraint and must not
  * guess about the rest.
  */
-function translateDuplicateCode(error: unknown, code: string | undefined): unknown {
-  if (!hasErrno(error, DUPLICATE_ENTRY_ERRNO)) return error;
+function translateDuplicateCode(error: unknown, code: string): unknown {
+  if (!isDuplicateEntryError(error)) return error;
 
-  const named = code === undefined ? 'that code' : `code ${JSON.stringify(code)}`;
   return new ConflictError(
-    `An account with ${named} already exists in this organization. Codes are compared ` +
-      'case-insensitively, so a code differing only in case is the same code.',
-    code === undefined ? undefined : { code },
-  );
-}
-
-function hasErrno(error: unknown, errno: number): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'errno' in error &&
-    (error as { readonly errno?: unknown }).errno === errno
+    `An account with code ${JSON.stringify(code)} already exists in this organization. Codes ` +
+      'are compared case-insensitively, so a code differing only in case is the same code. A ' +
+      'code cannot be changed once created, so this one has to be picked at creation.',
+    { code },
   );
 }

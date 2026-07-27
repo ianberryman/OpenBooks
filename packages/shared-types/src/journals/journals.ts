@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, minorUnitsSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 /**
  * The journal wire contract (OB-023; spec §7).
@@ -188,3 +188,88 @@ export const postedJournalSchema = z
   });
 
 export type PostedJournalResponse = z.infer<typeof postedJournalSchema>;
+
+/**
+ * A journal in a list: the header, and no lines.
+ *
+ * Reading a journal's lines is `GET /v1/journals/{id}` and the general-ledger
+ * surface (OB-044), not a field on every row of every page. Embedding them would
+ * make the size of one page depend on how many lines an org's entries happen to
+ * carry, which is the property the page-size bound exists to remove — a page of
+ * two-line journals and a page of two-hundred-line allocations would be the same
+ * `limit` and three orders of magnitude apart.
+ *
+ * `sequenceNumber` is a string for the reason `lineId` is: it is a `BIGINT`, and a
+ * JSON number cannot carry one past 2^53 in any mainstream parser (D-13's argument
+ * applied to an identifier rather than to money).
+ */
+export const journalSummarySchema = z
+  .strictObject({
+    journalId: z.uuid(),
+    sequenceNumber: z.string().meta({
+      description:
+        'The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, ' +
+        'and the second half of this list’s ordering — `entryDate` alone is not total.',
+    }),
+    date: calendarDateSchema,
+    memo: z.string().nullable(),
+    source: z.string().meta({
+      description: '`manual` for an entry a person posted, `reversal` for one posted by reversing.',
+    }),
+    postedAt: z.iso.datetime().meta({
+      description: 'When the journal was written. An instant, not an accounting date.',
+    }),
+    actorType: z.enum(['user', 'automation', 'agent']),
+    actorId: z.uuid(),
+    reversesJournalId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'Set when this journal reverses another. The link lives on the reversing journal ' +
+          'because the original cannot be updated (ROADMAP D-02).',
+      }),
+  })
+  .meta({
+    id: 'JournalSummary',
+    description: 'One posted journal, without its lines.',
+  });
+
+export type JournalSummary = z.infer<typeof journalSummarySchema>;
+
+/**
+ * Pagination and nothing else, for now.
+ *
+ * Date-range and account filters belong to the general-ledger surface (OB-044),
+ * which has a range to bound the running balance and a report to project. Adding
+ * half of that here would give M2 two ways to ask the same question and a screen
+ * would eventually use the wrong one.
+ */
+export const listJournalsQuerySchema = z.strictObject({ ...pageQueryShape }).meta({
+  description: 'One page of the org’s posted journals, oldest first.',
+});
+
+export type ListJournalsQuery = z.input<typeof listJournalsQuerySchema>;
+
+/**
+ * Ordered by `(entry_date, sequence_number)` ascending — D-21's ordering for the
+ * ledger, and the one D-14's sequence number exists in part to make total.
+ *
+ * This is the list keyset pagination was decided for. Entries arrive while a user
+ * pages, and a back-dated entry lands *behind* a cursor that has already passed
+ * its date: with `OFFSET` the window shifts and a journal is skipped or shown
+ * twice, with nothing in the response saying so. In a ledger, a row that quietly
+ * fails to appear in a list is the failure mode that matters most.
+ *
+ * Ascending rather than newest-first, so that this list, the general ledger, and a
+ * running balance all read in the same direction.
+ */
+export const journalPageSchema = pageSchema(journalSummarySchema, {
+  id: 'JournalPage',
+  description:
+    'One page of posted journals, oldest first by entry date and then by the org’s entry ' +
+    'number. Both ordering columns are immutable, so a cursor into this list stays exact while ' +
+    'entries — including back-dated ones — are being posted.',
+});
+
+export type JournalPage = z.infer<typeof journalPageSchema>;

@@ -7,10 +7,12 @@ import {
 import type { OrgMembershipList } from '@openbooks/shared-types';
 
 import { me, readSessionToken, switchActiveOrg } from '../../modules/auth';
+import { withGlobalIdempotency } from '../../modules/idempotency';
+import type { OrgMembership } from '../../modules/orgs';
 import { createOrg } from '../../modules/orgs';
 import { requireIdempotencyKey } from '../idempotency';
 import type { App } from '../types';
-import { ERROR_RESPONSES, idempotencyKeyHeaderSchema, wireList } from './support';
+import { ERROR_RESPONSES, idempotencyKeyHeaderSchema, idempotentBody, wireList } from './support';
 
 /**
  * `/v1/orgs` — create, list memberships, and switch the active one (spec §5).
@@ -38,6 +40,20 @@ import { ERROR_RESPONSES, idempotencyKeyHeaderSchema, wireList } from './support
  * gate is that the caller is a real user, which `createOrg` enforces by reading the
  * context — an org created on behalf of somebody else is not expressible in its
  * signature.
+ *
+ * ## Both writes claim in the org-less namespace (OB-028)
+ *
+ * `withGlobalIdempotency`, for two different reasons that arrive at the same place.
+ * `createOrg` runs before the org its claim would belong to exists, and a claim
+ * recorded against the caller's *current* org would make the guarantee depend on
+ * which org they happened to be scoped to when they submitted the form.
+ * `switchActiveOrg` would record the claim against the org being left, so a client
+ * that switched away and retried the switch would find its own key in an org it no
+ * longer reads. Neither is a tenant fact; both belong in the namespace `claim_scope`
+ * exists for (migration `0003`).
+ *
+ * The one this closes in practice is a double-submitted org-creation form, which
+ * before this ticket made two orgs.
  */
 
 const TAG = 'orgs';
@@ -66,14 +82,18 @@ export function registerOrgRoutes(app: App): void {
       },
     },
     async (request, reply) => {
-      const membership = await createOrg({
-        name: request.body.name,
-        ...(request.body.fiscalYearStartMonth === undefined
-          ? {}
-          : { fiscalYearStartMonth: request.body.fiscalYearStartMonth }),
-      });
+      const result = await withGlobalIdempotency(
+        { endpoint: 'createOrg', request: request.body, successStatus: 201 },
+        () =>
+          createOrg({
+            name: request.body.name,
+            ...(request.body.fiscalYearStartMonth === undefined
+              ? {}
+              : { fiscalYearStartMonth: request.body.fiscalYearStartMonth }),
+          }),
+      );
 
-      return reply.status(201).send(membership);
+      return reply.status(result.status).send(idempotentBody<OrgMembership>(result));
     },
   );
 
@@ -124,12 +144,15 @@ export function registerOrgRoutes(app: App): void {
       },
     },
     async (request, reply) => {
-      // `?? ''` for the same reason as logout: the service decides what an unusable
-      // credential means. With no cookie the identity resolver left `userId` null and
-      // `switchActiveOrg` refuses on that line before the token is looked at.
-      const membership = await switchActiveOrg(readSessionToken(request) ?? '', request.body.orgId);
+      const result = await withGlobalIdempotency(
+        { endpoint: 'switchActiveOrg', request: request.body, successStatus: 200 },
+        // `?? ''` for the same reason as logout: the service decides what an unusable
+        // credential means. With no cookie the identity resolver left `userId` null and
+        // `switchActiveOrg` refuses on that line before the token is looked at.
+        () => switchActiveOrg(readSessionToken(request) ?? '', request.body.orgId),
+      );
 
-      return reply.status(200).send(membership);
+      return reply.status(result.status).send(idempotentBody<OrgMembership>(result));
     },
   );
 }

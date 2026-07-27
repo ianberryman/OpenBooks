@@ -84,7 +84,21 @@ const OVERRIDES = {
     // impossible, so nothing should reference it outside the unique index it exists
     // for.
     'idempotency_keys.claim_scope': 'Generated<Buffer>',
+    // Drafts repeat the ledger's shapes and so repeat its
+    // overrides. `debit_minor`/`credit_minor` stay plain `bigint` despite their
+    // DEFAULT 0 for the same reason as `journal_lines`: a draft line that silently
+    // defaults to zero because a caller forgot the amount is a draft that posts as
+    // zero, and the schema deliberately holds no balance CHECK to catch it.
+    'journal_draft_lines.id': 'Generated<bigint>',
+    'journal_draft_lines.debit_minor': 'bigint',
+    'journal_draft_lines.credit_minor': 'bigint',
+    // Not Generated<>: a tag names an existing line, so the id is always supplied.
+    'journal_line_dimensions.journal_line_id': 'bigint',
+    'journal_draft_line_dimensions.draft_line_id': 'bigint',
     'journals.entry_date': 'string',
+    // Nullability has to be spelled out: an override replaces the whole mapped type,
+    // so `'string'` here would type a draft's unset date as a non-null string.
+    'journal_drafts.entry_date': 'string | null',
     'fiscal_periods.start_date': 'string',
     'fiscal_periods.end_date': 'string',
   },

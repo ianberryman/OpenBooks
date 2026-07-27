@@ -12,7 +12,14 @@
  * every call site re-check what startup already proved.
  */
 import type { Env, LogLevel, NodeEnv } from './env';
-import { envSchema, missingProviderVars, normalizeEnv, schemaIssues } from './env';
+import {
+  corsIssues,
+  envSchema,
+  missingProviderVars,
+  normalizeEnv,
+  parseOriginList,
+  schemaIssues,
+} from './env';
 import type { ConfigIssue } from './errors';
 import { ConfigValidationError } from './errors';
 import type { ProcessRole } from './role';
@@ -42,6 +49,18 @@ export type EmailConfig =
     };
 
 export type BankFeedConfig = { readonly provider: 'csv-ofx' };
+
+/**
+ * A discriminated union for the same reason the providers are (see the file
+ * header): `enabled: true` carries a non-empty, already-validated allowlist, so
+ * `src/transport/cors.ts` registers hooks against a guarantee instead of
+ * re-deriving one from an optional string. `enabled: false` is the default and
+ * registers nothing at all — a same-origin deployment runs the same hook chain it
+ * ran before OB-029.
+ */
+export type CorsConfig =
+  | { readonly enabled: false }
+  | { readonly enabled: true; readonly allowedOrigins: readonly string[] };
 
 export interface Config {
   readonly nodeEnv: NodeEnv;
@@ -76,6 +95,13 @@ export interface Config {
     readonly cookieSecure: boolean;
     readonly cookieDomain?: string;
   };
+  /**
+   * Not nested under `http`, despite being an HTTP concern, because it is bound
+   * to `session.cookieDomain` — `corsIssues` refuses a list the session cookie
+   * could never reach — and burying that relationship one level down inside the
+   * bind host and port would hide it.
+   */
+  readonly cors: CorsConfig;
   readonly providers: {
     readonly queue: QueueConfig;
     readonly storage: StorageConfig;
@@ -160,6 +186,12 @@ function selectEmail(env: Env): EmailConfig {
   }
 }
 
+function selectCors(env: Env): CorsConfig {
+  const raw = env.CORS_ALLOWED_ORIGINS;
+  if (raw === undefined) return { enabled: false };
+  return { enabled: true, allowedOrigins: parseOriginList(raw) };
+}
+
 function shape(role: ProcessRole, env: Env): Config {
   return {
     nodeEnv: env.NODE_ENV,
@@ -195,6 +227,7 @@ function shape(role: ProcessRole, env: Env): Config {
         ? {}
         : { cookieDomain: env.SESSION_COOKIE_DOMAIN }),
     },
+    cors: selectCors(env),
     providers: {
       queue: selectQueue(env),
       storage: selectStorage(env),
@@ -242,6 +275,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
 
   const missingMigrator = missingMigratorVars(role, parsed.data);
   if (missingMigrator.length > 0) throw new ConfigValidationError(missingMigrator);
+
+  const cors = corsIssues(parsed.data);
+  if (cors.length > 0) throw new ConfigValidationError(cors);
 
   return deepFreeze(shape(role, parsed.data));
 }

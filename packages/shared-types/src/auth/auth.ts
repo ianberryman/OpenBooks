@@ -75,6 +75,50 @@ export const identityResponseSchema = z
 export type IdentityResponse = z.infer<typeof identityResponseSchema>;
 
 /**
+ * The identity plus what the caller may do in the active org (OB-030, ROADMAP D-25).
+ *
+ * ## Advisory, and stated in the contract so nobody has to guess
+ *
+ * `permissions` exists so a screen can hide an action the caller cannot take — an
+ * interface offering actions that always fail is not a usable one. It is **not** an
+ * authorization answer and no client may treat it as one: enforcement is
+ * `requirePermission` in the service layer, on every operation, regardless of what
+ * this array said (spec §2.4, §5). D-25 states it as a decision precisely because the
+ * failure mode is predictable — a UI that gates well enough becomes a UI someone
+ * trusts as the gate.
+ *
+ * Empty for a caller with no active org, which is the same set an unauthenticated
+ * caller would get and deliberately so: neither may do anything in any org.
+ *
+ * ## Why a separate schema from `Identity`
+ *
+ * `Identity` is also the register and login response, and neither of those has a
+ * permission set to report: register's caller is being invented, and login answers
+ * before any org scope is established. A single schema would need the field optional,
+ * and an optional advisory permission set is one a client cannot tell apart from an
+ * empty one — which is the difference between "you may do nothing" and "nobody said".
+ *
+ * `permissions` is `string[]` rather than an enum of the 48 codes because the catalog
+ * is the server's (`src/modules/permissions/catalog.ts`) and is held to the seeded
+ * table by a drift test there. Restating it here would be a second authority on which
+ * codes exist, and the direction it would drift is a client refusing to parse a
+ * response the server considers valid.
+ */
+export const callerIdentityResponseSchema = identityResponseSchema
+  .extend({
+    permissions: z.array(z.string()),
+  })
+  .meta({
+    id: 'CallerIdentity',
+    description:
+      'The caller, their organizations, the active one, and the permission codes their role ' +
+      'carries there. `permissions` is advisory — it is what a screen hides affordances with, ' +
+      'never what authorizes an operation, which every service checks for itself.',
+  });
+
+export type CallerIdentityResponse = z.infer<typeof callerIdentityResponseSchema>;
+
+/**
  * `org` is required, because a user with no membership can do nothing in M1: every
  * permission in the catalog is a statement about authority *within* an org. The
  * other way an account comes into existence — accepting an invite to an org that

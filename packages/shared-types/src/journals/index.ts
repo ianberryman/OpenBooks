@@ -4,7 +4,10 @@
  * ledger kernel rather than half-answered by the schema.
  */
 export type {
+  JournalPage,
   JournalSideWire,
+  JournalSummary,
+  ListJournalsQuery,
   PostedJournalResponse,
   PostJournalRequest,
   ReverseJournalRequest,
@@ -12,6 +15,9 @@ export type {
 export {
   JOURNAL_SIDES,
   journalLineRequestSchema,
+  journalPageSchema,
+  journalSummarySchema,
+  listJournalsQuerySchema,
   postedJournalLineSchema,
   postedJournalSchema,
   postJournalRequestSchema,

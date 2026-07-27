@@ -18,6 +18,15 @@ import * as m0004 from './0004_app_grants';
  * Keys are the migration names Kysely records in `kysely_migration`. They are
  * applied in lexicographic order, so the numeric prefix is load-bearing —
  * renaming an already-applied migration makes Kysely think it is new.
+ *
+ * That order is also a hard constraint on where a new table may be created:
+ * `0004_app_grants` issues a table-level `GRANT` per mutable table, and MySQL
+ * refuses one on a table that does not exist yet (ERROR 1146, measured on 8.4), so
+ * anything the grants migration names must be created before it runs. Pre-release
+ * that is satisfied by construction rather than by convention — every table is
+ * declared in one of the three migrations above and none is added after the grants
+ * (ROADMAP D-15, and the head of `0002_ledger`). At first release, when a new table
+ * does mean a new migration, the grants migration has to be renumbered last.
  */
 export const MIGRATIONS: Record<string, Migration> = {
   '0001_tenancy': m0001,

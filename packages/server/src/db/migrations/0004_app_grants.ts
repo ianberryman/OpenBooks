@@ -77,12 +77,38 @@ const MUTABLE_TABLES = [
   'api_keys',
   'sessions',
   'accounts',
+  'contacts',
   'fiscal_periods',
   'idempotency_keys',
   // The journal sequence counter must be updatable even though the journals it
   // numbers are not. This is the table the posting transaction locks, precisely
   // because it cannot lock `journals` — see the comment in 0002_ledger.
   'journal_sequences',
+  // Dimensions and their values are ordinary settings: renamed, archived, and — while
+  // no journal line carries them — deleted (OB-037).
+  'dimensions',
+  'dimension_values',
+  // The tags are mutable too, and that is a deliberate departure from how this file
+  // treats everything else attached to a posting. A tag names which slice of the
+  // business an amount belongs to; it is an analysis dimension laid over the ledger,
+  // not a term of the entry. Nothing in the trial balance, the P&L, or the balance
+  // sheet moves when one changes — only how a sliced report divides a total that stays
+  // the same, which is the property B6 asserts. Refusing an edit here would mean the
+  // only way to fix a mis-tagged line is to reverse and repost a journal that was
+  // correct, and manufacturing two journal entries to correct a label is a worse
+  // record of what happened than the edit is.
+  'journal_line_dimensions',
+  // The first genuinely new mutable tables since M1 (ROADMAP D-19). A draft is
+  // editable and discardable *because* it is not a posting: it is in no report and no
+  // trial balance, and posting it is a separate act that produces an immutable journal.
+  // These two entries are the reason drafts can exist at all — a status column on
+  // `journals` could never have worked, since the app user holds no UPDATE there.
+  'journal_drafts',
+  'journal_draft_lines',
+  // The draft's tags. Mutable for the same reason its lines are — a draft is a form
+  // in progress — and separately from `journal_line_dimensions` because the two
+  // reference different parents with different delete semantics.
+  'journal_draft_line_dimensions',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

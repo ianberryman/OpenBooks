@@ -90,6 +90,19 @@ export const envSchema = z.object({
   SESSION_COOKIE_SECURE: z.stringbool({ error: 'must be true or false' }).default(true),
   SESSION_COOKIE_DOMAIN: z.string().optional(),
 
+  // --- CORS (OB-029) ------------------------------------------------------
+  // A comma-separated list of browser origins allowed to call this API. Unset
+  // means no CORS layer at all, which is correct for every same-origin
+  // deployment: the Compose stack, a reverse-proxied self-host, and M2's Vite
+  // dev proxy. Only the hosted split — bundle on CloudFront, API on its own
+  // hostname — needs it, so the shape that ships nothing by default is the one
+  // that cannot weaken a deployment that never asked for it.
+  //
+  // Validated by `corsIssues` rather than here, because the check that matters
+  // is a relationship with SESSION_COOKIE_DOMAIN and a field cannot see its
+  // siblings from inside the schema.
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
+
   // --- Provider selectors (spec §3) ---------------------------------------
   QUEUE_PROVIDER: oneOf(QUEUE_PROVIDERS).default(SELF_HOST_PROVIDERS.QUEUE_PROVIDER),
   STORAGE_PROVIDER: oneOf(STORAGE_PROVIDERS).default(SELF_HOST_PROVIDERS.STORAGE_PROVIDER),
@@ -177,6 +190,140 @@ export function missingProviderVars(env: Env): ConfigIssue[] {
     ...missingFor(env, 'EMAIL_PROVIDER', env.EMAIL_PROVIDER),
     ...missingFor(env, 'BANK_FEED_PROVIDER', env.BANK_FEED_PROVIDER),
   ];
+}
+
+/**
+ * The declared origins, in declaration order, with blanks dropped.
+ *
+ * Shared by validation and by `shape()` in `config.ts` so the list the server
+ * enforces is parsed by the same function that approved it.
+ */
+export function parseOriginList(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+}
+
+function originIssue(message: string): ConfigIssue {
+  return { variable: 'CORS_ALLOWED_ORIGINS', message };
+}
+
+/**
+ * One declared origin, checked against what the `Origin` request header can
+ * actually contain.
+ *
+ * The allowlist is compared by string equality against that header at request
+ * time, so an entry the browser would never send verbatim is an entry that
+ * matches nothing — and it fails at 3am as a CORS error in someone else's
+ * console, not here. Hence the exact-form check: a browser sends
+ * `https://app.example.com`, never a trailing slash, never a path, never mixed
+ * case in the host. `URL.origin` is exactly that normalization, so requiring the
+ * input to already equal it both rejects the near-misses and names the fix.
+ */
+function originEntryIssue(entry: string): ConfigIssue | undefined {
+  if (entry === '*') {
+    return originIssue(
+      'must not contain "*" — every request to this API is credentialed (the session ' +
+        'cookie), and a browser rejects Access-Control-Allow-Origin: * on a credentialed ' +
+        'request. List each origin explicitly.',
+    );
+  }
+
+  let url: URL;
+  try {
+    url = new URL(entry);
+  } catch {
+    return originIssue(`must be a comma-separated list of origins; "${entry}" is not a URL`);
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return originIssue(`must list only http:// or https:// origins; "${entry}" is ${url.protocol}`);
+  }
+
+  if (entry !== url.origin) {
+    return originIssue(
+      `must list bare scheme://host[:port] origins with no path, query, or trailing ` +
+        `slash; "${entry}" should be written "${url.origin}"`,
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * CORS and the session cookie, checked together — the whole reason this is a
+ * cross-field check rather than a schema refinement.
+ *
+ * The session cookie is `SameSite=Lax` (`src/modules/auth/cookie.ts`, spec §5).
+ * Lax withholds the cookie from every cross-*site* subresource request, which is
+ * what a `fetch` from the web bundle to the API is. So allowing an origin in CORS
+ * that is not on the same site as the API buys nothing: the preflight succeeds,
+ * the request goes out with no cookie, the API answers 401, and the browser
+ * console shows a successful request rather than a CORS error. That is the silent
+ * failure this check exists to convert into a startup failure.
+ *
+ * "Same site" means same registrable domain, and computing that needs the Public
+ * Suffix List, which is not a dependency worth taking to validate config. So
+ * `SESSION_COOKIE_DOMAIN` is treated as the operator's *declaration* of the shared
+ * site and every allowed origin is required to sit within it. That is a check we
+ * can make exactly, and it is required rather than merely recommended for a second
+ * reason: without a `Domain` the cookie is host-only to the API hostname, which
+ * works but leaves nothing in the configuration stating which site these two
+ * hostnames share — so nothing to check the CORS list against. The trade is
+ * deliberate and slightly loosening (a `Domain` cookie reaches every subdomain,
+ * host-only reaches one); it buys a misconfiguration that fails at boot instead of
+ * on the first login.
+ *
+ * What this cannot check: the API's own public hostname. `HTTP_HOST` is the bind
+ * address (`0.0.0.0` in a container), so whether the API is itself inside
+ * `SESSION_COOKIE_DOMAIN` is a fact about DNS and the load balancer that config
+ * never sees. See `infra/terraform` before the first hosted deploy.
+ */
+export function corsIssues(env: Env): ConfigIssue[] {
+  const raw = env.CORS_ALLOWED_ORIGINS;
+  if (raw === undefined) return [];
+
+  const origins = parseOriginList(raw);
+  if (origins.length === 0) {
+    return [originIssue('must name at least one origin, or be left unset to disable CORS')];
+  }
+
+  const malformed = origins
+    .map(originEntryIssue)
+    .filter((issue): issue is ConfigIssue => issue !== undefined);
+  if (malformed.length > 0) return malformed;
+
+  const domain = env.SESSION_COOKIE_DOMAIN;
+  if (domain === undefined) {
+    return [
+      {
+        variable: 'SESSION_COOKIE_DOMAIN',
+        message:
+          'must be set when CORS_ALLOWED_ORIGINS is set — the session cookie is SameSite=Lax, ' +
+          'so it is withheld from any origin not on the same site as this API, and this ' +
+          'variable is what declares that site',
+      },
+    ];
+  }
+
+  // A leading dot is legal in Set-Cookie (RFC 6265 §4.1.2.3) and means the same
+  // thing as its absence, so it must not change what the comparison accepts.
+  const site = domain.startsWith('.') ? domain.slice(1) : domain;
+
+  return origins
+    .filter((origin) => !withinSite(new URL(origin).hostname, site))
+    .map((origin) =>
+      originIssue(
+        `"${origin}" is not within SESSION_COOKIE_DOMAIN=${domain}, so the SameSite=Lax ` +
+          'session cookie would never be sent from it — every request from that origin ' +
+          'would be an unauthenticated 401 with nothing in the browser to say why',
+      ),
+    );
+}
+
+function withinSite(hostname: string, site: string): boolean {
+  return hostname === site || hostname.endsWith(`.${site}`);
 }
 
 export function schemaIssues(error: z.ZodError): ConfigIssue[] {

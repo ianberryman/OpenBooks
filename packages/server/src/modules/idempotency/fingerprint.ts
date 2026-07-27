@@ -75,6 +75,39 @@ export function requestFingerprint(endpoint: string, request: unknown): string {
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
+/**
+ * The same hash for a claim that has no org, with the caller folded in.
+ *
+ * An org claim is already partitioned: `uq_idempotency_scope_key` is
+ * `(claim_scope, idempotency_key)`, so one tenant's key cannot address another's
+ * row. A global claim has no such partition — every org-less claim in the system
+ * shares one namespace by construction (migration `0003`) — and the keys are chosen
+ * by clients. Two callers that happened to pick the same value would otherwise be
+ * one another's retries: the second `createOrg` would replay the first's response,
+ * which hands over an org id and slug the caller is not a member of and quietly
+ * never creates theirs.
+ *
+ * Mixing the principal into the fingerprint makes that case a 409 instead. It is a
+ * refusal, not a leak, and refusing is the correct direction for a collision the
+ * system cannot otherwise tell apart from a retry — the same argument the `SCHEME`
+ * note above makes. `principal` is `null` for register and login, which are pre-auth
+ * by definition and have no caller to name; a collision there is between two
+ * requests neither of which the system knows anything about yet, and it too answers
+ * 409.
+ *
+ * Note what this does *not* do: it does not partition the key, so a squatted key
+ * still blocks. Keys are 128-bit client-generated values in practice, so the
+ * exposure is a caller who reuses one deliberately, and what they get for it is
+ * their own request refused.
+ */
+export function globalRequestFingerprint(
+  principal: string | null,
+  endpoint: string,
+  request: unknown,
+): string {
+  return requestFingerprint(endpoint, { principal, request });
+}
+
 /** Exported for its own test; the fingerprint is the only production caller. */
 export function canonicalize(value: unknown): string {
   return encode(value, new Set<object>(), '$');

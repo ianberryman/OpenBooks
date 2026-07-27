@@ -1,11 +1,14 @@
 import {
   ACCOUNT_TYPES,
-  accountListSchema,
+  PAGE_SIZE_DEFAULT,
+  PAGE_SIZE_MAX,
+  accountPageSchema,
   accountSchema,
   createAccountRequestSchema,
+  pageCursorSchema,
   updateAccountRequestSchema,
 } from '@openbooks/shared-types';
-import type { Account, AccountList } from '@openbooks/shared-types';
+import type { Account, AccountPage } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
@@ -72,6 +75,25 @@ const listAccountsWireQuerySchema = z.strictObject({
         'Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and ' +
         'inactive accounts alike.',
     }),
+  /**
+   * Coerced here for the same reason `isActive` is: a querystring is text, and the
+   * shared schema takes a real number because it is also reachable from a JSON body
+   * (spec §12). The bounds are restated from `pageLimitSchema` so the published
+   * parameter carries them; `resolvePageLimit` in the service is what enforces them
+   * for callers that never see a route.
+   */
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(PAGE_SIZE_MAX)
+    .default(PAGE_SIZE_DEFAULT)
+    .meta({
+      description:
+        'How many accounts to return, at most. Over the maximum is refused rather than clamped, ' +
+        'so a short page always means the list is short.',
+    }),
+  cursor: pageCursorSchema.optional(),
 });
 
 export function registerAccountRoutes(app: App): void {
@@ -118,15 +140,23 @@ export function registerAccountRoutes(app: App): void {
       schema: {
         operationId: 'listAccounts',
         summary: 'List the chart of accounts',
+        description:
+          'One page, in `code` order — case-insensitive, so `1100` precedes `900`. Send back ' +
+          '`nextCursor` verbatim for the next page; `null` means this was the last. Paging is ' +
+          'safe against a cursor because `code` is immutable once an account exists ' +
+          '(ROADMAP D-27): a sort column that could change would silently drop the rows that ' +
+          'moved behind the cursor.',
         tags: [TAG],
         querystring: listAccountsWireQuerySchema,
-        response: { 200: accountListSchema, ...ERROR_RESPONSES },
+        response: { 200: accountPageSchema, ...ERROR_RESPONSES },
       },
     },
-    async (request): Promise<AccountList> => {
-      const { type, isActive } = request.query;
+    async (request): Promise<AccountPage> => {
+      const { type, isActive, limit, cursor } = request.query;
       return listAccounts(
         {
+          limit,
+          ...(cursor === undefined ? {} : { cursor }),
           ...(type === undefined ? {} : { type }),
           ...(isActive === undefined ? {} : { isActive }),
         },

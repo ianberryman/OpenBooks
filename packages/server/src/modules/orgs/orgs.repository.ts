@@ -14,12 +14,11 @@ import { bufferToUuid, systemDb, TenantDatabase, tryUuidToBuffer } from '../../d
  * commit together or not at all, which means the org write has to be able to run
  * on a transaction opened by the caller.
  *
- * That transaction can only come from `systemDb()`. `tenantDb(orgId).transaction()`
- * propagates ambiently (`src/db/transaction-scope.ts`) but `systemDb()` does not
- * consult that scope — it returns the pool handle unconditionally — and `users` and
- * `orgs` are not tenant tables, so a transaction opened through the tenant wrapper
- * would not enclose them. Flagged in the OB-015 report; until it changes, the
- * caller opens the transaction on `systemDb()` and hands it down.
+ * That transaction can only come from a system handle: `users` and `orgs` are not
+ * tenant tables, so a transaction opened through `tenantDb(orgId)` would not enclose
+ * them. The caller opens it with `withTransaction(systemDb(), …)` and hands it down —
+ * not `systemDb().transaction()`, which throws once a transaction is already in scope
+ * (`src/db/transaction-scope.ts`).
  *
  * Reads take no executor because none of them needs to see uncommitted state.
  */

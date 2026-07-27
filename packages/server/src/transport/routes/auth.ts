@@ -1,11 +1,13 @@
 import {
+  callerIdentityResponseSchema,
   identityResponseSchema,
   loginRequestSchema,
   registerRequestSchema,
 } from '@openbooks/shared-types';
-import type { IdentityResponse } from '@openbooks/shared-types';
+import type { CallerIdentityResponse, IdentityResponse } from '@openbooks/shared-types';
 
 import type { Config } from '../../config';
+import type { SessionCookie } from '../../modules/auth';
 import {
   clearedSessionCookie,
   login,
@@ -15,9 +17,17 @@ import {
   register,
   sessionCookie,
 } from '../../modules/auth';
+import { withGlobalIdempotency } from '../../modules/idempotency';
+import { currentPermissions } from '../../modules/permissions';
 import { requireIdempotencyKey } from '../idempotency';
 import type { App } from '../types';
-import { ERROR_RESPONSES, idempotencyKeyHeaderSchema, noContentSchema, wireList } from './support';
+import {
+  ERROR_RESPONSES,
+  idempotencyKeyHeaderSchema,
+  idempotentBody,
+  noContentSchema,
+  wireList,
+} from './support';
 
 /**
  * `/v1/auth` — register, login, logout, and `me` (spec §5).
@@ -43,13 +53,31 @@ import { ERROR_RESPONSES, idempotencyKeyHeaderSchema, noContentSchema, wireList 
  * hands what that module returns to `reply.setCookie` and adds no attributes of its
  * own.
  *
- * ## Why every write here requires an `Idempotency-Key` but is not replay-guarded
+ * ## The writes here are guarded in the org-less namespace (OB-028)
  *
- * See the block on `registerV1Routes` in `./index.ts`. The short version: the claim
- * row is org-scoped (`idempotency_keys.org_id` → `orgs.id`, migration `0003`) and
- * these operations either predate the org or would be recorded against the wrong
- * one. The header is still required — it is also what makes a cross-site form POST
- * unable to reach a write (see the `sameSite` note in `src/transport/app.ts`).
+ * `withGlobalIdempotency` and not `withIdempotency`: these operations either predate
+ * the org (register) or would record the claim against the org the caller is leaving
+ * (see `../orgs.ts`), so the claim goes in the namespace `claim_scope` exists for —
+ * migration `0003` argues the schema, `src/modules/idempotency/` the behaviour. Until
+ * this ticket they accepted the header and ignored it, which is worse than not
+ * accepting one: a double-submitted registration made two attempts at the same
+ * account.
+ *
+ * ## A replay does not re-issue a session cookie
+ *
+ * The cookie is set from `IssuedSession.sessionToken`, which exists only while the
+ * guarded operation runs and is deliberately never stored (D-03) — putting a live
+ * credential in a `response_body` column for seven days is not a trade worth making
+ * for a retry. So the cookie is captured in the closure below and set only when the
+ * operation actually executed.
+ *
+ * That is right for the case the guard is for. A double-submitted form is two
+ * requests from a browser that already holds the cookie the first one set, and the
+ * second must not mint a second session. The case it does not serve is a client that
+ * lost the original response entirely: it replays, gets the identity, and has no
+ * session — and its way forward is to log in, which is a different logical request
+ * and therefore a different key. Recorded here rather than in the module because it
+ * is a property of *these* routes and not of idempotency.
  */
 
 const TAG = 'auth';
@@ -80,26 +108,37 @@ export function registerAuthRoutes(app: App, config: Config): void {
     },
     async (request, reply) => {
       const { org } = request.body;
-      const issued = await register({
-        email: request.body.email,
-        password: request.body.password,
-        displayName: request.body.displayName,
-        org: {
-          name: org.name,
-          // Spread, not `fiscalYearStartMonth: org.fiscalYearStartMonth`:
-          // exactOptionalPropertyTypes makes an explicit `undefined` a different type
-          // from an absent key, and the service defaults on absence.
-          ...(org.fiscalYearStartMonth === undefined
-            ? {}
-            : { fiscalYearStartMonth: org.fiscalYearStartMonth }),
-        },
-      });
+      let issuedCookie: SessionCookie | undefined;
 
-      const cookie = sessionCookie(issued.sessionToken, config.session);
-      return reply
-        .status(201)
-        .setCookie(cookie.name, cookie.value, cookie.options)
-        .send({ ...issued.identity, memberships: wireList(issued.identity.memberships) });
+      const result = await withGlobalIdempotency(
+        { endpoint: 'register', request: request.body, successStatus: 201 },
+        async () => {
+          const issued = await register({
+            email: request.body.email,
+            password: request.body.password,
+            displayName: request.body.displayName,
+            org: {
+              name: org.name,
+              // Spread, not `fiscalYearStartMonth: org.fiscalYearStartMonth`:
+              // exactOptionalPropertyTypes makes an explicit `undefined` a different
+              // type from an absent key, and the service defaults on absence.
+              ...(org.fiscalYearStartMonth === undefined
+                ? {}
+                : { fiscalYearStartMonth: org.fiscalYearStartMonth }),
+            },
+          });
+
+          issuedCookie = sessionCookie(issued.sessionToken, config.session);
+          return { ...issued.identity, memberships: wireList(issued.identity.memberships) };
+        },
+      );
+
+      // Set only when the operation ran. See the note at the top of this file.
+      const response = reply.status(result.status);
+      if (issuedCookie !== undefined) {
+        response.setCookie(issuedCookie.name, issuedCookie.value, issuedCookie.options);
+      }
+      return response.send(idempotentBody<IdentityResponse>(result));
     },
   );
 
@@ -122,13 +161,22 @@ export function registerAuthRoutes(app: App, config: Config): void {
       },
     },
     async (request, reply) => {
-      const issued = await login(request.body);
+      let issuedCookie: SessionCookie | undefined;
 
-      const cookie = sessionCookie(issued.sessionToken, config.session);
-      return reply
-        .status(200)
-        .setCookie(cookie.name, cookie.value, cookie.options)
-        .send({ ...issued.identity, memberships: wireList(issued.identity.memberships) });
+      const result = await withGlobalIdempotency(
+        { endpoint: 'login', request: request.body, successStatus: 200 },
+        async () => {
+          const issued = await login(request.body);
+          issuedCookie = sessionCookie(issued.sessionToken, config.session);
+          return { ...issued.identity, memberships: wireList(issued.identity.memberships) };
+        },
+      );
+
+      const response = reply.status(result.status);
+      if (issuedCookie !== undefined) {
+        response.setCookie(issuedCookie.name, issuedCookie.value, issuedCookie.options);
+      }
+      return response.send(idempotentBody<IdentityResponse>(result));
     },
   );
 
@@ -157,13 +205,23 @@ export function registerAuthRoutes(app: App, config: Config): void {
       },
     },
     async (request, reply) => {
-      await logout(readSessionToken(request) ?? '');
+      const result = await withGlobalIdempotency(
+        { endpoint: 'logout', request: {}, successStatus: 204 },
+        async () => {
+          await logout(readSessionToken(request) ?? '');
+          return null;
+        },
+      );
 
-      // Sent alongside the revocation, not instead of it. The revocation ends the
-      // session; this only stops the browser presenting a credential that no longer
-      // works.
+      // Sent alongside the revocation, not instead of it, and on a replay as well:
+      // the revocation ends the session, this only stops the browser presenting a
+      // credential that no longer works, and there is no state in which the client
+      // should be left holding one.
       const cookie = clearedSessionCookie(config.session);
-      return reply.status(204).setCookie(cookie.name, cookie.value, cookie.options).send(null);
+      return reply
+        .status(result.status)
+        .setCookie(cookie.name, cookie.value, cookie.options)
+        .send(null);
     },
   );
 
@@ -181,17 +239,23 @@ export function registerAuthRoutes(app: App, config: Config): void {
     {
       schema: {
         operationId: 'getCurrentIdentity',
-        summary: 'The caller, their organizations, and the active one',
+        summary: 'The caller, their organizations, the active one, and what they may do in it',
         description:
           'Answers for any live session, including one whose user is a member of no ' +
-          'organization — `activeOrgId` is then null.',
+          'organization — `activeOrgId` is then null and `permissions` is empty. ' +
+          '`permissions` is advisory: it is what a screen hides buttons with, never what ' +
+          'authorizes an operation (ROADMAP D-25).',
         tags: [TAG],
-        response: { 200: identityResponseSchema, ...ERROR_RESPONSES },
+        response: { 200: callerIdentityResponseSchema, ...ERROR_RESPONSES },
       },
     },
-    async (): Promise<IdentityResponse> => {
+    async (): Promise<CallerIdentityResponse> => {
       const identity = await me();
-      return { ...identity, memberships: wireList(identity.memberships) };
+      return {
+        ...identity,
+        memberships: wireList(identity.memberships),
+        permissions: [...(await currentPermissions())],
+      };
     },
   );
 }

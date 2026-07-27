@@ -11,6 +11,9 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
 import { createQueryClient } from './query/client';
+// The one stylesheet import in the application — see the header of that file.
+import './styles/index.css';
+import { ThemeProvider } from './theme/theme';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root missing from index.html');
@@ -27,7 +30,9 @@ const queryClient = createQueryClient();
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

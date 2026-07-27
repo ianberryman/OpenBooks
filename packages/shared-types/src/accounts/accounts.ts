@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { pageQueryShape, pageSchema } from '../wire';
+
 /**
  * Request and response schemas for the chart of accounts (OB-018).
  *
@@ -64,6 +66,28 @@ export const ACCOUNT_CODE_MAX_LENGTH = 32;
 export const ACCOUNT_NAME_MAX_LENGTH = 255;
 export const ACCOUNT_DESCRIPTION_MAX_LENGTH = 512;
 
+/**
+ * How many generations a chart of accounts may span, root included (OB-035).
+ *
+ * Six, and the number is chosen from what a chart is *for* rather than from what
+ * the walk can afford. The deepest arrangement an accountant asks for is roughly
+ * `Assets → Current assets → Cash and equivalents → Bank accounts → Operating
+ * account`, which is five; the sixth exists so an org that also groups by
+ * location or entity is not the exception.
+ *
+ * Beyond that, a chart is being used to carry a second axis — department,
+ * project, location — and a code that encodes two things is one that cannot be
+ * reported on by either. Dimensions are that axis (OB-033) and they slice every
+ * report without multiplying the chart, so the bound is not only an arbitrary
+ * stop: it is the boundary at which the right tool is a different one.
+ *
+ * It is also what makes the cycle check terminate. The ancestor walk stops after
+ * this many reads whether or not it has found a root, so the bound and the walk's
+ * cost are the same number — see `resolveAssignableParent` in
+ * `src/modules/accounts/hierarchy.ts`.
+ */
+export const ACCOUNT_MAX_DEPTH = 6;
+
 const accountTypeSchema = z.enum(ACCOUNT_TYPES).meta({
   description:
     'Which of the five statement categories the account belongs to. Determines where it ' +
@@ -106,6 +130,14 @@ const accountDescriptionSchema = z.string().trim().max(ACCOUNT_DESCRIPTION_MAX_L
   description: 'Optional free text. Send `null` to clear it.',
 });
 
+const parentAccountIdSchema = z.uuid().meta({
+  description:
+    'The account this one rolls up into, or `null` for a top-level account. A parent must ' +
+    'share this account’s `type`, must not be this account or any of its descendants, and the ' +
+    `resulting tree may be at most ${String(ACCOUNT_MAX_DEPTH)} generations deep. An unknown ` +
+    'or another organization’s id is a `not_found`, not a validation failure.',
+});
+
 /**
  * An account as the API returns it.
  *
@@ -119,7 +151,7 @@ const accountDescriptionSchema = z.string().trim().max(ACCOUNT_DESCRIPTION_MAX_L
  * the field would carry no information and would be one more place a cross-org id
  * could appear in a response.
  *
- * ## `parentAccountId` is absent on purpose — see the block below
+ * ## `parentAccountId` is here, and the rules that govern it are not — see below
  */
 export const accountSchema = z
   .strictObject({
@@ -128,6 +160,7 @@ export const accountSchema = z
     name: accountNameSchema,
     type: accountTypeSchema,
     normalBalance: normalBalanceSchema,
+    parentAccountId: parentAccountIdSchema.nullable(),
     description: accountDescriptionSchema.nullable(),
     isActive: z.boolean().meta({
       description:
@@ -142,31 +175,24 @@ export const accountSchema = z
 export type Account = z.infer<typeof accountSchema>;
 
 /**
- * ## Why no schema in this file mentions `parentAccountId`
+ * ## What a schema can say about `parentAccountId`, and what it cannot
  *
- * `accounts.parent_account_id` exists in the schema from M1 — `0002_ledger` adds
- * it early precisely so that M2 does not have to `ALTER` a table holding every
- * customer's chart of accounts. The column shipping early does not mean the API
- * should accept it, and in M1 it must not.
+ * M1 refused the field outright because hierarchy was a set of rules that did not
+ * exist. OB-035 wrote them, so the field is accepted — but only its *shape* is
+ * expressible here, and the distinction is worth being precise about because
+ * three of the four rules are invisible in `openapi.json`.
  *
- * Hierarchy is M2 (ROADMAP, "Explicitly out of M1"), and hierarchy is not one
- * field, it is a set of rules that do not exist yet: whether a parent may be a
- * different `type` from its child, whether a parent is postable or only a rollup,
- * how a subtotal is computed, what happens to children when a parent is
- * deactivated, and how deep the tree may go. Accepting the field now would
- * persist customer data whose meaning is decided later, which inverts the order —
- * M2 would inherit trees built under no rules and have to invent rules that fit
- * them.
+ * A schema can say that the value is a UUID or `null`. It cannot say that the
+ * parent exists, that it belongs to the caller's org, that it shares the child's
+ * `type`, that it is not a descendant of the child, or that the resulting tree
+ * fits inside `ACCOUNT_MAX_DEPTH`. Every one of those is a statement about rows,
+ * so every one of them lives in `accounts.service.ts` — which is also where it
+ * has to live for the reason `input.ts` gives: an MCP tool (M5) and the workflow
+ * engine (M6) reach the same service with no schema in front of them.
  *
- * The absence is enforced rather than documented. Every request schema here is a
- * `strictObject`, so `parentAccountId` (or `parent_account_id`) in a request body
- * is a `validation_failed` naming the key, not a field quietly dropped by a
- * permissive parser. A client that sends it learns that it was not accepted,
- * which is the difference between a deliberate omission and an accident.
- * `test/accounts/schemas.test.ts` pins it.
- *
- * The server writes the column explicitly as `NULL` on insert for the same
- * reason — see `accounts.repository.ts`.
+ * The one thing this file does still enforce by absence is `orgId`: a parent is
+ * named by id alone, and `tenantDb` decides which org that id is resolved in, so
+ * there is no field here through which another org's tree could be joined.
  */
 
 /**
@@ -185,11 +211,14 @@ export const createAccountRequestSchema = z
     name: accountNameSchema,
     type: accountTypeSchema,
     normalBalance: normalBalanceSchema,
+    parentAccountId: parentAccountIdSchema.nullish(),
     description: accountDescriptionSchema.nullish(),
   })
   .meta({
     id: 'CreateAccountRequest',
-    description: 'Creates one account. Accounts are created active.',
+    description:
+      'Creates one account. Accounts are created active, and top-level unless a ' +
+      '`parentAccountId` is given.',
   });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;
@@ -206,13 +235,39 @@ export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;
  *
  * `type` and `normalBalance` are accepted here but the service refuses them once
  * the account carries postings. See `updateAccount` for why.
+ *
+ * ## `code` is absent, and its absence is the enforcement (D-27)
+ *
+ * An account's code is immutable once created. Two arguments arrive at that, and
+ * the mechanical one is the one that forced the decision: the chart is ordered by
+ * code, keyset pagination orders by the column it sorts on, and a keyset over a
+ * *mutable* column silently drops rows — rename an account and it moves behind a
+ * cursor that has already passed it, so it appears on no page at all. That is
+ * exactly the failure D-21 chose keyset to eliminate, reached through a mutable
+ * sort key instead of through `OFFSET`.
+ *
+ * The accounting argument is what makes it right rather than merely convenient. A
+ * code is not a label, it is the reference other things cite — a journal, an
+ * export, a filed schedule, a bookkeeper's memory. Renaming `4000` from "Sales"
+ * to "Consulting income" changes what an account is called; renumbering `4000` to
+ * `4100` is a different account wearing the old one's history.
+ *
+ * Unlike `type` it is refused from creation rather than from first posting,
+ * because it does not need the softer rule: an account with no postings deletes
+ * outright, so a typo costs one call to fix and leaves nothing behind. `name` and
+ * `description` stay mutable — those are labels and nothing cites them.
+ *
+ * Absent rather than accepted-and-ignored: this is a `strictObject`, so `code` in
+ * a patch body is a `validation_failed` naming the field. A client that sends it
+ * learns it was refused, which is what a silent drop cannot tell them — the same
+ * construction M1 used for `parentAccountId`, for the same reason.
  */
 export const updateAccountRequestSchema = z
   .strictObject({
-    code: accountCodeSchema.optional(),
     name: accountNameSchema.optional(),
     type: accountTypeSchema.optional(),
     normalBalance: normalBalanceSchema.optional(),
+    parentAccountId: parentAccountIdSchema.nullish(),
     description: accountDescriptionSchema.nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
@@ -221,23 +276,29 @@ export const updateAccountRequestSchema = z
   .meta({
     id: 'UpdateAccountRequest',
     description:
-      'Partial update. An absent field is unchanged; `description: null` clears it. `type` ' +
-      'and `normalBalance` are refused once the account has postings.',
+      'Partial update. An absent field is unchanged; `description: null` clears it and ' +
+      '`parentAccountId: null` makes the account top-level. `code` is immutable and is not ' +
+      'accepted. `type` and `normalBalance` are refused once the account has postings.',
   });
 
 export type UpdateAccountRequest = z.infer<typeof updateAccountRequestSchema>;
 
 /**
- * List filters.
+ * List filters, plus the pagination shared by every list endpoint (D-21).
  *
  * `isActive` is a real boolean, not a query-string flag. A shared schema that
  * accepted `'false'` would accept it from a JSON body too, and `'false'` is
  * truthy in every language an integrator might use. Coercing a querystring is the
  * route's job (`z.stringbool()` in OB-023), because the route is the only layer
  * that knows the value arrived as text.
+ *
+ * The pagination fields are spread from `pageQueryShape` rather than restated, so
+ * the six later lists cannot end up with `perPage`, `pageSize`, and `limit`
+ * meaning the same thing.
  */
 export const listAccountsQuerySchema = z
   .strictObject({
+    ...pageQueryShape,
     type: accountTypeSchema.optional(),
     isActive: z.boolean().optional(),
   })
@@ -245,29 +306,44 @@ export const listAccountsQuerySchema = z
     description: 'Omitting a filter matches every account, active and inactive alike.',
   });
 
-export type ListAccountsQuery = z.infer<typeof listAccountsQuerySchema>;
+/**
+ * The *input* type, not `z.infer`. `limit` carries a `.default()`, so the parsed
+ * output has it and a caller does not — and under `exactOptionalPropertyTypes`
+ * those are two different types. Every caller of `listAccounts` supplies the
+ * input side.
+ */
+export type ListAccountsQuery = z.input<typeof listAccountsQuerySchema>;
 
 /**
- * An envelope rather than a bare array, for the reason `errorResponseSchema`
- * gives: a top-level object has somewhere to put a later addition. The one this
- * will need is pagination, and adding a `nextCursor` beside `accounts` is a
- * compatible change while wrapping an array that clients already index into is
- * not.
+ * ## Why the chart of accounts is paginated, and why it is code-ordered again
  *
- * M1 returns the whole chart unpaginated. That is a bounded set by nature — a
- * chart of accounts is authored by hand and runs to hundreds of rows, not
- * millions — and inventing a cursor format here would commit every later list
- * endpoint to matching it before there is a second one to compare against.
+ * M1 returned the whole chart under an `accounts` key and said so: a chart is
+ * authored by hand and bounded by the org's own chart, and inventing a cursor
+ * format for it alone would have committed every later list endpoint to matching
+ * it before there was a second one to compare against. There are now four more
+ * (D-21), so the format is decided once and this list takes it too — an endpoint
+ * exempted from the convention is the one a client writes a second paging loop
+ * for.
+ *
+ * OB-031 paginated it over `(created_at, id)` rather than `code`, because a
+ * keyset ordering has to be immutable and `code` was editable. That was the wrong
+ * half of the trade to give up — a chart of accounts read in creation order is
+ * not a chart of accounts, it is a log of when someone typed each row — and D-27
+ * made `code` immutable instead. The ordering is now `(code, id)`, which is what
+ * an accountant expects and what OB-048's screen needs.
+ *
+ * `id` is carried as a second column even though `uq_accounts_org_code` already
+ * makes `code` unique within an org. It costs nothing, it keeps every ordering in
+ * the system a pair, and it means the ordering does not quietly stop being total
+ * if that unique key is ever relaxed.
  */
-export const accountListSchema = z
-  .strictObject({
-    accounts: z.array(accountSchema),
-  })
-  .meta({
-    id: 'AccountList',
-    description:
-      'The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is ' +
-      'bounded by the org’s own chart.',
-  });
+export const accountPageSchema = pageSchema(accountSchema, {
+  id: 'AccountPage',
+  description:
+    'One page of the org’s chart of accounts, ordered by `code`. Comparison follows the ' +
+    'column’s `utf8mb4_0900_ai_ci` collation, so it is case-insensitive and textual — `1100` ' +
+    'sorts before `900`. Codes are immutable, which is what makes a cursor into this list ' +
+    'stable while accounts are being created and edited.',
+});
 
-export type AccountList = z.infer<typeof accountListSchema>;
+export type AccountPage = z.infer<typeof accountPageSchema>;

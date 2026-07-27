@@ -126,6 +126,19 @@ export default tseslint.config(
     },
   },
 
+  // --- Design tokens (OB-046) -----------------------------------------------
+  // D-24: colour is defined once, in the token layer, and reached through a role token.
+  // The `allow` list is a directory rather than a file because the exemption belongs to
+  // whatever defines tokens, not to a particular name — today that is `tokens.css`, which
+  // ESLint does not parse at all, so the entry earns its keep the moment a JS-side token
+  // module appears (a chart palette is the likely first one).
+  {
+    files: ['packages/web/**/*.{ts,tsx}'],
+    rules: {
+      'openbooks/no-raw-color': ['error', { allow: ['packages/web/src/styles/'] }],
+    },
+  },
+
   // --- Tests ----------------------------------------------------------------
   {
     files: ['**/test/**/*.ts', '**/*.test.ts'],

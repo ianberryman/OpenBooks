@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import type { DB } from './generated';
 
@@ -56,4 +56,38 @@ export function runInTransactionScope<R>(
 
 export function hasAmbientTransaction(): boolean {
   return store.getStore() !== undefined;
+}
+
+/**
+ * Runs `body` in a transaction on a system handle, joining one already in scope.
+ *
+ * `TenantDatabase.transaction` has done this since the store above existed;
+ * `systemDb()` had no counterpart, so every caller that needed a system-table
+ * transaction wrote `systemDb().transaction().execute(...)`. That composed by
+ * accident and stopped when `systemDb()` learned to consult the ambient scope:
+ * inside an open transaction it now returns the `Transaction<DB>` itself, and
+ * Kysely's `Transaction.transaction()` **throws** — "calling the transaction method
+ * for a Transaction is not supported", because MySQL has no nested transactions,
+ * only savepoints.
+ *
+ * Nothing reached that state until OB-028, which is what makes it worth a function
+ * rather than a note: an org-less idempotency claim opens the transaction and then
+ * calls `register` or `createOrg`, each of which opens one of its own. The throw is
+ * the good outcome of the two available; the other is the claim and the write
+ * landing on separate connections, which is the failure `transaction-scope.ts`
+ * exists to prevent.
+ */
+export function withTransaction<R>(
+  executor: Kysely<DB>,
+  body: (trx: Kysely<DB>) => Promise<R>,
+): Promise<R> {
+  const ambient = store.getStore();
+  if (ambient !== undefined) return body(ambient);
+  if (isTransaction(executor)) return body(executor);
+
+  return executor.transaction().execute((trx) => runInTransactionScope(trx, () => body(trx)));
+}
+
+function isTransaction(executor: Kysely<DB>): executor is Transaction<DB> {
+  return 'isTransaction' in executor && executor.isTransaction === true;
 }

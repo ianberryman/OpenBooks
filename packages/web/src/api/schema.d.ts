@@ -31,7 +31,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the chart of accounts */
+        /**
+         * List the chart of accounts
+         * @description One page, in `code` order — case-insensitive, so `1100` precedes `900`. Send back `nextCursor` verbatim for the next page; `null` means this was the last. Paging is safe against a cursor because `code` is immutable once an account exists (ROADMAP D-27): a sort column that could change would silently drop the rows that moved behind the cursor.
+         */
         get: operations["listAccounts"];
         put?: never;
         /**
@@ -158,8 +161,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The caller, their organizations, and the active one
-         * @description Answers for any live session, including one whose user is a member of no organization — `activeOrgId` is then null.
+         * The caller, their organizations, the active one, and what they may do in it
+         * @description Answers for any live session, including one whose user is a member of no organization — `activeOrgId` is then null and `permissions` is empty. `permissions` is advisory: it is what a screen hides buttons with, never what authorizes an operation (ROADMAP D-25).
          */
         get: operations["getCurrentIdentity"];
         put?: never;
@@ -278,7 +281,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List posted journals
+         * @description One page, oldest first by entry date and then by the org’s own entry number — the ordering `sequence_number` exists to make total (ROADMAP D-14). Send back `nextCursor` verbatim for the next page. Because the cursor names the last row seen rather than a count of rows behind it, an entry posted — or back-dated — while you page cannot cause a journal to be skipped or returned twice.
+         */
+        get: operations["listJournals"];
         put?: never;
         /**
          * Post a manual journal
@@ -397,6 +404,7 @@ export interface components {
              * @enum {string}
              */
             normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
@@ -423,6 +431,7 @@ export interface components {
              * @enum {string}
              */
             normalBalance: "debit" | "credit";
+            parentAccountId: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
@@ -431,13 +440,17 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @description The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart. */
-        AccountList: {
-            accounts: components["schemas"]["Account"][];
+        /** @description One page of the org’s chart of accounts, ordered by `code`. Comparison follows the column’s `utf8mb4_0900_ai_ci` collation, so it is case-insensitive and textual — `1100` sorts before `900`. Codes are immutable, which is what makes a cursor into this list stable while accounts are being created and edited. */
+        AccountPage: {
+            items: components["schemas"]["Account"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
         };
-        /** @description The matching accounts, ordered by `code`. Unpaginated in M1: a chart of accounts is bounded by the org’s own chart. */
-        AccountListInput: {
-            accounts: components["schemas"]["AccountInput"][];
+        /** @description One page of the org’s chart of accounts, ordered by `code`. Comparison follows the column’s `utf8mb4_0900_ai_ci` collation, so it is case-insensitive and textual — `1100` sorts before `900`. Codes are immutable, which is what makes a cursor into this list stable while accounts are being created and edited. */
+        AccountPageInput: {
+            items: components["schemas"]["AccountInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
         /** @description The signed-in user. */
         AuthenticatedUser: {
@@ -465,7 +478,21 @@ export interface components {
          * @example 2026-03-31
          */
         CalendarDateInput: string;
-        /** @description Creates one account. Accounts are created active. */
+        /** @description The caller, their organizations, the active one, and the permission codes their role carries there. `permissions` is advisory — it is what a screen hides affordances with, never what authorizes an operation, which every service checks for itself. */
+        CallerIdentity: {
+            activeOrgId: string | null;
+            memberships: components["schemas"]["OrgMembership"][];
+            permissions: string[];
+            user: components["schemas"]["AuthenticatedUser"];
+        };
+        /** @description The caller, their organizations, the active one, and the permission codes their role carries there. `permissions` is advisory — it is what a screen hides affordances with, never what authorizes an operation, which every service checks for itself. */
+        CallerIdentityInput: {
+            activeOrgId: string | null;
+            memberships: components["schemas"]["OrgMembershipInput"][];
+            permissions: string[];
+            user: components["schemas"]["AuthenticatedUserInput"];
+        };
+        /** @description Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given. */
         CreateAccountRequest: {
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
             code: string;
@@ -477,13 +504,14 @@ export interface components {
              * @enum {string}
              */
             normalBalance: "debit" | "credit";
+            parentAccountId?: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
              */
             type: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
-        /** @description Creates one account. Accounts are created active. */
+        /** @description Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given. */
         CreateAccountRequestInput: {
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
             code: string;
@@ -495,6 +523,7 @@ export interface components {
              * @enum {string}
              */
             normalBalance: "debit" | "credit";
+            parentAccountId?: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
@@ -663,6 +692,62 @@ export interface components {
              */
             side: "debit" | "credit";
         };
+        /** @description One page of posted journals, oldest first by entry date and then by the org’s entry number. Both ordering columns are immutable, so a cursor into this list stays exact while entries — including back-dated ones — are being posted. */
+        JournalPage: {
+            items: components["schemas"]["JournalSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of posted journals, oldest first by entry date and then by the org’s entry number. Both ordering columns are immutable, so a cursor into this list stays exact while entries — including back-dated ones — are being posted. */
+        JournalPageInput: {
+            items: components["schemas"]["JournalSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description One posted journal, without its lines. */
+        JournalSummary: {
+            /** Format: uuid */
+            actorId: string;
+            /** @enum {string} */
+            actorType: "user" | "automation" | "agent";
+            date: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            journalId: string;
+            memo: string | null;
+            /**
+             * Format: date-time
+             * @description When the journal was written. An instant, not an accounting date.
+             */
+            postedAt: string;
+            /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
+            reversesJournalId: string | null;
+            /** @description The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total. */
+            sequenceNumber: string;
+            /** @description `manual` for an entry a person posted, `reversal` for one posted by reversing. */
+            source: string;
+        };
+        /** @description One posted journal, without its lines. */
+        JournalSummaryInput: {
+            /** Format: uuid */
+            actorId: string;
+            /** @enum {string} */
+            actorType: "user" | "automation" | "agent";
+            date: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            journalId: string;
+            memo: string | null;
+            /**
+             * Format: date-time
+             * @description When the journal was written. An instant, not an accounting date.
+             */
+            postedAt: string;
+            /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
+            reversesJournalId: string | null;
+            /** @description The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total. */
+            sequenceNumber: string;
+            /** @description `manual` for an entry a person posted, `reversal` for one posted by reversing. */
+            source: string;
+        };
         /** @description Exchanges a password for a session cookie. Reachable without credentials. Every failure answers `unauthenticated` with no detail — a wrong password and an unknown address are indistinguishable by design. */
         LoginRequest: {
             email: string;
@@ -727,6 +812,10 @@ export interface components {
             name: string;
             slug: string;
         };
+        /** @description An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change. */
+        PageCursor: string;
+        /** @description An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change. */
+        PageCursorInput: string;
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
@@ -905,10 +994,8 @@ export interface components {
             /** @enum {string} */
             type: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
-        /** @description Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings. */
+        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
         UpdateAccountRequest: {
-            /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
-            code?: string;
             description?: string | null;
             /** @description Display name, e.g. `Operating bank account`. */
             name?: string;
@@ -917,16 +1004,15 @@ export interface components {
              * @enum {string}
              */
             normalBalance?: "debit" | "credit";
+            parentAccountId?: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
-        /** @description Partial update. An absent field is unchanged; `description: null` clears it. `type` and `normalBalance` are refused once the account has postings. */
+        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
         UpdateAccountRequestInput: {
-            /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
-            code?: string;
             description?: string | null;
             /** @description Display name, e.g. `Operating bank account`. */
             name?: string;
@@ -935,6 +1021,7 @@ export interface components {
              * @enum {string}
              */
             normalBalance?: "debit" | "credit";
+            parentAccountId?: string | null;
             /**
              * @description Which of the five statement categories the account belongs to. Determines where it appears in reports; it does not determine `normalBalance`.
              * @enum {string}
@@ -988,6 +1075,9 @@ export interface operations {
                 type?: "asset" | "liability" | "equity" | "revenue" | "expense";
                 /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and inactive accounts alike. */
                 isActive?: string;
+                /** @description How many accounts to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
             };
             header?: never;
             path?: never;
@@ -1001,7 +1091,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccountList"];
+                    "application/json": components["schemas"]["AccountPage"];
                 };
             };
             /** @description Default Response */
@@ -1301,7 +1391,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Identity"];
+                    "application/json": components["schemas"]["CallerIdentity"];
                 };
             };
             /** @description Default Response */
@@ -1510,6 +1600,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeneratedFiscalYear"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listJournals: {
+        parameters: {
+            query?: {
+                /** @description How many journals to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalPage"];
                 };
             };
             /** @description Default Response */

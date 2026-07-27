@@ -1,5 +1,5 @@
 import { getContext, isAuthenticatedContext } from '../../context';
-import { newUuid, systemDb, uuidToBuffer } from '../../db';
+import { newUuid, systemDb, uuidToBuffer, withTransaction } from '../../db';
 import { ConflictError, UnauthenticatedError, ValidationError } from '../../errors';
 import type { OrgCreationInput, OrgMembership } from '../orgs';
 import { createOrgIn, listMemberships, resolveOrgMembership } from '../orgs';
@@ -119,14 +119,20 @@ export interface LoginInput {
  * cannot use and cannot re-register.
  *
  * The transaction is opened on `systemDb()` rather than through `tenantDb(orgId)`,
- * because `users` and `orgs` are not tenant tables and `systemDb()` does not consult the
- * ambient transaction scope — so a transaction opened via the tenant wrapper would
- * enclose the membership insert and neither of the other two. See the note at the top of
- * `../orgs/orgs.repository.ts`.
+ * because `users` and `orgs` are not tenant tables, so a transaction opened via the
+ * tenant wrapper would enclose the membership insert and neither of the other two. See
+ * the note at the top of `../orgs/orgs.repository.ts`.
+ *
+ * `withTransaction` rather than `systemDb().transaction()`, because OB-028 wraps this
+ * call in an org-less idempotency claim: the claim's transaction is already in scope by
+ * the time this runs, and Kysely throws on `Transaction.transaction()`.
  *
  * Password hashing happens before the transaction opens. It is tens of milliseconds of
  * CPU, and holding row locks across it for no reason is how a login endpoint becomes a
- * lock-contention problem under load.
+ * lock-contention problem under load. Under an org-less claim the hash is inside the
+ * claim's transaction and there is nowhere else to put it — the cost is bounded, because
+ * the only row locked is the claim's own index entry and the only request that can
+ * contend for it is a retry of this same request.
  */
 export async function register(input: RegistrationInput): Promise<IssuedSession> {
   const email = requireEmail(input.email);
@@ -144,30 +150,28 @@ export async function register(input: RegistrationInput): Promise<IssuedSession>
   const sessionToken = newSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-  const membership = await systemDb()
-    .transaction()
-    .execute(async (trx) => {
-      try {
-        await insertUser(trx, { id: userKey, email, displayName, passwordHash });
-      } catch (error) {
-        // `uq_users_email` is the only unique key on `users`, so a duplicate here is
-        // always the email — no need to inspect which index fired.
-        if (isDuplicateEntryError(error)) throw emailTakenError();
-        throw error;
-      }
+  const membership = await withTransaction(systemDb(), async (trx) => {
+    try {
+      await insertUser(trx, { id: userKey, email, displayName, passwordHash });
+    } catch (error) {
+      // `uq_users_email` is the only unique key on `users`, so a duplicate here is
+      // always the email — no need to inspect which index fired.
+      if (isDuplicateEntryError(error)) throw emailTakenError();
+      throw error;
+    }
 
-      const created = await createOrgIn(trx, input.org, userKey);
+    const created = await createOrgIn(trx, input.org, userKey);
 
-      await insertSession(trx, {
-        id: uuidToBuffer(newUuid()),
-        userId: userKey,
-        tokenHash: sessionTokenHash(sessionToken),
-        activeOrgId: uuidToBuffer(created.org.id),
-        expiresAt,
-      });
-
-      return created;
+    await insertSession(trx, {
+      id: uuidToBuffer(newUuid()),
+      userId: userKey,
+      tokenHash: sessionTokenHash(sessionToken),
+      activeOrgId: uuidToBuffer(created.org.id),
+      expiresAt,
     });
+
+    return created;
+  });
 
   return {
     sessionToken,

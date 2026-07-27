@@ -1,9 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenBooks</title>
+    <!--
+      Resolves the theme before first paint. `data-theme` is the single theme hook (see the
+      commentary in src/styles/tokens.css); this is where the system preference is read and
+      turned into a value of it.
+
+      Inline and blocking on purpose. The same three lines in a React effect run after the
+      first paint, so a dark-preferring user sees a white flash on every load.
+
+      The storage key is spelled here and in src/theme/theme.tsx. That duplication is the
+      price of running before the bundle exists, and it is one string.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('openbooks.theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch {
+          // A blocked localStorage (Safari private mode, a hardened profile) must not stop
+          // the page rendering. The `data-theme="light"` above is the fallback.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

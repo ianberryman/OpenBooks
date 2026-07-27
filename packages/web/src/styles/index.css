@@ -1,0 +1,63 @@
+/**
+ * The stylesheet entry. `main.tsx` imports this and nothing else imports CSS.
+ *
+ * There is no per-component stylesheet and there must not be: a `.css` file next to a
+ * component is a file `openbooks/no-raw-color` cannot read (ESLint parses TypeScript here,
+ * not CSS), so it is the one place a raw colour could re-enter the codebase without the
+ * gate firing. Styling is Tailwind utilities in the component, or a role token added to
+ * `tokens.css`.
+ */
+@import 'tailwindcss';
+@import './tokens.css';
+
+@layer base {
+  html {
+    font-family: var(--ob-font-sans);
+    /* Tailwind's preflight leaves this at the browser default of 16px; the type scale in
+       tokens.css is expressed in rem against it, so it is stated rather than assumed. */
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--ob-color-canvas);
+    color: var(--ob-color-text);
+    font-size: var(--ob-text-base);
+    line-height: var(--ob-text-base-leading);
+  }
+
+  /**
+   * One focus ring for the whole application, on `:focus-visible` only.
+   *
+   * Per-component focus styling is how a keyboard user ends up with six different rings
+   * and one component with none. Radix moves focus for us in dialogs and listboxes, so the
+   * ring has to be correct on elements no screen author styled directly.
+   */
+  :focus-visible {
+    outline: 2px solid var(--ob-color-focus);
+    outline-offset: 2px;
+    border-radius: var(--ob-radius-sm);
+  }
+
+  /**
+   * Reduced motion is honoured here, once, rather than as a variant every animated
+   * component has to remember. Collapsing the duration tokens leaves the transitions
+   * declared — so a component that relies on `transitionend` still fires — while removing
+   * the movement.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --ob-duration-fast: 1ms;
+      --ob-duration-base: 1ms;
+      --ob-duration-slow: 1ms;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -70,10 +70,11 @@ describe('A1 — post a manual balanced journal via REST', () => {
       headers: { cookie: session.cookie },
     });
     expect(chart.statusCode).toBe(200);
-    expect(chart.json<{ accounts: { code: string }[] }>().accounts.map((a) => a.code)).toEqual([
-      '1000',
-      '4000',
-    ]);
+    // `items`, and ordered by creation rather than by code: since OB-031 every list
+    // returns the shared page envelope, keyed on immutable columns (ROADMAP D-21).
+    const page = chart.json<{ items: { code: string }[]; nextCursor: string | null }>();
+    expect(page.items.map((a) => a.code)).toEqual(['1000', '4000']);
+    expect(page.nextCursor).toBeNull();
 
     // 4. A fiscal year. Explicit, never a side effect of posting (ROADMAP D-17) — the
     //    posting in step 5 would be refused without this.
