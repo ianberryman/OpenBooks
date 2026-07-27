@@ -260,15 +260,18 @@ export interface BankStatementImports {
   closing_balance_minor: bigint | null;
   created_at: Generated<Date>;
   external_account_id: string | null;
+  failure_reason: string | null;
   file_hash: string;
   filename: string;
   format: "csv" | "ofx";
   id: Buffer;
   imported_by_user_id: Buffer;
-  lines_duplicate: number;
-  lines_read: number;
+  lines_duplicate: number | null;
+  lines_read: number | null;
   mapping_id: Buffer | null;
   org_id: Buffer;
+  status: Generated<"complete" | "failed" | "processing" | "queued">;
+  updated_at: Generated<Date>;
 }
 
 export interface BankStatementLines {

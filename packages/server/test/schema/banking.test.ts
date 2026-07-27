@@ -73,13 +73,15 @@ async function scene(): Promise<Scene> {
   `.execute(db.app);
 
   const importId = newUuidBuffer();
+  // `status = 'complete'`, because this fixture carries counts and `chk_bsi_status`
+  // (OB-078) couples counts to a completed import — a queued row has none.
   await sql`
     INSERT INTO bank_statement_imports
       (id, org_id, bank_account_id, format, filename, file_hash,
-       lines_read, lines_duplicate, imported_by_user_id)
+       status, lines_read, lines_duplicate, imported_by_user_id)
     VALUES (
       ${importId}, ${org.id}, ${bankAccountId}, 'csv', 'january.csv',
-      ${'a'.repeat(64)}, 2, 0, ${user.id}
+      ${'a'.repeat(64)}, 'complete', 2, 0, ${user.id}
     )
   `.execute(db.app);
 
@@ -237,21 +239,28 @@ describe('a statement line is never modified after import (E2)', () => {
     }
   });
 
-  it('refuses UPDATE and DELETE on the import record and the session event log too', async () => {
+  it('lets the app move an import through its lifecycle, but keeps the event log append-only', async () => {
     const s = await scene();
     const connection = await db.openAppConnection();
 
     try {
+      // OB-078 (D-47/D-49): the import is asynchronous, so its row is working state —
+      // the app writes it `queued` and updates it to `complete`/`failed`. The UPDATE
+      // the append-only grant used to refuse is now allowed.
       expect(
         await errnoOf(
           sql`
             UPDATE bank_statement_imports SET filename = 'x' WHERE id = ${s.importId}
           `.execute(connection.db),
         ),
-      ).toBe(ACCESS_DENIED);
+      ).toBeNull();
+      // The session event log is not: E6's audit trail must be one the app cannot edit
+      // or delete, exactly as the ledger's is.
       expect(
         await errnoOf(
-          sql`DELETE FROM bank_statement_imports WHERE id = ${s.importId}`.execute(connection.db),
+          sql`
+            UPDATE reconciliation_session_events SET reason = 'x' WHERE 1 = 0
+          `.execute(connection.db),
         ),
       ).toBe(ACCESS_DENIED);
       expect(
@@ -389,11 +398,11 @@ describe('an import records what the file claimed, beyond its lines (D-46)', () 
     return sql`
       INSERT INTO bank_statement_imports
         (id, org_id, bank_account_id, format, filename, file_hash, external_account_id,
-         closing_balance_minor, lines_read, lines_duplicate, imported_by_user_id)
+         closing_balance_minor, status, lines_read, lines_duplicate, imported_by_user_id)
       VALUES (
         ${newUuidBuffer()}, ${s.orgId}, ${s.bankAccountId}, 'ofx', 'march.qfx',
         ${'b'.repeat(64)}, ${columns.externalAccountId ?? null},
-        ${columns.closingBalance ?? null}, 12, 0, ${s.userId}
+        ${columns.closingBalance ?? null}, 'complete', 12, 0, ${s.userId}
       )
     `;
   }

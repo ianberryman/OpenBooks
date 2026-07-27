@@ -1,4 +1,4 @@
-import type { EmailProvider } from '@openbooks/plugin-api';
+import type { EmailProvider, QueueProvider } from '@openbooks/plugin-api';
 
 import type { Config } from '../config';
 import { getConfig } from '../config';
@@ -6,22 +6,23 @@ import type { Logger } from '../logging';
 import { getLogger } from '../logging';
 import { createLogEmailProvider } from './email/log';
 import { createSesEmailProvider } from './email/ses';
+import { InProcessQueue } from './queue/in-process';
 
 /**
  * Concrete provider adapters, selected by the configuration (spec §3, D-07).
  *
  * D-07's rule is that the interfaces and the env-driven selection ship early and
  * each adapter ships with its first consumer, because "writing adapters with no
- * consumer would mean writing them untested". OB-040 is the first consumer of one
- * of them: an invite has to reach an address. So this module holds email and
- * nothing else — queue, storage, and secrets still have no consumer, and adding
- * their adapters here on the grounds that the directory now exists would be the
- * exact mistake D-07 names.
+ * consumer would mean writing them untested". Two consumers exist now: OB-040's
+ * invite needs an address (email), and OB-078's statement import needs a job off the
+ * request (queue). So this module holds email and queue and nothing else — storage
+ * and secrets still have no consumer, and adding their adapters here on the grounds
+ * that the directory now exists would be the exact mistake D-07 names.
  *
  * The selection mirrors `src/config/config.ts`'s: a `switch` over a discriminated
  * union, exhaustive, so a new provider id does not compile until it has an adapter.
- * That is the whole reason `EmailConfig` is a union rather than a bag of optional
- * fields — the adapter is handed a shape whose fields startup already proved.
+ * That is the whole reason `EmailConfig`/`QueueConfig` are unions rather than bags of
+ * optional fields — the adapter is handed a shape whose fields startup already proved.
  */
 export function selectEmailProvider(config: Config, logger: Logger): EmailProvider {
   const email = config.providers.email;
@@ -30,6 +31,30 @@ export function selectEmailProvider(config: Config, logger: Logger): EmailProvid
       return createSesEmailProvider(email);
     case 'log':
       return createLogEmailProvider(email, logger);
+  }
+}
+
+/**
+ * The queue adapter for this deployment (D-07, D-49).
+ *
+ * `in-process` is the whole self-host story: no broker, jobs run in the enqueuing
+ * process (see `queue/in-process.ts`). `sqs` has no adapter yet and throws when
+ * selected, exactly as the hosted bank-feed adapter is absent (D-41) — it ships with
+ * the multi-instance worker that is its first and only consumer. The switch is
+ * exhaustive so that a third `QueueConfig` member could not be added without an
+ * adapter to answer for it.
+ */
+export function selectQueueProvider(config: Config, logger: Logger): QueueProvider {
+  const queue = config.providers.queue;
+  switch (queue.provider) {
+    case 'in-process':
+      return new InProcessQueue(logger);
+    case 'sqs':
+      throw new Error(
+        'The sqs queue adapter is not implemented yet (D-49). Self-host uses ' +
+          'QUEUE_PROVIDER=in-process; the hosted adapter lands with the multi-instance worker ' +
+          'that consumes it, exactly as the hosted bank-feed adapter does (D-41).',
+      );
   }
 }
 
@@ -114,5 +139,41 @@ export function setOutboundEmail(value: OutboundEmail | undefined): void {
   resolved = value;
 }
 
+/**
+ * The process-wide queue dependency, built on first use.
+ *
+ * The same seam as `outboundEmail`, and for the same reasons: a function rather than
+ * an exported `const`, so importing this module does not validate the environment or
+ * construct an adapter as a side effect; lazy, so all three roles get the same
+ * behaviour without any of them initializing a queue they may never touch. `startImport`
+ * reads it to enqueue (OB-078); the worker reads it to register the handler and block.
+ *
+ * A single accessor rather than a `Providers` bag, because the queue has exactly one
+ * consumer so far — a registry now would be the shape spec §8 warns against, built
+ * against a single use, which is the risk `setOutboundEmail`'s comment already records.
+ */
+let resolvedQueue: QueueProvider | undefined;
+
+export function queueProvider(): QueueProvider {
+  // `??=` and not a `const config = getConfig()` above it, for `outboundEmail`'s
+  // reason: an installed value must short-circuit the config read entirely.
+  resolvedQueue ??= selectQueueProvider(getConfig(), getLogger());
+  return resolvedQueue;
+}
+
+/**
+ * Installs the queue for the rest of the process, or clears it.
+ *
+ * For hosts and tests, not services — the same seam `setOutboundEmail` is: an OB-078
+ * suite installs an `InProcessQueue` it also holds a reference to, so it can drive a
+ * job to completion through `settled()` and observe the lines land, which is spec
+ * §11's "no mocks" applied to the async path. The worker entrypoint installs the
+ * selected adapter here so `startImport` and the registered handler share one instance.
+ */
+export function setQueueProvider(value: QueueProvider | undefined): void {
+  resolvedQueue = value;
+}
+
+export { InProcessQueue } from './queue/in-process';
 export { createLogEmailProvider } from './email/log';
 export { createSesEmailProvider } from './email/ses';

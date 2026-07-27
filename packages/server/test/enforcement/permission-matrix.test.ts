@@ -111,6 +111,7 @@ import {
   updatePayment,
   voidPayment,
 } from '../../src/modules/payments';
+import { listBankImportMappings, saveBankImportMapping } from '../../src/modules/banking/csv';
 import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
@@ -220,10 +221,13 @@ import { contextFor } from './support';
  * twice: it gained `orgs.write`, which decides where every future invoice and bill
  * posts, and no migration recorded that either.
  *
- * What is left latent is `banking.*` (M4), `agents.review` and `integrations.*`
+ * What is left latent is the rest of `banking.*` (M4 waves 2–3:
+ * `banking.match`/`reconcile`/`reopen`), `agents.review` and `integrations.*`
  * (M5), `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at
- * all. Thirteen codes across six roles, and the same table will lose the banking
- * five at M4.
+ * all. M4 wave 1 took the first two banking codes — `banking.import` and
+ * `banking.read` — live the moment the import and mapping services enforced them,
+ * exactly as the AR/AP services did to their codes, and the same table will lose
+ * the remaining three as waves 2–3 land.
  *
  * ## And what OB-072 added to it
  *
@@ -281,6 +285,14 @@ const ROLES = [
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   'accounts.write': ['owner', 'bookkeeper'],
+  // M4 wave 1: the first two banking codes any service enforces. `banking.import`
+  // gates saving a mapping and starting an import; `banking.read` gates the reads
+  // and the preview. `banking.match`/`reconcile`/`reopen` stay in `LATENT_GRANTS`
+  // until waves 2–3 build the services that check them. Read follows the same
+  // shape as the other read codes — the two read-only roles hold it — while import
+  // is a write, held by Owner and Bookkeeper only.
+  'banking.import': ['owner', 'bookkeeper'],
+  'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'contacts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   // AP-only and AR-only hold `contacts.write` — a vendor or a customer is created
   // in the course of entering the bill or the invoice it belongs to.
@@ -378,21 +390,21 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  * existed to make the AR/AP half of the catalog meaningful now hold nothing they
  * cannot use. No migration ran.
  *
- * What is left is three milestones' worth. `banking.*` goes at M4, which will take
- * five codes off Bookkeeper and Owner and one off each reader; `agents.review` and
- * `integrations.*` at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner as
- * the only pair with no milestone scoped at all — granted, administrative-looking,
- * and checked by nothing. It is the last of the original gap-6 set that has no
- * plan behind it.
+ * What is left is three milestones' worth, and `banking.*` is now landing across
+ * M4's waves: wave 1 took `banking.import` and `banking.read` off Bookkeeper and
+ * Owner (and `banking.read` off each reader) the moment the import and mapping
+ * services enforced them, and waves 2–3 take the remaining `banking.match`,
+ * `banking.reconcile` and `banking.reopen`. `agents.review` and `integrations.*`
+ * go at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner as the only pair
+ * with no milestone scoped at all — granted, administrative-looking, and checked by
+ * nothing. It is the last of the original gap-6 set that has no plan behind it.
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   owner: [
     'agents.review',
     'api_keys.read',
     'api_keys.write',
-    'banking.import',
     'banking.match',
-    'banking.read',
     'banking.reconcile',
     'banking.reopen',
     'integrations.read',
@@ -403,9 +415,7 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   ],
   bookkeeper: [
     'agents.review',
-    'banking.import',
     'banking.match',
-    'banking.read',
     'banking.reconcile',
     'banking.reopen',
     'integrations.read',
@@ -418,8 +428,8 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // code it is missing was never in its bundle to begin with.
   apOnly: [],
   arOnly: [],
-  readOnly: ['banking.read', 'integrations.read', 'workflows.read'],
-  approver: ['agents.review', 'banking.read', 'integrations.read', 'workflows.read'],
+  readOnly: ['integrations.read', 'workflows.read'],
+  approver: ['agents.review', 'integrations.read', 'workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -456,6 +466,13 @@ interface Scene {
   readonly payableId: string;
   readonly expenseId: string;
   readonly bankId: string;
+  /**
+   * The `bank_accounts` row (D-46: a ledger account plus import metadata), pointing
+   * at `bankId`. It exists so the `banking.import` row below can save a mapping
+   * against a real account — a permitted role has to reach the write, not stop at a
+   * 404, or the row would read `allowed` for the wrong reason.
+   */
+  readonly bankAccountId: string;
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
@@ -1395,6 +1412,46 @@ const OPERATIONS: readonly Operation[] = [
         s.ctx,
       ),
   },
+  // M4 wave 1: the service is here before the wire is, so `operationId` is `null`
+  // and the coverage check ignores these two — the same shape `getPeriod` and
+  // `getAccountBalances` carry, and the reason the source scan is a second axis.
+  // OB-084 gives them routes and OB-089 fills the ids in. Reads gate on
+  // `banking.read`, saving a mapping on `banking.import`.
+  {
+    name: 'listBankImportMappings',
+    operationId: null,
+    permission: 'banking.read',
+    call: (s) => listBankImportMappings(s.bankAccountId, {}, s.ctx),
+  },
+  {
+    name: 'saveBankImportMapping',
+    operationId: null,
+    permission: 'banking.import',
+    call: (s) =>
+      saveBankImportMapping(
+        s.bankAccountId,
+        {
+          name: 'Monthly export',
+          definition: {
+            hasHeaderRow: true,
+            delimiter: ',',
+            dateOrder: 'ymd',
+            amountConvention: 'signed',
+            columns: {
+              postedDate: 0,
+              description: 1,
+              amount: 2,
+              debit: null,
+              credit: null,
+              valueDate: null,
+              counterparty: null,
+              bankReference: null,
+            },
+          },
+        },
+        s.ctx,
+      ),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -1547,6 +1604,24 @@ async function scene(role: SystemRoleName): Promise<Scene> {
       normalBalance: 'credit',
     }),
   ]);
+
+  // A bank account is a ledger account plus import metadata (D-46), so it points at
+  // `bank` rather than carrying a balance of its own. Inserted directly — there is
+  // no bank-account factory or creation service yet (OB-084), and the setup context
+  // here is always Owner regardless of the role under test.
+  const bankAccountUuid = newUuid();
+  await db.app
+    .insertInto('bank_accounts')
+    .values({
+      id: uuidToBuffer(bankAccountUuid),
+      org_id: org.id,
+      account_id: bank.id,
+      name: 'Current account',
+      external_account_id: null,
+      is_active: 1,
+    })
+    .execute();
+
   const journal = await db.factories.journal({
     orgId: org.id,
     periodId: period.id,
@@ -1612,6 +1687,7 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     payableId: payable.uuid,
     expenseId: expense.uuid,
     bankId: bank.uuid,
+    bankAccountId: bankAccountUuid,
     taxAccountId: taxAccount.uuid,
     ctx: contextFor(org.uuid, SYSTEM_ROLE_UUIDS[role], user.uuid),
     orgUuid: org.uuid,
@@ -2061,7 +2137,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the thirty-five codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the thirty-seven codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -2071,10 +2147,11 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     const latent = catalog.filter((code) => !enforced.has(code)).sort();
 
     expect(latent).toEqual([...new Set(Object.values(LATENT_GRANTS).flat())].sort());
-    // Thirty-one before M3. The eighteen that left are the diff C11 asks a reviewer
-    // to look at, and this number is the only place it is asserted rather than
-    // described.
-    expect(latent).toHaveLength(13);
+    // Thirty-one before M3, thirteen after it. M4 wave 1 took two more —
+    // `banking.import` and `banking.read` — as the import and mapping services began
+    // enforcing them, leaving eleven. This number is the only place the count is
+    // asserted rather than described, so it moves once per wave that wires a code.
+    expect(latent).toHaveLength(11);
   });
 
   /**

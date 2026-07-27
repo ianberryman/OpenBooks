@@ -172,13 +172,15 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # `on-failure`, not `unless-stopped`, and only because of where M1 is: the
-    # worker registers no jobs yet (the agent queue is M5, banking is M4) and
-    # returns immediately, so `unless-stopped` restarts a *successful* exit in a
-    # tight loop that reads as a broken stack. This keeps crash recovery without
-    # the loop. Change to `unless-stopped` once the worker blocks on a queue —
-    # at that point a clean exit is an outage, not the expected behaviour.
-    restart: on-failure
+    # `unless-stopped`, because the worker now blocks on a queue (D-47/D-49). OB-078
+    # gave it its first job — the statement import — so it registers a handler and
+    # stays up waiting for work instead of returning immediately. At that point a
+    # clean exit is an outage rather than the expected behaviour, and the container
+    # should be brought back; `on-failure` (correct while the worker returned at once)
+    # would leave a worker that exited cleanly down. It was `on-failure` through M1–M3
+    # for the opposite reason: restarting a *successful* exit then looped a working
+    # stack.
+    restart: unless-stopped
     healthcheck:
       disable: true
 

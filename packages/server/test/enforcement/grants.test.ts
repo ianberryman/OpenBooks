@@ -332,14 +332,21 @@ describe('the grant lists and the live server agree', () => {
     // `reconciliation_sessions` are deliberately in the mutable list beside them:
     // a clearing posts no journal (the `ar_allocations` argument) and a session's
     // `state` is the row the application takes `FOR UPDATE`.
+    //
+    // `bank_statement_imports` was here in wave 0 and moved to the mutable list in
+    // OB-078: the async import (D-47/D-49) writes it `queued` before any line exists
+    // and updates it to `complete`/`failed` when the worker finishes, which is an
+    // UPDATE. The evidence argument survives the move because a re-import creates a new
+    // row rather than editing an old one — so the line, not the import record, is where
+    // E2's immutability lives.
     expect(APPEND_ONLY_TABLES).toEqual([
       'journals',
       'journal_lines',
       'permissions',
-      'bank_statement_imports',
       'bank_statement_lines',
       'reconciliation_session_events',
     ]);
+    expect(MUTABLE_TABLES).toContain('bank_statement_imports');
     expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');
     expect(MUTABLE_TABLES.length).toBeGreaterThan(10);
     expect(MUTABLE_TABLES).not.toContain('journals');

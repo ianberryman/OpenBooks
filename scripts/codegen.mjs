@@ -150,6 +150,11 @@ const OVERRIDES = {
     // `lines_duplicate` are INT UNSIGNED and need no override — well inside 2^53,
     // and the generator maps them to `number` correctly — as do
     // `bank_match_proposals.rank` and every column-index column on a mapping.
+    // OB-078 made those two counts NULLABLE (they are unknown until the async import
+    // completes), and added `status` (an ENUM the generator maps to a string-literal
+    // union) and `failure_reason` (VARCHAR NULL): all three are read back correctly
+    // by the generator, so none needs an override here — the money/date rule is the
+    // only place the generator lies, and none of these is money or a calendar date.
     //
     // The closing balance the uploaded file stated, which is money and is nullable
     // because a bare CSV states none (D-46).

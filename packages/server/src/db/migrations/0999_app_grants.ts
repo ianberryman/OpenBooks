@@ -96,18 +96,19 @@ const APPEND_ONLY_TABLES = [
   // (`bank_match_proposals`, `bank_line_clearings`), and both of those are mutable
   // while the line is not.
   //
-  // `bank_statement_imports` is the same fact one level up: that a named file, with
-  // this hash, was uploaded by this person at this time and contained this many
-  // rows of which this many were already present. The counts are not recoverable
-  // afterwards — a duplicate leaves no row behind — so an editable import record
-  // would be the only witness to a re-import and also the one thing able to deny it.
+  // `bank_statement_imports` was here in wave 0 and is not any more: it moved to
+  // `MUTABLE_TABLES` below when OB-078 made the import asynchronous (D-47/D-49). The
+  // reasoning is beside it there. The short version is that the async model writes
+  // the row at `status = 'queued'` before any line exists and updates it to
+  // `complete`/`failed` when the worker finishes, which is an UPDATE the append-only
+  // grant would refuse — and the evidence argument survives the move because a
+  // *re-import* still creates a new row rather than rewriting an old one.
   //
   // `reconciliation_session_events` is criterion E6: reopening a finalised session
   // is permission-gated and leaves a record of who and when. A deletable audit trail
   // satisfies neither half. The session itself is mutable — `state` is the row the
   // application takes `FOR UPDATE`, which is only possible for a table in the list
   // below (D-14) — so the lock is mutable and the history is not.
-  'bank_statement_imports',
   'bank_statement_lines',
   'reconciliation_session_events',
 ] as const;
@@ -215,6 +216,15 @@ const MUTABLE_TABLES = [
   'bank_import_mappings',
   'bank_rules',
   'bank_rule_dimensions',
+  // Moved out of APPEND_ONLY_TABLES by OB-078 (D-47/D-49). The import is asynchronous
+  // now: `startImport` writes this row `queued` before parsing, and the worker updates
+  // it to `complete` with the counts (or `failed` with a reason) when it is done — an
+  // UPDATE the append-only grant would refuse. It is the one banking evidence table
+  // that had to become working state, and only for its own status lifecycle: a
+  // re-import still creates a new row rather than editing an old one, so no upload's
+  // record is ever rewritten. The `bank_statement_lines` it produces stay append-only
+  // above, which is where E2's immutability actually lives.
+  'bank_statement_imports',
   // Proposals are deleted and regenerated wholesale. D-43's corollary is that
   // nothing depends on a proposal being right, only on it being ranked well, so
   // they are the most disposable rows in the schema.

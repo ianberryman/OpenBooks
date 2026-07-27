@@ -265,31 +265,47 @@ export async function up(db: MigrationDb): Promise<void> {
   `.execute(db);
 
   // ---------------------------------------------------------------------------
-  // bank_statement_imports — one uploaded file (ROADMAP D-41, D-42).
+  // bank_statement_imports — one uploaded file (ROADMAP D-41, D-42, D-47, D-49).
   //
-  // Append-only, and the row is written in the same transaction that inserts the
-  // lines. There is no `status` column and no half-finished import: an upload either
-  // committed, in which case this row and its lines are both here, or it did not, in
-  // which case neither is. That is `idempotency_keys`' shape — the claim lives inside
-  // the transaction it guards — and it is what makes a retry after a failure a clean
-  // re-upload rather than a repair.
+  // ## Mutable, because the import is asynchronous now (OB-078, [D-47])
   //
-  // ## That assumption is on borrowed time, and OB-078 is where it runs out
+  // This table was append-only in wave 0 and is not any more, and the change is the
+  // one wave 0's header said OB-078 would have to make. The one-transaction shape —
+  // the import row and its lines committing together — was only available while
+  // parsing happened inside the request. [D-47]/[D-49] moved parsing to the queue:
+  // `startImport` writes this row with `status = 'queued'` and returns *before any
+  // line exists*, and the worker fills in the counts and flips the status when it is
+  // done. That is an UPDATE after insert, so the table is in `0999_app_grants`'s
+  // `MUTABLE_TABLES` now rather than in `APPEND_ONLY_TABLES`.
   //
-  // Written down here so OB-078 finds it rather than rediscovering it halfway
-  // through. The one-transaction shape above is only available while parsing happens
-  // inside the request, and [D-47] has now been decided the other way: an in-process
-  // queue with Redis behind the interface, which is to say the interface is real and
-  // parsing a 5,000-line statement is the first work that moves to the worker (E10).
-  // The moment it does, the upload has to answer "where is my import?" before any
-  // line exists — and that is a `status` column, nullable counts, and probably a
-  // failure reason beside them.
+  // The evidence argument the old header made still holds where it mattered: a
+  // *re-import* creates a new row, never rewrites an old one, so every upload is still
+  // its own immutable-after-completion record and the counts remain the only witness
+  // to a re-import. What the mutability buys is a single row that can answer "where is
+  // my import?" through its whole lifecycle, which the async model requires and the
+  // one-transaction shape could not give.
   //
-  // It is deliberately not added now. OB-078 owns the statement service and will know
-  // what the states actually are; a status enum guessed here would be three tokens
-  // nobody measured, and every reader between now and then would have to work out
-  // which of them the code can produce. Adding it is an in-place edit to this file
-  // (D-15), not a new migration.
+  // ## The lifecycle, and the CHECK that pins it
+  //
+  //   queued      written by startImport; no counts, no lines yet
+  //   processing  the worker has picked it up (a `processing` row surviving a restart
+  //               is an interrupted import — see the re-run note below)
+  //   complete    the worker deduped and inserted; `lines_read`/`lines_duplicate` set
+  //   failed      the file could not be read; `failure_reason` set, no counts
+  //
+  // `lines_read` and `lines_duplicate` are therefore NULL until completion — the
+  // counts are not known at queue time — and `chk_bsi_status` couples them to the
+  // status so that a `queued` row carrying counts, or a `complete` row missing them,
+  // is inexpressible. `failure_reason` is the `failed` state's and only its.
+  //
+  // ## Re-running an interrupted import is safe, and E1 is why ([D-49])
+  //
+  // The in-process queue does not survive a worker restart, so an import left
+  // `queued` or `processing` by a crash is re-run — by the user re-uploading the same
+  // file, which E1's line-level dedupe collapses to nothing new. The whole flow is
+  // built to be safe to run twice: the worker skips an already-`complete` import, and
+  // the line insert is idempotent on `(fingerprint, occurrence_index)`. So a
+  // duplicated run changes no stored line and recomputes the same counts.
   //
   // ## The closing balance and the account identifier are both claims from outside
   //
@@ -363,14 +379,22 @@ export async function up(db: MigrationDb): Promise<void> {
       mapping_id            BINARY(16)   NULL,
       external_account_id   VARCHAR(64)  NULL,
       closing_balance_minor BIGINT       NULL,
-      lines_read            INT UNSIGNED NOT NULL,
-      lines_duplicate       INT UNSIGNED NOT NULL,
+      status                ENUM('queued','processing','complete','failed')
+                                         NOT NULL DEFAULT 'queued',
+      lines_read            INT UNSIGNED NULL,
+      lines_duplicate       INT UNSIGNED NULL,
+      failure_reason        VARCHAR(512) NULL,
       imported_by_user_id   BINARY(16)   NOT NULL,
       created_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                         ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_bank_statement_imports_org_id (org_id, id),
       KEY idx_bsi_org_account_created (org_id, bank_account_id, created_at, id),
       KEY idx_bsi_org_account_hash (org_id, bank_account_id, file_hash),
+      -- The worker's recovery scan reads pending imports by status; leading with
+      -- org_id keeps it a tenant-scoped read like every other in this schema.
+      KEY idx_bsi_org_status (org_id, status),
       CONSTRAINT fk_bsi_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_bsi_account
         FOREIGN KEY (org_id, bank_account_id) REFERENCES bank_accounts (org_id, id)
@@ -380,7 +404,21 @@ export async function up(db: MigrationDb): Promise<void> {
         ON DELETE RESTRICT,
       CONSTRAINT fk_bsi_importer
         FOREIGN KEY (imported_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-      CONSTRAINT chk_bsi_counts CHECK (lines_duplicate <= lines_read)
+      -- Counts are nullable until completion, so the ordering CHECK tolerates NULLs.
+      CONSTRAINT chk_bsi_counts CHECK (
+        lines_read IS NULL OR lines_duplicate IS NULL OR lines_duplicate <= lines_read
+      ),
+      -- The lifecycle, as a constraint: counts exist exactly when complete, a reason
+      -- exactly when failed, and a queued/processing row carries neither (OB-078).
+      CONSTRAINT chk_bsi_status CHECK (
+        (status = 'complete' AND lines_read IS NOT NULL AND lines_duplicate IS NOT NULL
+                             AND failure_reason IS NULL) OR
+        (status = 'failed'   AND failure_reason IS NOT NULL
+                             AND lines_read IS NULL AND lines_duplicate IS NULL) OR
+        (status IN ('queued','processing')
+                             AND lines_read IS NULL AND lines_duplicate IS NULL
+                             AND failure_reason IS NULL)
+      )
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
 
