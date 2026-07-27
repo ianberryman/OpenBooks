@@ -110,7 +110,16 @@ export const bankRuleConditionSchema = z
       }),
   })
   .refine(
-    (condition) => Object.values(condition).some((value) => value !== undefined && value !== null),
+    (condition) =>
+      // `bankAccountId` is deliberately excluded: it *scopes* a rule to an account,
+      // it does not *match* a line, so a condition naming only an account still
+      // matches every line on that account — the empty-condition failure this refuses,
+      // narrowed to one account. It is also the DB `chk_bank_rules_has_condition`, so a
+      // schema that accepted a bank-account-only condition would pass the wire and then
+      // fail the insert as a 500; refusing it here makes it a message at save time.
+      [condition.description, condition.direction, condition.amountMin, condition.amountMax].some(
+        (value) => value !== undefined && value !== null,
+      ),
     {
       error: 'A rule must match on something — an empty condition matches every line.',
       path: ['description'],

@@ -460,6 +460,12 @@ describe('the shapes that must be impossible', () => {
   it('refuses a bank rule with an empty condition (D-44)', () => {
     expect(bankingSchema('bankRuleConditionSchema').safeParse(RULE_CONDITION).success).toBe(true);
     expect(bankingSchema('bankRuleConditionSchema').safeParse({}).success).toBe(false);
+    // A condition naming only a bank account scopes but does not match — it would
+    // match every line on the account, and it is also the DB CHECK, so accepting it
+    // on the wire would turn a save into a 500. It must be refused as an empty one is.
+    expect(
+      bankingSchema('bankRuleConditionSchema').safeParse({ bankAccountId: UUID(5) }).success,
+    ).toBe(false);
   });
 
   /** A CSV needs exactly one reading of its columns; an OFX names its own fields. */

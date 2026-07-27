@@ -112,6 +112,7 @@ import {
   voidPayment,
 } from '../../src/modules/payments';
 import { listBankImportMappings, saveBankImportMapping } from '../../src/modules/banking/csv';
+import { createBankRule } from '../../src/modules/banking/rules';
 import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
@@ -221,13 +222,13 @@ import { contextFor } from './support';
  * twice: it gained `orgs.write`, which decides where every future invoice and bill
  * posts, and no migration recorded that either.
  *
- * What is left latent is the rest of `banking.*` (M4 waves 2–3:
- * `banking.match`/`reconcile`/`reopen`), `agents.review` and `integrations.*`
- * (M5), `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at
- * all. M4 wave 1 took the first two banking codes — `banking.import` and
- * `banking.read` — live the moment the import and mapping services enforced them,
- * exactly as the AR/AP services did to their codes, and the same table will lose
- * the remaining three as waves 2–3 land.
+ * What is left latent is the rest of `banking.*` (M4 wave 3:
+ * `banking.reconcile`/`reopen`), `agents.review` and `integrations.*` (M5),
+ * `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at all. M4
+ * wave 1 took `banking.import` and `banking.read` live, and wave 2 took
+ * `banking.match` — each the moment a service enforced it, exactly as the AR/AP
+ * services did to their codes — and the same table loses the remaining two as wave 3
+ * lands.
  *
  * ## And what OB-072 added to it
  *
@@ -285,13 +286,15 @@ const ROLES = [
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   'accounts.write': ['owner', 'bookkeeper'],
-  // M4 wave 1: the first two banking codes any service enforces. `banking.import`
-  // gates saving a mapping and starting an import; `banking.read` gates the reads
-  // and the preview. `banking.match`/`reconcile`/`reopen` stay in `LATENT_GRANTS`
-  // until waves 2–3 build the services that check them. Read follows the same
-  // shape as the other read codes — the two read-only roles hold it — while import
-  // is a write, held by Owner and Bookkeeper only.
+  // M4 waves 1–2: the banking codes services now enforce. `banking.import` gates
+  // saving a mapping and starting an import; `banking.read` gates the reads, the
+  // preview and the match proposals; `banking.match` gates authoring a rule (OB-080)
+  // and clearing a line (OB-081) — the classification and acceptance a matched line
+  // gets. `banking.reconcile`/`reopen` stay in `LATENT_GRANTS` until wave 3. Read
+  // follows the other read codes — the two read-only roles hold it — while import
+  // and match are writes, held by Owner and Bookkeeper only.
   'banking.import': ['owner', 'bookkeeper'],
+  'banking.match': ['owner', 'bookkeeper'],
   'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'contacts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   // AP-only and AR-only hold `contacts.write` — a vendor or a customer is created
@@ -392,19 +395,19 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  *
  * What is left is three milestones' worth, and `banking.*` is now landing across
  * M4's waves: wave 1 took `banking.import` and `banking.read` off Bookkeeper and
- * Owner (and `banking.read` off each reader) the moment the import and mapping
- * services enforced them, and waves 2–3 take the remaining `banking.match`,
- * `banking.reconcile` and `banking.reopen`. `agents.review` and `integrations.*`
- * go at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner as the only pair
- * with no milestone scoped at all — granted, administrative-looking, and checked by
- * nothing. It is the last of the original gap-6 set that has no plan behind it.
+ * Owner (and `banking.read` off each reader), wave 2 took `banking.match` off
+ * Bookkeeper and Owner, each the moment a service enforced it, and wave 3 takes the
+ * remaining `banking.reconcile` and `banking.reopen`. `agents.review` and
+ * `integrations.*` go at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner
+ * as the only pair with no milestone scoped at all — granted, administrative-looking,
+ * and checked by nothing. It is the last of the original gap-6 set that has no plan
+ * behind it.
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   owner: [
     'agents.review',
     'api_keys.read',
     'api_keys.write',
-    'banking.match',
     'banking.reconcile',
     'banking.reopen',
     'integrations.read',
@@ -415,7 +418,6 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   ],
   bookkeeper: [
     'agents.review',
-    'banking.match',
     'banking.reconcile',
     'banking.reopen',
     'integrations.read',
@@ -1452,6 +1454,25 @@ const OPERATIONS: readonly Operation[] = [
         s.ctx,
       ),
   },
+  // Wave 2's `banking.match`. Authoring a rule is the lightest of the code's two
+  // enforcement points (the other is clearing a line, which reaches `journals.post`
+  // and needs a line to clear) — one call is enough to prove the code is gated, and
+  // OB-089 gives the heavier operations their routes. Codes to the expense account
+  // that already exists in the scene.
+  {
+    name: 'createBankRule',
+    operationId: null,
+    permission: 'banking.match',
+    call: (s) =>
+      createBankRule(
+        {
+          name: 'Coffee is subsistence',
+          condition: { description: { mode: 'contains', value: 'COFFEE' } },
+          outcome: { accountId: s.expenseId },
+        },
+        s.ctx,
+      ),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -2137,7 +2158,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the thirty-seven codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the thirty-eight codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -2147,11 +2168,12 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     const latent = catalog.filter((code) => !enforced.has(code)).sort();
 
     expect(latent).toEqual([...new Set(Object.values(LATENT_GRANTS).flat())].sort());
-    // Thirty-one before M3, thirteen after it. M4 wave 1 took two more —
-    // `banking.import` and `banking.read` — as the import and mapping services began
-    // enforcing them, leaving eleven. This number is the only place the count is
-    // asserted rather than described, so it moves once per wave that wires a code.
-    expect(latent).toHaveLength(11);
+    // Thirty-one before M3, thirteen after it. M4 wave 1 took `banking.import` and
+    // `banking.read` as the import and mapping services began enforcing them (eleven),
+    // and wave 2 took `banking.match` for rules and clearing (ten). This number is the
+    // only place the count is asserted rather than described, so it moves once per wave
+    // that wires a code.
+    expect(latent).toHaveLength(10);
   });
 
   /**
