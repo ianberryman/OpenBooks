@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // For `scripts/start-stack.mjs`, and for the same two reasons `packages/web/tsconfig.json`
+    // gives: ESLint's flat config runs type-aware rules over every file it lints, and a file
+    // belonging to no TypeScript program is a parse error there — the root's own scripts are
+    // listed in `allowDefaultProject` in eslint.config.js, which this ticket may not edit. And
+    // the stack launcher is the one piece of this package that runs outside Playwright, so a
+    // typo in it fails as "webServer did not start" rather than as a compile error.
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["tests", "playwright.config.ts", "scripts"]
+}

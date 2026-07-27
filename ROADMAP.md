@@ -639,8 +639,9 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 
 ### M2 status
 
-Waves 0 through 5 are built on `develop`. `yarn check`
-passes: 1,285 tests across 113 files, ~82s. What remains is wave 6 (verification).
+All of M2 is built on `develop`. `yarn check` passes: 1,319 tests across 118 files, plus
+the B1 e2e narrative in a real browser. **Every M2 ticket is complete.** What remains
+before M3 is OB-057, the QuickBooks walkthrough, which is not a code task.
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -671,6 +672,10 @@ passes: 1,285 tests across 113 files, ~82s. What remains is wave 6 (verification
 | **OB-050** | Built | Settings — periods first, because a fresh org cannot post without them           |
 | **OB-051** | Built | Journal entry; balancing stays in `bigint`, one idempotency key per draft        |
 | **OB-052** | Built | Four report viewers, shared controls, drill-through                              |
+| **OB-053** | Built | Rescoped: the five properties that span _two_ reports, which nobody owned        |
+| **OB-054** | Built | 59 operations × 6 roles, plus body and query cross-org references                |
+| **OB-055** | Built | The B1 narrative in Chromium, ~7s; asserts figures rather than headings          |
+| **OB-056** | Built | `build` and `lint:tokens` in the gate; new web and e2e jobs                      |
 | Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because

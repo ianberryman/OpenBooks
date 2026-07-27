@@ -136,7 +136,16 @@ export function PostedEntry({
         </div>
       </div>
 
-      {presented !== null && <ErrorBanner error={failure} />}
+      {/*
+        Only when the dialog is closed. A reversal can only fail from inside that
+        dialog, and the dialog renders over this section — so a banner here during a
+        failed reversal is drawn underneath the overlay, where the user cannot read
+        it. OB-055 hit exactly that: a 500 presented as a dialog that stayed open with
+        the fields intact and no visible reason. The banner moves inside
+        `DialogContent` below; this one is left for a failure that arrives with no
+        dialog open, which is the reversal-succeeded-then-refetch-failed case.
+      */}
+      {presented !== null && !confirmingReversal && <ErrorBanner error={failure} />}
 
       <dl className="flex flex-wrap gap-6">
         <div className="flex flex-col gap-0.5">
@@ -259,6 +268,7 @@ export function PostedEntry({
           }
         >
           <div className="flex flex-col gap-4">
+            {presented !== null && <ErrorBanner error={failure} />}
             <Field error={fieldErrors['date']}>
               <FieldLabel>Reversal date</FieldLabel>
               <TextInput

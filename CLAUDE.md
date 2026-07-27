@@ -8,8 +8,8 @@ gap, and what to do before scoping M3.
 ## Commands
 
 ```bash
-yarn check          # the gate: format, lint, lint:deps, typecheck, drift, test
-yarn test           # 667 tests against real MySQL 8.4 via testcontainers (~28s)
+yarn check          # the gate: format, lint, lint:tokens, lint:deps, typecheck, drift, build, test
+yarn test           # 1,300+ tests against real MySQL 8.4 via testcontainers (~2m)
 yarn migrate        # OPENBOOKS_ROLE=migrate; needs DATABASE_MIGRATOR_* credentials
 yarn codegen        # regenerate src/db/generated.ts from a live migrated database
 yarn drift          # spec:check + client:check — both artifacts must match their source

@@ -1,4 +1,4 @@
-# OpenBooks CI — OB-027.
+# OpenBooks CI — OB-027, extended for M2 by OB-056.
 #
 # ROADMAP D-09: GitHub Actions, not the GitLab CI named in spec §3. The repository is on
 # GitHub, so a GitLab pipeline would be unverifiable — same stages, different runner. If
@@ -10,9 +10,12 @@
 # The gates here are not arbitrary; each one is a spec or ROADMAP commitment:
 #
 #   static         spec §11 A11 — no float arithmetic on money paths, lint-enforced
+#                  ROADMAP B9 / D-24 — no component names a raw colour, lint-enforced
 #   drift-spec     spec §12 A10 — OpenAPI drift is a build failure; artifact published
 #   drift-schema   generated.ts must match the migrations, proven against a live schema
 #   test           spec §11 — real MySQL only. Never SQLite, never mocks.
+#   web            M2 — the client bundles, and its component contract holds (OB-056)
+#   e2e            ROADMAP B1 / D-26 — a month of books in a real browser (OB-055)
 #   parity         ROADMAP A6 — the grant split must be byte-identical across environments
 #   build          spec §2.5 — one image, three roles; it has to actually build
 #   terraform      D-05 — written, never applied, so validate only and non-blocking
@@ -65,6 +68,10 @@ jobs:
   # paths) via @openbooks/eslint-plugin's no-float-money rule; `yarn lint:deps` is the
   # enforcement point for the module boundaries in .dependency-cruiser.cjs. Neither
   # touches the database.
+  #
+  # OB-056 adds `yarn lint:tokens` here rather than in a job of its own, because B9's
+  # no-raw-color is the same construction as A11's no-float-money — D-24 says so in as
+  # many words — and an enforcement point belongs next to its sibling.
   static:
     name: Static analysis
     runs-on: ubuntu-latest
@@ -79,6 +86,21 @@ jobs:
 
       - name: ESLint
         run: node "$YARN" lint
+
+      # ROADMAP B9, the acceptance criterion this step exists to make answerable: "no
+      # component names a raw colour, spacing, or radius — tokens only, lint-enforced."
+      #
+      # `yarn lint` above already runs the rule, so this step is not here to catch a hex
+      # that step would miss. It is here because B9 has two halves and only one of them
+      # had a check: the rule reports correctly (proven by
+      # packages/eslint-plugin/test/no-raw-color.test.ts) AND eslint.config.js still binds
+      # it to the web sources at severity `error`. Drop the config block and every gate in
+      # this file stays green while B9 stops being held. `yarn lint:tokens` asserts the
+      # binding with `eslint --print-config`, then runs the rule under this name so a
+      # violation reports as a B9 failure rather than as one line of a repo-wide lint.
+      # The script carries the full argument.
+      - name: Token layer (B9)
+        run: node "$YARN" lint:tokens
 
       - name: Dependency boundaries
         run: node "$YARN" lint:deps
@@ -262,6 +284,166 @@ jobs:
       - name: Vitest
         run: node "$YARN" test
 
+  # ── stage 2b: the web client — bundle and component contract (OB-056) ────────────
+  #
+  # Both commands below also run inside slower jobs: `yarn build` in `build` bundles the
+  # web client too, and `yarn test` in `test` includes the `web` Vitest project. This job
+  # is that overlap on purpose, and the overlap is what it is for:
+  #
+  #   1. Neither of those jobs can report without Docker. `test` cannot start until
+  #      mysql:8.4 is pulled and `build` is dominated by the image build, and a Docker Hub
+  #      pull that hangs is a failure mode this repository has hit and written down twice
+  #      — packages/server/test/README.md and packages/e2e/scripts/start-stack.mjs. A
+  #      Tailwind or component regression should not be invisible on a day the registry is
+  #      unwell.
+  #   2. Feedback time. This job is Docker-free and finishes in roughly the install time,
+  #      against ~5 minutes for `build`, and the M2 surface is the web client.
+  #
+  # The bundle step is not decoration. A defect in the token layer made Tailwind emit
+  # `@media (width >= var(…))` for any source file containing the bare word `container`,
+  # which the CSS minifier rejects — the build died while typecheck, lint and the whole
+  # suite passed. Nothing but a bundler run can see that class of failure, which is also
+  # why `yarn build` is now part of `yarn check` (see docs/ci.md).
+  #
+  # The component suite is jsdom (packages/web/vite.config.ts explains the choice). It is
+  # not a browser and does not discharge B1 — `e2e` below is what does.
+  web:
+    name: Web bundle + components
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Bundle the client (Vite + Tailwind)
+        run: node "$YARN" build:web
+
+      - name: Component suite (jsdom)
+        run: node "$YARN" test:web
+
+  # ── stage 6: the B1 narrative in a real browser (OB-055) ─────────────────────────
+  #
+  # ROADMAP B1 is the one acceptance criterion that cannot be proven below the browser,
+  # and D-26 fixes how: one Playwright narrative against the real Compose stack, not a
+  # suite. Everything else stays with the property and enforcement suites, because e2e is
+  # the slowest and most brittle test available.
+  #
+  # THE SUITE LANDED ALONGSIDE THIS TICKET, so this job runs two root scripts and nothing
+  # else. Both are thin delegations added by OB-056 to the root package.json, and they are
+  # the coupling to reconcile if OB-055's package renames anything:
+  #
+  #   yarn e2e          → yarn workspace @openbooks/e2e test:e2e       (playwright test)
+  #   yarn e2e:install  → yarn workspace @openbooks/e2e test:e2e:install
+  #
+  # Nothing about the stack is CI's business. `packages/e2e/playwright.config.ts` declares
+  # both servers as Playwright `webServer` entries — `scripts/start-stack.mjs` brings up
+  # Compose `mysql`, runs migrations to completion, then the API, and a second entry runs
+  # Vite — so `yarn e2e` on a laptop and `e2e` here are the same thing. Every other gate
+  # in this repo is one repo script that runs the same way locally; splitting the stack
+  # across the workflow would have broken that.
+  #
+  # Browser installation is the one step kept separate, because it is machine provisioning
+  # rather than a test: a laptop has the browsers already and a fresh runner never does.
+  #
+  # The probe stays now that the suite exists. It is what makes this job safe on a ref
+  # where OB-055 is absent — a bisect, a branch cut before it landed, a revert:
+  #
+  #   packages/e2e/package.json absent   → skip with a ::notice, green. A job that fails
+  #                                        red for code that is not on the ref teaches
+  #                                        people to ignore red.
+  #   present, but no root `e2e` script  → FAIL, loudly, naming the mismatch. That is not
+  #                                        an absence, it is an integration defect, and a
+  #                                        silent skip would drop B1 out of CI without
+  #                                        anything going red — the same failure mode the
+  #                                        token gate one job above exists to close.
+  #
+  # UNVERIFIED, and the only job in this file that is. Every other job was executed
+  # locally, in order, before it was written. This one was not: OB-055 was still in flight
+  # in the working tree while OB-056 was written, and `yarn e2e` starts Compose and drives
+  # a browser, which would have interfered with the agent building it. What *was* run
+  # locally is the probe script below, in all four of its branches, against sandboxes.
+  # The first real execution of this job is its first dispatch.
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    # Compose plus a browser is the one thing here that can hang rather than fail: a
+    # webServer that never becomes ready waits forever, and GitHub's default cap is six
+    # hours of a runner doing nothing. 30 minutes is well clear of a cold image build.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Before `actions/setup`, so the skip costs a checkout rather than a full install.
+      - id: probe
+        name: Is the e2e suite present?
+        run: |
+          if [[ ! -f packages/e2e/package.json ]]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=E2E skipped::packages/e2e is not on this ref (OB-055, ROADMAP B1). See docs/ci.md."
+            exit 0
+          fi
+
+          echo "present=true" >> "$GITHUB_OUTPUT"
+
+          has_script() {
+            node -e "const fs=require('node:fs');const s=JSON.parse(fs.readFileSync('package.json','utf8')).scripts||{};process.exit(s['$1']?0:1)"
+          }
+
+          if ! has_script e2e; then
+            echo "::error file=package.json::packages/e2e exists but the root package.json has no \`e2e\` script. The e2e job runs \`yarn e2e\` and nothing else; add that delegation, or change this job to the name packages/e2e now uses."
+            exit 1
+          fi
+
+          if has_script e2e:install; then
+            echo "install=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "install=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=No e2e:install::Root package.json has no \`e2e:install\` script, so \`yarn e2e\` is expected to install Playwright's browsers itself."
+          fi
+
+      - if: steps.probe.outputs.present == 'true'
+        uses: ./.github/actions/setup
+
+      # Same reasoning as the `test` job's pre-pull, and it matters more here: the pull
+      # happens inside `start-stack.mjs`, which Playwright runs under a 180s `webServer`
+      # timeout. A slow registry would surface as "the API never became ready" rather than
+      # as what it is. The tag is docker-compose.yml's default for MYSQL_VERSION.
+      - name: Pre-pull MySQL image
+        if: steps.probe.outputs.present == 'true'
+        run: docker pull mysql:8.4
+
+      - name: Install Playwright browsers
+        if: steps.probe.outputs.install == 'true'
+        run: node "$YARN" e2e:install
+
+      - name: The B1 narrative
+        if: steps.probe.outputs.present == 'true'
+        run: node "$YARN" e2e
+
+      # Both paths are read from packages/e2e/playwright.config.ts, not assumed:
+      # `outputFolder: 'playwright-report'` for the HTML report, and `test-results/` is
+      # where `trace: 'retain-on-failure'` and `screenshot: 'only-on-failure'` write. The
+      # trace is the artifact worth having — a failed narrative is thirty user actions and
+      # the trace viewer is the only practical way to see which one broke.
+      #
+      # `if-no-files-found: ignore` because a green run leaves no test-results directory
+      # at all, and a passing narrative must not be turned red by a missing screenshot.
+      - name: Playwright report and traces
+        if: always() && steps.probe.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            packages/e2e/playwright-report
+            packages/e2e/test-results
+          if-no-files-found: ignore
+
+      # The stack the narrative ran against, when it did not pass. D-26 puts real MySQL
+      # and the real image under the browser, so the interesting error is as often in a
+      # container log as in the trace.
+      - name: Compose logs
+        if: failure() && steps.probe.outputs.present == 'true'
+        run: docker compose logs --no-color || true
+
   # ── stage 9: DB bootstrap parity ─────────────────────────────────────────────────
   #
   # infra/db-bootstrap/02-grants.sql and docker/mysql-init/02-grants.sql must be
@@ -293,7 +475,9 @@ jobs:
   # `yarn build` is the repo's own definition of the production build — esbuild bundling
   # the server to dist/server/main.js plus Vite bundling the web client. It catches a
   # bundler-visible problem (an unresolved alias, a package that cannot be externalised)
-  # that typecheck does not.
+  # that typecheck does not. It stays whole here rather than being split per workspace,
+  # because the point of this step is that the command the repo calls "the build" works;
+  # the `web` job runs the client half on its own for the reasons given there.
   #
   # `docker build` catches everything the Dockerfile knows that the host does not: the
   # manifest-only install layer still resolving, `yarn install --immutable` holding on
@@ -422,10 +606,13 @@ jobs:
   # Under `workflow_dispatch` it means a human dispatched this run with `develop`
   # selected — same branch condition, different initiator. It is also gated on every
   # blocking job above, so nothing reaches a registry that has not passed the drift
-  # gates, the real-MySQL suite and the parity check.
+  # gates, the real-MySQL suite, the parity check and — once OB-055 lands — the B1
+  # narrative. `e2e` is in that list while it still skips: a skipped job satisfies
+  # `needs`, so naming it now costs nothing and means nobody has to remember to add it
+  # on the day the suite that proves B1 starts running.
   publish-image:
     name: Push image to ECR
-    needs: [static, drift-spec, drift-schema, test, parity, build, aws-preflight]
+    needs: [static, drift-spec, drift-schema, test, web, e2e, parity, build, aws-preflight]
     if: needs.aws-preflight.outputs.configured == 'true' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     permissions:

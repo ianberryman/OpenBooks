@@ -153,3 +153,10 @@ terraform.rc
 
 #Babel
 babel.config.json
+
+# Playwright output (OB-055). Both are run artefacts, and `test-results/` in
+# particular breaks `yarn format:check` after any local e2e run — which would turn
+# the CI static job red for a test somebody ran on their laptop.
+packages/e2e/test-results/
+packages/e2e/playwright-report/
+packages/e2e/.playwright/

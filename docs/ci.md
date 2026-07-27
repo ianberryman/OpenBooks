@@ -1,9 +1,13 @@
 # CI — operator guide
 
 The pipeline is one workflow, [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), plus
-one composite action, [`.github/actions/setup`](../.github/actions/setup/action.yml). This file
-is for whoever is setting the repository up. Why each gate exists is in the workflow's own
+one composite action, [`.github/actions/setup`](../.github/actions/setup/action.yml), plus one
+script, [`.github/scripts/check-token-lint.sh`](../.github/scripts/check-token-lint.sh). This
+file is for whoever is setting the repository up. Why each gate exists is in the workflow's own
 comments, next to the gate.
+
+OB-027 built this for M1. OB-056 extended it for M2: the web bundle and its component suite, the
+B9 token gate, an e2e job for the B1 narrative, and `yarn build` inside the local gate.
 
 GitHub Actions rather than the GitLab CI named in spec §3, per
 [ROADMAP D-09](../ROADMAP.md#d-09): the repository is on GitHub, so a GitLab pipeline would be
@@ -37,42 +41,67 @@ described under [Pushing the image](#pushing-the-image-to-ecr).
                                      ┌─ static ─────────────────┐
                                      ├─ drift-spec ─────────────┤
                                      ├─ drift-schema ── DB ─────┤
-  dispatch ──────────────────────────┼─ test ────────── DB ─────┼──► publish-image
-                                     ├─ parity ─────────────────┤     (develop +
-                                     ├─ build ─────────── Docker┤      AWS configured)
+                                     ├─ test ────────── DB ─────┤
+  dispatch ──────────────────────────┼─ web ────────────────────┼──► publish-image
+                                     ├─ e2e ─────── DB + browser┤     (develop +
+                                     ├─ parity ─────────────────┤      AWS configured)
+                                     ├─ build ─────────── Docker┤
                                      ├─ aws-preflight ──────────┘
                                      └─ terraform (advisory, blocks nothing)
 ```
 
-Eight of the nine jobs start at once and share nothing; there is no `needs` between them.
+Ten of the eleven jobs start at once and share nothing; there is no `needs` between them.
 `publish-image` is the only job with dependencies, and `terraform` is deliberately not one of
 them (see [Terraform](#terraform)).
 
 | Job             | Needs a database?               | Needs Docker? | Typical wall clock                 |
 | --------------- | ------------------------------- | ------------- | ---------------------------------- |
-| `static`        | no                              | no            | ~1m30s (≈70s install, ~12s checks) |
-| `drift-spec`    | no                              | no            | ~1m20s (checks are ~2s)            |
+| `static`        | no                              | no            | ~1m40s (≈70s install, ~20s checks) |
+| `drift-spec`    | no                              | no            | ~1m20s (checks are ~3s)            |
 | `drift-schema`  | **yes** — MySQL 8.4 via Compose | yes           | ~2m30s                             |
-| `test`          | **yes** — testcontainers        | yes           | ~2m30s                             |
+| `test`          | **yes** — testcontainers        | yes           | ~4m                                |
+| `web`           | no                              | no            | ~1m20s (the two steps are ~5s)     |
+| `e2e`           | **yes** — MySQL 8.4 via Compose | yes           | unmeasured — see below             |
 | `parity`        | no                              | no            | ~15s (no install at all)           |
 | `build`         | no                              | yes           | ~5m (the image build dominates)    |
 | `terraform`     | no                              | no            | ~1m30s (provider download)         |
 | `aws-preflight` | no                              | no            | ~10s                               |
 | `publish-image` | no                              | yes           | skipped today — see below          |
 
-Critical path is `build`, so a green run is roughly **5–6 minutes** wall clock, against about
-15 minutes of billed runner time across the nine jobs.
+Critical path is `build` or `e2e`, so a green run is roughly **5–7 minutes** wall clock, against
+about 20 minutes of billed runner time across the eleven jobs.
 
 Those numbers are extrapolated from local measurements on an M-series Mac, not observed on a
 GitHub runner — GitHub's runners are slower per core, and the two figures the estimates lean on
 hardest are the `yarn install --immutable` (~70s cold cache, ~25s warm) and the Docker image
-build. What was measured locally: static checks 11.4s total, both drift gates 2.1s,
-`yarn test` 28.2s for 667 tests across 51 files, `yarn build` 1.2s warm, Compose MySQL to
-healthy 5.8s, migrations 1.3s, codegen 1.2s, parity script 0.02s.
+build. Compose MySQL to healthy 5.8s, migrations 1.3s, codegen 1.2s, parity script 0.02s
+(OB-027, unchanged).
+
+Re-measured for OB-056, same machine, in job order:
+
+| Command             | Time  | Notes                                                       |
+| ------------------- | ----- | ----------------------------------------------------------- |
+| `yarn format:check` | 5.3s  |                                                             |
+| `yarn lint`         | 11.4s |                                                             |
+| `yarn lint:tokens`  | 4.2s  | the B9 gate; ~0.6s of it is the binding assertion           |
+| `yarn lint:deps`    | 1.1s  | 425 modules, 1697 dependencies                              |
+| `yarn typecheck`    | 2.9s  |                                                             |
+| `yarn drift`        | 2.9s  | both halves; `spec:check` alone is 1.2s                     |
+| `yarn build`        | 1.6s  | server 0.13s (esbuild), web 0.26s (Vite) — the rest is Yarn |
+| `yarn build:web`    | 1.2s  |                                                             |
+| `yarn test:web`     | 3.7s  | 219 tests across 26 files, jsdom, no Docker                 |
+| `yarn test`         | 115s  | 1,307 tests across 115 files                                |
+
+The `yarn test` figure is the one that moved since OB-027, which recorded 28.2s for 667 tests
+across 51 files. M2 roughly doubled the test count and the additions are the expensive kind —
+fast-check property runs over the report engine, each generating and posting journals against
+real MySQL. Read 115s as an upper bound rather than a clean measurement: it was taken on a
+machine that was also running another working tree's containers. Either way `test` is no longer
+a cheap job, and CI should be budgeted for that.
 
 ### Which jobs need the database, and how they get one
 
-Two do, by different mechanisms, and the difference is not arbitrary.
+Three do, by different mechanisms, and the differences are not arbitrary.
 
 - **`test`** uses testcontainers, which the suite owns end to end. `globalSetup` starts one
   MySQL container for the whole project (~4.5s) and passes connection parameters to test files
@@ -84,8 +113,100 @@ Two do, by different mechanisms, and the difference is not arbitrary.
   `docker/mysql-init/*.sql` mounted into `/docker-entrypoint-initdb.d`, and service containers
   start _before_ `actions/checkout`, so that directory would not exist and the init scripts
   would silently not run.
+- **`e2e`** also uses Compose `mysql`, but CI never says so: `packages/e2e/playwright.config.ts`
+  declares the stack as Playwright `webServer` entries, and `scripts/start-stack.mjs` is what
+  runs `docker compose up -d --wait mysql`, applies migrations, and starts the API. See
+  [End-to-end](#end-to-end-the-b1-narrative).
 
 Everything else is database-free and can be read as pure functions of the checkout.
+
+---
+
+## The local gate, and where `yarn build` sits in it
+
+`yarn check` is the gate, and as of OB-056 it runs:
+
+```
+format:check → lint → lint:tokens → lint:deps → typecheck → drift → build → test
+```
+
+Two of those are new.
+
+**`build` was missing, and that was not cosmetic.** A defect in the token layer made Tailwind
+emit `@media (width >= var(…))` for any source file containing the bare word `container`, which
+the CSS minifier rejects. The build died — while `typecheck`, `lint` and the entire test suite
+passed. The gate could not see a bundler or CSS-minifier failure at all, because it never ran a
+bundler.
+
+**Before `test`, not after**, on measured cost: `yarn build` is 1.6s and `yarn test` is ~115s.
+A gate that reports the cheap failure first is a gate people keep running. It sits after
+`typecheck` rather than before it for the opposite reason — the same broken import produces a
+legible type error and an obscure bundler error, so the legible one should be reached first.
+
+**`lint:tokens`** is [the B9 gate](#the-token-gate-b9). It overlaps `yarn lint` by design;
+that section explains what it adds.
+
+---
+
+## The token gate (B9)
+
+ROADMAP B9: _"No component names a raw colour, spacing, or radius — tokens only,
+lint-enforced."_ [D-24](../ROADMAP.md#d-24) makes the token layer a build gate rather than a
+convention, and says the rule is the same construction as `openbooks/no-float-money`.
+
+`yarn lint` has always run `openbooks/no-raw-color`, so what does `yarn lint:tokens` add? B9 has
+two halves and only one of them had a check:
+
+1. **The rule reports correctly.** Proven by `packages/eslint-plugin/test/no-raw-color.test.ts`,
+   inside `yarn test`.
+2. **`eslint.config.js` still binds it to the web sources at severity `error`.** Nothing proved
+   this. Delete that config block and the rule's own tests still pass, `yarn lint` still passes,
+   and B9 quietly stops being held.
+
+`.github/scripts/check-token-lint.sh` closes the second gap with `eslint --print-config` against
+a component chosen by glob (not a hardcoded filename, and never a test file — the config relaxes
+rules for those). It then runs the rule over `packages/web/**/*.{ts,tsx}`. That second half is a
+subset of `yarn lint` and costs ~3s; it is duplicated so a raw colour fails under a step named
+for the criterion instead of as one line in a repo-wide lint run.
+
+In CI it is the **Token layer (B9)** step of `static`, next to the `no-float-money` enforcement
+point it mirrors.
+
+The script lives in `.github/scripts/` because OB-056 owned that directory and not
+`infra/scripts/`. If a second repo-level check ever wants a home, `infra/scripts/` is the more
+honest one and moving it is a one-line change to `lint:tokens`.
+
+---
+
+## End-to-end: the B1 narrative
+
+[B1](../ROADMAP.md) is the one acceptance criterion that cannot be proven below the browser, and
+[D-26](../ROADMAP.md#d-26) fixes how: one Playwright narrative against the real Compose stack,
+not a suite.
+
+The `e2e` job runs two root scripts and nothing else:
+
+| Root script        | Delegates to                                     | Required?                        |
+| ------------------ | ------------------------------------------------ | -------------------------------- |
+| `yarn e2e`         | `yarn workspace @openbooks/e2e test:e2e`         | yes                              |
+| `yarn e2e:install` | `yarn workspace @openbooks/e2e test:e2e:install` | no — Playwright browser download |
+
+Those two delegations are the coupling between OB-056 and OB-055. If `packages/e2e` renames its
+scripts, the root delegations are what must change; the workflow names only the root ones.
+
+Nothing about the stack is CI's business. `packages/e2e/playwright.config.ts` declares both
+servers as `webServer` entries, so `yarn e2e` on a laptop and the `e2e` job here are the same
+thing — which is the property every other gate in this repo has.
+
+**If `packages/e2e` is not on the ref** — a bisect, a branch cut before OB-055, a revert — the
+job emits a `::notice` and stays green. **If it is present but the root `e2e` script is missing**,
+the job fails loudly: that is an integration defect, not an absence, and a silent skip would drop
+B1 out of CI without anything going red.
+
+**This job has never been executed.** It is the only one in the file that has not. OB-055 was
+still in flight in the working tree when OB-056 was written, and `yarn e2e` starts Compose and
+drives a browser, which would have interfered with it. What _was_ run locally is the probe
+script, in all four of its branches, against sandboxes. Its first real run is its first dispatch.
 
 ---
 
@@ -118,6 +239,12 @@ which names a directory this repository never writes to.
 `openapi.json` is uploaded on every run as **`openapi-spec`** (spec §12, acceptance A10). It is
 uploaded even when the drift gate fails, because the committed-but-stale document is exactly
 what you want to diff against what the routes now produce.
+
+**`playwright-report`** is uploaded by `e2e` whenever that job ran, carrying
+`packages/e2e/playwright-report` (the HTML report) and `packages/e2e/test-results` (traces and
+screenshots — `playwright.config.ts` sets `trace: 'retain-on-failure'`). A green narrative leaves
+no `test-results` directory at all, so the upload is `if-no-files-found: ignore`; a failed one is
+thirty user actions deep and the trace viewer is the only practical way to see which broke.
 
 Nothing else is published. In particular **no Terraform plan file is ever uploaded** —
 `infra/terraform/README.md` flags that a saved plan leaks the RDS master password ARN and the
@@ -212,13 +339,20 @@ Everything CI runs is a repo script. The whole static + drift + test set is `yar
 
 ```bash
 # static
-yarn format:check && yarn lint && yarn lint:deps && yarn typecheck
+yarn format:check && yarn lint && yarn lint:tokens && yarn lint:deps && yarn typecheck
 
 # spec drift (both halves, in this order — reversed, a route change reports as client drift)
 yarn drift
 
 # tests, real MySQL via testcontainers
 yarn test
+
+# web — the client bundle and the jsdom component suite, neither needs Docker
+yarn build:web && yarn test:web
+
+# e2e — brings up Compose, migrates, starts the API and Vite, drives a browser
+yarn e2e:install   # once per machine
+yarn e2e
 
 # schema/codegen drift
 docker compose up -d --wait mysql

@@ -1,0 +1,17 @@
+{
+  "name": "@openbooks/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "description": "The B1 narrative in a real browser (OB-055). One test, not a suite — see ROADMAP D-26.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "typescript": "5.9.3"
+  }
+}

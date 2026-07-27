@@ -15,12 +15,17 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:deps": "depcruise packages --config .dependency-cruiser.cjs",
+    "lint:tokens": "bash .github/scripts/check-token-lint.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "yarn workspaces foreach --all --parallel --topological-dev run typecheck",
     "test": "vitest run",
+    "test:web": "vitest run --project web",
     "test:watch": "vitest",
+    "e2e": "yarn workspace @openbooks/e2e test:e2e",
+    "e2e:install": "yarn workspace @openbooks/e2e test:e2e:install",
     "build": "yarn workspaces foreach --all --topological-dev run build",
+    "build:web": "yarn workspace @openbooks/web build",
     "dev": "yarn workspace @openbooks/server dev",
     "migrate": "yarn workspace @openbooks/server migrate",
     "migrate:down": "yarn workspace @openbooks/server migrate:down",
@@ -29,7 +34,7 @@
     "spec:check": "yarn workspace @openbooks/server spec --check",
     "client:check": "node packages/web/scripts/check-client-drift.mjs",
     "drift": "yarn spec:check && yarn client:check",
-    "check": "yarn format:check && yarn lint && yarn lint:deps && yarn typecheck && yarn drift && yarn test"
+    "check": "yarn format:check && yarn lint && yarn lint:tokens && yarn lint:deps && yarn typecheck && yarn drift && yarn build && yarn test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
