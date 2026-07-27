@@ -14,7 +14,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
 | M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Built — see Status below** |
-| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
+| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | **Scoped — see below**       |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
 
@@ -27,12 +27,12 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 **M1–M4 are built. Minimum credible public launch (M1–M4 + QuickBooks import) is one import
 away.** Read this section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                        |
-| ------ | ------------------------------------------------------------------------------------------------------ |
-| Branch | `develop`, working tree clean                                                                          |
-| Gate   | `yarn check` passes — 2,047 tests across 171 files, ~2.5 min; the E2E passes against a real stack      |
-| Push   | **55 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold      |
-| Next   | M5 (platform surface) is not scoped. Five follow-up tickets are outstanding, none blocking — see below |
+|        |                                                                                                                                                                       |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                                                                                         |
+| Gate   | `yarn check` passes — 2,047 tests across 171 files, ~2.5 min; the E2E passes against a real stack                                                                     |
+| Push   | **55 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                     |
+| Next   | M5 (platform surface) is scoped — start at wave 0 (OB-096 schema/grants, OB-097 wire contracts). Five follow-up tickets remain outstanding, none blocking — see below |
 
 M4 is complete. Wave 5 verified it and earned its keep: OB-088's cross-cutting property suite
 computes the cleared balance four independent ways over four tables and asserts them equal (spec
@@ -1282,6 +1282,223 @@ one refuses.
 
 ---
 
+## Milestone 5 — Platform surface
+
+The milestone the API was built to be a product for. M1–M4 made OpenBooks a bookkeeping system
+usable in the browser; M5 makes it a platform a third party integrates with and an agent keeps
+books through — over the same service layer, gated by the same permissions, without opening a
+side door around any invariant M1 spent itself locking in. README says it plainly: the frontend
+has no privileged path, third parties integrate as OAuth clients with scoped revocable access,
+and there is a change feed and an event bus for integrators who follow activity rather than poll
+it. This is where five contracts shipped since M1 — `EventBus`, `McpToolDefinition`,
+`RouteDefinition`'s transport-agnosticism, the `PermissionKey` catalog, the identity seam — get
+their first real consumers, which is [D-07](#d-07) applied to the platform rather than to a
+provider.
+
+Acceptance criteria are lettered **F**: `A`–`C` are M1–M3, M4 took `E` to keep clear of the
+`D-nn` decision register, and `F` is the next free letter.
+
+### Definition of done
+
+A third-party application registers as an OAuth client, a user authorizes it against a chosen
+subset of their own permissions, and the client reads and writes over `/v1` with a token that can
+never exceed the granting user. An operator issues a server-to-server API key bound to a role. An
+agent, connected over MCP with a model the user already pays for, proposes an entry that a human
+approves — the agent never posts to the ledger on its own. An integrator follows a resumable,
+tenant-scoped change feed of what happened and correlates its own record ids to OpenBooks entities
+through `external_refs`, idempotently. Every write still carries actor provenance onto the journal
+(spec §6), every read is still a 404-not-403 across orgs, and no new transport reaches a tenant
+table except through `tenantDb`.
+
+| #   | Acceptance criterion                                                                           | Verified by    |
+| --- | ---------------------------------------------------------------------------------------------- | -------------- |
+| F1  | Authorization-code + PKCE issues a token scoped to a subset of the granting user's permissions | OB-098, OB-106 |
+| F2  | **A token can never exceed its granting user** — narrowing the user's role narrows the token   | OB-098, OB-106 |
+| F3  | Every OAuth/API-key write carries actor provenance onto the journal it causes (spec §6)        | OB-099, OB-106 |
+| F4  | Revoking a token or key takes effect on the next request, and the revocation is logged         | OB-099, OB-106 |
+| F5  | One permission catalog governs REST, MCP, and OAuth — a scope naming no permission is refused  | OB-098, OB-103 |
+| F6  | **An agent proposes; a human posts.** A propose-only tool lands a draft, never a ledger write  | OB-103, OB-106 |
+| F7  | The event bus emits exactly the committed changes — none for a rolled-back transaction         | OB-100, OB-107 |
+| F8  | Per-org event ordering is total, and the change feed replays every event once from any cursor  | OB-101, OB-107 |
+| F9  | `external_refs` makes create idempotent by external identity, and correlates both directions   | OB-102, OB-107 |
+| F10 | Cross-org holds for every new resource — 404, byte-identical                                   | OB-106         |
+| F11 | No platform transport bypasses `requirePermission` or `tenantDb` — enforced, not reviewed      | OB-106         |
+
+### Explicitly out of M5
+
+- **OpenID Connect / "log in with OpenBooks".** The authorization server authorizes API access; it
+  is not an SSO identity provider, and being one is a different security surface. See
+  [D-53](#d-53).
+- **Public dynamic client registration** (RFC 7591). A client is registered by an org admin under
+  `integrations.write`; self-service registration is an anti-abuse surface of its own. [D-53](#d-53).
+- **Push delivery — webhooks and SSE.** The change feed is a resumable pull with a durable cursor;
+  push is a later delivery option layered on the same log, and settles the SSE-vs-polling open
+  decision as _pull, for now_. See [D-57](#d-57).
+- **The workflow engine and automations that subscribe to events** — M6. M5 ships the bus and the
+  first events; the first orchestrating consumer is M6's, not M5's. [D-44](#d-44).
+- **QuickBooks import.** `external_refs` and the change feed ship as the seam an importer uses; the
+  importer that drives them in bulk is M7. [D-33](#d-33).
+- **A dynamic module loader.** M5 implements `EventBus` and the MCP host against the `plugin-api`
+  types, but keeps the manual wiring the server uses today; `ModuleDefinition` auto-registration is
+  not required to ship the surface and would be tuned against a handful of modules. [D-07](#d-07).
+- **Multi-currency (spec §13), still**, and no `plugin-api` 1.0 — M5 is the milestone that finally
+  stresses `events`/`mcp`/`registry` with real consumers (M1 known gap 4), which is the input 1.0
+  needs, not the moment to freeze it.
+
+---
+
+### Ticket board
+
+13 tickets across 5 waves, numbered on from M4. Sizes as before: **S** ≈ one focused change,
+**M** ≈ a coherent subsystem, **L** ≈ non-trivial design or test surface.
+
+#### Wave 0 — Schema and contracts (2 parallel)
+
+| ID         | Title                      | Size | Depends on |
+| ---------- | -------------------------- | ---- | ---------- |
+| **OB-096** | Platform schema and grants | L    | M4         |
+| **OB-097** | Platform wire contracts    | M    | M4         |
+
+**OB-096** — The M5 tables and the grant split they force. New: `oauth_clients`, `oauth_grants`
+(authorization codes, short-lived, single-use), `oauth_tokens` (access and refresh, stored as a
+`key_prefix` + SHA-256 hash exactly like `sessions` and `api_keys`, with `revoked_at` and
+`last_used_at`), `oauth_consents` (which scopes a user granted a client); `external_refs`; an
+append-only `event_log` (the outbox — the same record the change feed replays, [D-56](#d-56)) plus
+its per-org position counter, taken `FOR UPDATE` the way `journal_sequences` is ([D-14](#d-14));
+`change_feed_cursors` for a subscriber's position; and an append-only `security_events` for
+issuance and revocation ([D-61](#d-61)). `api_keys` already exists from M1, unused — this is where
+it stops being. The grant split is the load-bearing edit: token, consent, client, cursor and
+`external_refs` tables are **mutable** and named in `MUTABLE_TABLES` (revocation, `last_used_at`,
+cursor advance, ref re-point); `event_log` and `security_events` join `APPEND_ONLY_TABLES` beside
+`reconciliation_session_events`. A table in neither list is a forgotten oversight by construction,
+and `0999_app_grants` still has to sort last (see [migrations/README.md](packages/server/src/db/migrations/README.md)).
+
+**OB-097** — The wire contracts in `packages/shared-types`, with **no `.meta({ id })`** until
+OB-104 gives them routes: OAuth's token, authorize, and client-registration shapes; API-key
+management; the change-feed page and cursor; `external_refs`. OAuth's own endpoints are
+form-encoded and status-coded by RFC 6749/9700, not the project's JSON error envelope — the one
+place M5's transport is not shaped like the rest, called out here so OB-104 does not try to force
+it into the typed envelope. Independent of the schema by construction: this is API shape, not
+storage.
+
+#### Wave 1 — Identity and the event backbone (3 parallel)
+
+| ID         | Title                                  | Size | Depends on |
+| ---------- | -------------------------------------- | ---- | ---------- |
+| **OB-098** | OAuth authorization server             | L    | 096, 097   |
+| **OB-099** | API-key authentication                 | M    | 096, 097   |
+| **OB-100** | Event bus and the transactional outbox | L    | 096        |
+
+**OB-098** — Authorize, token, and revocation endpoints; authorization-code with PKCE mandatory,
+implicit and resource-owner-password refused ([D-53](#d-53)). The consent screen grants a subset of
+the catalog, and the token's effective permissions are **recomputed every request** as the granted
+scopes intersected with the user's current role in that org ([D-54](#d-54)) — the same re-derivation
+`resolveSessionIdentity` already does for a session's org and role, which is why nothing below the
+auth service returns a baked-in role. This is the **second identity resolver** on the seam
+`api.ts` wires as `resolveIdentity`; it produces a `ResolvedIdentity` with an agent/automation
+`actorType`, so provenance lands on the journal for free (F3).
+
+**OB-099** — Issue, list, and revoke API keys — the M1 table finally used. A key is bound to its
+**own role**, not the issuer's (the column has said so since `0001`), authenticates as an org+role
+with no user, and is the **third resolver** on the same seam. Opaque `key_prefix` + hash, instant
+`revoked_at` ([D-61](#d-61)). The API-key/OAuth boundary is [D-55](#d-55): a key is first-party and
+represents no person; a token is third-party and always represents one.
+
+**OB-100** — The first real `EventBus` (D-07's fourth application, after email at M2 and the queue
+at M4). The state change and its `event_log` row are written in the **same tenant transaction**, so
+an event exists if and only if the change committed — no phantom event for a rolled-back posting,
+which is F7 and is exactly what the `events.ts` header means by "an event announcing a journal that
+was rolled back is worse than a late event". A relay in the `worker` assigns the host-side
+`eventId`, `occurredAt`, and per-org position, and delivers at-least-once to idempotent subscribers
+([D-56](#d-56)). M5 adds the additive `.v1` events the subledger and banking should always have
+emitted — `invoice.approved.v1`, `bill.approved.v1`, `payment.recorded.v1`, `credit-note.*`,
+`reconciliation.finalised.v1` — each a new member of `OpenBooksEvent`, never an edit to an existing
+payload.
+
+#### Wave 2 — Integrator surfaces (3 parallel)
+
+| ID         | Title                         | Size | Depends on   |
+| ---------- | ----------------------------- | ---- | ------------ |
+| **OB-101** | Change feed                   | M    | 100          |
+| **OB-102** | `external_refs` service       | M    | 096          |
+| **OB-103** | MCP server and the tool suite | L    | 098, 099, M3 |
+
+**OB-101** — A resumable, tenant-scoped feed that is a **projection of the event log, not a second
+store** ([D-57](#d-57)): a keyset read over the append-only log keyed on the per-org position
+([D-21](#d-21)), where the consumer holds the cursor, so replay is re-reading from a position. No
+denormalized second copy that could disagree with the log — the same rule [D-34](#d-34) and
+[D-46](#d-46) apply to balances. Gated `integrations.read`. Retention bounds how far back a
+consumer can resync ([D-57](#d-57), and the spec §14 open decision) — **the number is the human's
+to set.**
+
+**OB-102** — `external_refs`: an integrator's own id mapped to an OpenBooks entity, unique both
+ways, so a create carrying a known ref returns the existing entity rather than duplicating
+([D-58](#d-58)). This is [D-04](#d-04)'s idempotency generalized from a one-shot request key to a
+durable external identity, and it is the seam [D-33](#d-33) named for the M7 QuickBooks import — it
+ships now, its bulk consumer arrives then.
+
+**OB-103** — The MCP server, mounted **in-process on the `api` role** over streamable HTTP behind
+the same ALB — not a fourth process ([D-59](#d-59), preserving one-image-three-roles). Tools are a
+second transport over the existing services, each carrying the same `PermissionKey` its REST route
+does, enforced by the same `requirePermission` (F5). A tool that would post to the ledger is
+`supportsProposeOnly` and lands a **draft** — M2's `journal_drafts`, M3's document lifecycle — that
+a human with `agents.review` approves ([D-60](#d-60)); the agent never holds an auto-posting path.
+This is [D-43](#d-43)'s "matching proposes, a human posts" generalized to every agent write, and
+what finally activates the `agents.review` code seeded since M1.
+
+#### Wave 3 — Transport and screens (2)
+
+| ID         | Title                                      | Size | Depends on |
+| ---------- | ------------------------------------------ | ---- | ---------- |
+| **OB-104** | `/v1` surface and the OAuth endpoints      | M    | 098–103    |
+| **OB-105** | Developer and integration settings screens | L    | 104        |
+
+**OB-104** — The management routes (clients, connected apps, API keys, change feed) plus OAuth's own
+authorize/token/revoke endpoints wired in. The management surface gets its `.meta({ id })` and
+`openapi.json` drift stays a build failure (A10); OAuth's endpoints stay outside the typed envelope,
+by RFC, as OB-097 flagged. Handlers map arguments and hold no logic, unchanged.
+
+**OB-105** — Screens for API keys, connected OAuth apps (including the consent screen the AS
+redirects to), and the **agent-review queue** where a human turns an agent's proposals into
+postings ([D-60](#d-60)) — the screen `agents.review` exists for. Permission-aware and advisory as
+ever ([D-25](#d-25)); the services are the gate.
+
+#### Wave 4 — Verification (3)
+
+| ID         | Title                                        | Size | Depends on |
+| ---------- | -------------------------------------------- | ---- | ---------- |
+| **OB-106** | Platform enforcement and the security suite  | L    | 104        |
+| **OB-107** | Event and change-feed property suite         | L    | 100–102    |
+| **OB-108** | E2E: authorize → agent-propose → follow feed | M    | 105        |
+
+**OB-106** — The milestone's guarantees as tests, not review items: a token's effective permissions
+are the intersection with the user's live role and never exceed it (F1/F2); revocation is effective
+on the next request and logged (F4); the MCP transport refuses exactly what the REST route refuses,
+role for role (F5); every new resource holds the 404-byte-identical line (F10); and the
+dependency-cruiser boundary that no transport reaches a tenant table or enforces authorization
+itself extends to the new surfaces (F11). This is the A7/E9 cross-org matrix widened to OAuth,
+API-key, and MCP callers.
+
+**OB-107** — The property suite that spec §11's discipline points at the platform: after a generated
+run of postings, the events emitted equal exactly the committed changes and none of the rolled-back
+ones (F7); per-org ordering is total and the feed replays every event once from any cursor (F8); and
+`external_refs` re-import collapses to one entity (F9), the E1-style idempotency property one layer
+up. The outbox is the load-bearing piece and gets the mutation testing the ledger kernel got — an
+event delivered before its transaction commits, or twice, is the failure the outbox exists to
+prevent.
+
+**OB-108** — One browser-and-client narrative, against the real stack ([D-26](#d-26)): register a
+client, authorize it against a scope, have an agent propose an entry over MCP, approve it in the
+review queue, then follow the change feed and correlate the resulting journal back through
+`external_refs`. It is the only test that can prove the surfaces compose, and — as OB-090 was for
+M4 — the one most likely to catch a seam defect no unit test sees.
+
+**Critical path:** 096 → 098 → 103 → 104 → 105 → 108. OB-098 (the AS) and OB-100 (the outbox) are
+the two most likely to expand — the AS for its security surface, the outbox for the exactly-committed
+guarantee — the way OB-013 and OB-020 were in M1.
+
+---
+
 ## Decisions
 
 Choices made while scoping. Each is reversible; flag any you want changed before implementation.
@@ -2100,6 +2317,170 @@ Two consequences the E2E also forced, both fixed in infrastructure rather than i
 
 The lesson is the one D-26 states: these are seam defects, invisible to every layer's own tests,
 and the browser narrative is what a milestone builds to catch them.
+
+<a id="d-53"></a>
+
+**D-53 — OAuth is a full authorization server (code + PKCE), not a narrower grant.** README commits
+to third parties integrating "as OAuth clients with scoped, revocable access — not with a shared
+admin credential", and the self-host promise ([D-05](#d-05), one image) forbids the easy escape of
+delegating to a hosted identity provider: a self-hosted OpenBooks cannot depend on someone else's
+login. So OpenBooks runs the authorization server itself, and the shape is OAuth 2.1 —
+authorization-code with **PKCE mandatory**, implicit and resource-owner-password grants refused
+because both hand a third party more than a code exchange does. Clients are registered by an org
+admin under `integrations.write`; public dynamic registration (RFC 7591) is an anti-abuse surface of
+its own and is out. The server authorizes API access only — it is not an OpenID Connect identity
+provider, because "log in with OpenBooks" is a distinct security surface with distinct failure
+modes, and nothing in v1 needs it.
+
+**Flag for the human.** Running an authorization server is the highest-consequence code in the
+project — a scope-confusion or PKCE-downgrade bug is a cross-tenant data breach, not a wrong report.
+The decision to build rather than buy is close to forced by self-host, but the human should confirm
+the risk appetite and whether M5 carries a dedicated external security review of OB-098 before it is
+enabled in the hosted environment.
+
+<a id="d-54"></a>
+
+**D-54 — An OAuth scope is a permission key, and a token never exceeds its granting user.** The two
+transports that already exist key authorization on `PermissionKey` — `RouteDefinition.permission`
+and `McpToolDefinition.permission` — and `requirePermission` is the single service-layer gate
+([D-25](#d-25), spec §5). A second authorization vocabulary for OAuth would be precisely the side
+door M1 spent itself preventing, so there is no second vocabulary: **the scope catalog is the
+permission catalog.** A consent grants a subset of the 48 keys; at each request the token's
+effective permissions are the granted scopes **intersected with the granting user's current role in
+that org**, recomputed the way `resolveSessionIdentity` already recomputes a session's org and role
+rather than trusting a stored hint. The consequence that makes it right: revoking a user's role
+narrows every token they authorized, with no token touched — a delegated credential can never
+outlive or out-scope the person behind it, which is F2. A scope naming a key outside the catalog is
+refused at grant time, not at first use.
+
+<a id="d-55"></a>
+
+**D-55 — API keys are first-party and role-bound; OAuth is third-party and user-delegated.** The
+`api_keys` table has carried `role_id` — "its own role, not the issuer's" — since `0001`, which
+already encodes the boundary: a key authenticates as an org and a role with **no user behind it**
+(`actorType` automation), for the operator's own scripts and server-to-server jobs. An OAuth token
+always represents a **person** authorizing a third-party client, and carries their identity and the
+intersected scope of [D-54](#d-54). Both plug the same identity seam and produce a `ResolvedIdentity`
+the rest of the system cannot distinguish from a session by shape — only by the actor provenance it
+stamps onto the journal (spec §6). Both are opaque `key_prefix` + SHA-256 hash with instant
+`revoked_at`; neither is a bearer JWT, for the reason in [D-61](#d-61). The rule in one line: a key
+is never a person, a token is always one.
+
+<a id="d-56"></a>
+
+**D-56 — Events go through a transactional outbox, at-least-once, ordered per org.** The
+`events.ts` header fixes three constraints: `publish` is called only after the originating
+transaction commits ("a late event is better than a phantom one"); `eventId` and `occurredAt` are
+assigned in one place, not by publishers; and the ledger is append-only. A direct post-commit
+`publish()` satisfies none of them under a crash — the process can commit the journal and die before
+publishing, losing an event that provably happened. So the state change and an `event_log` row are
+written in the **same tenant transaction**: an event exists if and only if its change committed
+(F7). A relay in the `worker` reads unpublished rows, assigns the host-side identity and a **per-org
+monotonic position** — the [D-14](#d-14) counter pattern, taken `FOR UPDATE`, because the append-only
+`event_log` cannot itself be locked for a read any more than `journals` can — and delivers
+at-least-once, so **subscribers must be idempotent.** The `event_log` is append-only, in the grant
+sense, beside `reconciliation_session_events`.
+
+**Flag for the human.** Ordering is total **per org**, not globally: a global order would serialize
+every tenant's writes through one counter, which contradicts the tenant isolation the whole schema
+is built on. This is the right default, but it means a cross-tenant consumer sees per-org streams it
+must merge, not one global stream — worth confirming against how the first real integrator expects
+to consume it.
+
+<a id="d-57"></a>
+
+**D-57 — The change feed is a projection of the event log, not a second store.** The `events.ts`
+header states it directly — "the M5 change feed replays from these same records" — and
+[D-34](#d-34)/[D-46](#d-46) already refuse a second source of truth for anything the ledger holds.
+So the feed is a resumable, tenant-scoped **keyset read over the append-only `event_log`**
+([D-21](#d-21)), keyed on the per-org position from [D-56](#d-56), where the consumer holds the
+cursor. Replay is therefore just re-reading from an earlier position; there is no denormalized feed
+table that could drift from the log. This also settles the SSE-vs-polling open decision (spec §14,
+carried from M4) as **pull, for now**: a durable cursor gives resumability that a dropped SSE stream
+does not, and push delivery — SSE or webhooks — is a later optimization over the same log rather
+than a different mechanism.
+
+**Flag for the human.** Retention on the `event_log` bounds how far back an integrator can resync
+(the spec §14 "event log retention policy" item, due at M5). Too short and a consumer offline over a
+long weekend loses events permanently; too long and the log grows unbounded. This is an
+operational/product number, not an engineering one — **the human sets it**, and OB-101's contract
+documents the window a consumer can rely on.
+
+<a id="d-58"></a>
+
+**D-58 — `external_refs` is a unique correlation map that makes create idempotent by external
+identity.** [D-33](#d-33) named it, with the change feed, as the seam an integration uses, and spec
+§4 puts entity correlation here. The mapping is `(org_id, system, external_id) → (entity_type,
+entity_id)`, unique on `(org_id, system, external_id)` **and** on `(org_id, system, entity_type,
+entity_id)` — one external id names one entity and one entity has one external id per system, so
+correlation resolves both directions without ambiguity. A create carrying a known external ref
+returns the existing entity rather than duplicating: this is [D-04](#d-04)'s idempotency lifted from
+a one-shot, per-request key to a **durable external identity**, which is what an importer that runs
+weekly needs and an `Idempotency-Key` cannot give it. The map is mutable — a ref can be re-pointed
+when two records are merged upstream — but never silently; an append-only ref history is out of M5,
+and M7's QuickBooks import is the first bulk consumer.
+
+<a id="d-59"></a>
+
+**D-59 — MCP is a transport on the `api` role, not a fourth process.** `PROCESS_ROLES` is
+`api|worker|migrate` and the one-image-three-roles commitment is an M1 architecture invariant; README
+says the MCP server runs "over the same service layer as the REST API". So the MCP tools mount
+**in-process in the `api` role** over streamable HTTP behind the same ALB, wired from a
+`McpToolDefinition[]` the way routes are wired from `RouteDefinition[]`, with no new entrypoint and
+no new task definition. The auth module's cookie and identity helpers were deliberately built to
+return values rather than touch a Fastify `reply` for exactly this — the header names the MCP surface
+as the reason. Authorization is not per-transport (spec §5): a tool reuses `requirePermission` with
+its declared `permission`, so the MCP surface can refuse nothing the REST surface allows and allow
+nothing it refuses.
+
+<a id="d-60"></a>
+
+**D-60 — An agent write is a proposal, never a direct posting.** [D-30](#d-30) deferred the
+"may draft vs may post" distinction to "the agent review path in M5, when the code has a meaning and
+a role to grant it to" — and the code, `agents.review`, has been seeded and latent since M1. This is
+where it means something. `mcp.ts` already carries the machinery: `supportsProposeOnly`,
+`requiresConfirm`, a `propose` execution mode, and a `McpToolOutcome` that is either `executed` or
+`proposed`. A tool that would post to the ledger is `supportsProposeOnly` and, in `propose` mode,
+lands a **draft** — M2's `journal_drafts` ([D-19](#d-19)) or an M3 document in its draft state — that
+a human holding `agents.review` turns into a posting. The agent never holds an auto-posting grant.
+This is [D-43](#d-43)'s "matching proposes, a human posts" generalized from the bank statement to
+every agent action, and it needs no mutable ledger because the draft state already exists.
+
+**Flag for the human.** This makes propose-only a **hard rule** for agent ledger writes, with no
+trusted-client bypass. That is the conservative reading of [D-16](#d-16)/[D-43](#d-43) and almost
+certainly right for v1, but if a future high-trust automation should post directly, that is a
+product decision to take deliberately — not a config flag to leave open — and it is not in M5.
+
+<a id="d-61"></a>
+
+**D-61 — Credential revocation is instant and logged; tokens are opaque, not JWT.** Spec §14 lists
+"security-event logging for revoked credentials" as due at M5, and [D-03](#d-03) already chose
+server-side sessions over stateless cookies so that revocation is immediate. The same reasoning
+governs OAuth tokens and API keys: they are opaque `key_prefix` + SHA-256 hash with a DB lookup, so
+`revoked_at` takes effect on the **next request** with no blocklist to propagate. A bearer JWT would
+be the tempting alternative — stateless validation, no lookup — but a JWT cannot be revoked before
+it expires without exactly the server-side blocklist that reintroduces the lookup, at which point it
+is a slower opaque token that also leaks its claims to anyone who reads it. Every issuance, consent,
+and revocation writes an **append-only** `security_events` row, beside the other append-only
+evidence tables.
+
+**Flag for the human.** Some MCP and OAuth client libraries expect JWTs and self-validate. Opaque
+tokens are the right call for instant revocation and consistency with [D-03](#d-03), but if a target
+integrator's toolchain assumes JWT introspection, confirm the opaque choice against it before
+OB-098 — it is cheaper to know now than to add a JWT path later.
+
+<a id="d-62"></a>
+
+**D-62 — M5 enforces latent permission codes rather than growing the catalog.** The catalog is a
+closed 48-key union pinned by `AssertCatalogSize<48>`, and it already seeds the codes M5 needs —
+`agents.review`, `integrations.read`, `integrations.write`, `api_keys.read`, `api_keys.write` —
+catalog-only and unenforced, the same "seed now, enforce on arrival" pattern M1 gap 6 described and
+banking's `LATENT_GRANTS` used. So M5 mostly **wires enforcement to codes that already exist**: OAuth
+client and connected-app management under `integrations.*`, API keys under `api_keys.*`, the change
+feed under `integrations.read`, the agent review queue under `agents.review`, and each MCP tool under
+its operation's own existing code. A new key is added only if a genuinely new resource needs one, and
+if so it moves the `48` assertion and its seed together — never one without the other, which is the
+drift `test/permissions/catalog.test.ts` fails on.
 
 ## Status — Milestone 1
 
