@@ -12,7 +12,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Scoped — see below**       |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | Not scoped                   |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Scoped — see below**       |
 | M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | Not scoped                   |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
@@ -764,6 +764,100 @@ Two threads left loose:
 
 ---
 
+## Milestone 3 — Accounts receivable and payable
+
+### Definition of done
+
+A business invoices its customers, records its bills, applies payments to both, issues
+credit notes, and reads what it is owed and what it owes as at any date — with every
+figure reconciling to the ledger that M1 and M2 built.
+
+This is the milestone where **spec §11's subledger-agreement invariant becomes testable**.
+M1 deferred it with "no subledger exists until M3"; one exists now, and C2 below is that
+deferred test arriving.
+
+| #   | Acceptance criterion                                                                       | Verified by    |
+| --- | ------------------------------------------------------------------------------------------ | -------------- |
+| C1  | Approving an invoice or bill posts a balanced journal; nothing else writes to the ledger   | OB-062, OB-063 |
+| C2  | **Subledger agrees with the ledger**: outstanding AR = the AR control account, at any date | OB-070         |
+| C3  | An allocation reduces what is outstanding; over-allocating an invoice is refused           | OB-064, OB-070 |
+| C4  | An unapplied payment is a credit on the contact, and applying it later reconciles          | OB-064, OB-070 |
+| C5  | Tax-inclusive and tax-exclusive entry of the same economic invoice post identical journals | OB-061, OB-070 |
+| C6  | A credit note nets its invoice to zero on every report and in the subledger                | OB-062, OB-070 |
+| C7  | Voiding leaves the document and its reversal visible; nothing is deleted                   | OB-062, OB-063 |
+| C8  | Aging as at a date sums, per bucket and in total, to the control account at that date      | OB-065, OB-070 |
+| C9  | Document numbers are gapless per org per type                                              | OB-060, OB-070 |
+| C10 | Every new resource holds the A7 line — cross-org is a 404 with a byte-identical body       | OB-071         |
+| C11 | The permission matrix shows AR/AP powers arriving, per known gap 6                         | OB-071         |
+
+### Explicitly out of M3
+
+- Multi-currency (spec §13), and therefore FX gain/loss on settlement.
+- Bank feeds, import, and reconciliation — M4. A payment here is recorded, not matched.
+- Recurring invoices, dunning, statements-by-email, customer portals.
+- Compound and multi-jurisdiction tax. See [D-35](#d-35).
+- Purchase orders, quotes, estimates, inventory costing.
+- Cash-basis reporting, still. [D-22](#d-22) is unchanged: it needs a payment date to
+  switch on, and now that payments exist it becomes _possible_ — but it is a reporting
+  milestone's work, not AR/AP's.
+
+---
+
+### Ticket board
+
+#### Wave 0 — Contract and schema (2 parallel)
+
+| ID         | Title                                              | Size | Depends on |
+| ---------- | -------------------------------------------------- | ---- | ---------- |
+| **OB-060** | The M3 schema, and the grants migration renumbered | L    | —          |
+| **OB-061** | M3 wire contracts and the tax primitive            | M    | —          |
+
+**OB-060** — Every M3 table, plus the structural fix M2 deferred: `0004_app_grants` is
+renumbered to sort **last** permanently. M2 worked around the ordering constraint with
+`0003a`/`0003b`/`0003c` suffixes and then dissolved them by folding everything into
+`0002_ledger`; that file is now large, and M3's ten-odd tables are a coherent subsystem
+rather than a change to the ledger. Renaming the grants migration is what makes a
+`0005_subledger` possible at all — MySQL refuses a table-level `GRANT` on a table that
+does not exist, so anything created after it can never be granted.
+
+**OB-061** — The wire contracts, in `packages/shared-types`, with **no `.meta({ id })`**
+until OB-066 adds routes. Independent of the schema by construction: this is API shape,
+not storage. Fixing it first is what lets five services fan out in wave 1 without each
+inventing its own money-and-tax vocabulary.
+
+#### Wave 1 — Subledger services (5 parallel)
+
+| ID         | Title                                   | Size | Depends on |
+| ---------- | --------------------------------------- | ---- | ---------- |
+| **OB-062** | AR documents: invoices and credit notes | L    | 060, 061   |
+| **OB-063** | AP documents: bills and vendor credits  | L    | 060, 061   |
+| **OB-064** | Payments and allocation                 | L    | 060, 061   |
+| **OB-065** | Aging and subledger reporting           | M    | 060, 061   |
+| **OB-066** | Tax rates service                       | M    | 060, 061   |
+
+#### Wave 2 — Transport and screens
+
+| ID         | Title                                   | Size | Depends on |
+| ---------- | --------------------------------------- | ---- | ---------- |
+| **OB-067** | `/v1` surface for everything M3 adds    | M    | 062–066    |
+| **OB-068** | Invoices and credit notes screens       | L    | 067        |
+| **OB-069** | Bills and vendor credits screens        | L    | 067        |
+| **OB-070** | Payments, allocation, and aging screens | L    | 067        |
+
+#### Wave 3 — Verification
+
+| ID         | Title                                             | Size | Depends on |
+| ---------- | ------------------------------------------------- | ---- | ---------- |
+| **OB-071** | Subledger agreement property suite (spec §11)     | L    | 062–066    |
+| **OB-072** | Enforcement matrix extension, and gap 6 made loud | M    | 067        |
+| **OB-073** | E2E: invoice → payment → aging                    | M    | 068–070    |
+
+OB-071 is the milestone's centre of gravity, not its afterthought. Spec §11 named
+subledger agreement as an invariant in M1 and it has waited two milestones for something
+to agree with.
+
+---
+
 ## Decisions
 
 Choices made while scoping. Each is reversible; flag any you want changed before implementation.
@@ -1247,6 +1341,110 @@ The reversible half is worth noting: nothing in M3 needs to be built _against_ Q
 compatible with it later. `external_refs` and the change feed are already M5's job (spec
 §4), and they are the seam an integration would use. Dropping the walkthrough removes an
 input to M3's design, not an option from M5's.
+
+<a id="d-34"></a>
+**D-34 — A subledger holds no balance.** An invoice does not carry what is outstanding on
+it. The amount outstanding is its total minus the allocations applied to it, computed on
+read, exactly as the trial balance is computed from journal lines rather than from a cache
+(spec §2.1, §2.6).
+
+This is not a performance choice deferred; it is the property C2 asserts. The moment an
+invoice carries its own balance, there are two answers to "what does this customer owe" —
+the subledger's and the ledger's — and they can disagree without anything being obviously
+broken. Spec §11 names subledger agreement as an invariant precisely because that
+divergence is the classic failure of accounting systems, and it is unfalsifiable when the
+subledger is the thing being asked.
+
+The cost is real and accepted: an aging report is an aggregation over documents and
+allocations rather than a column read, and it will need indexes designed for it the way
+`idx_jld_org_dimension_value` was (D-18). If it ever binds, the answer is a materialized
+projection that is _rebuilt from_ the ledger and asserted against it — never a balance the
+application maintains incrementally.
+
+<a id="d-35"></a>
+**D-35 — Tax is a per-org rate list, one rate per line, with the invoice declaring
+inclusive or exclusive.** A rate is a named percentage posting to a nominated liability
+account. A line carries at most one. An invoice states whether its unit prices already
+include tax, and C5 asserts that both entry modes of the same economic invoice post
+_identical_ journals — which is the only statement that makes the inclusive path
+trustworthy, since it is the one where the arithmetic can silently lose a cent.
+
+Rounding is where tax models go wrong, so it has one documented application point, as
+money already does (D-13): tax is computed per line, rounded once per line, and the
+invoice total is the sum of rounded lines — never the rounded sum, which disagrees with
+what the customer can verify by adding up the page.
+
+Compound rates, multi-component rates (GST+PST), and jurisdiction rules are out. They are
+correct for Canada and much of the US, and they are a subsystem rather than a feature —
+scoping them into AR/AP would make M3 a tax milestone with invoicing attached.
+
+<a id="d-36"></a>
+**D-36 — Documents are numbered by a gapless per-org sequence, plus an optional free-text
+reference.** The same mechanism and the same reasoning as [D-14](#d-14): the number is
+what a customer, an auditor, and a bank statement cite, and a gap is indistinguishable
+from a deleted document — which is precisely what an append-only system must never be
+ambiguous about. Allocated from a counter row taken `FOR UPDATE` inside the transaction,
+not `AUTO_INCREMENT`, which leaves gaps on rollback.
+
+The sequence is **per org and per document type**: invoices, credit notes, bills and
+vendor credits each count separately, because they are separate series to the people who
+read them.
+
+The free-text reference is a different field for a different job, and both are needed. On
+an invoice it holds the customer's purchase-order number. On a **bill it holds the
+vendor's own invoice number**, which is the number that matters on an AP document — we did
+not issue it, and our sequence number is only our internal handle.
+
+<a id="d-37"></a>
+**D-37 — A payment is an amount received, and allocation is a separate fact.** A payment
+records money moving; allocations record which documents it settles. Nothing requires them
+to be equal at the moment the payment is recorded, and an unallocated remainder is a
+**credit balance on the contact**, applicable later.
+
+This models what actually happens: a deposit arrives before anyone has decided what it
+settles, a customer rounds up, or one transfer pays three invoices. Requiring a payment to
+fully apply would make all three unrecordable, and the workaround people reach for — a
+suspense journal posted by hand — is exactly the un-auditable move the subledger exists to
+replace.
+
+Over-allocating a _document_ is refused (C3): allocations against one invoice may not
+exceed it. Over-_paying_ is fine and lands as credit. The asymmetry is the point.
+
+<a id="d-38"></a>
+**D-38 — An invoice's lifecycle is draft → approved → (part-paid → paid), with void
+alongside.** Only the approved transition posts a journal, and it is the one irreversible
+step: before it, the document is editable and discardable exactly as a journal draft is
+(D-16, D-19); after it, the ledger has been told.
+
+Part-paid and paid are **derived from allocations, not stored** — they are D-34 applied to
+status. A stored status is a second source of truth that drifts the first time an
+allocation is voided.
+
+Void is a reversal, never a deletion (D-16): the document remains, its journal is reversed
+by a new journal, and both are visible. A voided invoice that vanished would make the
+gapless sequence a lie.
+
+<a id="d-39"></a>
+**D-39 — A credit note is a document, not a negative invoice.** It has its own sequence,
+posts its own journal, and allocates against invoices through the same mechanism payments
+use — so "what is outstanding" has one definition regardless of what reduced it.
+
+Modelling it as an invoice with negative lines would be less code and worse books: aging
+would need to special-case the sign, a credit note could accidentally be paid, and the
+document a customer receives would be an invoice claiming they owe minus two hundred.
+
+<a id="d-40"></a>
+**D-40 — Aging is computed as at a date, from documents and allocations, and reconciles to
+the control account.** Buckets are current / 1–30 / 31–60 / 61–90 / 90+ days past due,
+measured from the due date rather than the issue date, because that is what "overdue"
+means to the person chasing it.
+
+C8 is the criterion that makes it worth anything: the buckets must sum to the AR control
+account's balance at that date. An aging report that does not tie to the ledger is a list
+of hopes. Note this requires aging to be computed **as at** a historical date — using
+today's allocations against a past date's documents would produce a report that cannot be
+reproduced tomorrow, which is the same failure D-32 accepted deliberately for sliced
+reports and must not accept here.
 
 ## Status
 
