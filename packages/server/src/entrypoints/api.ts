@@ -13,6 +13,8 @@ import { getConfig } from '../config';
 import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import { resolveSessionIdentity } from '../modules/auth';
+import { parseStatement, registerStatementImportJob } from '../modules/banking';
+import { queueProvider } from '../providers';
 import { buildApp } from '../transport';
 
 /** SIGTERM is what Fargate and `docker stop` send; SIGINT is Ctrl-C in development. */
@@ -65,6 +67,23 @@ export async function startApi(): Promise<void> {
    * resolver deliberately; production always has one.
    */
   const app = await buildApp({ config, logger, resolveIdentity: resolveSessionIdentity });
+
+  /**
+   * With the in-process queue, the API consumes the jobs it enqueues.
+   *
+   * D-49's in-process adapter does not cross a process boundary — a job `startImport`
+   * enqueues runs in the process that enqueued it. In a single-container self-host that
+   * process is this one, so the API must register the import handler or the job is
+   * enqueued to a queue nobody consumes and the import sticks in `queued` forever (there
+   * is no separate worker process sharing the same in-memory queue — that is what the
+   * `sqs` adapter is for, and under it the `worker` role consumes and the API registers
+   * nothing). `worker.ts` registers the same handler; exactly one process does, chosen by
+   * the queue provider.
+   */
+  if (config.providers.queue.provider === 'in-process') {
+    await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
+    logger.info({ role: 'api', queue: 'in-process' }, 'statement import job registered in-process');
+  }
 
   /**
    * Registered before `listen`, not after.

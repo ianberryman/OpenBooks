@@ -59,6 +59,23 @@ export function hasAmbientTransaction(): boolean {
 }
 
 /**
+ * Runs `body` with no ambient transaction in scope, even if the caller had one.
+ *
+ * This is the "re-scopes per row *outside* any transaction" the header prescribes for a
+ * background job, made callable. The in-process queue schedules a handler on a later turn
+ * of the event loop, and `AsyncLocalStorage` propagates through `setTimeout` — so a job
+ * enqueued inside a request's transaction (every `startImport` is, via `withIdempotency`)
+ * would otherwise run with that transaction still in scope. By the time the handler runs the
+ * transaction has committed, and the first `tenantDb()` write joins it and throws
+ * "Transaction is already committed". Clearing the scope here is what lets a detached job
+ * open its own transactions per unit of work, which is the only correct thing for work that
+ * outlives the request that scheduled it.
+ */
+export function runDetached<R>(body: () => Promise<R>): Promise<R> {
+  return store.exit(body);
+}
+
+/**
  * Runs `body` in a transaction on a system handle, joining one already in scope.
  *
  * `TenantDatabase.transaction` has done this since the store above existed;

@@ -1,5 +1,6 @@
 import type { QueueProvider } from '@openbooks/plugin-api';
 
+import { runDetached } from '../../db';
 import type { Logger } from '../../logging';
 
 /**
@@ -110,10 +111,18 @@ export class InProcessQueue implements QueueProvider {
   ): Promise<void> {
     return new Promise<void>((resolve) => {
       setTimeout(() => {
+        // `runDetached` clears any ambient transaction the enqueuer held. `enqueue` is
+        // called inside the request's transaction (every `startImport` is, via
+        // `withIdempotency`), and `AsyncLocalStorage` propagates through this `setTimeout`
+        // — so without this the handler would join a transaction that has since committed
+        // and every write would throw "Transaction is already committed". A detached job
+        // outlives the request that scheduled it and must open its own transactions; the
+        // queue guarantees that for every handler rather than trusting each to remember.
+        //
         // A handler failure has no request to reject and no client to tell, so it is
         // logged here and the job resolves regardless — one failed job must not wedge
         // `settled()` or take down the worker's event loop.
-        handler(payload)
+        runDetached(() => handler(payload))
           .catch((error: unknown) => {
             this.#logger.error({ err: error, queue }, 'A queued job failed.');
           })

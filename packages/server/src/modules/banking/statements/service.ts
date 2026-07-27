@@ -284,6 +284,30 @@ export async function registerStatementImportJob(
  * runs in a context reconstructed from that, so the lines and the completion are
  * attributed to the uploader rather than to a nameless worker.
  */
+/**
+ * Waits for the import row to become visible, bounded.
+ *
+ * ~10 attempts over ~250 ms — long enough to cover a request COMMIT's latency (the row
+ * appears the instant the request that created it commits), short enough that a genuinely
+ * absent import resolves to "skip" promptly rather than spinning. Almost always the first
+ * read succeeds; the retry only matters in the narrow window where the detached job outruns
+ * the commit. A hosted (`sqs`) deployment would not race this way — the message is sent after
+ * the commit — so the wait is a no-op there, and correct here.
+ */
+async function awaitImportVisible(
+  db: TenantDatabase,
+  importId: Buffer,
+): Promise<Awaited<ReturnType<typeof selectImportStatus>>> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const status = await selectImportStatus(db, importId);
+    if (status !== undefined) return status;
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 25);
+    });
+  }
+  return undefined;
+}
+
 export async function processStatementImport(
   job: StatementImportJob,
   deps: StatementImportDeps,
@@ -292,12 +316,17 @@ export async function processStatementImport(
     const db = orgScope(getContext('processStatementImport()'));
     const importId = assertImportId(job.importId);
 
-    const status = await selectImportStatus(db, importId);
+    // The import row is inserted in the request's transaction and this job is enqueued
+    // inside it (via `withIdempotency`), then runs detached on a fresh connection. That
+    // connection can win the race against the request's COMMIT, so a single read here can
+    // miss a row that is about to become visible. Wait briefly for it — bounded, because a
+    // rolled-back or cross-org import never appears and the job must not spin. Once the row
+    // is visible the request has committed (a fresh connection cannot see it before), so
+    // everything downstream is safe.
+    const status = await awaitImportVisible(db, importId);
     if (status === undefined) {
-      // The row is not visible in this org scope — it never existed here, or was
-      // addressed with the wrong context. Nothing to do and nothing to fail; a
-      // completed import that already ran is the common benign case and is caught
-      // by the branch below.
+      // Still absent after the window: it never existed in this scope, or was addressed
+      // with the wrong context. Nothing to do and nothing to fail.
       deps.logger.warn({ importId: job.importId }, 'Import job for an unknown import; skipping.');
       return;
     }

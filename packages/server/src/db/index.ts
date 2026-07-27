@@ -88,7 +88,7 @@ export {
 // The system-table counterpart of `TenantDatabase.transaction`. Exported because
 // `systemDb().transaction()` throws once a transaction is already in scope, which
 // OB-028's org-less claims made reachable — see `transaction-scope.ts`.
-export { withTransaction } from './transaction-scope';
+export { withTransaction, runDetached } from './transaction-scope';
 // Keyset pagination (D-21). Exported here beside `tenantDb` because it is only
 // usable *with* it: the helper adds a predicate to an already-scoped builder rather
 // than building a statement of its own, which is what keeps org scoping applied to

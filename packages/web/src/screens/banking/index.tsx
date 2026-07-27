@@ -23,10 +23,16 @@ import { ReconciliationScreen } from '../reconciliation';
  * other screen, mounting is unconditional (D-25) — the nav entry is gated on `banking.read`,
  * the routes are not, and the services refuse regardless.
  */
+// Absolute paths, not relative. A `NavLink` resolves `to` against the current URL, and this
+// wrapper is mounted under the `/banking/*` splat — so a relative `to="import"` from
+// `/banking/match` resolves to `/banking/match/import`, which no child route matches, so the
+// `*` catch-all below redirects again and the URL grows without bound (an OOM the E2E caught
+// and the jsdom tests could not, because they mount the sub-screens directly). Absolute `to`
+// resolves the same from every sub-route.
 const TABS: readonly { readonly to: string; readonly label: string }[] = [
-  { to: 'import', label: 'Import' },
-  { to: 'match', label: 'Match' },
-  { to: 'reconcile', label: 'Reconcile' },
+  { to: '/banking/import', label: 'Import' },
+  { to: '/banking/match', label: 'Match' },
+  { to: '/banking/reconcile', label: 'Reconcile' },
 ];
 
 export function BankingScreen(): ReactElement {
@@ -52,11 +58,11 @@ export function BankingScreen(): ReactElement {
       </nav>
 
       <Routes>
-        <Route index element={<Navigate to="match" replace />} />
+        <Route index element={<Navigate to="/banking/match" replace />} />
         <Route path="import" element={<BankImportScreen />} />
         <Route path="match" element={<MatchingScreen />} />
         <Route path="reconcile" element={<ReconciliationScreen />} />
-        <Route path="*" element={<Navigate to="match" replace />} />
+        <Route path="*" element={<Navigate to="/banking/match" replace />} />
       </Routes>
     </div>
   );
