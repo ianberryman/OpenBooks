@@ -54,14 +54,15 @@ x-app-env: &app-env
   QUEUE_PROVIDER: ${QUEUE_PROVIDER:-in-process}
   STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
   SECRETS_PROVIDER: ${SECRETS_PROVIDER:-env}
-  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
   BANK_FEED_PROVIDER: ${BANK_FEED_PROVIDER:-csv-ofx}
   STORAGE_LOCAL_PATH: ${STORAGE_LOCAL_PATH:-/var/lib/openbooks/storage}
   EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-openbooks@localhost}
-  SMTP_HOST: ${SMTP_HOST:-localhost}
-  SMTP_PORT: ${SMTP_PORT:-1025}
-  SMTP_USER: ${SMTP_USER:-openbooks}
-  SMTP_PASSWORD: ${SMTP_PASSWORD:-change-me-smtp}
+  # Where a link in an outbound email points. Unset here because the API's public
+  # origin is a deployment fact this file cannot know — HTTP_PORT is what the
+  # container publishes, not what a browser reaches it on through whatever proxy
+  # is in front. Unset, an invite link is emitted as a path (OB-040).
+  APP_BASE_URL: ${APP_BASE_URL:-}
 
 services:
   mysql:

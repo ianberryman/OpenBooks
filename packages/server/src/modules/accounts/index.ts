@@ -1,10 +1,10 @@
 /**
- * The chart of accounts (OB-018, OB-035; spec §2.1).
+ * The chart of accounts (OB-018, OB-035, OB-039; spec §2.1).
  *
  * The CRUD the ledger kernel needs in order to reference an account, the two
- * removal rules an accounting system cannot be casual about, and — since
- * OB-035 — the hierarchy `parent_account_id` had been holding a column for since
- * M1. Chart templates are still OB-039's.
+ * removal rules an accounting system cannot be casual about, the hierarchy
+ * `parent_account_id` had been holding a column for since M1 (OB-035), and the
+ * opt-in starter charts (OB-039).
  *
  * ## Surface
  *
@@ -17,6 +17,8 @@
  * | `deactivateAccount(id, ctx)`             | `accounts.write`  |
  * | `reactivateAccount(id, ctx)`             | `accounts.write`  |
  * | `deleteAccount(id, ctx)`                 | `accounts.write`  |
+ * | `listChartTemplates(ctx)`                | `accounts.read`   |
+ * | `applyChartTemplate(input, ctx)`         | `accounts.write`  |
  *
  * `listAccounts` returns one bounded page and an opaque cursor, not the whole
  * chart. It is keyset-paginated (D-21) over `(code, id)`, which OB-031 could not
@@ -63,6 +65,15 @@
  * otherwise another org's id arrives as errno 1452 and becomes a 500 instead of
  * the 404 that A7 requires.
  *
+ * **A starter chart is opt-in and is a copy (D-23).** `applyChartTemplate` writes
+ * through `createAccount`, one account at a time, in one transaction — so the
+ * hierarchy rules, the code-uniqueness conflict and the shared zod schema apply to
+ * a shipped chart exactly as they apply to a hand-typed one, and there is no second
+ * write path for a template to bypass. Nothing records which template an org used,
+ * because a stored template id is the start of the upgrade path D-23 declines to
+ * have. Applying to an org that already holds one of the codes refuses the whole
+ * application and names every collision; the argument is on `applyChartTemplate`.
+ *
  * One question the M1 note listed is deliberately still open: **deactivating a
  * parent does not deactivate its children.** Nothing here needs an answer — an
  * inactive account keeps its postings and its place in the tree — and the question
@@ -70,11 +81,15 @@
  * the reports that compute one (OB-039, OB-043).
  */
 
-export { ACCOUNT_MAX_DEPTH } from '@openbooks/shared-types';
+export { ACCOUNT_MAX_DEPTH, CHART_TEMPLATE_IDS } from '@openbooks/shared-types';
 export type {
   Account,
   AccountPage,
   AccountType,
+  AppliedChartTemplate,
+  ApplyChartTemplateRequest,
+  ChartTemplateId,
+  ChartTemplateSummary,
   CreateAccountRequest,
   ListAccountsQuery,
   NormalBalance,
@@ -90,3 +105,7 @@ export {
   reactivateAccount,
   updateAccount,
 } from './accounts.service';
+
+export type { ChartTemplate, ChartTemplateAccount } from './chart-templates';
+export { CHART_TEMPLATES } from './chart-templates';
+export { applyChartTemplate, listChartTemplates } from './chart-templates.service';

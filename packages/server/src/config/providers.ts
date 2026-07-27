@@ -19,7 +19,23 @@ export type StorageProviderId = (typeof STORAGE_PROVIDERS)[number];
 export const SECRETS_PROVIDERS = ['aws-secrets-manager', 'env'] as const;
 export type SecretsProviderId = (typeof SECRETS_PROVIDERS)[number];
 
-export const EMAIL_PROVIDERS = ['ses', 'smtp'] as const;
+/**
+ * `smtp` was the self-host value until OB-040 and is deliberately gone.
+ *
+ * D-07 ships an adapter with its first consumer, and the consumer that arrived is
+ * the invite email. Two adapters were written for it — `ses` and `log` — and no
+ * SMTP client was, so leaving `smtp` selectable would have left one value in this
+ * union that validates at startup, names its four required variables, and then
+ * throws on the first invite anyone sends. A selector value with no adapter behind
+ * it is worse than a missing feature: it fails at the moment a user is waiting for
+ * mail rather than at the moment an operator is reading configuration.
+ *
+ * `log` is a real adapter, not a stub: it writes the whole message to the
+ * structured log, which is what a self-host deployment with no relay needs in
+ * order to hand someone their invite link at all. An SMTP adapter is a value plus
+ * a requirement row when someone writes one.
+ */
+export const EMAIL_PROVIDERS = ['ses', 'log'] as const;
 export type EmailProviderId = (typeof EMAIL_PROVIDERS)[number];
 
 /**
@@ -50,7 +66,7 @@ export const SELF_HOST_PROVIDERS: ProviderSelection = {
   QUEUE_PROVIDER: 'in-process',
   STORAGE_PROVIDER: 'local',
   SECRETS_PROVIDER: 'env',
-  EMAIL_PROVIDER: 'smtp',
+  EMAIL_PROVIDER: 'log',
   BANK_FEED_PROVIDER: 'csv-ofx',
 };
 

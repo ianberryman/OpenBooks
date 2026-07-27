@@ -1,10 +1,11 @@
 /**
- * The chart-of-accounts wire contract (OB-018, OB-035, D-27).
+ * The chart-of-accounts wire contract (OB-018, OB-035, OB-039, D-27).
  *
  * Read `accounts.ts` for why `normalBalance` is a required field rather than a
  * default derived from `type`, for why `code` is absent from the update schema,
  * and for the four hierarchy rules that `parentAccountId` carries but no schema
- * can state.
+ * can state. `chart-templates.ts` carries the identity of a starter chart and
+ * deliberately not its contents (D-23).
  */
 
 export type {
@@ -29,3 +30,15 @@ export {
   listAccountsQuerySchema,
   updateAccountRequestSchema,
 } from './accounts';
+export type {
+  AppliedChartTemplate,
+  ApplyChartTemplateRequest,
+  ChartTemplateId,
+  ChartTemplateSummary,
+} from './chart-templates';
+export {
+  CHART_TEMPLATE_IDS,
+  appliedChartTemplateSchema,
+  applyChartTemplateRequestSchema,
+  chartTemplateSummarySchema,
+} from './chart-templates';

@@ -36,7 +36,7 @@ locals {
     { name = "DB_USER", value = var.db_app_username },
 
     # Spec §2.5: this is the entire hosted-vs-self-host difference. Self-host Compose sets
-    # in-process / local / smtp against the same image and the same code path.
+    # in-process / local / log against the same image and the same code path.
     { name = "QUEUE_PROVIDER", value = var.queue_provider },
     { name = "STORAGE_PROVIDER", value = var.storage_provider },
     { name = "EMAIL_PROVIDER", value = var.email_provider },

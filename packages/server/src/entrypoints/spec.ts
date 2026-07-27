@@ -53,10 +53,6 @@ function documentOnlyConfig(): Config {
     SESSION_SECRET: 'openapi-generation-does-not-sign-cookies',
     STORAGE_LOCAL_PATH: '/nonexistent',
     EMAIL_FROM_ADDRESS: 'unused@example.invalid',
-    SMTP_HOST: 'unused',
-    SMTP_PORT: '25',
-    SMTP_USER: 'unused',
-    SMTP_PASSWORD: 'unused',
   });
 }
 

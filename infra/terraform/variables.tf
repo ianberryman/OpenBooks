@@ -331,7 +331,7 @@ variable "storage_provider" {
 }
 
 variable "email_provider" {
-  description = "EMAIL_PROVIDER for the api and worker tasks. Self-host Compose sets smtp."
+  description = "EMAIL_PROVIDER for the api and worker tasks. Self-host Compose sets log."
   type        = string
   default     = "ses"
 }

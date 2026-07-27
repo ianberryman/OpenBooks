@@ -39,14 +39,7 @@ export type SecretsConfig =
 
 export type EmailConfig =
   | { readonly provider: 'ses'; readonly fromAddress: string; readonly region: string }
-  | {
-      readonly provider: 'smtp';
-      readonly fromAddress: string;
-      readonly host: string;
-      readonly port: number;
-      readonly user: string;
-      readonly password: string;
-    };
+  | { readonly provider: 'log'; readonly fromAddress: string };
 
 export type BankFeedConfig = { readonly provider: 'csv-ofx' };
 
@@ -102,6 +95,16 @@ export interface Config {
    * bind host and port would hide it.
    */
   readonly cors: CorsConfig;
+  /**
+   * Where a link in an outbound email should point (OB-040).
+   *
+   * Top-level rather than under `http`, because `http` is where this process
+   * *binds* and this is where the world *reaches the product* — in the hosted
+   * layout those are a container port and a CloudFront domain, and filing them
+   * together invites reading one as the other. Optional: see `APP_BASE_URL` in
+   * `env.ts` for why the server cannot derive it.
+   */
+  readonly appBaseUrl?: string;
   readonly providers: {
     readonly queue: QueueConfig;
     readonly storage: StorageConfig;
@@ -174,15 +177,8 @@ function selectEmail(env: Env): EmailConfig {
         fromAddress: demand(env, 'EMAIL_FROM_ADDRESS'),
         region: demand(env, 'AWS_REGION'),
       };
-    case 'smtp':
-      return {
-        provider: 'smtp',
-        fromAddress: demand(env, 'EMAIL_FROM_ADDRESS'),
-        host: demand(env, 'SMTP_HOST'),
-        port: demand(env, 'SMTP_PORT'),
-        user: demand(env, 'SMTP_USER'),
-        password: demand(env, 'SMTP_PASSWORD'),
-      };
+    case 'log':
+      return { provider: 'log', fromAddress: demand(env, 'EMAIL_FROM_ADDRESS') };
   }
 }
 
@@ -228,6 +224,8 @@ function shape(role: ProcessRole, env: Env): Config {
         : { cookieDomain: env.SESSION_COOKIE_DOMAIN }),
     },
     cors: selectCors(env),
+    // Spread for the same exactOptionalPropertyTypes reason as cookieDomain.
+    ...(env.APP_BASE_URL === undefined ? {} : { appBaseUrl: env.APP_BASE_URL }),
     providers: {
       queue: selectQueue(env),
       storage: selectStorage(env),

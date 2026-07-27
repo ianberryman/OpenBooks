@@ -1,6 +1,6 @@
 data "aws_region" "current" {}
 
-# EMAIL_PROVIDER=ses selects the adapter; self-host sets smtp.
+# EMAIL_PROVIDER=ses selects the adapter; self-host sets log.
 #
 # NOT AUTOMATABLE HERE: a new SES identity starts in the sandbox — 200 messages a day, and
 # recipients must themselves be verified. Leaving the sandbox is a support request against

@@ -310,6 +310,29 @@ export async function selectChildIds(
 }
 
 /**
+ * Which of `codes` this org already uses (OB-039).
+ *
+ * Comparison is the column's, not JavaScript's. `accounts.code` collates
+ * `utf8mb4_0900_ai_ci`, so `IN` here matches case- and accent-insensitively —
+ * exactly the comparison `uq_accounts_org_code` makes. Filtering in application
+ * code instead would find fewer collisions than the unique key does, and the
+ * difference would surface as the errno 1062 this query exists to pre-empt.
+ *
+ * Like every check-then-act in this module, the answer can be stale the moment it
+ * returns; `translateDuplicateCode` on `insertAccount` is what makes the race a
+ * clean conflict rather than a 500. See `applyChartTemplate`.
+ */
+export async function selectExistingCodes(
+  db: TenantDatabase,
+  codes: readonly string[],
+): Promise<readonly string[]> {
+  if (codes.length === 0) return [];
+
+  const rows = await db.selectFrom('accounts').select('code').where('code', 'in', codes).execute();
+  return rows.map((row) => row.code);
+}
+
+/**
  * Whether any journal line names this account.
  *
  * Existence, not a count: nothing needs the number, and `SELECT 1 … LIMIT 1`

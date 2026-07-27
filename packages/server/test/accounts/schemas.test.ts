@@ -11,8 +11,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { ValidationError } from '../../src/errors';
-import { parseInput } from '../../src/modules/accounts/input';
+import { parseInput, ValidationError } from '../../src/errors';
 
 /**
  * The wire contract, asserted without a database.

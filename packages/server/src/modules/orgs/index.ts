@@ -16,4 +16,9 @@ export {
   resolveOrgMembership,
 } from './orgs.service';
 
-export { selectDefaultMemberOrgId } from './orgs.repository';
+export type { OrgRow } from './orgs.repository';
+// `selectOrg` is exported for the invite email, which names the org it invites
+// someone to (OB-040). A read of a single non-tenant row by primary key, and the
+// alternative — a second copy of the same two-line query inside `modules/members`
+// — would be a second answer to "what is this org called".
+export { selectDefaultMemberOrgId, selectOrg } from './orgs.repository';

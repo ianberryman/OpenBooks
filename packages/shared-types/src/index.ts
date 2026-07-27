@@ -12,6 +12,9 @@
 
 export * from './accounts';
 export * from './auth';
+export * from './contacts';
+export * from './dimensions';
+export * from './drafts';
 export * from './journals';
 export * from './money';
 export * from './orgs';

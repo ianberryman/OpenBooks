@@ -13,7 +13,7 @@ import {
 
 import type { RequestContext } from '../../context';
 import { resolvePageLimit } from '../../db';
-import { assertFound, PreconditionFailedError } from '../../errors';
+import { assertFound, parseInput, PreconditionFailedError } from '../../errors';
 import { requirePermission } from '../permissions';
 import type { AccountPatch } from './accounts.repository';
 import {
@@ -37,7 +37,6 @@ import {
   reclassifyBlockedByChildrenError,
   resolveAssignableParent,
 } from './hierarchy';
-import { parseInput } from './input';
 
 /**
  * The chart of accounts (OB-018, OB-035; spec §2.1).

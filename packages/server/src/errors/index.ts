@@ -26,5 +26,7 @@ export {
 
 export { assertFound, assertOrgMatch } from './assert';
 
+export { parseInput } from './parse';
+
 export type { WireError } from './wire';
 export { isOpenBooksError, toWireError } from './wire';

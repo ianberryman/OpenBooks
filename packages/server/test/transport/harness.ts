@@ -35,10 +35,6 @@ export function testConfig(overrides: NodeJS.ProcessEnv = {}): Config {
     SESSION_SECRET: 's'.repeat(40),
     STORAGE_LOCAL_PATH: '/tmp/openbooks-test',
     EMAIL_FROM_ADDRESS: 'tests@example.invalid',
-    SMTP_HOST: 'localhost',
-    SMTP_PORT: '1025',
-    SMTP_USER: 'unused',
-    SMTP_PASSWORD: 'unused',
     ...overrides,
   });
 }

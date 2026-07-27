@@ -639,8 +639,8 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 
 ### M2 status
 
-Waves 0 and 1 and OB-046 are built and uncommitted on `develop`. `yarn check` passes:
-863 tests across 68 files, ~39s.
+Waves 0, 1 and 2 plus OB-046 are built on `develop`. `yarn check` passes: 1,042 tests
+across 82 files, ~46s.
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -652,9 +652,14 @@ Waves 0 and 1 and OB-046 are built and uncommitted on `develop`. `yarn check` pa
 | **OB-033** | Built | Dimensions, values, tags. Tags are **mutable** — see the block in `0004`         |
 | **OB-034** | Built | Drafts, their lines, and their tags; three additions to the grant allowlist      |
 | **OB-035** | Built | Hierarchy with cycle, depth (6) and type rules; `D-27` code immutability         |
+| **OB-036** | Built | Contacts service; `code` stays mutable ([D-28](#d-28))                           |
+| **OB-037** | Built | Dimensions, values, and retagging; axis bound of 8 ([D-29](#d-29))               |
+| **OB-038** | Built | Draft journals; post is one transaction keyed on a draft row lock                |
+| **OB-039** | Built | 65-account starter chart. **Org-creation wiring outstanding** — see below        |
+| **OB-040** | Built | Members, invites, SES + log adapters; `smtp` removed ([D-31](#d-31))             |
 | **OB-046** | Built | Token layer, `openbooks/no-raw-color`, Radix wrappers, shell                     |
 | **OB-058** | Built | jsdom harness; 87 web tests. New ticket — see below                              |
-| Waves 2–6  | —     | Not started                                                                      |
+| Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because
 OB-046 shipped a hand-built combobox — Radix has no combobox primitive — into a package
@@ -707,6 +712,36 @@ by calling `reply.send()` from inside the hook. What works is registering CORS *
 the chain, since `done(failure)` only skips what comes after. That guarantee now rests on
 registration order in `app.ts` rather than on a hook choice, which is a more fragile place
 to hold it — worth knowing before anyone reorders that file.
+
+Wave 2 left three things that are work rather than notes, and they belong to nobody's
+ticket yet:
+
+1. **A draft's `contactId` and dimension tags are dropped at post.** They are held on the
+   draft and absent from the journal it produces, pinned by a test that fails the day it is
+   fixed. OB-038 was right not to write them — `journal_lines.contact_id` is writable only
+   through `posting.repository.ts` and the tag table belongs to the dimensions service, so
+   either would have been a second write path into another module's invariant — but the
+   report hands the job to OB-045, and OB-045 is transport, which holds no business logic.
+   The fix is `postJournal`'s line input carrying `contactId`, and `postDraft` calling the
+   dimensions service inside the transaction it already opens. **This blocks B6**: a form
+   that collects per-line tagging, feeding a draft that discards it, means sliced reports
+   are missing exactly the entries somebody tagged by hand.
+
+2. **The starter chart is not applied at org creation.** OB-039's service is complete and
+   callable; `createOrg` lives in `modules/orgs/`, which another agent held during the wave.
+   It is more than a call site: `applyChartTemplate` takes a `RequestContext` and at
+   org-creation time the caller's context is not yet scoped to the org being created. It
+   needs an opt-in field on the org-creation input and a context for the new org, inside
+   `createOrgIn`'s transaction — which the service then joins ambiently. OB-039 correctly
+   declined to add an `applyChartTemplateTo(orgId, …)` escape hatch, since spec §4 forbids
+   passing an org as a parameter.
+
+3. **Whether a line in a closed period may be retagged is undecided.** The period is not
+   consulted today, and `tagging.service.ts` says so rather than leaving it silent. The
+   argument for allowing it is the one that made tags mutable in the first place — a tag is
+   an analysis slice, not a term of the entry, and no total moves. The argument against is
+   that closing a period is meant to mean its reports are final, and sliced reports would
+   change.
 
 Two threads left loose:
 
@@ -1047,6 +1082,78 @@ from creation rather than from first posting: an account with no postings can be
 outright (that rule is unchanged), so a typo is fixed by delete-and-recreate, which costs
 one call and leaves nothing behind. `name` and `description` stay mutable — those are
 labels and nothing cites them.
+
+<a id="d-28"></a>
+**D-28 — A code is immutable exactly when a list is ordered by it.** Wave 2 asked the
+same question three times and got three answers, which is coherent rather than
+inconsistent once the rule is stated: `accounts.code` and both dimension codes are
+immutable, `contacts.code` is not.
+
+The mechanical half is [D-21](#d-21): a keyset cursor over a **mutable** column silently
+drops the rows that move behind it. The chart of accounts and both dimension lists are
+ordered by `code`, so immutability is what makes their paging correct. The contact list is
+ordered by `(created_at, id)`, so nothing there is at risk.
+
+The accounting half decides the cases the mechanical half does not reach. An account code
+is what other things _cite_ — a journal, an export, a filed schedule — so renumbering
+`4000` to `4100` is a different account wearing the old one's history. A contact's code is
+cited by nothing: `journal_lines` references `contacts (org_id, id)`, so renumbering a
+customer restates no entry and no report.
+
+And one asymmetry makes contact-code immutability actively wrong rather than merely
+unnecessary. D-27 is tolerable because it has an escape hatch: an account with a typo'd
+code has no postings, so it is deleted and recreated. A contact the ledger names can
+**never** be deleted — `fk_journal_lines_contact` is `RESTRICT` — so an immutable code
+would be permanent from the first posting. Contact codes also usually arrive from whatever
+system the org migrated off, where renumbering after an import is ordinary bookkeeping.
+
+<a id="d-29"></a>
+**D-29 — Eight reporting axes per org, counted including archived ones.** [D-18](#d-18)
+left this bound to the service and said to write the number down. Both costs it names
+scale with the count: a report grouped by _k_ axes is a _k_-way join, and a fully tagged
+line costs one tag row per axis — at eight, a 100k-line ledger tops out at 800k tag rows;
+at thirty, four times that.
+
+Eight rather than Xero's two, because the axes real books name — department, location,
+project, funding source, program, fund, campaign, vehicle — already put a small charity at
+three, and an org that runs out of axes does not stop tracking, it starts encoding the
+extra one into account codes, which is worse than any join.
+
+Archived axes count. An archived axis whose values journal lines still carry is still a
+join in every historical sliced report, so excluding it would let an org archive its way
+past the bound while paying the whole cost. Deleting an axis nothing carries is the escape
+hatch, which is part of why deletion exists at all.
+
+Enforced under a locking count rather than an advisory one — the schema cannot express the
+bound (`CHECK` cannot count rows in another table), so nothing below the service would
+catch two concurrent creates. Mutation-tested: removing `.forUpdate()` fails the race test
+and nothing else.
+
+<a id="d-30"></a>
+**D-30 — Drafting reuses `journals.post`; no `journals.draft` code.** The permission
+catalog is fixed and seeded, so adding a code is three coordinated edits — but the reason
+not to is about the role bundles, not the cost. A new code would land in Owner and
+Bookkeeper by construction, miss AP-only and AR-only (explicit lists), and miss
+**Approver**, whose bundle is `%.read` plus a named few including `journals.post`
+precisely so it can turn a proposal into a posting. M2 would ship a role that can post an
+entry but not compose one.
+
+Nothing in M2 distinguishes "may draft" from "may post". That distinction is a review
+workflow, and it arrives with the agent review path in M5, when the code has a meaning and
+a role to grant it to.
+
+<a id="d-31"></a>
+**D-31 — `smtp` is no longer a selectable `EMAIL_PROVIDER`.** [D-07](#d-07) said concrete
+adapters ship with their first consumer, and OB-040 is it: SES for hosted, a log adapter
+for self-host and tests. No SMTP client was written, so leaving `smtp` selectable meant a
+value that validates cleanly at startup, names its four required variables, and then
+throws at the first invite — a configuration that passes every check the system offers and
+is still wrong. The `SMTP_*` variables leave the schema entirely; self-host and Compose
+select `log`.
+
+A consequence worth noting: the email config union no longer carries a secret, so the
+redaction path list shrinks. That is a real reduction in what the logger has to be trusted
+about, not just a smaller list.
 
 ## Status
 

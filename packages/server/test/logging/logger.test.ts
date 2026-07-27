@@ -14,10 +14,6 @@ const baseEnv = {
   SESSION_SECRET: 'x'.repeat(32),
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
-  SMTP_HOST: 'localhost',
-  SMTP_PORT: '1025',
-  SMTP_USER: 'openbooks',
-  SMTP_PASSWORD: 'smtp-password',
 } satisfies NodeJS.ProcessEnv;
 
 const config = (overrides: NodeJS.ProcessEnv = {}): Config =>

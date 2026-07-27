@@ -120,11 +120,36 @@ export const envSchema = z.object({
   STORAGE_LOCAL_PATH: z.string().optional(),
   SECRETS_MANAGER_PREFIX: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: portNumber().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
+
+  // --- The public origin of the web app (OB-040) --------------------------
+  // Only the invite email reads this, and it is optional because the server
+  // cannot derive it: HTTP_HOST is a bind address (`0.0.0.0` in a container),
+  // so which origin a browser reaches this deployment on is a fact about DNS
+  // and the load balancer that config never sees — the same limit `corsIssues`
+  // records below. Unset, an invite link is emitted as a path for an operator
+  // to prefix, which is honest; a plausible-looking default would emit links
+  // that resolve to the wrong host and look correct doing it.
+  APP_BASE_URL: z
+    .string()
+    .refine(isAbsoluteHttpUrl, { error: 'must be an absolute http:// or https:// URL' })
+    .optional(),
 });
+
+/**
+ * Checked at startup rather than where the link is built, because the failure is
+ * otherwise invisible: `new URL(path, base)` throws only when the invite is being
+ * sent, which is inside the best-effort send that OB-040 deliberately does not let
+ * fail a committed write — so a malformed value would cost a real user their invite
+ * and produce one log line nobody was watching for.
+ */
+function isAbsoluteHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 export type Env = z.infer<typeof envSchema>;
 
@@ -154,7 +179,10 @@ export const PROVIDER_REQUIREMENTS: ProviderRequirements = {
   },
   EMAIL_PROVIDER: {
     ses: ['EMAIL_FROM_ADDRESS', 'AWS_REGION'],
-    smtp: ['EMAIL_FROM_ADDRESS', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD'],
+    // A `From` address is required of the log adapter too. It is what the message
+    // would have been sent as, and an adapter that logged a message no real
+    // transport could have delivered would be a rehearsal of the wrong thing.
+    log: ['EMAIL_FROM_ADDRESS'],
   },
   BANK_FEED_PROVIDER: {
     // Reads an uploaded file; needs nothing from the environment.

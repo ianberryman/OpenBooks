@@ -35,10 +35,6 @@ const baseEnv = {
   ...alwaysRequired,
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
-  SMTP_HOST: 'localhost',
-  SMTP_PORT: '1025',
-  SMTP_USER: 'openbooks',
-  SMTP_PASSWORD: 'smtp-password',
 } satisfies NodeJS.ProcessEnv;
 
 const env = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
@@ -120,7 +116,10 @@ describe('loadConfig', () => {
     expect(config.http.port).toBe(8080);
     expect(config.database.poolSize).toBe(25);
     expect(config.session.cookieSecure).toBe(false);
-    expect(config.providers.email).toMatchObject({ provider: 'smtp', port: 1025 });
+    expect(config.providers.email).toEqual({
+      provider: 'log',
+      fromAddress: 'openbooks@example.test',
+    });
   });
 
   it('freezes the resolved object all the way down', () => {
@@ -235,16 +234,16 @@ describe('provider fail-fast validation', () => {
     expect(error.message).toContain('.env.example');
   });
 
-  it('reports partial requirements — one missing variable out of five', () => {
-    const missingPassword = env();
-    delete missingPassword['SMTP_PASSWORD'];
+  it('reports partial requirements — one missing variable out of two', () => {
+    const missingFrom = env({ EMAIL_PROVIDER: 'ses', AWS_REGION: 'us-east-1' });
+    delete missingFrom['EMAIL_FROM_ADDRESS'];
 
-    const error = issuesOf(() => loadConfig(missingPassword));
+    const error = issuesOf(() => loadConfig(missingFrom));
     expect(error.issues).toEqual([
       {
-        variable: 'SMTP_PASSWORD',
+        variable: 'EMAIL_FROM_ADDRESS',
         message: 'must be set',
-        requiredBy: { selector: 'EMAIL_PROVIDER', provider: 'smtp' },
+        requiredBy: { selector: 'EMAIL_PROVIDER', provider: 'ses' },
       },
     ]);
     expect(error.message).toContain('(1 problem)');
@@ -268,15 +267,26 @@ describe('provider fail-fast validation', () => {
   });
 
   it('does not report requirements for a provider that was never selected', () => {
-    const withoutSmtp = env();
-    delete withoutSmtp['SMTP_HOST'];
-    delete withoutSmtp['SMTP_PORT'];
-    delete withoutSmtp['SMTP_USER'];
-    delete withoutSmtp['SMTP_PASSWORD'];
+    const withoutFrom = env();
+    delete withoutFrom['EMAIL_FROM_ADDRESS'];
 
-    // A bogus selector fails on its own; nothing is said about smtp.
-    const error = issuesOf(() => loadConfig({ ...withoutSmtp, EMAIL_PROVIDER: 'postmark' }));
+    // A bogus selector fails on its own; nothing is said about what ses or log
+    // would have needed.
+    const error = issuesOf(() => loadConfig({ ...withoutFrom, EMAIL_PROVIDER: 'postmark' }));
     expect(error.issues.map((i) => i.variable)).toEqual(['EMAIL_PROVIDER']);
+  });
+
+  /**
+   * `smtp` was a selectable value until OB-040 and is not one now: two adapters
+   * were written (`ses`, `log`) and no SMTP client was, so the name is refused at
+   * startup rather than accepted and thrown on at the first invite. See
+   * `src/config/providers.ts`.
+   */
+  it('refuses smtp, which no longer has an adapter behind it', () => {
+    const error = issuesOf(() => loadConfig(env({ EMAIL_PROVIDER: 'smtp' })));
+    expect(error.issues).toEqual([
+      { variable: 'EMAIL_PROVIDER', message: 'must be one of ses, log' },
+    ]);
   });
 
   /**
@@ -296,10 +306,6 @@ describe('provider fail-fast validation', () => {
     STORAGE_LOCAL_PATH: '/data',
     SECRETS_MANAGER_PREFIX: 'openbooks/',
     EMAIL_FROM_ADDRESS: 'from@example.test',
-    SMTP_HOST: 'localhost',
-    SMTP_PORT: '25',
-    SMTP_USER: 'user',
-    SMTP_PASSWORD: 'pass',
   };
 
   /** Everything the table asks of a complete selection, across all five. */
@@ -360,12 +366,11 @@ describe('provider fail-fast validation', () => {
 });
 
 describe('redactConfig', () => {
-  it('redacts the database password, session secret, and smtp password', () => {
+  it('redacts the database password and the session secret', () => {
     const safe = redactConfig(loadConfig(env()));
 
     expect(safe.database.password).toBe(REDACTED);
     expect(safe.session.secret).toBe(REDACTED);
-    expect(safe.providers.email).toMatchObject({ password: REDACTED });
   });
 
   it('leaves non-secret values intact and does not mutate the config', () => {
@@ -379,7 +384,6 @@ describe('redactConfig', () => {
     });
     expect(config.database.password).toBe('app-password');
     expect(JSON.stringify(safe)).not.toContain('app-password');
-    expect(JSON.stringify(safe)).not.toContain('smtp-password');
   });
 });
 

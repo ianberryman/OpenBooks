@@ -10,10 +10,6 @@ const baseEnv = {
   SESSION_SECRET: 'session-'.repeat(8),
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
-  SMTP_HOST: 'localhost',
-  SMTP_PORT: '1025',
-  SMTP_USER: 'openbooks',
-  SMTP_PASSWORD: 'smtp-hunter2',
 } satisfies NodeJS.ProcessEnv;
 
 /** Every path whose value came back redacted, in dotted form. */
@@ -32,7 +28,10 @@ describe('agreement with src/config/redact.ts', () => {
   const viaLog = redactedPaths(redactLogRecord({ ...config }));
 
   it('redacts the secrets the config module knows about', () => {
-    expect(viaConfig).toEqual(['database.password', 'session.secret', 'providers.email.password']);
+    // Two, not three: the email provider carried an SMTP password until OB-040
+    // removed the adapter that needed one. `ses` authenticates with the task role
+    // and `log` authenticates with nothing, so no provider holds a secret today.
+    expect(viaConfig).toEqual(['database.password', 'session.secret']);
   });
 
   /**
@@ -57,7 +56,6 @@ describe('agreement with src/config/redact.ts', () => {
   it('leaves no secret value anywhere in the serialized record', () => {
     const serialized = JSON.stringify(redactLogRecord({ ...config }));
     expect(serialized).not.toContain('db-hunter2');
-    expect(serialized).not.toContain('smtp-hunter2');
     expect(serialized).not.toContain('session-session-');
   });
 });
