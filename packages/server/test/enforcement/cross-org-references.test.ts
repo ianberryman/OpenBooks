@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { runInContext, type RequestContext } from '../../src/context';
 import { uuidToBuffer } from '../../src/db';
+import {
+  clearBankStatementLine,
+  createBankAccount,
+  createBankRule,
+  createReconciliationSession,
+  previewImportWithParsers,
+  startImport,
+  updateBankRule,
+} from '../../src/modules/banking';
 import { toWireError } from '../../src/errors';
 import {
   CHART_TEMPLATE_IDS,
@@ -52,7 +61,9 @@ import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/m
 import { getAging } from '../../src/modules/reports/aging.service';
 import { updateControlAccounts } from '../../src/modules/settings';
 import { createTaxRate, updateTaxRate } from '../../src/modules/tax';
+import { InProcessQueue, setQueueProvider } from '../../src/providers';
 import { generateOpenApiDocument } from '../../src/transport';
+import { silentLogger } from '../banking/support';
 import { newUuid } from '../db';
 import { captureEmail } from '../members/support';
 import { useServiceDatabase } from '../permissions/support';
@@ -85,6 +96,15 @@ import { contextFor } from './support';
  * every transport will send, HTTP today and MCP in M5.
  */
 const db = useServiceDatabase();
+
+// `startImport` enqueues; a queue with no handler drops the job rather than reaching a
+// process config these service-layer tests never load.
+beforeAll(() => {
+  setQueueProvider(new InProcessQueue(silentLogger));
+});
+afterAll(() => {
+  setQueueProvider(undefined);
+});
 
 captureEmail();
 
@@ -138,6 +158,27 @@ interface Org {
   readonly draftCreditNoteId: string;
   readonly draftBillId: string;
   readonly draftVendorCreditId: string;
+
+  /**
+   * M4's references (OB-084). A bank account, a saved mapping, a journal with no
+   * movement on the bank account (so a `link_entry` against it leaves a difference to
+   * post), and six uncleared statement lines — one per `clearBankStatementLine` body
+   * field, because the already-cleared check precedes body-ref validation and the `own`
+   * control clears the line it touches.
+   */
+  readonly bankAccountId: string;
+  readonly bankImportMappingId: string;
+  readonly bankRuleId: string;
+  readonly journalId: string;
+  readonly differenceJournalId: string;
+  readonly clearableLineIds: readonly string[];
+}
+
+/** One of the org's six uncleared lines, by index — asserted present. */
+function clearable(o: Org, index: number): string {
+  const id = o.clearableLineIds[index];
+  if (id === undefined) throw new Error(`the scene has no clearable line ${String(index)}`);
+  return id;
 }
 
 interface Scene {
@@ -244,6 +285,111 @@ async function org(label: string): Promise<Org> {
     taxAccountId: taxAccount.uuid,
   });
 
+  // --- OB-084 banking references ---
+  //
+  // A bank account on `bank`, a saved mapping, and six uncleared lines. The lines are
+  // inserted directly (a statement line is only ever created by an import, OB-078). The
+  // journal posted above has no line on `bank`, so linking it to a line leaves a
+  // difference to post — which is what makes `differenceAccountId` a validated ref.
+  const bankAccountId = newUuid();
+  await db.app
+    .insertInto('bank_accounts')
+    .values({
+      id: uuidToBuffer(bankAccountId),
+      org_id: record.id,
+      account_id: uuidToBuffer(bank.uuid),
+      name: 'Current account',
+      external_account_id: null,
+      is_active: 1,
+    })
+    .execute();
+
+  const mappingId = newUuid();
+  await db.app
+    .insertInto('bank_import_mappings')
+    .values({
+      id: uuidToBuffer(mappingId),
+      org_id: record.id,
+      bank_account_id: uuidToBuffer(bankAccountId),
+      name: 'Monthly export',
+      has_header_row: 1,
+      delimiter: ',',
+      date_order: 'ymd',
+      amount_convention: 'signed',
+      posted_date_column: 0,
+      description_column: 1,
+      amount_column: 2,
+    })
+    .execute();
+
+  const importId = newUuid();
+  await db.app
+    .insertInto('bank_statement_imports')
+    .values({
+      id: uuidToBuffer(importId),
+      org_id: record.id,
+      bank_account_id: uuidToBuffer(bankAccountId),
+      format: 'csv',
+      filename: 'march.csv',
+      file_hash: 'fixture',
+      imported_by_user_id: user.id,
+      status: 'complete',
+      lines_read: 6,
+      lines_duplicate: 0,
+    })
+    .execute();
+
+  const clearableLineIds = await Promise.all(
+    Array.from({ length: 6 }, async (_unused, index) => {
+      const id = newUuid();
+      await db.app
+        .insertInto('bank_statement_lines')
+        .values({
+          id: uuidToBuffer(id),
+          org_id: record.id,
+          bank_account_id: uuidToBuffer(bankAccountId),
+          import_id: uuidToBuffer(importId),
+          posted_date: period.startDate,
+          description: `LINE ${String(index)}`,
+          amount_minor: -450n,
+          fingerprint: `fixture-${String(index)}`,
+          occurrence_index: 0,
+        })
+        .execute();
+      return id;
+    }),
+  );
+
+  // A second journal, also with no movement on `bank`, so the `differenceAccountId` row
+  // can link one the `journalId` row has not already consumed (`uq_blc_journal`).
+  const secondJournal = await runInContext(ctx, () =>
+    postJournal(
+      {
+        date: period.startDate,
+        actorType: 'user',
+        actorId: user.uuid,
+        lines: [
+          { accountId: cash.uuid, side: 'debit', amount: 5000n },
+          { accountId: revenue.uuid, side: 'credit', amount: 5000n },
+        ],
+      },
+      ctx,
+    ),
+  );
+
+  // A rule to be updated, so the `updateBankRule` body-ref rows have one to name in the
+  // path while the id under test travels in the body.
+  const bankRule = await runInContext(ctx, () =>
+    createBankRule(
+      {
+        name: 'Base rule',
+        condition: { description: { mode: 'contains', value: 'BASE' } },
+        outcome: { accountId: cash.uuid },
+      },
+      ctx,
+    ),
+  );
+
   return {
     ctx,
     orgUuid: record.uuid,
@@ -262,6 +408,12 @@ async function org(label: string): Promise<Org> {
     receivableId: receivable.uuid,
     payableId: payable.uuid,
     taxAccountId: taxAccount.uuid,
+    bankAccountId,
+    bankImportMappingId: mappingId,
+    bankRuleId: bankRule.id,
+    journalId: posted.journalId,
+    differenceJournalId: secondJournal.journalId,
+    clearableLineIds,
     ...subledger,
   };
 }
@@ -1471,6 +1623,255 @@ const REFERENCES: readonly Reference[] = [
     subject: (o) => o.partyId,
     reach: (id, s) => getAging({ asOf: DATE, ledger: 'receivable', contactId: id }, s.caller.ctx),
   },
+
+  // ---------------------------------------------------------------------------
+  // M4 (OB-084). Every id banking accepts in a body, each resolved by the service
+  // (`assertFound`), so a cross-org value answers 404 byte-identical to a nonexistent
+  // one. The list filters and the bank's own free-text `externalAccountId` are not
+  // lookups; they are in `EXEMPT`.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'createBankAccount',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) => createBankAccount({ accountId: id, name: 'New account' }, s.caller.ctx),
+  },
+  {
+    operationId: 'createReconciliationSession',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      createReconciliationSession(
+        { bankAccountId: id, endDate: DATE, statementClosingBalance: '0' },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'previewBankStatementImport',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      previewImportWithParsers(
+        { bankAccountId: id, format: 'ofx', filename: 'x.ofx', content: '<OFX></OFX>' },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'previewBankStatementImport',
+    field: 'mappingId',
+    subject: (o) => o.bankImportMappingId,
+    reach: (id, s) =>
+      previewImportWithParsers(
+        {
+          bankAccountId: s.caller.bankAccountId,
+          format: 'csv',
+          filename: 'x.csv',
+          content: 'a,b,c\n',
+          mappingId: id,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'startBankStatementImport',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      startImport(
+        { bankAccountId: id, format: 'ofx', filename: 'x.ofx', content: '<OFX></OFX>' },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'startBankStatementImport',
+    field: 'mappingId',
+    subject: (o) => o.bankImportMappingId,
+    reach: (id, s) =>
+      startImport(
+        {
+          bankAccountId: s.caller.bankAccountId,
+          format: 'csv',
+          filename: 'x.csv',
+          content: 'a,b,c\n',
+          mappingId: id,
+        },
+        s.caller.ctx,
+      ),
+  },
+  // clearBankStatementLine — one line per field, because the already-cleared check runs
+  // before body-ref validation and the own control clears the line it touches.
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 0),
+        { method: 'post_entry', accountId: id },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'contactId',
+    subject: (o) => o.contactId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 1),
+        { method: 'post_entry', accountId: s.caller.accountId, contactId: id },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 2),
+        { method: 'post_entry', accountId: s.caller.accountId, dimensionValueIds: [id] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'journalId',
+    subject: (o) => o.journalId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 3),
+        { method: 'link_entry', journalId: id },
+        s.caller.ctx,
+      ),
+  },
+  // The journal here has no movement on the bank account, so the line's amount is all
+  // difference — which is what makes `differenceAccountId` a validated ref rather than
+  // an ignored one at a zero difference.
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'differenceAccountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 4),
+        {
+          method: 'link_entry',
+          journalId: s.caller.differenceJournalId,
+          differenceAccountId: id,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'clearBankStatementLine',
+    field: 'targetId',
+    subject: (o) => o.invoiceId,
+    reach: (id, s) =>
+      clearBankStatementLine(
+        clearable(s.caller, 5),
+        { method: 'allocate_document', targetType: 'invoice', targetId: id },
+        s.caller.ctx,
+      ),
+  },
+  // createBankRule / updateBankRule — the account, contact, dimension value and bank
+  // account named in a condition or an outcome, each resolved before the rule is written.
+  {
+    operationId: 'createBankRule',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s, nonce) =>
+      createBankRule(
+        {
+          name: `Rule-bank-${nonce}`,
+          condition: { bankAccountId: id, description: { mode: 'contains', value: 'X' } },
+          outcome: { accountId: s.caller.accountId },
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBankRule',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s, nonce) =>
+      createBankRule(
+        {
+          name: `Rule-account-${nonce}`,
+          condition: { description: { mode: 'contains', value: 'X' } },
+          outcome: { accountId: id },
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBankRule',
+    field: 'contactId',
+    subject: (o) => o.contactId,
+    reach: (id, s, nonce) =>
+      createBankRule(
+        {
+          name: `Rule-contact-${nonce}`,
+          condition: { description: { mode: 'contains', value: 'X' } },
+          outcome: { accountId: s.caller.accountId, contactId: id },
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBankRule',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s, nonce) =>
+      createBankRule(
+        {
+          name: `Rule-dim-${nonce}`,
+          condition: { description: { mode: 'contains', value: 'X' } },
+          outcome: { accountId: s.caller.accountId, dimensionValueIds: [id] },
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBankRule',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      updateBankRule(
+        s.caller.bankRuleId,
+        { condition: { bankAccountId: id, description: { mode: 'contains', value: 'X' } } },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBankRule',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updateBankRule(s.caller.bankRuleId, { outcome: { accountId: id } }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateBankRule',
+    field: 'contactId',
+    subject: (o) => o.contactId,
+    reach: (id, s) =>
+      updateBankRule(
+        s.caller.bankRuleId,
+        { outcome: { accountId: s.caller.accountId, contactId: id } },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBankRule',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateBankRule(
+        s.caller.bankRuleId,
+        { outcome: { accountId: s.caller.accountId, dimensionValueIds: [id] } },
+        s.caller.ctx,
+      ),
+  },
 ];
 
 /**
@@ -1534,6 +1935,28 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'listBills.contactId': 'a filter over the caller’s own org, asserted separately',
   'listVendorCredits.contactId': 'a filter over the caller’s own org, asserted separately',
   'listPayments.contactId': 'a filter over the caller’s own org, asserted separately',
+  /**
+   * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
+   * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`
+   * chose deliberately — so a 404 is exactly what they must *not* give. `lineIds` on the
+   * match-proposal request is the same shape one level in: unknown lines are dropped
+   * from the answer, not reported as missing.
+   */
+  'listBankImportMappings.bankAccountId': 'a filter over the caller’s own org — empty, not 404',
+  'listStatementLines.bankAccountId': 'a filter over the caller’s own org — empty, not 404',
+  'listStatementLines.importId': 'a filter over the caller’s own org — empty, not 404',
+  'listBankStatementImports.bankAccountId': 'a filter over the caller’s own org — empty, not 404',
+  'listBankRules.bankAccountId': 'a filter over the caller’s own org — empty, not 404',
+  'listReconciliationSessions.bankAccountId': 'a filter over the caller’s own org — empty, not 404',
+  'proposeBankMatches.lineIds': 'a filter over a named set — unknown lines are dropped, not a 404',
+  /**
+   * Not a tenant reference at all: `externalAccountId` is the identifier the bank's own
+   * file uses for the account (OFX's `ACCTID`), a free string held so an upload can be
+   * checked against the account it is imported into. It is id-*shaped* but names no row,
+   * so there is no cross-org read to make of it.
+   */
+  'createBankAccount.externalAccountId': 'a free-text bank identifier, not a tenant row',
+  'updateBankAccount.externalAccountId': 'a free-text bank identifier, not a tenant row',
 };
 
 /** What every row must report. Anything else is the leak. */

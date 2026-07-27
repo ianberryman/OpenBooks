@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, minorUnitsSchema, pageCursorSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema } from '../wire';
 
 /**
  * The vocabulary M4's banking contracts share (OB-075; ROADMAP D-41 through D-47).
@@ -13,14 +13,17 @@ import { calendarDateSchema, minorUnitsSchema, pageCursorSchema } from '../wire'
  * give the generated client several unrelated types for one idea, and give a screen
  * several ways to be wrong.
  *
- * ## Nothing in this module carries `.meta({ id })` yet
+ * ## The component ids arrived with OB-084's routes
  *
  * The transform lifts every schema carrying an `id` out of zod's global registry
  * into `components.schemas` whether or not a route references it, so an `id` added
- * before OB-084's routes publishes a component nothing can reach and A10 fails the
- * build in a ticket that touched no routes. OB-061 held the same line for all of M3
- * and OB-067 added the ids in the same diff as the routes; `contracts.test.ts`
- * asserts the empty set until then.
+ * *before* a route publishes a component nothing can reach and A10 fails the build.
+ * OB-061 held that line for all of M3 and OB-067 added the ids in the same diff as
+ * the routes; OB-084 does the same for banking. So a schema here carries an `id`
+ * exactly when a route reaches it — which by the close of OB-084 is every page in the
+ * module, so there is no longer an `unpublishedPageSchema` here at all. The only
+ * request left without an `id` is the mapping-update, which OB-084 routed no surface
+ * for.
  *
  * ## The two absences that shape all of M4
  *
@@ -93,19 +96,3 @@ export const bankDateRangeShape = {
   from: calendarDateSchema.optional(),
   to: calendarDateSchema.optional(),
 };
-
-/**
- * A page envelope with no `id`, which is the only reason it is not `pageSchema`.
- *
- * `pageSchema` requires an `id` deliberately, and M4 has no routes until OB-084, so
- * every page here would publish a component nothing could reach (A10). The keys are
- * the shared envelope's (D-21), so OB-084 replaces these calls with `pageSchema`
- * calls and nothing downstream moves — which is exactly what OB-067 did to M3's
- * copy of this helper, and OB-045 to M2's.
- */
-export function unpublishedPageSchema<Item extends z.ZodType>(item: Item) {
-  return z.strictObject({
-    items: z.array(item),
-    nextCursor: pageCursorSchema.nullable(),
-  });
-}

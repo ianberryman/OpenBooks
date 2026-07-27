@@ -237,6 +237,200 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/bank-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List bank accounts
+         * @description One page, oldest first by creation (D-21).
+         */
+        get: operations["listBankAccounts"];
+        put?: never;
+        /**
+         * Register a bank account
+         * @description Registers an existing ledger account as a bank account (D-46). `accountId` names an account the org already has — a `404` if it does not, because the chart is the org’s and a module that invented accounts in it would decide the org’s chart on its behalf (D-23). Created active.
+         */
+        post: operations["createBankAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-accounts/{bankAccountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One bank account */
+        get: operations["getBankAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a bank account’s name and institution metadata
+         * @description The name and the two bits of institution metadata, and nothing else. `accountId` is not editable — repointing at a different ledger account would orphan every cleared line — and `isActive` is its own operation.
+         */
+        patch: operations["updateBankAccount"];
+        trace?: never;
+    };
+    "/v1/bank-accounts/{bankAccountId}/import-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save a column mapping for a bank account
+         * @description Saves a named CSV column mapping against a bank account, reused across its monthly uploads (D-41). Editing a mapping never touches a line already imported through it — a statement line is what the bank said (D-42), and a file read under the wrong mapping is re-imported under the right one.
+         */
+        post: operations["saveBankImportMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-match-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose matches for a set of statement lines
+         * @description Ranked candidates for the named lines — the page a screen is showing (E10). A read (`banking.read`) that posts nothing: a proposal is computed, not stored (D-43), and accepting one is a separate `POST …/clearing`. A `POST` because the line-id set is a body, so it carries an `Idempotency-Key` without claiming one.
+         */
+        post: operations["proposeBankMatches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List bank rules
+         * @description One page, in evaluation order — `(priority, created_at, id)`, the only order a rules list is read in. A malformed `bankAccountId` filters to an empty page rather than 404ing (E9).
+         */
+        get: operations["listBankRules"];
+        put?: never;
+        /**
+         * Create a bank rule
+         * @description A condition (match on description, amount, direction) and an outcome (an account, optionally a contact and tags). `priority` defaults to the end of the list, so a new rule cannot silently pre-empt an old one. An empty condition is refused — it would match every line (D-44).
+         */
+        post: operations["createBankRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-rules/{ruleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One bank rule */
+        get: operations["getBankRule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a bank rule
+         * @description `condition` and `outcome` are each replaced whole, never patched, so a field-at-a-time patch cannot reach an empty condition. `isActive: false` deactivates — it stops future proposals and touches no posted entry (E8).
+         */
+        patch: operations["updateBankRule"];
+        trace?: never;
+    };
+    "/v1/bank-statement-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List statement imports
+         * @description One page, newest activity last by creation (D-21). Filter by `bankAccountId`; a malformed one filters to an empty page rather than 404ing (E9). Each import carries its lifecycle `status` and, once complete, its `result`.
+         */
+        get: operations["listBankStatementImports"];
+        put?: never;
+        /**
+         * Start a statement import
+         * @description Accepts the file, writes a `queued` import row and enqueues the parse, then returns — the parse runs on the worker (D-47, E10). The `202` body is a handle to the queued import; it has no result yet. Re-uploading is safe: duplicates are deduped on a fingerprint and re-import never doubles a month (E1).
+         */
+        post: operations["startBankStatementImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-statement-imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a statement import without writing
+         * @description Parses the file and reports what importing it would do — headers, a sample of mapped rows, and how many lines are new versus already present (a prediction, E1). Writes nothing. A `POST` because the file is in the body, and it carries an `Idempotency-Key` like every write on this surface even though it claims none.
+         */
+        post: operations["previewBankStatementImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-statement-imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One statement import, at whatever stage it has reached
+         * @description The import across its whole lifecycle — the shape a screen polls after starting one. `queued`/`processing` carry neither `result` nor `failureReason`; `complete` carries `result` with the counts (E1); `failed` carries `failureReason`.
+         */
+        get: operations["getBankStatementImport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bills": {
         parameters: {
             query?: never;
@@ -823,6 +1017,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/import-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a bank account’s saved mappings
+         * @description One page, oldest first (D-21), for the `bankAccountId` given. A malformed or cross-org account id answers with an empty page rather than a 404, so a filter that matches nothing behaves like an unknown one (E9) — which is why `bankAccountId` is a query filter here and not a path segment.
+         */
+        get: operations["listBankImportMappings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/import-mappings/{mappingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One saved column mapping */
+        get: operations["getBankImportMapping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/invites": {
         parameters: {
             query?: never;
@@ -1292,6 +1523,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reconciliation-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reconciliation sessions
+         * @description One page, by end date — a statement history read newest last. Each carries its balances but not its event log. A malformed `bankAccountId` filters to an empty page (E9).
+         */
+        get: operations["listReconciliationSessions"];
+        put?: never;
+        /**
+         * Open a reconciliation session
+         * @description Opens a session against a bank account, an end date and the statement’s closing balance. `startDate` is derived (carry on from the last session) and accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. At most one session is open per account.
+         */
+        post: operations["createReconciliationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reconciliation-sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One reconciliation session, with its event log */
+        get: operations["getReconciliationSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Correct an open session’s inputs
+         * @description The end date and the closing balance it is tested against — the two things a person types. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen.
+         */
+        patch: operations["updateReconciliationSession"];
+        trace?: never;
+    };
+    "/v1/reconciliation-sessions/{sessionId}/finalise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalise a reconciliation session
+         * @description Records the assertion. Refused unless the cleared balance equals the statement’s closing balance at the end date (`reconciliation_session_balance_mismatch`, E5) — the refusal the whole milestone exists to be able to make. Freezes the covered set (D-51) and takes no body: everything it needs is on the session.
+         */
+        post: operations["finaliseReconciliationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reconciliation-sessions/{sessionId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reopen a finalised session
+         * @description Reverts a finalised session to open, thawing its membership so its clearings can be changed again (E6). Takes a required `reason`, kept on the event — the one part of the record a later reader cannot reconstruct. A session that is already open is `reconciliation_session_not_finalised`.
+         */
+        post: operations["reopenReconciliationSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reconciliation-sessions/{sessionId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reconciliation report for a session
+         * @description The gap between the ledger and the bank, itemised. `reconcilingItems` sum to `balances.unclearedAmount` exactly (D-50); `unclearedStatementLines` is the statement-side backlog, shown alongside but outside that sum.
+         */
+        get: operations["getReconciliationReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/aging": {
         parameters: {
             query?: never;
@@ -1407,6 +1743,70 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/statement-lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List statement lines
+         * @description One page, in `(posted_date, id)` order — a statement is read by date, and a line is never modified (D-42), so its date cannot move under a cursor. Each line carries its clearing, or null.
+         */
+        get: operations["listStatementLines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/statement-lines/{lineId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One statement line, with its clearing
+         * @description The line and its clearing (or null). Useful after clearing a line — the clear endpoint returns the clearing, and this returns the line as it now stands.
+         */
+        get: operations["getStatementLine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/statement-lines/{lineId}/clearing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear a statement line
+         * @description Accepting: the one write on the matching path (D-43). `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle an invoice or bill (`allocate_document`). E4 holds by construction: `clearedAmount + differenceAmount === line.amount`, and a difference must have an account to post to (`clearing_difference_unaccounted`). A line already cleared is `statement_line_already_cleared`.
+         */
+        post: operations["clearBankStatementLine"];
+        /**
+         * Undo a statement line’s clearing
+         * @description Removes the clearing and, where it posted a journal, reverses that journal — never deletes it (D-16). `date` is the reversal’s own entry date and must fall in an open period. Undoing a clearing counted by a finalised session is `reconciliation_session_already_finalised`; the way in is a reopen (E6). A line with no clearing is `statement_line_not_cleared`.
+         */
+        delete: operations["removeBankLineClearing"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2083,6 +2483,830 @@ export interface components {
             /** @description Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, never an account (D-20) — it is what a closing journal would have moved into equity. */
             priorYearEarnings: components["schemas"]["MinorUnitsInput"];
         };
+        /** @description A bank account: a ledger account (`accountId`, D-46) plus the import metadata a statement needs. Its balance is the ledger account’s — there is no second figure here. */
+        BankAccount: {
+            /**
+             * Format: uuid
+             * @description The ledger account this bank account *is* (D-46). Its balance is this bank account’s balance — there is no second figure here, because a banking module that stored its own would eventually disagree with the general ledger it is meant to corroborate.
+             */
+            accountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment. */
+            externalAccountId: string | null;
+            /**
+             * @description How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.
+             * @enum {string}
+             */
+            feedSource: "file";
+            /** Format: uuid */
+            id: string;
+            institutionName: string | null;
+            /** @description An inactive bank account keeps every line, import and reconciliation it already has and accepts no new ones. Deactivation rather than deletion, for the reason it is deactivation everywhere else: the ledger references this account and nothing referenced by a journal may vanish. */
+            isActive: boolean;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A bank account: a ledger account (`accountId`, D-46) plus the import metadata a statement needs. Its balance is the ledger account’s — there is no second figure here. */
+        BankAccountInput: {
+            /**
+             * Format: uuid
+             * @description The ledger account this bank account *is* (D-46). Its balance is this bank account’s balance — there is no second figure here, because a banking module that stored its own would eventually disagree with the general ledger it is meant to corroborate.
+             */
+            accountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment. */
+            externalAccountId: string | null;
+            /**
+             * @description How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.
+             * @enum {string}
+             */
+            feedSource: "file";
+            /** Format: uuid */
+            id: string;
+            institutionName: string | null;
+            /** @description An inactive bank account keeps every line, import and reconciliation it already has and accepts no new ones. Deactivation rather than deletion, for the reason it is deactivation everywhere else: the ledger references this account and nothing referenced by a journal may vanish. */
+            isActive: boolean;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of bank accounts, oldest first by creation. */
+        BankAccountPage: {
+            items: components["schemas"]["BankAccount"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of bank accounts, oldest first by creation. */
+        BankAccountPageInput: {
+            items: components["schemas"]["BankAccountInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description Which column holds what, by zero-based index. `amount` and the `debit`/`credit` pair are mutually exclusive, decided by the definition’s `amountConvention`. */
+        BankImportColumns: {
+            /** @description Null exactly when the convention is `debit_credit_columns`. */
+            amount: number | null;
+            /** @description The bank’s own identifier for the transaction, where it supplies one. Worth mapping whenever it exists: it is the strongest field in the dedupe fingerprint (D-42). */
+            bankReference: number | null;
+            counterparty: number | null;
+            credit: number | null;
+            debit: number | null;
+            description: number;
+            postedDate: number;
+            /** @description The date the money was available, where the bank supplies both. Null when it does not — and reconciliation uses `postedDate`, because that is the date the bank’s own balance moved on. */
+            valueDate: number | null;
+        };
+        /** @description Which column holds what, by zero-based index. `amount` and the `debit`/`credit` pair are mutually exclusive, decided by the definition’s `amountConvention`. */
+        BankImportColumnsInput: {
+            /** @description Null exactly when the convention is `debit_credit_columns`. */
+            amount: number | null;
+            /** @description The bank’s own identifier for the transaction, where it supplies one. Worth mapping whenever it exists: it is the strongest field in the dedupe fingerprint (D-42). */
+            bankReference: number | null;
+            counterparty: number | null;
+            credit: number | null;
+            debit: number | null;
+            description: number;
+            postedDate: number;
+            /** @description The date the money was available, where the bank supplies both. Null when it does not — and reconciliation uses `postedDate`, because that is the date the bank’s own balance moved on. */
+            valueDate: number | null;
+        };
+        /** @description A saved column mapping, reused across a bank’s monthly uploads (D-41). */
+        BankImportMapping: {
+            /** Format: date-time */
+            createdAt: string;
+            definition: components["schemas"]["BankImportMappingDefinition"];
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Everything needed to read one bank’s CSV, minus the name it is saved under. A CSV artefact by construction — it names columns, and OFX has none. */
+        BankImportMappingDefinition: {
+            /**
+             * @description How the file signs its amounts. `signed` is positive-in/negative-out; `signed_reversed` is the credit-card convention, where a purchase is positive; `debit_credit_columns` is two columns, of which the *credit* one is money in — the labels are the bank’s accounting, where your account is their liability.
+             * @enum {string}
+             */
+            amountConvention: "signed" | "signed_reversed" | "debit_credit_columns";
+            columns: components["schemas"]["BankImportColumns"];
+            /**
+             * @description The order of the parts in the file’s date column, whatever separator it uses. Stated rather than detected: `01/02/2026` is a valid date under both `dmy` and `mdy` and means different months, and a detector that guesses is wrong on exactly the files where no day exceeds 12.
+             * @enum {string}
+             */
+            dateOrder: "ymd" | "dmy" | "mdy";
+            /** @description One character. A tab is a tab, not the two characters `\t` — this is data, not an escape sequence. */
+            delimiter: string;
+            hasHeaderRow: boolean;
+        };
+        /** @description Everything needed to read one bank’s CSV, minus the name it is saved under. A CSV artefact by construction — it names columns, and OFX has none. */
+        BankImportMappingDefinitionInput: {
+            /**
+             * @description How the file signs its amounts. `signed` is positive-in/negative-out; `signed_reversed` is the credit-card convention, where a purchase is positive; `debit_credit_columns` is two columns, of which the *credit* one is money in — the labels are the bank’s accounting, where your account is their liability.
+             * @enum {string}
+             */
+            amountConvention: "signed" | "signed_reversed" | "debit_credit_columns";
+            columns: components["schemas"]["BankImportColumnsInput"];
+            /**
+             * @description The order of the parts in the file’s date column, whatever separator it uses. Stated rather than detected: `01/02/2026` is a valid date under both `dmy` and `mdy` and means different months, and a detector that guesses is wrong on exactly the files where no day exceeds 12.
+             * @enum {string}
+             */
+            dateOrder: "ymd" | "dmy" | "mdy";
+            /** @description One character. A tab is a tab, not the two characters `\t` — this is data, not an escape sequence. */
+            delimiter: string;
+            hasHeaderRow: boolean;
+        };
+        /** @description A saved column mapping, reused across a bank’s monthly uploads (D-41). */
+        BankImportMappingInput: {
+            /** Format: date-time */
+            createdAt: string;
+            definition: components["schemas"]["BankImportMappingDefinitionInput"];
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of a bank account’s saved mappings, oldest first. */
+        BankImportMappingPage: {
+            items: components["schemas"]["BankImportMapping"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of a bank account’s saved mappings, oldest first. */
+        BankImportMappingPageInput: {
+            items: components["schemas"]["BankImportMappingInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4). */
+        BankLineClearing: {
+            /**
+             * @description What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            clearedAmount: components["schemas"]["MinorUnits"];
+            /** Format: date-time */
+            clearedAt: string;
+            /**
+             * Format: uuid
+             * @description Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.
+             */
+            clearedByUserId: string;
+            /**
+             * Format: uuid
+             * @description The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.
+             */
+            clearedJournalId: string;
+            differenceAccountId: string | null;
+            /**
+             * @description `line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank charge or a short payment, and it has been posted, not absorbed (E4).
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            differenceAmount: components["schemas"]["MinorUnits"];
+            differenceJournalId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            lineId: string;
+            /**
+             * @description How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.
+             * @enum {string}
+             */
+            method: "post_entry" | "link_entry" | "allocate_document";
+            /** @description The payment recorded by an `allocate_document` clearing. Null for the other two. */
+            paymentId: string | null;
+            /** @description The session that counted this clearing, once one has. Null while none has — clearing a line and reconciling a period are separate acts, and a business may code its statement as it goes and reconcile at month end. */
+            reconciliationSessionId: string | null;
+        };
+        /** @description One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4). */
+        BankLineClearingInput: {
+            /**
+             * @description What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            clearedAmount: components["schemas"]["MinorUnitsInput"];
+            /** Format: date-time */
+            clearedAt: string;
+            /**
+             * Format: uuid
+             * @description Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.
+             */
+            clearedByUserId: string;
+            /**
+             * Format: uuid
+             * @description The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.
+             */
+            clearedJournalId: string;
+            differenceAccountId: string | null;
+            /**
+             * @description `line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank charge or a short payment, and it has been posted, not absorbed (E4).
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            differenceAmount: components["schemas"]["MinorUnitsInput"];
+            differenceJournalId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            lineId: string;
+            /**
+             * @description How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.
+             * @enum {string}
+             */
+            method: "post_entry" | "link_entry" | "allocate_document";
+            /** @description The payment recorded by an `allocate_document` clearing. Null for the other two. */
+            paymentId: string | null;
+            /** @description The session that counted this clearing, once one has. Null while none has — clearing a line and reconciling a period are separate acts, and a business may code its statement as it goes and reconcile at month end. */
+            reconciliationSessionId: string | null;
+        };
+        /** @description One line’s ranked candidates, best first. An empty array is ordinary — most statements contain lines nothing in the books resembles. */
+        BankLineProposals: {
+            /** Format: uuid */
+            lineId: string;
+            proposals: components["schemas"]["BankMatchProposal"][];
+        };
+        /** @description One line’s ranked candidates, best first. An empty array is ordinary — most statements contain lines nothing in the books resembles. */
+        BankLineProposalsInput: {
+            /** Format: uuid */
+            lineId: string;
+            proposals: components["schemas"]["BankMatchProposalInput"][];
+        };
+        /** @description One ranked candidate for a statement line. `kind` says what accepting it would do — the same three `clearing.ts` accepts. Computed, not stored (D-43); `rank` carries confidence, there is no score. */
+        BankMatchProposal: {
+            /** Format: uuid */
+            accountId: string;
+            contactId: string | null;
+            dimensionValueIds: string[];
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /** @constant */
+            kind: "post_entry";
+            /** Format: uuid */
+            lineId: string;
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReason"][];
+            /** @description The rule that produced this, or null when it came from the org’s own history. */
+            ruleId: string | null;
+        } | {
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /**
+             * @description The candidate journal’s net movement on this bank account, signed in the line’s frame — so the client can show the difference without arithmetic of its own.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            journalAmount: components["schemas"]["MinorUnits"];
+            journalDate: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            journalId: string;
+            journalMemo: string | null;
+            /** @constant */
+            kind: "link_entry";
+            /** Format: uuid */
+            lineId: string;
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReason"][];
+        } | {
+            /** Format: uuid */
+            contactId: string;
+            /** @description Carried rather than resolved by the client, for the reason the aging report carries it: a screen showing a few hundred proposals would otherwise fetch a few hundred contacts. */
+            contactName: string;
+            documentNumber: string | null;
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /** @constant */
+            kind: "allocate_document";
+            /** Format: uuid */
+            lineId: string;
+            /** @description What is still owed on the document, computed on read (D-34). What the payment would settle unless the user says otherwise. */
+            outstanding: components["schemas"]["MinorUnits"];
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReason"][];
+            /** Format: uuid */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
+        };
+        /** @description One ranked candidate for a statement line. `kind` says what accepting it would do — the same three `clearing.ts` accepts. Computed, not stored (D-43); `rank` carries confidence, there is no score. */
+        BankMatchProposalInput: {
+            /** Format: uuid */
+            accountId: string;
+            contactId: string | null;
+            dimensionValueIds: string[];
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /** @constant */
+            kind: "post_entry";
+            /** Format: uuid */
+            lineId: string;
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReasonInput"][];
+            /** @description The rule that produced this, or null when it came from the org’s own history. */
+            ruleId: string | null;
+        } | {
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /**
+             * @description The candidate journal’s net movement on this bank account, signed in the line’s frame — so the client can show the difference without arithmetic of its own.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            journalAmount: components["schemas"]["MinorUnitsInput"];
+            journalDate: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            journalId: string;
+            journalMemo: string | null;
+            /** @constant */
+            kind: "link_entry";
+            /** Format: uuid */
+            lineId: string;
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReasonInput"][];
+        } | {
+            /** Format: uuid */
+            contactId: string;
+            /** @description Carried rather than resolved by the client, for the reason the aging report carries it: a screen showing a few hundred proposals would otherwise fetch a few hundred contacts. */
+            contactName: string;
+            documentNumber: string | null;
+            /**
+             * Format: uuid
+             * @description Identifies this candidate within the response. A proposal is computed, not stored (D-43), so this is not a handle to fetch later — accepting names what to do, not which proposal said to do it.
+             */
+            id: string;
+            /** @constant */
+            kind: "allocate_document";
+            /** Format: uuid */
+            lineId: string;
+            /** @description What is still owed on the document, computed on read (D-34). What the payment would settle unless the user says otherwise. */
+            outstanding: components["schemas"]["MinorUnitsInput"];
+            /** @description Position in the ranking, 1 first. There is no confidence score: D-43 puts confidence in the ordering rather than in a decision to write, and a score is the field an auto-accept threshold is eventually built on. */
+            rank: number;
+            /** @description Why this was proposed. Never empty — a candidate with no reason is noise. */
+            reasons: components["schemas"]["BankMatchReasonInput"][];
+            /** Format: uuid */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
+        };
+        /** @description Proposals for the requested lines. An envelope rather than a bare array — and not a page: it is the answer to one question about a named set, not a list of what exists. */
+        BankMatchProposalList: {
+            lines: components["schemas"]["BankLineProposals"][];
+        };
+        /** @description Proposals for the requested lines. An envelope rather than a bare array — and not a page: it is the answer to one question about a named set, not a list of what exists. */
+        BankMatchProposalListInput: {
+            lines: components["schemas"]["BankLineProposalsInput"][];
+        };
+        /** @description Ask for proposals over a named set of lines — the page a screen is showing (E10). Bounded by a page’s worth of lines rather than by the org’s data. */
+        BankMatchProposalsRequest: {
+            lineIds: string[];
+        };
+        /** @description Ask for proposals over a named set of lines — the page a screen is showing (E10). Bounded by a page’s worth of lines rather than by the org’s data. */
+        BankMatchProposalsRequestInput: {
+            lineIds: string[];
+        };
+        /** @description Why a candidate was proposed, with the numbers behind it where there are any. The client owns the wording; the server owns the fact. */
+        BankMatchReason: {
+            /** @description How far off the amounts were, signed. Null where the reason is not about amount. */
+            amountDifference: components["schemas"]["MinorUnits"] | null;
+            /**
+             * @description Why the candidate was proposed. A token and not a sentence: the client owns the wording, the server owns the fact.
+             * @enum {string}
+             */
+            code: "amount_exact" | "amount_close" | "date_exact" | "date_close" | "reference_match" | "counterparty_match" | "description_match" | "rule_match" | "contact_history";
+            /** @description How far apart the dates were, in days, negative when the candidate is earlier. Null where the reason is not about date. */
+            dayDifference: number | null;
+        };
+        /** @description Why a candidate was proposed, with the numbers behind it where there are any. The client owns the wording; the server owns the fact. */
+        BankMatchReasonInput: {
+            /** @description How far off the amounts were, signed. Null where the reason is not about amount. */
+            amountDifference: components["schemas"]["MinorUnitsInput"] | null;
+            /**
+             * @description Why the candidate was proposed. A token and not a sentence: the client owns the wording, the server owns the fact.
+             * @enum {string}
+             */
+            code: "amount_exact" | "amount_close" | "date_exact" | "date_close" | "reference_match" | "counterparty_match" | "description_match" | "rule_match" | "contact_history";
+            /** @description How far apart the dates were, in days, negative when the candidate is earlier. Null where the reason is not about date. */
+            dayDifference: number | null;
+        };
+        /** @description A bank rule as the API returns it. `priority` (lower first, first match wins) is what makes the lookup deterministic when two rules match (D-44). */
+        BankRule: {
+            condition: components["schemas"]["BankRuleCondition"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An inactive rule proposes nothing and is not deleted. Deactivating rather than deleting keeps the record of why a line was coded the way it was, which is the question a rule gets asked about months later. */
+            isActive: boolean;
+            name: string;
+            outcome: components["schemas"]["BankRuleOutcome"];
+            /** @description Lower runs first, and the first matching rule wins. Ties break on `createdAt` then `id`, so the ordering is total — a lookup whose answer depends on scan order is not deterministic (D-44). */
+            priority: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description What a rule matches on. Every field optional, at least one present — an empty condition matches every line and would out-rank every genuine proposal (D-44). A bank account alone scopes but does not match, so it does not satisfy the requirement. */
+        BankRuleCondition: {
+            /** @description Inclusive upper bound on the line’s signed amount. */
+            amountMax?: components["schemas"]["MinorUnits"] | null;
+            /** @description Inclusive lower bound on the line’s signed amount. */
+            amountMin?: components["schemas"]["MinorUnits"] | null;
+            /** @description Restrict the rule to one bank account. Null means every account — right for “Tesco is groceries”, wrong for a rule about a specific card’s annual fee. */
+            bankAccountId?: string | null;
+            description?: {
+                /**
+                 * @description How the rule’s text is compared against the line’s description, case-insensitively. No regular expressions: a regex is a program, and a rule nobody can read is a coding decision nobody can audit.
+                 * @enum {string}
+                 */
+                mode: "contains" | "equals" | "starts_with";
+                value: string;
+            } | null;
+            direction?: ("inbound" | "outbound") | null;
+        };
+        /** @description What a rule matches on. Every field optional, at least one present — an empty condition matches every line and would out-rank every genuine proposal (D-44). A bank account alone scopes but does not match, so it does not satisfy the requirement. */
+        BankRuleConditionInput: {
+            /** @description Inclusive upper bound on the line’s signed amount. */
+            amountMax?: components["schemas"]["MinorUnitsInput"] | null;
+            /** @description Inclusive lower bound on the line’s signed amount. */
+            amountMin?: components["schemas"]["MinorUnitsInput"] | null;
+            /** @description Restrict the rule to one bank account. Null means every account — right for “Tesco is groceries”, wrong for a rule about a specific card’s annual fee. */
+            bankAccountId?: string | null;
+            description?: {
+                /**
+                 * @description How the rule’s text is compared against the line’s description, case-insensitively. No regular expressions: a regex is a program, and a rule nobody can read is a coding decision nobody can audit.
+                 * @enum {string}
+                 */
+                mode: "contains" | "equals" | "starts_with";
+                value: string;
+            } | null;
+            direction?: ("inbound" | "outbound") | null;
+        };
+        /** @description A bank rule as the API returns it. `priority` (lower first, first match wins) is what makes the lookup deterministic when two rules match (D-44). */
+        BankRuleInput: {
+            condition: components["schemas"]["BankRuleConditionInput"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An inactive rule proposes nothing and is not deleted. Deactivating rather than deleting keeps the record of why a line was coded the way it was, which is the question a rule gets asked about months later. */
+            isActive: boolean;
+            name: string;
+            outcome: components["schemas"]["BankRuleOutcomeInput"];
+            /** @description Lower runs first, and the first matching rule wins. Ties break on `createdAt` then `id`, so the ordering is total — a lookup whose answer depends on scan order is not deterministic (D-44). */
+            priority: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description What a matched rule proposes: an account to code to, optionally a contact and dimension tags. Three fields, none of them a verb — a classification, not an action (D-44). */
+        BankRuleOutcome: {
+            /**
+             * Format: uuid
+             * @description The account to code the line to. The whole point of the rule.
+             */
+            accountId: string;
+            contactId?: string | null;
+            dimensionValueIds?: string[];
+        };
+        /** @description What a matched rule proposes: an account to code to, optionally a contact and dimension tags. Three fields, none of them a verb — a classification, not an action (D-44). */
+        BankRuleOutcomeInput: {
+            /**
+             * Format: uuid
+             * @description The account to code the line to. The whole point of the rule.
+             */
+            accountId: string;
+            contactId?: string | null;
+            dimensionValueIds?: string[];
+        };
+        /** @description One page of the org’s rules in evaluation order, `(priority, created_at, id)`. */
+        BankRulePage: {
+            items: components["schemas"]["BankRule"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s rules in evaluation order, `(priority, created_at, id)`. */
+        BankRulePageInput: {
+            items: components["schemas"]["BankRuleInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A statement import across its whole lifecycle — `queued`, `processing`, `complete` (with `result`), or `failed` (with `failureReason`). The shape OB-085 polls after starting one. */
+        BankStatementImport: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The account identifier the file carried, where it carried one. Compared against the bank account’s own, so that uploading one account’s statement into another is noticed at import rather than by a reconciliation weeks later. */
+            externalAccountId: string | null;
+            /** @description Why the import failed, present exactly when `status` is `failed`; null otherwise. A malformed file, an unreadable row — the parse never partially imports (E1). */
+            failureReason: string | null;
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Who uploaded it. An import is the one point where data from outside enters.
+             */
+            importedByUserId: string;
+            mappingId: string | null;
+            /** @description The counts, present exactly when `status` is `complete`; null otherwise. */
+            result: components["schemas"]["BankStatementImportResult"] | null;
+            /** @description The closing balance the file states, where it states one. A claim from outside the system (D-46), kept as evidence for a reconciliation to test — never read as this account’s balance, which is the ledger account’s. */
+            statementClosingBalance: components["schemas"]["MinorUnits"] | null;
+            /**
+             * @description Where the import is in its lifecycle. `queued`/`processing` carry neither `result` nor `failureReason`; `complete` carries `result`; `failed` carries `failureReason`.
+             * @enum {string}
+             */
+            status: "queued" | "processing" | "complete" | "failed";
+        };
+        /** @description A statement import across its whole lifecycle — `queued`, `processing`, `complete` (with `result`), or `failed` (with `failureReason`). The shape OB-085 polls after starting one. */
+        BankStatementImportInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The account identifier the file carried, where it carried one. Compared against the bank account’s own, so that uploading one account’s statement into another is noticed at import rather than by a reconciliation weeks later. */
+            externalAccountId: string | null;
+            /** @description Why the import failed, present exactly when `status` is `failed`; null otherwise. A malformed file, an unreadable row — the parse never partially imports (E1). */
+            failureReason: string | null;
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Who uploaded it. An import is the one point where data from outside enters.
+             */
+            importedByUserId: string;
+            mappingId: string | null;
+            /** @description The counts, present exactly when `status` is `complete`; null otherwise. */
+            result: components["schemas"]["BankStatementImportResultInput"] | null;
+            /** @description The closing balance the file states, where it states one. A claim from outside the system (D-46), kept as evidence for a reconciliation to test — never read as this account’s balance, which is the ledger account’s. */
+            statementClosingBalance: components["schemas"]["MinorUnitsInput"] | null;
+            /**
+             * @description Where the import is in its lifecycle. `queued`/`processing` carry neither `result` nor `failureReason`; `complete` carries `result`; `failed` carries `failureReason`.
+             * @enum {string}
+             */
+            status: "queued" | "processing" | "complete" | "failed";
+        };
+        /** @description One page of a bank account’s statement imports, newest activity last by creation. */
+        BankStatementImportPage: {
+            items: components["schemas"]["BankStatementImport"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of a bank account’s statement imports, newest activity last by creation. */
+        BankStatementImportPageInput: {
+            items: components["schemas"]["BankStatementImportInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description What importing this file would do, without doing it — the column-mapping screen’s input (OB-085). `result.linesDuplicate` is a prediction, not a promise. */
+        BankStatementImportPreview: {
+            externalAccountId: string | null;
+            /** @description Whether the file’s account identifier matches the bank account’s. Null when either side has none — a warning, never a refusal, because a bank that changes its identifier would otherwise lock a business out of its own statements. */
+            externalAccountMatches: boolean | null;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description The header row, so a user can pick column indices without counting commas. Null for a headerless CSV and for OFX, which names its own fields. */
+            headers: string[] | null;
+            /** @description What importing this file would produce. A prediction, not a promise: another import landing in between changes what is already present. */
+            result: components["schemas"]["BankStatementImportResult"];
+            /** @description The first 20 rows as they would be read. */
+            sample: components["schemas"]["BankStatementLineDraft"][];
+            statementClosingBalance: components["schemas"]["MinorUnits"] | null;
+            statementEnd: components["schemas"]["CalendarDate"] | null;
+            statementStart: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description What importing this file would do, without doing it — the column-mapping screen’s input (OB-085). `result.linesDuplicate` is a prediction, not a promise. */
+        BankStatementImportPreviewInput: {
+            externalAccountId: string | null;
+            /** @description Whether the file’s account identifier matches the bank account’s. Null when either side has none — a warning, never a refusal, because a bank that changes its identifier would otherwise lock a business out of its own statements. */
+            externalAccountMatches: boolean | null;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description The header row, so a user can pick column indices without counting commas. Null for a headerless CSV and for OFX, which names its own fields. */
+            headers: string[] | null;
+            /** @description What importing this file would produce. A prediction, not a promise: another import landing in between changes what is already present. */
+            result: components["schemas"]["BankStatementImportResultInput"];
+            /** @description The first 20 rows as they would be read. */
+            sample: components["schemas"]["BankStatementLineDraftInput"][];
+            statementClosingBalance: components["schemas"]["MinorUnitsInput"] | null;
+            statementEnd: components["schemas"]["CalendarDateInput"] | null;
+            statementStart: components["schemas"]["CalendarDateInput"] | null;
+        };
+        /** @description A queued statement import, returned `202` by start-import. The file has been accepted and the parse enqueued; nothing has been read yet. */
+        BankStatementImportQueued: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Always `queued`: the import has been accepted and enqueued, and the parse has not run yet.
+             * @constant
+             */
+            status: "queued";
+        };
+        /** @description A queued statement import, returned `202` by start-import. The file has been accepted and the parse enqueued; nothing has been read yet. */
+        BankStatementImportQueuedInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Always `queued`: the import has been accepted and enqueued, and the parse has not run yet.
+             * @constant
+             */
+            status: "queued";
+        };
+        /** @description E1 as three numbers: `linesRead === linesImported + linesDuplicate`, exactly. Non-zero `linesDuplicate` is the ordinary case on a re-upload. */
+        BankStatementImportResult: {
+            /** @description How many were already present, matched on the dedupe fingerprint (D-42). Non-zero is the ordinary case on a re-upload: statements overlap at their edges, and re-importing last month’s file to catch a straggler must not double the month (E1). */
+            linesDuplicate: number;
+            /** @description How many of them were new — the ones this import created. */
+            linesImported: number;
+            /** @description How many transaction rows the file contained. */
+            linesRead: number;
+        };
+        /** @description E1 as three numbers: `linesRead === linesImported + linesDuplicate`, exactly. Non-zero `linesDuplicate` is the ordinary case on a re-upload. */
+        BankStatementImportResultInput: {
+            /** @description How many were already present, matched on the dedupe fingerprint (D-42). Non-zero is the ordinary case on a re-upload: statements overlap at their edges, and re-importing last month’s file to catch a straggler must not double the month (E1). */
+            linesDuplicate: number;
+            /** @description How many of them were new — the ones this import created. */
+            linesImported: number;
+            /** @description How many transaction rows the file contained. */
+            linesRead: number;
+        };
+        /** @description A statement line as the API returns it. What the bank said, never modified (D-42) — no `updatedAt` and no status; `clearing` present *is* the reconciled state. */
+        BankStatementLine: {
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The bank’s own identifier for the transaction — OFX’s `FITID`. Null for most CSVs. */
+            bankReference: string | null;
+            /** @description What cleared this line, or null. Presence *is* the reconciled state — there is no status field, because a label beside this would be a second encoding of the same fact. */
+            clearing: components["schemas"]["BankLineClearing"] | null;
+            /** @description The payee or payer, where the format separates it from the narrative. */
+            counterparty: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The narrative, verbatim. Not normalised, not trimmed of the bank’s own noise. */
+            description: string;
+            /** @description An opaque dedupe key over what the bank supplied (D-42). Two lines with the same fingerprint are the same transaction. Do not parse it or construct it: what goes into it is free to change. */
+            fingerprint: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.
+             */
+            importId: string;
+            /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
+            occurrenceIndex: number;
+            /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
+            postedDate: components["schemas"]["CalendarDate"];
+            /** @description The date the money became available, where the bank supplies both dates. Null when it supplies one. Never used for reconciliation; kept because it is what the bank said. */
+            valueDate: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description A row as the parser read it, before anything is written — only a preview returns these. No `id` because it is not a thing yet; `isDuplicate` is the one fact a preview can add. */
+        BankStatementLineDraft: {
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnits"];
+            /** @description The bank’s own identifier for the transaction — OFX’s `FITID`. Null for most CSVs. */
+            bankReference: string | null;
+            /** @description The payee or payer, where the format separates it from the narrative. */
+            counterparty: string | null;
+            /** @description The narrative, verbatim. Not normalised, not trimmed of the bank’s own noise. */
+            description: string;
+            /** @description An opaque dedupe key over what the bank supplied (D-42). Two lines with the same fingerprint are the same transaction. Do not parse it or construct it: what goes into it is free to change. */
+            fingerprint: string;
+            /** @description Whether a line with this fingerprint is already present on the bank account. */
+            isDuplicate: boolean;
+            /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
+            occurrenceIndex: number;
+            /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
+            postedDate: components["schemas"]["CalendarDate"];
+            /** @description The date the money became available, where the bank supplies both dates. Null when it supplies one. Never used for reconciliation; kept because it is what the bank said. */
+            valueDate: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description A row as the parser read it, before anything is written — only a preview returns these. No `id` because it is not a thing yet; `isDuplicate` is the one fact a preview can add. */
+        BankStatementLineDraftInput: {
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** @description The bank’s own identifier for the transaction — OFX’s `FITID`. Null for most CSVs. */
+            bankReference: string | null;
+            /** @description The payee or payer, where the format separates it from the narrative. */
+            counterparty: string | null;
+            /** @description The narrative, verbatim. Not normalised, not trimmed of the bank’s own noise. */
+            description: string;
+            /** @description An opaque dedupe key over what the bank supplied (D-42). Two lines with the same fingerprint are the same transaction. Do not parse it or construct it: what goes into it is free to change. */
+            fingerprint: string;
+            /** @description Whether a line with this fingerprint is already present on the bank account. */
+            isDuplicate: boolean;
+            /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
+            occurrenceIndex: number;
+            /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
+            postedDate: components["schemas"]["CalendarDateInput"];
+            /** @description The date the money became available, where the bank supplies both dates. Null when it supplies one. Never used for reconciliation; kept because it is what the bank said. */
+            valueDate: components["schemas"]["CalendarDateInput"] | null;
+        };
+        /** @description A statement line as the API returns it. What the bank said, never modified (D-42) — no `updatedAt` and no status; `clearing` present *is* the reconciled state. */
+        BankStatementLineInput: {
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The bank’s own identifier for the transaction — OFX’s `FITID`. Null for most CSVs. */
+            bankReference: string | null;
+            /** @description What cleared this line, or null. Presence *is* the reconciled state — there is no status field, because a label beside this would be a second encoding of the same fact. */
+            clearing: components["schemas"]["BankLineClearingInput"] | null;
+            /** @description The payee or payer, where the format separates it from the narrative. */
+            counterparty: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The narrative, verbatim. Not normalised, not trimmed of the bank’s own noise. */
+            description: string;
+            /** @description An opaque dedupe key over what the bank supplied (D-42). Two lines with the same fingerprint are the same transaction. Do not parse it or construct it: what goes into it is free to change. */
+            fingerprint: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.
+             */
+            importId: string;
+            /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
+            occurrenceIndex: number;
+            /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
+            postedDate: components["schemas"]["CalendarDateInput"];
+            /** @description The date the money became available, where the bank supplies both dates. Null when it supplies one. Never used for reconciliation; kept because it is what the bank said. */
+            valueDate: components["schemas"]["CalendarDateInput"] | null;
+        };
+        /** @description One page of a bank account’s statement lines, in `(posted_date, id)` order. */
+        BankStatementLinePage: {
+            items: components["schemas"]["BankStatementLine"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of a bank account’s statement lines, in `(posted_date, id)` order. */
+        BankStatementLinePageInput: {
+            items: components["schemas"]["BankStatementLineInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description A bill from a vendor, with its lines. `reference` is the vendor’s own invoice number (D-36) and a duplicate is refused at approval. `status` and `settlement` are computed on read (D-34, D-38). */
         Bill: {
             /** @description What has been applied against this bill — payments made and vendor credits alike, through the same mechanism (D-39). */
@@ -2285,6 +3509,86 @@ export interface components {
             id: "general_small_business";
             name: string;
         };
+        /** @description Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43). */
+        ClearBankStatementLineRequest: {
+            /**
+             * Format: uuid
+             * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
+             */
+            accountId: string;
+            contactId?: string | null;
+            /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
+            dimensionValueIds?: string[];
+            memo?: string | null;
+            /** @constant */
+            method: "post_entry";
+        } | {
+            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            differenceAccountId?: string | null;
+            /**
+             * Format: uuid
+             * @description The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.
+             */
+            journalId: string;
+            memo?: string | null;
+            /** @constant */
+            method: "link_entry";
+        } | {
+            /** @description How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows. */
+            amount?: components["schemas"]["MinorUnits"] | null;
+            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            differenceAccountId?: string | null;
+            memo?: string | null;
+            /** @constant */
+            method: "allocate_document";
+            /** Format: uuid */
+            targetId: string;
+            /**
+             * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
+             * @enum {string}
+             */
+            targetType: "invoice" | "bill";
+        };
+        /** @description Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43). */
+        ClearBankStatementLineRequestInput: {
+            /**
+             * Format: uuid
+             * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
+             */
+            accountId: string;
+            contactId?: string | null;
+            /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
+            dimensionValueIds?: string[];
+            memo?: string | null;
+            /** @constant */
+            method: "post_entry";
+        } | {
+            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            differenceAccountId?: string | null;
+            /**
+             * Format: uuid
+             * @description The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.
+             */
+            journalId: string;
+            memo?: string | null;
+            /** @constant */
+            method: "link_entry";
+        } | {
+            /** @description How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows. */
+            amount?: components["schemas"]["MinorUnitsInput"] | null;
+            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            differenceAccountId?: string | null;
+            memo?: string | null;
+            /** @constant */
+            method: "allocate_document";
+            /** Format: uuid */
+            targetId: string;
+            /**
+             * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
+             * @enum {string}
+             */
+            targetType: "invoice" | "bill";
+        };
         /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
         Contact: {
             code: string | null;
@@ -2404,6 +3708,90 @@ export interface components {
             allocations: components["schemas"]["AllocationRequestInput"][];
             /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
             date?: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description Registers an existing ledger account as a bank account. `accountId` names an account the org already has — the chart is the org’s, and a module that invented accounts in it would decide the org’s chart on its behalf (D-23). */
+        CreateBankAccountRequest: {
+            /** Format: uuid */
+            accountId: string;
+            externalAccountId?: string | null;
+            institutionName?: string | null;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name: string;
+        };
+        /** @description Registers an existing ledger account as a bank account. `accountId` names an account the org already has — the chart is the org’s, and a module that invented accounts in it would decide the org’s chart on its behalf (D-23). */
+        CreateBankAccountRequestInput: {
+            /** Format: uuid */
+            accountId: string;
+            externalAccountId?: string | null;
+            institutionName?: string | null;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name: string;
+        };
+        /** @description Saves a named column mapping against a bank account. */
+        CreateBankImportMappingRequest: {
+            definition: components["schemas"]["BankImportMappingDefinition"];
+            name: string;
+        };
+        /** @description Saves a named column mapping against a bank account. */
+        CreateBankImportMappingRequestInput: {
+            definition: components["schemas"]["BankImportMappingDefinitionInput"];
+            name: string;
+        };
+        /** @description Creates a bank rule. `priority` defaults to the end of the list, so a new rule cannot silently pre-empt an old one. */
+        CreateBankRuleRequest: {
+            condition: components["schemas"]["BankRuleCondition"];
+            name: string;
+            outcome: components["schemas"]["BankRuleOutcome"];
+            /** @description Defaults to the end of the list, so a new rule cannot silently pre-empt an old one. */
+            priority?: number;
+        };
+        /** @description Creates a bank rule. `priority` defaults to the end of the list, so a new rule cannot silently pre-empt an old one. */
+        CreateBankRuleRequestInput: {
+            condition: components["schemas"]["BankRuleConditionInput"];
+            name: string;
+            outcome: components["schemas"]["BankRuleOutcomeInput"];
+            /** @description Defaults to the end of the list, so a new rule cannot silently pre-empt an old one. */
+            priority?: number;
+        };
+        /** @description Imports a statement. Enqueues the parse and returns a queued handle — a 5,000-line file does not block the request (D-47, E10). A CSV takes exactly one of `mappingId`/`mapping`; an OFX takes neither. */
+        CreateBankStatementImportRequest: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The statement file’s contents, as text. CSV or OFX/QFX — both are text, so there is no multipart and no binary here. */
+            content: string;
+            /** @description What the file was called. Recorded, never parsed — a filename is how a person finds the artifact D-41 says file import exists to give them, and nothing derives meaning from it. */
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description An ad-hoc mapping for this upload. CSV only, and exclusive with `mappingId` — send one or the other, never both. */
+            mapping?: components["schemas"]["BankImportMappingDefinition"] | null;
+            /** @description A saved mapping to read the file with. CSV only, and exclusive with `mapping`. */
+            mappingId?: string | null;
+            /** @description Save the inline `mapping` under this name and use it for this import. Only meaningful alongside `mapping`. */
+            saveMappingAs?: string | null;
+        };
+        /** @description Imports a statement. Enqueues the parse and returns a queued handle — a 5,000-line file does not block the request (D-47, E10). A CSV takes exactly one of `mappingId`/`mapping`; an OFX takes neither. */
+        CreateBankStatementImportRequestInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The statement file’s contents, as text. CSV or OFX/QFX — both are text, so there is no multipart and no binary here. */
+            content: string;
+            /** @description What the file was called. Recorded, never parsed — a filename is how a person finds the artifact D-41 says file import exists to give them, and nothing derives meaning from it. */
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description An ad-hoc mapping for this upload. CSV only, and exclusive with `mappingId` — send one or the other, never both. */
+            mapping?: components["schemas"]["BankImportMappingDefinitionInput"] | null;
+            /** @description A saved mapping to read the file with. CSV only, and exclusive with `mapping`. */
+            mappingId?: string | null;
+            /** @description Save the inline `mapping` under this name and use it for this import. Only meaningful alongside `mapping`. */
+            saveMappingAs?: string | null;
         };
         /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. */
         CreateBillRequest: {
@@ -2638,6 +4026,24 @@ export interface components {
             direction: "received" | "made";
             memo?: string | null;
             reference?: string | null;
+        };
+        /** @description Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. */
+        CreateReconciliationSessionRequest: {
+            /** Format: uuid */
+            bankAccountId: string;
+            endDate: components["schemas"]["CalendarDate"];
+            startDate?: components["schemas"]["CalendarDate"] | null;
+            /** @description What the statement says the account held at `endDate`. The claim being tested. */
+            statementClosingBalance: components["schemas"]["MinorUnits"];
+        };
+        /** @description Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. */
+        CreateReconciliationSessionRequestInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            endDate: components["schemas"]["CalendarDateInput"];
+            startDate?: components["schemas"]["CalendarDateInput"] | null;
+            /** @description What the statement says the account held at `endDate`. The claim being tested. */
+            statementClosingBalance: components["schemas"]["MinorUnitsInput"];
         };
         /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
         CreateTaxRateRequest: {
@@ -4097,6 +5503,42 @@ export interface components {
              */
             side: "debit" | "credit";
         };
+        /** @description Reads the file and reports what importing it would do, writing nothing. Same reading rules as the real import: a CSV takes exactly one of `mappingId`/`mapping`, an OFX takes neither. */
+        PreviewBankStatementImportRequest: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The statement file’s contents, as text. CSV or OFX/QFX — both are text, so there is no multipart and no binary here. */
+            content: string;
+            /** @description What the file was called. Recorded, never parsed — a filename is how a person finds the artifact D-41 says file import exists to give them, and nothing derives meaning from it. */
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description An ad-hoc mapping for this upload. CSV only, and exclusive with `mappingId` — send one or the other, never both. */
+            mapping?: components["schemas"]["BankImportMappingDefinition"] | null;
+            /** @description A saved mapping to read the file with. CSV only, and exclusive with `mapping`. */
+            mappingId?: string | null;
+        };
+        /** @description Reads the file and reports what importing it would do, writing nothing. Same reading rules as the real import: a CSV takes exactly one of `mappingId`/`mapping`, an OFX takes neither. */
+        PreviewBankStatementImportRequestInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The statement file’s contents, as text. CSV or OFX/QFX — both are text, so there is no multipart and no binary here. */
+            content: string;
+            /** @description What the file was called. Recorded, never parsed — a filename is how a person finds the artifact D-41 says file import exists to give them, and nothing derives meaning from it. */
+            filename: string;
+            /**
+             * @description The uploaded file’s format. `ofx` covers QFX — QFX is OFX with proprietary tags and one parser reads both, so a second token would be a second name for one format.
+             * @enum {string}
+             */
+            format: "csv" | "ofx";
+            /** @description An ad-hoc mapping for this upload. CSV only, and exclusive with `mappingId` — send one or the other, never both. */
+            mapping?: components["schemas"]["BankImportMappingDefinitionInput"] | null;
+            /** @description A saved mapping to read the file with. CSV only, and exclusive with `mapping`. */
+            mappingId?: string | null;
+        };
         /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
         ProfitAndLoss: {
             /** @constant */
@@ -4209,6 +5651,264 @@ export interface components {
          * @example -2
          */
         QuantityInput: string;
+        /** @description What the session’s arithmetic says, all computed on read except `statementClosingBalance` (D-34, D-46). `difference` must be zero to finalise (E5). */
+        ReconciliationBalances: {
+            /** @description The ledger account’s balance at `endDate`, computed from journal lines (D-46). Reported rather than asserted — it differs from `clearedBalance` by exactly the entries the bank has not shown yet. */
+            bookBalance: components["schemas"]["MinorUnits"];
+            /** @description Opening balance plus every line cleared into this session. What the statement’s closing balance is tested against. */
+            clearedBalance: components["schemas"]["MinorUnits"];
+            /** @description `statementClosingBalance − clearedBalance`. Must be zero to finalise (E5); anything else is `reconciliation_session_balance_mismatch`, and the number is what tells a user how far off they are. */
+            difference: components["schemas"]["MinorUnits"];
+            /** @description The cleared balance this session starts from — the previous session’s cleared balance, or zero for the first one on an account. */
+            openingBalance: components["schemas"]["MinorUnits"];
+            /** @description What the bank says the account held at `endDate`. A claim from outside the system (D-46), and the only figure on this object that is stored rather than computed. */
+            statementClosingBalance: components["schemas"]["MinorUnits"];
+            /** @description `bookBalance − clearedBalance`: entries in the books that no statement line has cleared. A cheque written and not presented. Zero on an account whose every movement came from a statement. */
+            unclearedAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description What the session’s arithmetic says, all computed on read except `statementClosingBalance` (D-34, D-46). `difference` must be zero to finalise (E5). */
+        ReconciliationBalancesInput: {
+            /** @description The ledger account’s balance at `endDate`, computed from journal lines (D-46). Reported rather than asserted — it differs from `clearedBalance` by exactly the entries the bank has not shown yet. */
+            bookBalance: components["schemas"]["MinorUnitsInput"];
+            /** @description Opening balance plus every line cleared into this session. What the statement’s closing balance is tested against. */
+            clearedBalance: components["schemas"]["MinorUnitsInput"];
+            /** @description `statementClosingBalance − clearedBalance`. Must be zero to finalise (E5); anything else is `reconciliation_session_balance_mismatch`, and the number is what tells a user how far off they are. */
+            difference: components["schemas"]["MinorUnitsInput"];
+            /** @description The cleared balance this session starts from — the previous session’s cleared balance, or zero for the first one on an account. */
+            openingBalance: components["schemas"]["MinorUnitsInput"];
+            /** @description What the bank says the account held at `endDate`. A claim from outside the system (D-46), and the only figure on this object that is stored rather than computed. */
+            statementClosingBalance: components["schemas"]["MinorUnitsInput"];
+            /** @description `bookBalance − clearedBalance`: entries in the books that no statement line has cleared. A cheque written and not presented. Zero on an account whose every movement came from a statement. */
+            unclearedAmount: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description The reconciliation report for one session: the gap between the ledger and the bank, itemised. `reconcilingItems` ties to `balances.unclearedAmount` exactly (D-50). */
+        ReconciliationReport: {
+            balances: components["schemas"]["ReconciliationBalances"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The date every figure and every item on this report is computed as at. */
+            endDate: components["schemas"]["CalendarDate"];
+            /** @description The bank-account ledger movements this session did not clear, oldest first. Their signed amounts sum to `balances.unclearedAmount` exactly: `clearedBalance + Σ items === bookBalance` (D-50). */
+            reconcilingItems: components["schemas"]["ReconcilingItem"][];
+            /** Format: uuid */
+            sessionId: string;
+            startDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in the window the books have not caught, oldest first. The other half of the reconciliation — shown, but not part of `unclearedAmount`, because a line with no journal moves neither balance in it. */
+            unclearedStatementLines: components["schemas"]["UnclearedStatementLine"][];
+        };
+        /** @description The reconciliation report for one session: the gap between the ledger and the bank, itemised. `reconcilingItems` ties to `balances.unclearedAmount` exactly (D-50). */
+        ReconciliationReportInput: {
+            balances: components["schemas"]["ReconciliationBalancesInput"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @description The date every figure and every item on this report is computed as at. */
+            endDate: components["schemas"]["CalendarDateInput"];
+            /** @description The bank-account ledger movements this session did not clear, oldest first. Their signed amounts sum to `balances.unclearedAmount` exactly: `clearedBalance + Σ items === bookBalance` (D-50). */
+            reconcilingItems: components["schemas"]["ReconcilingItemInput"][];
+            /** Format: uuid */
+            sessionId: string;
+            startDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in the window the books have not caught, oldest first. The other half of the reconciliation — shown, but not part of `unclearedAmount`, because a line with no journal moves neither balance in it. */
+            unclearedStatementLines: components["schemas"]["UnclearedStatementLineInput"][];
+        };
+        /** @description A reconciliation session as the API returns it — with its event log. No `periodId` and no field a fiscal-period close writes: the session lock is not the period’s (E7). */
+        ReconciliationSession: {
+            balances: components["schemas"]["ReconciliationBalances"];
+            /** Format: uuid */
+            bankAccountId: string;
+            clearedLineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the statement closes, and the date every balance on this session is computed as at. A line dated after it cannot be cleared into this session. */
+            endDate: components["schemas"]["CalendarDate"];
+            /** @description Every open, finalise and reopen, oldest first. Append-only (E6). */
+            events: components["schemas"]["ReconciliationSessionEvent"][];
+            finalisedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The day after the previous session’s `endDate`, or the date of the account’s earliest statement line for the first one. Sessions on an account do not overlap — an overlap would let one line be counted in two assertions, which is `reconciliation_session_overlaps`. */
+            startDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in this window with no clearing. Zero is not required to finalise — the balances are what E5 tests — but a non-zero count with a zero `difference` is worth a second look, because it usually means two errors cancelling. */
+            unclearedLineCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One thing that happened to a session, append-only (E6). `reason` is required on a reopen and null on the rest — the one part of the record a later reader cannot reconstruct. */
+        ReconciliationSessionEvent: {
+            /**
+             * Format: uuid
+             * @description Who did it. E6 makes reopening permission-gated *and* recorded; the gate is the service’s and this is the record.
+             */
+            actorUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @description Why, on a reopen. Null on `opened` and `finalised`, which need no explanation. */
+            reason: string | null;
+            /** Format: uuid */
+            sessionId: string;
+            /** @description The figure that was asserted, on a `finalised` event. Captured at the moment of the assertion so that a session finalised, reopened, corrected and finalised again shows what each assertion actually claimed. */
+            statementClosingBalance: components["schemas"]["MinorUnits"] | null;
+            /** @enum {string} */
+            type: "opened" | "finalised" | "reopened";
+        };
+        /** @description One thing that happened to a session, append-only (E6). `reason` is required on a reopen and null on the rest — the one part of the record a later reader cannot reconstruct. */
+        ReconciliationSessionEventInput: {
+            /**
+             * Format: uuid
+             * @description Who did it. E6 makes reopening permission-gated *and* recorded; the gate is the service’s and this is the record.
+             */
+            actorUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @description Why, on a reopen. Null on `opened` and `finalised`, which need no explanation. */
+            reason: string | null;
+            /** Format: uuid */
+            sessionId: string;
+            /** @description The figure that was asserted, on a `finalised` event. Captured at the moment of the assertion so that a session finalised, reopened, corrected and finalised again shows what each assertion actually claimed. */
+            statementClosingBalance: components["schemas"]["MinorUnitsInput"] | null;
+            /** @enum {string} */
+            type: "opened" | "finalised" | "reopened";
+        };
+        /** @description A reconciliation session as the API returns it — with its event log. No `periodId` and no field a fiscal-period close writes: the session lock is not the period’s (E7). */
+        ReconciliationSessionInput: {
+            balances: components["schemas"]["ReconciliationBalancesInput"];
+            /** Format: uuid */
+            bankAccountId: string;
+            clearedLineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the statement closes, and the date every balance on this session is computed as at. A line dated after it cannot be cleared into this session. */
+            endDate: components["schemas"]["CalendarDateInput"];
+            /** @description Every open, finalise and reopen, oldest first. Append-only (E6). */
+            events: components["schemas"]["ReconciliationSessionEventInput"][];
+            finalisedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The day after the previous session’s `endDate`, or the date of the account’s earliest statement line for the first one. Sessions on an account do not overlap — an overlap would let one line be counted in two assertions, which is `reconciliation_session_overlaps`. */
+            startDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in this window with no clearing. Zero is not required to finalise — the balances are what E5 tests — but a non-zero count with a zero `difference` is worth a second look, because it usually means two errors cancelling. */
+            unclearedLineCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of the org’s reconciliation sessions, by end date. */
+        ReconciliationSessionPage: {
+            items: components["schemas"]["ReconciliationSessionSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s reconciliation sessions, by end date. */
+        ReconciliationSessionPageInput: {
+            items: components["schemas"]["ReconciliationSessionSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A session in a list: everything except the event log, whose length would otherwise decide a page’s size. The balances stay — a list that could not show whether each one balanced would be unusable. */
+        ReconciliationSessionSummary: {
+            balances: components["schemas"]["ReconciliationBalances"];
+            /** Format: uuid */
+            bankAccountId: string;
+            clearedLineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the statement closes, and the date every balance on this session is computed as at. A line dated after it cannot be cleared into this session. */
+            endDate: components["schemas"]["CalendarDate"];
+            finalisedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The day after the previous session’s `endDate`, or the date of the account’s earliest statement line for the first one. Sessions on an account do not overlap — an overlap would let one line be counted in two assertions, which is `reconciliation_session_overlaps`. */
+            startDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in this window with no clearing. Zero is not required to finalise — the balances are what E5 tests — but a non-zero count with a zero `difference` is worth a second look, because it usually means two errors cancelling. */
+            unclearedLineCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A session in a list: everything except the event log, whose length would otherwise decide a page’s size. The balances stay — a list that could not show whether each one balanced would be unusable. */
+        ReconciliationSessionSummaryInput: {
+            balances: components["schemas"]["ReconciliationBalancesInput"];
+            /** Format: uuid */
+            bankAccountId: string;
+            clearedLineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the statement closes, and the date every balance on this session is computed as at. A line dated after it cannot be cleared into this session. */
+            endDate: components["schemas"]["CalendarDateInput"];
+            finalisedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The day after the previous session’s `endDate`, or the date of the account’s earliest statement line for the first one. Sessions on an account do not overlap — an overlap would let one line be counted in two assertions, which is `reconciliation_session_overlaps`. */
+            startDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value.
+             * @enum {string}
+             */
+            state: "open" | "finalised";
+            /** @description Statement lines in this window with no clearing. Zero is not required to finalise — the balances are what E5 tests — but a non-zero count with a zero `difference` is worth a second look, because it usually means two errors cancelling. */
+            unclearedLineCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One bank-account ledger movement the session did not clear — a cheque not presented, a deposit in transit. Signed in the account’s frame; the items sum to `unclearedAmount` (D-50). */
+        ReconcilingItem: {
+            /** @description The journal’s signed net movement on the bank account, in the account’s frame: positive is money the books show in that the bank has not (a deposit in transit), negative is money the books show out that the bank has not (an unpresented cheque). */
+            amount: components["schemas"]["MinorUnits"];
+            /** @description The journal’s entry date — the date the ledger moved, and the date `bookBalance` counts it under (D-46). At or before the session’s `endDate` by construction. */
+            date: components["schemas"]["CalendarDate"];
+            /** @description The journal’s memo, verbatim, or null. How a reconciler recognises the entry. */
+            description: string | null;
+            /**
+             * Format: uuid
+             * @description The journal whose net movement on the bank account this item is. One item per journal, so a client can open the entry the report is pointing at.
+             */
+            journalId: string;
+            /** @description The journal’s own reference, or null. */
+            reference: string | null;
+        };
+        /** @description One bank-account ledger movement the session did not clear — a cheque not presented, a deposit in transit. Signed in the account’s frame; the items sum to `unclearedAmount` (D-50). */
+        ReconcilingItemInput: {
+            /** @description The journal’s signed net movement on the bank account, in the account’s frame: positive is money the books show in that the bank has not (a deposit in transit), negative is money the books show out that the bank has not (an unpresented cheque). */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** @description The journal’s entry date — the date the ledger moved, and the date `bookBalance` counts it under (D-46). At or before the session’s `endDate` by construction. */
+            date: components["schemas"]["CalendarDateInput"];
+            /** @description The journal’s memo, verbatim, or null. How a reconciler recognises the entry. */
+            description: string | null;
+            /**
+             * Format: uuid
+             * @description The journal whose net movement on the bank account this item is. One item per journal, so a client can open the entry the report is pointing at.
+             */
+            journalId: string;
+            /** @description The journal’s own reference, or null. */
+            reference: string | null;
+        };
         /** @description Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials. */
         RegisterRequest: {
             displayName: string;
@@ -4222,6 +5922,28 @@ export interface components {
             email: string;
             org: components["schemas"]["CreateOrgRequestInput"];
             password: string;
+        };
+        /** @description Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
+        RemoveBankLineClearingRequest: {
+            /** @description The reversal’s own entry date, which must fall in an open fiscal period. */
+            date: components["schemas"]["CalendarDate"];
+            memo?: string | null;
+        };
+        /** @description Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
+        RemoveBankLineClearingRequestInput: {
+            /** @description The reversal’s own entry date, which must fall in an open fiscal period. */
+            date: components["schemas"]["CalendarDateInput"];
+            memo?: string | null;
+        };
+        /** @description Reopens a finalised session. Takes exactly one field, `reason`, and it is required (E6) — who and when are known without asking; why is not. */
+        ReopenReconciliationSessionRequest: {
+            /** @description Why this finalised session is being reopened. Required, and kept on the event — the one part of E6’s record that cannot be reconstructed afterwards. */
+            reason: string;
+        };
+        /** @description Reopens a finalised session. Takes exactly one field, `reason`, and it is required (E6) — who and when are known without asking; why is not. */
+        ReopenReconciliationSessionRequestInput: {
+            /** @description Why this finalised session is being reopened. Required, and kept on the event — the one part of E6’s record that cannot be reconstructed afterwards. */
+            reason: string;
         };
         /** @description The dimension value one slice of a grouped report is for. A report grouped by an axis has one bucket per value plus an unassigned bucket, whose key is null. */
         ReportGroupKey: {
@@ -4393,6 +6115,32 @@ export interface components {
             /** @enum {string} */
             type: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
+        /** @description One statement line the bank has shown that the books have not caught. Reported so the backlog is visible, but outside `unclearedAmount` — it has no journal, so it moves neither balance in it. */
+        UnclearedStatementLine: {
+            /** @description What the bank moved, signed, in the line’s frame (`bankLineAmountSchema`). */
+            amount: components["schemas"]["MinorUnits"];
+            /** @description The line’s `postedDate` — the date the bank’s own balance moved on (D-45). */
+            date: components["schemas"]["CalendarDate"];
+            /** @description The bank’s narrative for the line, verbatim. */
+            description: string;
+            /** Format: uuid */
+            lineId: string;
+            /** @description The bank’s own transaction identifier, where it supplied one. */
+            reference: string | null;
+        };
+        /** @description One statement line the bank has shown that the books have not caught. Reported so the backlog is visible, but outside `unclearedAmount` — it has no journal, so it moves neither balance in it. */
+        UnclearedStatementLineInput: {
+            /** @description What the bank moved, signed, in the line’s frame (`bankLineAmountSchema`). */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** @description The line’s `postedDate` — the date the bank’s own balance moved on (D-45). */
+            date: components["schemas"]["CalendarDateInput"];
+            /** @description The bank’s narrative for the line, verbatim. */
+            description: string;
+            /** Format: uuid */
+            lineId: string;
+            /** @description The bank’s own transaction identifier, where it supplied one. */
+            reference: string | null;
+        };
         /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
         UpdateAccountRequest: {
             description?: string | null;
@@ -4426,6 +6174,36 @@ export interface components {
              * @enum {string}
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
+        };
+        /** @description Partial update. `accountId` and `isActive` are absent on purpose: repointing at a different ledger account would orphan every cleared line, and deactivation is its own operation so it can refuse an account with an open session (`bank_account_has_open_session`). */
+        UpdateBankAccountRequest: {
+            externalAccountId?: string | null;
+            institutionName?: string | null;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name?: string;
+        };
+        /** @description Partial update. `accountId` and `isActive` are absent on purpose: repointing at a different ledger account would orphan every cleared line, and deactivation is its own operation so it can refuse an account with an open session (`bank_account_has_open_session`). */
+        UpdateBankAccountRequestInput: {
+            externalAccountId?: string | null;
+            institutionName?: string | null;
+            /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
+            name?: string;
+        };
+        /** @description Updates a rule. `condition` and `outcome` are each replaced whole, never patched, so a field-at-a-time patch cannot reach an empty condition. `isActive: false` stops future proposals and touches no posted entry (E8). */
+        UpdateBankRuleRequest: {
+            condition?: components["schemas"]["BankRuleCondition"];
+            isActive?: boolean;
+            name?: string;
+            outcome?: components["schemas"]["BankRuleOutcome"];
+            priority?: number;
+        };
+        /** @description Updates a rule. `condition` and `outcome` are each replaced whole, never patched, so a field-at-a-time patch cannot reach an empty condition. `isActive: false` stops future proposals and touches no posted entry (E8). */
+        UpdateBankRuleRequestInput: {
+            condition?: components["schemas"]["BankRuleConditionInput"];
+            isActive?: boolean;
+            name?: string;
+            outcome?: components["schemas"]["BankRuleOutcomeInput"];
+            priority?: number;
         };
         /** @description Partial update of a draft. `lines` replaces the whole set. An approved bill accepts none of this — the correction is a vendor credit or a void, never an edit (D-38). */
         UpdateBillRequest: {
@@ -4598,6 +6376,16 @@ export interface components {
         UpdatePaymentRequestInput: {
             memo?: string | null;
             reference?: string | null;
+        };
+        /** @description Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen. */
+        UpdateReconciliationSessionRequest: {
+            endDate?: components["schemas"]["CalendarDate"];
+            statementClosingBalance?: components["schemas"]["MinorUnits"];
+        };
+        /** @description Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen. */
+        UpdateReconciliationSessionRequestInput: {
+            endDate?: components["schemas"]["CalendarDateInput"];
+            statementClosingBalance?: components["schemas"]["MinorUnitsInput"];
         };
         /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
         UpdateTaxRateRequest: {
@@ -5282,6 +7070,498 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Identity"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBankAccounts: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and inactive bank accounts alike. */
+                isActive?: string;
+                /** @description How many bank accounts to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccountPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createBankAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankAccountRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBankAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bankAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateBankAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBankAccountRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    saveBankImportMapping: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankImportMappingRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankImportMapping"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    proposeBankMatches: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BankMatchProposalsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankMatchProposalList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBankRules: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted lists active and inactive rules alike. */
+                isActive?: string;
+                bankAccountId?: string;
+                /** @description How many rules to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankRulePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createBankRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankRuleRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankRule"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBankRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankRule"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateBankRule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                ruleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBankRuleRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankRule"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBankStatementImports: {
+        parameters: {
+            query?: {
+                bankAccountId?: string;
+                /** @description How many imports to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementImportPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    startBankStatementImport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankStatementImportRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementImportQueued"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    previewBankStatementImport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewBankStatementImportRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementImportPreview"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBankStatementImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementImport"];
                 };
             };
             /** @description Default Response */
@@ -6797,6 +9077,71 @@ export interface operations {
             };
         };
     };
+    listBankImportMappings: {
+        parameters: {
+            query: {
+                bankAccountId: string;
+                /** @description How many mappings to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankImportMappingPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBankImportMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mappingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankImportMapping"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listInvites: {
         parameters: {
             query?: never;
@@ -7987,6 +10332,252 @@ export interface operations {
             };
         };
     };
+    listReconciliationSessions: {
+        parameters: {
+            query?: {
+                bankAccountId?: string;
+                /** @description Whether the assertion has been made. A reopened session is `open` again — the history lives in the events, not in a third value. */
+                state?: "open" | "finalised";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description How many sessions to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSessionPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createReconciliationSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReconciliationSessionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getReconciliationSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateReconciliationSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReconciliationSessionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    finaliseReconciliationSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reopenReconciliationSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReopenReconciliationSessionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getReconciliationReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationReport"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getAging: {
         parameters: {
             query: {
@@ -8189,6 +10780,152 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AssignableRoleList"];
                 };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listStatementLines: {
+        parameters: {
+            query?: {
+                bankAccountId?: string;
+                importId?: string;
+                /** @description Which way the money went. `inbound` selects lines with a positive amount, `outbound` a negative one — strictly, so a zero-amount line matches neither. Not a field on a line: a line carries a signed amount, and a label beside it would be a second encoding of the sign. */
+                direction?: "inbound" | "outbound";
+                /** @description The matching screen’s whole filter — the uncleared lines are the work. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                cleared?: string;
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description How many statement lines to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementLinePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStatementLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementLine"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    clearBankStatementLine: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClearBankStatementLineRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankLineClearing"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeBankLineClearing: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveBankLineClearingRequestInput"];
+            };
+        };
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Default Response */
             default: {

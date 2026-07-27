@@ -53,7 +53,7 @@ import { bankLineAmountSchema } from './banking';
  * A non-zero difference with nowhere to post it is `clearing_difference_unaccounted`.
  * An equation that does not close is `clearing_amount_mismatch`.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
  */
 
 /**
@@ -181,11 +181,19 @@ const allocateDocumentClearingSchema = z.strictObject({
  * with a human's name on it, and "an auto-poster's mistakes land in an append-only
  * ledger where the correction is a reversing entry."
  */
-export const clearBankStatementLineRequestSchema = z.discriminatedUnion('method', [
-  postEntryClearingSchema,
-  linkEntryClearingSchema,
-  allocateDocumentClearingSchema,
-]);
+export const clearBankStatementLineRequestSchema = z
+  .discriminatedUnion('method', [
+    postEntryClearingSchema,
+    linkEntryClearingSchema,
+    allocateDocumentClearingSchema,
+  ])
+  .meta({
+    id: 'ClearBankStatementLineRequest',
+    description:
+      'Accepting: the one request that writes to the ledger. `method` chooses one of three — code ' +
+      'the line (`post_entry`), link an existing entry (`link_entry`), or settle a document ' +
+      '(`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43).',
+  });
 
 export type ClearBankStatementLineRequest = z.infer<typeof clearBankStatementLineRequestSchema>;
 
@@ -202,46 +210,54 @@ export type ClearBankStatementLineRequest = z.infer<typeof clearBankStatementLin
  * object, following `agingDocumentSchema`'s precedent for fields that are absent as
  * a group.
  */
-export const bankLineClearingSchema = z.strictObject({
-  id: z.uuid(),
-  lineId: z.uuid(),
-  method: bankClearingMethodSchema,
-  clearedJournalId: z.uuid().meta({
-    description:
-      'The journal that accounts for this line — created by `post_entry`, named by `link_entry`, ' +
-      'or the payment’s own under `allocate_document`.',
-  }),
-  clearedAmount: bankLineAmountSchema.meta({
-    description:
-      'What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` ' +
-      'unless a difference was recorded.',
-  }),
-  differenceAmount: bankLineAmountSchema.meta({
-    description:
-      '`line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank ' +
-      'charge or a short payment, and it has been posted, not absorbed (E4).',
-  }),
-  differenceAccountId: z.uuid().nullable(),
-  differenceJournalId: z.uuid().nullable(),
-  paymentId: z.uuid().nullable().meta({
-    description: 'The payment recorded by an `allocate_document` clearing. Null for the other two.',
-  }),
-  reconciliationSessionId: z
-    .uuid()
-    .nullable()
-    .meta({
+export const bankLineClearingSchema = z
+  .strictObject({
+    id: z.uuid(),
+    lineId: z.uuid(),
+    method: bankClearingMethodSchema,
+    clearedJournalId: z.uuid().meta({
       description:
-        'The session that counted this clearing, once one has. Null while none has — clearing a ' +
-        'line and reconciling a period are separate acts, and a business may code its statement ' +
-        'as it goes and reconcile at month end.',
+        'The journal that accounts for this line — created by `post_entry`, named by `link_entry`, ' +
+        'or the payment’s own under `allocate_document`.',
     }),
-  clearedByUserId: z.uuid().meta({
+    clearedAmount: bankLineAmountSchema.meta({
+      description:
+        'What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` ' +
+        'unless a difference was recorded.',
+    }),
+    differenceAmount: bankLineAmountSchema.meta({
+      description:
+        '`line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank ' +
+        'charge or a short payment, and it has been posted, not absorbed (E4).',
+    }),
+    differenceAccountId: z.uuid().nullable(),
+    differenceJournalId: z.uuid().nullable(),
+    paymentId: z.uuid().nullable().meta({
+      description:
+        'The payment recorded by an `allocate_document` clearing. Null for the other two.',
+    }),
+    reconciliationSessionId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The session that counted this clearing, once one has. Null while none has — clearing a ' +
+          'line and reconciling a period are separate acts, and a business may code its statement ' +
+          'as it goes and reconcile at month end.',
+      }),
+    clearedByUserId: z.uuid().meta({
+      description:
+        'Who accepted. The human D-43 requires: every ledger write on this path is a decision ' +
+        'somebody made, and this is where it is recorded.',
+    }),
+    clearedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'BankLineClearing',
     description:
-      'Who accepted. The human D-43 requires: every ledger write on this path is a decision ' +
-      'somebody made, and this is where it is recorded.',
-  }),
-  clearedAt: z.iso.datetime(),
-});
+      'One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, ' +
+      'exactly, both signed in the line’s frame (E4).',
+  });
 
 export type BankLineClearing = z.infer<typeof bankLineClearingSchema>;
 
@@ -264,11 +280,18 @@ export type BankLineClearing = z.infer<typeof bankLineClearingSchema>;
  * assertion, and an assertion whose evidence can be withdrawn afterwards asserts
  * nothing (E6 — reopening is permission-gated and recorded, and it is the way in).
  */
-export const removeBankLineClearingRequestSchema = z.strictObject({
-  date: calendarDateSchema.meta({
-    description: 'The reversal’s own entry date, which must fall in an open fiscal period.',
-  }),
-  memo: clearingMemoSchema.nullish(),
-});
+export const removeBankLineClearingRequestSchema = z
+  .strictObject({
+    date: calendarDateSchema.meta({
+      description: 'The reversal’s own entry date, which must fall in an open fiscal period.',
+    }),
+    memo: clearingMemoSchema.nullish(),
+  })
+  .meta({
+    id: 'RemoveBankLineClearingRequest',
+    description:
+      'Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) ' +
+      '— so `date` is the reversal’s own entry date and must fall in an open period.',
+  });
 
 export type RemoveBankLineClearingRequest = z.infer<typeof removeBankLineClearingRequestSchema>;

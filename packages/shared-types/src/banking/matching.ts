@@ -35,7 +35,11 @@ import { BANK_CLEARING_METHODS } from './clearing';
  * lifecycle: they are computed for the lines a screen is showing, and a better
  * ranking next month simply returns a different order.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
+ *
+ * `proposeBankMatches` is routed, so the proposal, its reason, and the per-line and
+ * whole-response envelopes are components now. There is still no acceptance shape here:
+ * accepting is `clearing.ts`, a separate write.
  */
 
 /**
@@ -89,20 +93,28 @@ export const bankMatchReasonCodeSchema = z.enum(BANK_MATCH_REASON_CODES).meta({
  * `amountDifference` is money and therefore a cents-only string (D-13), signed in
  * the statement line's frame like every other amount in this module.
  */
-export const bankMatchReasonSchema = z.strictObject({
-  code: bankMatchReasonCodeSchema,
-  amountDifference: bankLineAmountSchema.nullable().meta({
-    description: 'How far off the amounts were, signed. Null where the reason is not about amount.',
-  }),
-  dayDifference: z
-    .int()
-    .nullable()
-    .meta({
+export const bankMatchReasonSchema = z
+  .strictObject({
+    code: bankMatchReasonCodeSchema,
+    amountDifference: bankLineAmountSchema.nullable().meta({
       description:
-        'How far apart the dates were, in days, negative when the candidate is earlier. Null ' +
-        'where the reason is not about date.',
+        'How far off the amounts were, signed. Null where the reason is not about amount.',
     }),
-});
+    dayDifference: z
+      .int()
+      .nullable()
+      .meta({
+        description:
+          'How far apart the dates were, in days, negative when the candidate is earlier. Null ' +
+          'where the reason is not about date.',
+      }),
+  })
+  .meta({
+    id: 'BankMatchReason',
+    description:
+      'Why a candidate was proposed, with the numbers behind it where there are any. The client ' +
+      'owns the wording; the server owns the fact.',
+  });
 
 export type BankMatchReason = z.infer<typeof bankMatchReasonSchema>;
 
@@ -191,11 +203,19 @@ const allocateDocumentProposalSchema = z.strictObject({
   }),
 });
 
-export const bankMatchProposalSchema = z.discriminatedUnion('kind', [
-  postEntryProposalSchema,
-  linkEntryProposalSchema,
-  allocateDocumentProposalSchema,
-]);
+export const bankMatchProposalSchema = z
+  .discriminatedUnion('kind', [
+    postEntryProposalSchema,
+    linkEntryProposalSchema,
+    allocateDocumentProposalSchema,
+  ])
+  .meta({
+    id: 'BankMatchProposal',
+    description:
+      'One ranked candidate for a statement line. `kind` says what accepting it would do — the ' +
+      'same three `clearing.ts` accepts. Computed, not stored (D-43); `rank` carries confidence, ' +
+      'there is no score.',
+  });
 
 export type BankMatchProposal = z.infer<typeof bankMatchProposalSchema>;
 
@@ -215,10 +235,17 @@ export const BANK_MATCH_PROPOSALS_PER_LINE = 10;
  * An empty array is an ordinary answer and not an error: most statements contain
  * lines nothing in the books resembles, and that is what the coding screen is for.
  */
-export const bankLineProposalsSchema = z.strictObject({
-  lineId: z.uuid(),
-  proposals: z.array(bankMatchProposalSchema).max(BANK_MATCH_PROPOSALS_PER_LINE),
-});
+export const bankLineProposalsSchema = z
+  .strictObject({
+    lineId: z.uuid(),
+    proposals: z.array(bankMatchProposalSchema).max(BANK_MATCH_PROPOSALS_PER_LINE),
+  })
+  .meta({
+    id: 'BankLineProposals',
+    description:
+      'One line’s ranked candidates, best first. An empty array is ordinary — most statements ' +
+      'contain lines nothing in the books resembles.',
+  });
 
 export type BankLineProposals = z.infer<typeof bankLineProposalsSchema>;
 
@@ -233,9 +260,16 @@ export type BankLineProposals = z.infer<typeof bankLineProposalsSchema>;
  * Bounded by `PAGE_SIZE_MAX` so a request cannot ask for proposals over more lines
  * than a page of lines can contain.
  */
-export const bankMatchProposalsRequestSchema = z.strictObject({
-  lineIds: z.array(z.uuid()).min(1).max(PAGE_SIZE_MAX),
-});
+export const bankMatchProposalsRequestSchema = z
+  .strictObject({
+    lineIds: z.array(z.uuid()).min(1).max(PAGE_SIZE_MAX),
+  })
+  .meta({
+    id: 'BankMatchProposalsRequest',
+    description:
+      'Ask for proposals over a named set of lines — the page a screen is showing (E10). Bounded by ' +
+      'a page’s worth of lines rather than by the org’s data.',
+  });
 
 export type BankMatchProposalsRequest = z.infer<typeof bankMatchProposalsRequestSchema>;
 
@@ -248,8 +282,15 @@ export type BankMatchProposalsRequest = z.infer<typeof bankMatchProposalsRequest
  * question about a named set of lines, and a `nextCursor` that is always null would
  * invite a client to page it.
  */
-export const bankMatchProposalListSchema = z.strictObject({
-  lines: z.array(bankLineProposalsSchema),
-});
+export const bankMatchProposalListSchema = z
+  .strictObject({
+    lines: z.array(bankLineProposalsSchema),
+  })
+  .meta({
+    id: 'BankMatchProposalList',
+    description:
+      'Proposals for the requested lines. An envelope rather than a bare array — and not a page: ' +
+      'it is the answer to one question about a named set, not a list of what exists.',
+  });
 
 export type BankMatchProposalList = z.infer<typeof bankMatchProposalListSchema>;

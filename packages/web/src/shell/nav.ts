@@ -46,6 +46,15 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
    * and the screen surfaces that refusal.
    */
   { to: '/money', label: 'Money', permission: 'payments_received.read' },
+  /**
+   * `banking.read`, the one code every banking screen enforces for its reads (M4). The
+   * section's writes want `banking.import`/`banking.match`/`banking.reconcile`, but naming a
+   * write code here would hide the link from a `read_only` caller who can legitimately view
+   * imports, proposals and reconciliations — the same reasoning as `/money` above, and what
+   * D-25 says this filter is for: it drops links that always fail, not links whose every
+   * action succeeds.
+   */
+  { to: '/banking', label: 'Banking', permission: 'banking.read' },
   { to: '/reports', label: 'Reports', permission: 'reports.read' },
   // `orgs.read` and not the union of dimensions/members/periods: the settings screen is the
   // organization's own administration, and the seeded roles that hold any of its parts hold

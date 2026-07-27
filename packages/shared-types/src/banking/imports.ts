@@ -1,8 +1,7 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
-import { bankDateRangeShape, unpublishedPageSchema } from './banking';
 import { bankStatementLineDraftSchema } from './statement-lines';
 
 /**
@@ -36,7 +35,13 @@ import { bankStatementLineDraftSchema } from './statement-lines';
  * were new and how many were already present, and both numbers are expected to be
  * non-zero on a second upload.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
+ *
+ * Preview, start-import, and the import-poll reads (`getBankStatementImport`,
+ * `listBankStatementImports`) are all routed, so the shapes they carry are components.
+ * `updateBankImportMappingRequestSchema` alone carries no id: OB-084 routed no
+ * mapping-update surface, and a component no operation reaches is the
+ * unreachable-component A10 refuses (see the wave-4 note in `banking.ts`).
  */
 
 /**
@@ -151,27 +156,34 @@ export const BANK_IMPORT_PREVIEW_ROWS = 20;
  */
 const columnIndexSchema = z.int().min(0);
 
-export const bankImportColumnsSchema = z.strictObject({
-  postedDate: columnIndexSchema,
-  description: columnIndexSchema,
-  amount: columnIndexSchema.nullable().meta({
-    description: 'Null exactly when the convention is `debit_credit_columns`.',
-  }),
-  debit: columnIndexSchema.nullable(),
-  credit: columnIndexSchema.nullable(),
-  valueDate: columnIndexSchema.nullable().meta({
+export const bankImportColumnsSchema = z
+  .strictObject({
+    postedDate: columnIndexSchema,
+    description: columnIndexSchema,
+    amount: columnIndexSchema.nullable().meta({
+      description: 'Null exactly when the convention is `debit_credit_columns`.',
+    }),
+    debit: columnIndexSchema.nullable(),
+    credit: columnIndexSchema.nullable(),
+    valueDate: columnIndexSchema.nullable().meta({
+      description:
+        'The date the money was available, where the bank supplies both. Null when it does not — ' +
+        'and reconciliation uses `postedDate`, because that is the date the bank’s own balance ' +
+        'moved on.',
+    }),
+    counterparty: columnIndexSchema.nullable(),
+    bankReference: columnIndexSchema.nullable().meta({
+      description:
+        'The bank’s own identifier for the transaction, where it supplies one. Worth mapping ' +
+        'whenever it exists: it is the strongest field in the dedupe fingerprint (D-42).',
+    }),
+  })
+  .meta({
+    id: 'BankImportColumns',
     description:
-      'The date the money was available, where the bank supplies both. Null when it does not — ' +
-      'and reconciliation uses `postedDate`, because that is the date the bank’s own balance ' +
-      'moved on.',
-  }),
-  counterparty: columnIndexSchema.nullable(),
-  bankReference: columnIndexSchema.nullable().meta({
-    description:
-      'The bank’s own identifier for the transaction, where it supplies one. Worth mapping ' +
-      'whenever it exists: it is the strongest field in the dedupe fingerprint (D-42).',
-  }),
-});
+      'Which column holds what, by zero-based index. `amount` and the `debit`/`credit` pair are ' +
+      'mutually exclusive, decided by the definition’s `amountConvention`.',
+  });
 
 export type BankImportColumns = z.infer<typeof bankImportColumnsSchema>;
 
@@ -212,7 +224,13 @@ export const bankImportMappingDefinitionSchema = z
         '`amountConvention`.',
       path: ['columns'],
     },
-  );
+  )
+  .meta({
+    id: 'BankImportMappingDefinition',
+    description:
+      'Everything needed to read one bank’s CSV, minus the name it is saved under. A CSV artefact ' +
+      'by construction — it names columns, and OFX has none.',
+  });
 
 export type BankImportMappingDefinition = z.infer<typeof bankImportMappingDefinitionSchema>;
 
@@ -225,22 +243,32 @@ export type BankImportMappingDefinition = z.infer<typeof bankImportMappingDefini
  * a named row someone can look at, rather than a set of choices made in a wizard
  * and forgotten.
  */
-export const bankImportMappingSchema = z.strictObject({
-  id: z.uuid(),
-  name: z.string(),
-  definition: bankImportMappingDefinitionSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const bankImportMappingSchema = z
+  .strictObject({
+    id: z.uuid(),
+    name: z.string(),
+    definition: bankImportMappingDefinitionSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'BankImportMapping',
+    description: 'A saved column mapping, reused across a bank’s monthly uploads (D-41).',
+  });
 
 export type BankImportMapping = z.infer<typeof bankImportMappingSchema>;
 
 const mappingNameSchema = z.string().trim().min(1).max(BANK_IMPORT_MAPPING_NAME_MAX_LENGTH);
 
-export const createBankImportMappingRequestSchema = z.strictObject({
-  name: mappingNameSchema,
-  definition: bankImportMappingDefinitionSchema,
-});
+export const createBankImportMappingRequestSchema = z
+  .strictObject({
+    name: mappingNameSchema,
+    definition: bankImportMappingDefinitionSchema,
+  })
+  .meta({
+    id: 'CreateBankImportMappingRequest',
+    description: 'Saves a named column mapping against a bank account.',
+  });
 
 export type CreateBankImportMappingRequest = z.infer<typeof createBankImportMappingRequestSchema>;
 
@@ -273,7 +301,10 @@ export const listBankImportMappingsQuerySchema = z.strictObject({ ...pageQuerySh
 /** The *input* type: `limit` carries a `.default()`, so parsed output differs. */
 export type ListBankImportMappingsQuery = z.input<typeof listBankImportMappingsQuerySchema>;
 
-export const bankImportMappingPageSchema = unpublishedPageSchema(bankImportMappingSchema);
+export const bankImportMappingPageSchema = pageSchema(bankImportMappingSchema, {
+  id: 'BankImportMappingPage',
+  description: 'One page of a bank account’s saved mappings, oldest first.',
+});
 
 export type BankImportMappingPage = z.infer<typeof bankImportMappingPageSchema>;
 
@@ -365,11 +396,45 @@ export const createBankStatementImportRequestSchema = z
         'alongside `mapping`.',
     }),
   })
-  .refine(hasExactlyOneReading, READING_ERROR);
+  .refine(hasExactlyOneReading, READING_ERROR)
+  .meta({
+    id: 'CreateBankStatementImportRequest',
+    description:
+      'Imports a statement. Enqueues the parse and returns a queued handle — a 5,000-line file ' +
+      'does not block the request (D-47, E10). A CSV takes exactly one of `mappingId`/`mapping`; ' +
+      'an OFX takes neither.',
+  });
 
 export type CreateBankStatementImportRequest = z.infer<
   typeof createBankStatementImportRequestSchema
 >;
+
+/**
+ * The handle `startImport` returns: a queued import to poll, not a finished one (E10,
+ * D-47).
+ *
+ * A separate, smaller shape from `bankStatementImportSchema` on purpose. A queued import
+ * has parsed nothing yet — no `result`, no statement dates — so it cannot satisfy the
+ * completed shape, and the honest 202 body is these three fields. The parse happens on
+ * the worker (`processStatementImport`); this is what the request ends with.
+ */
+export const bankStatementImportQueuedSchema = z
+  .strictObject({
+    id: z.uuid(),
+    bankAccountId: z.uuid(),
+    status: z.literal('queued').meta({
+      description:
+        'Always `queued`: the import has been accepted and enqueued, and the parse has not run yet.',
+    }),
+  })
+  .meta({
+    id: 'BankStatementImportQueued',
+    description:
+      'A queued statement import, returned `202` by start-import. The file has been accepted and ' +
+      'the parse enqueued; nothing has been read yet.',
+  });
+
+export type BankStatementImportQueued = z.infer<typeof bankStatementImportQueuedSchema>;
 
 /**
  * E1, as three numbers: `linesRead === linesImported + linesDuplicate`, exactly.
@@ -379,87 +444,161 @@ export type CreateBankStatementImportRequest = z.infer<
  * that silently doubled the month look identical to a client that is only told
  * "created". These are what a screen says after a re-import, and what OB-088 asserts.
  */
-export const bankStatementImportResultSchema = z.strictObject({
-  linesRead: z.int().min(0).meta({
-    description: 'How many transaction rows the file contained.',
-  }),
-  linesImported: z.int().min(0).meta({
-    description: 'How many of them were new — the ones this import created.',
-  }),
-  linesDuplicate: z
-    .int()
-    .min(0)
-    .meta({
-      description:
-        'How many were already present, matched on the dedupe fingerprint (D-42). Non-zero is the ' +
-        'ordinary case on a re-upload: statements overlap at their edges, and re-importing last ' +
-        'month’s file to catch a straggler must not double the month (E1).',
+export const bankStatementImportResultSchema = z
+  .strictObject({
+    linesRead: z.int().min(0).meta({
+      description: 'How many transaction rows the file contained.',
     }),
-});
+    linesImported: z.int().min(0).meta({
+      description: 'How many of them were new — the ones this import created.',
+    }),
+    linesDuplicate: z
+      .int()
+      .min(0)
+      .meta({
+        description:
+          'How many were already present, matched on the dedupe fingerprint (D-42). Non-zero is the ' +
+          'ordinary case on a re-upload: statements overlap at their edges, and re-importing last ' +
+          'month’s file to catch a straggler must not double the month (E1).',
+      }),
+  })
+  .meta({
+    id: 'BankStatementImportResult',
+    description:
+      'E1 as three numbers: `linesRead === linesImported + linesDuplicate`, exactly. Non-zero ' +
+      '`linesDuplicate` is the ordinary case on a re-upload.',
+  });
 
 export type BankStatementImportResult = z.infer<typeof bankStatementImportResultSchema>;
 
 /**
- * One import, as the API returns it.
+ * The lifecycle of an import (D-47, D-49; OB-078's `bank_statement_imports.status`).
  *
- * `statementClosingBalance` is a **claim from outside**, not a balance this system
- * holds (D-46). Where the file states one — OFX does, most CSVs do not — it is kept
- * so a reconciliation session can be opened against the figure the bank actually
- * printed, rather than against one somebody retyped. Nothing reads it as a balance;
- * it is evidence, and the session is what tests it.
+ * `queued` → `processing` → `complete` | `failed`. Start-import writes `queued` and
+ * returns (`bankStatementImportQueuedSchema`); the worker moves it to `processing`,
+ * then to `complete` with counts or `failed` with a reason. A screen polls
+ * `getBankStatementImport` and reads this to know which of the four it is looking at.
  */
-export const bankStatementImportSchema = z.strictObject({
-  id: z.uuid(),
-  bankAccountId: z.uuid(),
-  format: bankStatementFormatSchema,
-  filename: z.string(),
-  mappingId: z.uuid().nullable(),
-  statementStart: calendarDateSchema.nullable().meta({
-    description:
-      'The earliest and latest dates the file covers, from its lines. Null on an empty file.',
-  }),
-  statementEnd: calendarDateSchema.nullable(),
-  statementClosingBalance: minorUnitsSchema.nullable().meta({
-    description:
-      'The closing balance the file states, where it states one. A claim from outside the system ' +
-      '(D-46), kept as evidence for a reconciliation to test — never read as this account’s ' +
-      'balance, which is the ledger account’s.',
-  }),
-  externalAccountId: z
-    .string()
-    .nullable()
-    .meta({
-      description:
-        'The account identifier the file carried, where it carried one. Compared against the bank ' +
-        'account’s own, so that uploading one account’s statement into another is noticed at import ' +
-        'rather than by a reconciliation weeks later.',
-    }),
-  result: bankStatementImportResultSchema,
-  importedByUserId: z.uuid().meta({
-    description: 'Who uploaded it. An import is the one point where data from outside enters.',
-  }),
-  createdAt: z.iso.datetime(),
+export const BANK_STATEMENT_IMPORT_STATUSES = [
+  'queued',
+  'processing',
+  'complete',
+  'failed',
+] as const;
+
+export type BankStatementImportStatus = (typeof BANK_STATEMENT_IMPORT_STATUSES)[number];
+
+export const bankStatementImportStatusSchema = z.enum(BANK_STATEMENT_IMPORT_STATUSES).meta({
+  description:
+    'Where the import is in its lifecycle. `queued`/`processing` carry neither `result` nor ' +
+    '`failureReason`; `complete` carries `result`; `failed` carries `failureReason`.',
 });
+
+/**
+ * One import, as the API returns it — the shape a screen polls (OB-085).
+ *
+ * ## It carries the whole lifecycle, not just a finished import
+ *
+ * A queued or processing import has parsed nothing, so `result` is null and there is no
+ * `failureReason`; a completed import carries `result` and no reason; a failed one
+ * carries the reason and no counts. That mapping is the `0006_banking` CHECK constraint
+ * (`counts ↔ complete`, `reason ↔ failed`) restated on the wire as the refinement
+ * below, so a client cannot construct — and the API cannot emit — an impossible
+ * combination like a `failed` import with counts.
+ *
+ * ## There is no `statementStart`/`statementEnd` here
+ *
+ * The file's date range is a *parse-time* fact the preview reports
+ * (`bankStatementImportPreviewSchema`); it is not persisted on the import row, so it is
+ * not an import fact. `statementClosingBalance` is persisted (the bank printed it), and
+ * it is a **claim from outside** (D-46) kept as evidence for a reconciliation to test —
+ * never read as this account's balance, which is the ledger account's.
+ */
+export const bankStatementImportSchema = z
+  .strictObject({
+    id: z.uuid(),
+    bankAccountId: z.uuid(),
+    format: bankStatementFormatSchema,
+    filename: z.string(),
+    mappingId: z.uuid().nullable(),
+    status: bankStatementImportStatusSchema,
+    result: bankStatementImportResultSchema.nullable().meta({
+      description: 'The counts, present exactly when `status` is `complete`; null otherwise.',
+    }),
+    failureReason: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'Why the import failed, present exactly when `status` is `failed`; null otherwise. A ' +
+          'malformed file, an unreadable row — the parse never partially imports (E1).',
+      }),
+    statementClosingBalance: minorUnitsSchema.nullable().meta({
+      description:
+        'The closing balance the file states, where it states one. A claim from outside the system ' +
+        '(D-46), kept as evidence for a reconciliation to test — never read as this account’s ' +
+        'balance, which is the ledger account’s.',
+    }),
+    externalAccountId: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The account identifier the file carried, where it carried one. Compared against the bank ' +
+          'account’s own, so that uploading one account’s statement into another is noticed at ' +
+          'import rather than by a reconciliation weeks later.',
+      }),
+    importedByUserId: z.uuid().meta({
+      description: 'Who uploaded it. An import is the one point where data from outside enters.',
+    }),
+    createdAt: z.iso.datetime(),
+  })
+  .refine(
+    (input) =>
+      (input.result !== null) === (input.status === 'complete') &&
+      (input.failureReason !== null) === (input.status === 'failed'),
+    {
+      error:
+        'An import carries `result` exactly when `complete` and `failureReason` exactly when ' +
+        '`failed` — the `0006_banking` CHECK, restated (counts ↔ complete, reason ↔ failed).',
+      path: ['status'],
+    },
+  )
+  .meta({
+    id: 'BankStatementImport',
+    description:
+      'A statement import across its whole lifecycle — `queued`, `processing`, `complete` (with ' +
+      '`result`), or `failed` (with `failureReason`). The shape OB-085 polls after starting one.',
+  });
 
 export type BankStatementImport = z.infer<typeof bankStatementImportSchema>;
 
 export const listBankStatementImportsQuerySchema = z.strictObject({
   ...pageQueryShape,
-  ...bankDateRangeShape,
   bankAccountId: z.uuid().optional(),
 });
 
 /** The *input* type: `limit` carries a `.default()`, so parsed output differs. */
 export type ListBankStatementImportsQuery = z.input<typeof listBankStatementImportsQuerySchema>;
 
-export const bankStatementImportPageSchema = unpublishedPageSchema(bankStatementImportSchema);
+/** Ordered by `(created_at, id)`, the default this API's lists use (D-21). */
+export const bankStatementImportPageSchema = pageSchema(bankStatementImportSchema, {
+  id: 'BankStatementImportPage',
+  description: 'One page of a bank account’s statement imports, newest activity last by creation.',
+});
 
 export type BankStatementImportPage = z.infer<typeof bankStatementImportPageSchema>;
 
 /** Reads the file and reports what would happen, writing nothing. */
 export const previewBankStatementImportRequestSchema = z
   .strictObject(importSourceShape)
-  .refine(hasExactlyOneReading, READING_ERROR);
+  .refine(hasExactlyOneReading, READING_ERROR)
+  .meta({
+    id: 'PreviewBankStatementImportRequest',
+    description:
+      'Reads the file and reports what importing it would do, writing nothing. Same reading rules ' +
+      'as the real import: a CSV takes exactly one of `mappingId`/`mapping`, an OFX takes neither.',
+  });
 
 export type PreviewBankStatementImportRequest = z.infer<
   typeof previewBankStatementImportRequestSchema
@@ -477,37 +616,44 @@ export type PreviewBankStatementImportRequest = z.infer<
  * change if another import lands in between. That is fine and is why the real
  * import reports its own counts rather than the client reusing these.
  */
-export const bankStatementImportPreviewSchema = z.strictObject({
-  format: bankStatementFormatSchema,
-  headers: z
-    .array(z.string())
-    .nullable()
-    .meta({
+export const bankStatementImportPreviewSchema = z
+  .strictObject({
+    format: bankStatementFormatSchema,
+    headers: z
+      .array(z.string())
+      .nullable()
+      .meta({
+        description:
+          'The header row, so a user can pick column indices without counting commas. Null for a ' +
+          'headerless CSV and for OFX, which names its own fields.',
+      }),
+    result: bankStatementImportResultSchema.meta({
       description:
-        'The header row, so a user can pick column indices without counting commas. Null for a ' +
-        'headerless CSV and for OFX, which names its own fields.',
+        'What importing this file would produce. A prediction, not a promise: another import ' +
+        'landing in between changes what is already present.',
     }),
-  result: bankStatementImportResultSchema.meta({
+    sample: z.array(bankStatementLineDraftSchema).meta({
+      description: `The first ${String(BANK_IMPORT_PREVIEW_ROWS)} rows as they would be read.`,
+    }),
+    statementStart: calendarDateSchema.nullable(),
+    statementEnd: calendarDateSchema.nullable(),
+    statementClosingBalance: minorUnitsSchema.nullable(),
+    externalAccountId: z.string().nullable(),
+    externalAccountMatches: z
+      .boolean()
+      .nullable()
+      .meta({
+        description:
+          'Whether the file’s account identifier matches the bank account’s. Null when either side ' +
+          'has none — a warning, never a refusal, because a bank that changes its identifier would ' +
+          'otherwise lock a business out of its own statements.',
+      }),
+  })
+  .meta({
+    id: 'BankStatementImportPreview',
     description:
-      'What importing this file would produce. A prediction, not a promise: another import ' +
-      'landing in between changes what is already present.',
-  }),
-  sample: z.array(bankStatementLineDraftSchema).meta({
-    description: `The first ${String(BANK_IMPORT_PREVIEW_ROWS)} rows as they would be read.`,
-  }),
-  statementStart: calendarDateSchema.nullable(),
-  statementEnd: calendarDateSchema.nullable(),
-  statementClosingBalance: minorUnitsSchema.nullable(),
-  externalAccountId: z.string().nullable(),
-  externalAccountMatches: z
-    .boolean()
-    .nullable()
-    .meta({
-      description:
-        'Whether the file’s account identifier matches the bank account’s. Null when either side ' +
-        'has none — a warning, never a refusal, because a bank that changes its identifier would ' +
-        'otherwise lock a business out of its own statements.',
-    }),
-});
+      'What importing this file would do, without doing it — the column-mapping screen’s input ' +
+      '(OB-085). `result.linesDuplicate` is a prediction, not a promise.',
+  });
 
 export type BankStatementImportPreview = z.infer<typeof bankStatementImportPreviewSchema>;

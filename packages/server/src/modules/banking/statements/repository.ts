@@ -1,9 +1,20 @@
-import type { BankImportMappingDefinition, BankStatementFormat } from '@openbooks/shared-types';
+import type {
+  BankImportMappingDefinition,
+  BankStatementFormat,
+  BankStatementImportStatus,
+} from '@openbooks/shared-types';
 import { BANKING_RESOURCES } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../../context';
-import type { TenantDatabase } from '../../../db';
-import { orgScope as toOrgId, tenantDb } from '../../../db';
+import type { KeysetOrdering, KeysetPage, TenantDatabase } from '../../../db';
+import {
+  applyKeyset,
+  instantKey,
+  orgScope as toOrgId,
+  tenantDb,
+  toKeysetPage,
+  uuidKey,
+} from '../../../db';
 
 /**
  * Data access for statement imports and lines (OB-078).
@@ -240,6 +251,84 @@ export async function selectImportById(
     ])
     .where('id', '=', id)
     .executeTakeFirst();
+}
+
+// ---------------------------------------------------------------------------
+// The import read model — the poll surface (OB-084's follow-up)
+// ---------------------------------------------------------------------------
+
+/**
+ * The whole import row a `GET` returns: the lifecycle columns plus the provenance a
+ * completed import carries. Wider than `ImportRow` above, which is the worker's own
+ * read; kept separate so the lifecycle write path is not coupled to the read shape.
+ */
+export interface ImportReadRow {
+  readonly id: Buffer;
+  readonly bank_account_id: Buffer;
+  readonly format: BankStatementFormat;
+  readonly filename: string;
+  readonly mapping_id: Buffer | null;
+  readonly status: BankStatementImportStatus;
+  readonly lines_read: number | null;
+  readonly lines_duplicate: number | null;
+  readonly failure_reason: string | null;
+  readonly closing_balance_minor: bigint | null;
+  readonly external_account_id: string | null;
+  readonly imported_by_user_id: Buffer;
+  readonly created_at: Date;
+}
+
+const IMPORT_READ_COLUMNS = [
+  'id',
+  'bank_account_id',
+  'format',
+  'filename',
+  'mapping_id',
+  'status',
+  'lines_read',
+  'lines_duplicate',
+  'failure_reason',
+  'closing_balance_minor',
+  'external_account_id',
+  'imported_by_user_id',
+  'created_at',
+] as const;
+
+export async function selectImportForRead(
+  db: TenantDatabase,
+  id: Buffer,
+): Promise<ImportReadRow | undefined> {
+  return db
+    .selectFrom('bank_statement_imports')
+    .select(IMPORT_READ_COLUMNS)
+    .where('id', '=', id)
+    .executeTakeFirst();
+}
+
+export interface ImportListFilters {
+  readonly bankAccountId?: Buffer | undefined;
+  readonly cursor?: string | undefined;
+}
+
+/** `(created_at, id)` — the default this API's lists use (D-21); `created_at` cannot move. */
+const IMPORT_KEYSET: KeysetOrdering<ImportReadRow> = [
+  instantKey('bank_statement_imports.created_at', (row) => row.created_at),
+  uuidKey('bank_statement_imports.id', (row) => row.id),
+];
+
+export async function selectImportsPage(
+  db: TenantDatabase,
+  filters: ImportListFilters,
+  limit: number,
+): Promise<KeysetPage<ImportReadRow>> {
+  let query = db.selectFrom('bank_statement_imports').select(IMPORT_READ_COLUMNS);
+
+  if (filters.bankAccountId !== undefined) {
+    query = query.where('bank_account_id', '=', filters.bankAccountId);
+  }
+
+  const rows = await applyKeyset(query, IMPORT_KEYSET, limit, filters.cursor).execute();
+  return toKeysetPage(rows, IMPORT_KEYSET, limit);
 }
 
 // ---------------------------------------------------------------------------

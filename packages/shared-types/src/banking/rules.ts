@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 import { MAX_DIMENSIONS_PER_ORG } from '../dimensions';
-import { minorUnitsSchema, pageQueryShape } from '../wire';
+import { minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
-import { bankLineDirectionSchema, unpublishedPageSchema } from './banking';
+import { bankLineDirectionSchema } from './banking';
 
 /**
  * Bank rules (OB-075, for OB-080; ROADMAP D-44, acceptance E8).
@@ -38,7 +38,7 @@ import { bankLineDirectionSchema, unpublishedPageSchema } from './banking';
  * shape in this file, and adding one would need an answer to what it does to lines
  * that are already cleared.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
  */
 
 export const BANK_RULE_NAME_MAX_LENGTH = 120;
@@ -124,7 +124,14 @@ export const bankRuleConditionSchema = z
       error: 'A rule must match on something — an empty condition matches every line.',
       path: ['description'],
     },
-  );
+  )
+  .meta({
+    id: 'BankRuleCondition',
+    description:
+      'What a rule matches on. Every field optional, at least one present — an empty condition ' +
+      'matches every line and would out-rank every genuine proposal (D-44). A bank account alone ' +
+      'scopes but does not match, so it does not satisfy the requirement.',
+  });
 
 export type BankRuleCondition = z.infer<typeof bankRuleConditionSchema>;
 
@@ -135,13 +142,20 @@ export type BankRuleCondition = z.infer<typeof bankRuleConditionSchema>;
  * only a contact would be a rule whose proposal still cannot be accepted without the
  * user answering the one question that matters.
  */
-export const bankRuleOutcomeSchema = z.strictObject({
-  accountId: z.uuid().meta({
-    description: 'The account to code the line to. The whole point of the rule.',
-  }),
-  contactId: z.uuid().nullish(),
-  dimensionValueIds: z.array(z.uuid()).max(MAX_DIMENSIONS_PER_ORG).optional(),
-});
+export const bankRuleOutcomeSchema = z
+  .strictObject({
+    accountId: z.uuid().meta({
+      description: 'The account to code the line to. The whole point of the rule.',
+    }),
+    contactId: z.uuid().nullish(),
+    dimensionValueIds: z.array(z.uuid()).max(MAX_DIMENSIONS_PER_ORG).optional(),
+  })
+  .meta({
+    id: 'BankRuleOutcome',
+    description:
+      'What a matched rule proposes: an account to code to, optionally a contact and dimension ' +
+      'tags. Three fields, none of them a verb — a classification, not an action (D-44).',
+  });
 
 export type BankRuleOutcome = z.infer<typeof bankRuleOutcomeSchema>;
 
@@ -154,40 +168,54 @@ export type BankRuleOutcome = z.infer<typeof bankRuleOutcomeSchema>;
  * database happened to return the rows — a deterministic lookup whose result depends
  * on a scan order is not deterministic, it is merely usually stable.
  */
-export const bankRuleSchema = z.strictObject({
-  id: z.uuid(),
-  name: z.string(),
-  priority: z.int().meta({
+export const bankRuleSchema = z
+  .strictObject({
+    id: z.uuid(),
+    name: z.string(),
+    priority: z.int().meta({
+      description:
+        'Lower runs first, and the first matching rule wins. Ties break on `createdAt` then `id`, ' +
+        'so the ordering is total — a lookup whose answer depends on scan order is not ' +
+        'deterministic (D-44).',
+    }),
+    isActive: z.boolean().meta({
+      description:
+        'An inactive rule proposes nothing and is not deleted. Deactivating rather than deleting ' +
+        'keeps the record of why a line was coded the way it was, which is the question a rule ' +
+        'gets asked about months later.',
+    }),
+    condition: bankRuleConditionSchema,
+    outcome: bankRuleOutcomeSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'BankRule',
     description:
-      'Lower runs first, and the first matching rule wins. Ties break on `createdAt` then `id`, ' +
-      'so the ordering is total — a lookup whose answer depends on scan order is not ' +
-      'deterministic (D-44).',
-  }),
-  isActive: z.boolean().meta({
-    description:
-      'An inactive rule proposes nothing and is not deleted. Deactivating rather than deleting ' +
-      'keeps the record of why a line was coded the way it was, which is the question a rule ' +
-      'gets asked about months later.',
-  }),
-  condition: bankRuleConditionSchema,
-  outcome: bankRuleOutcomeSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'A bank rule as the API returns it. `priority` (lower first, first match wins) is what makes ' +
+      'the lookup deterministic when two rules match (D-44).',
+  });
 
 export type BankRule = z.infer<typeof bankRuleSchema>;
 
 const ruleNameSchema = z.string().trim().min(1).max(BANK_RULE_NAME_MAX_LENGTH);
 
-export const createBankRuleRequestSchema = z.strictObject({
-  name: ruleNameSchema,
-  priority: z.int().optional().meta({
+export const createBankRuleRequestSchema = z
+  .strictObject({
+    name: ruleNameSchema,
+    priority: z.int().optional().meta({
+      description:
+        'Defaults to the end of the list, so a new rule cannot silently pre-empt an old one.',
+    }),
+    condition: bankRuleConditionSchema,
+    outcome: bankRuleOutcomeSchema,
+  })
+  .meta({
+    id: 'CreateBankRuleRequest',
     description:
-      'Defaults to the end of the list, so a new rule cannot silently pre-empt an old one.',
-  }),
-  condition: bankRuleConditionSchema,
-  outcome: bankRuleOutcomeSchema,
-});
+      'Creates a bank rule. `priority` defaults to the end of the list, so a new rule cannot ' +
+      'silently pre-empt an old one.',
+  });
 
 export type CreateBankRuleRequest = z.infer<typeof createBankRuleRequestSchema>;
 
@@ -212,6 +240,13 @@ export const updateBankRuleRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateBankRuleRequest',
+    description:
+      'Updates a rule. `condition` and `outcome` are each replaced whole, never patched, so a ' +
+      'field-at-a-time patch cannot reach an empty condition. `isActive: false` stops future ' +
+      'proposals and touches no posted entry (E8).',
   });
 
 export type UpdateBankRuleRequest = z.infer<typeof updateBankRuleRequestSchema>;
@@ -235,6 +270,9 @@ export type ListBankRulesQuery = z.input<typeof listBankRulesQuerySchema>;
  * screen that lists rules in an order they are not evaluated in — which is the one
  * thing a rules screen must not do.
  */
-export const bankRulePageSchema = unpublishedPageSchema(bankRuleSchema);
+export const bankRulePageSchema = pageSchema(bankRuleSchema, {
+  id: 'BankRulePage',
+  description: 'One page of the org’s rules in evaluation order, `(priority, created_at, id)`.',
+});
 
 export type BankRulePage = z.infer<typeof bankRulePageSchema>;

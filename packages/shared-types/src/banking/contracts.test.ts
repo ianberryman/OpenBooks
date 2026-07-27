@@ -105,11 +105,11 @@ const STATEMENT_IMPORT = {
   format: 'csv',
   filename: 'march.csv',
   mappingId: UUID(7),
-  statementStart: '2026-03-01',
-  statementEnd: DATE,
+  status: 'complete',
+  result: IMPORT_RESULT,
+  failureReason: null,
   statementClosingBalance: '150000',
   externalAccountId: null,
-  result: IMPORT_RESULT,
   importedByUserId: UUID(4),
   createdAt: TIMESTAMP,
 };
@@ -249,9 +249,11 @@ const SAMPLES: Readonly<Record<string, unknown>> = {
   createBankImportMappingRequestSchema: { name: 'Barclays', definition: MAPPING_DEFINITION },
   updateBankImportMappingRequestSchema: { name: 'Barclays plc' },
   listBankImportMappingsQuerySchema: {},
+  bankStatementImportStatusSchema: 'processing',
   bankStatementImportResultSchema: IMPORT_RESULT,
   bankStatementImportSchema: STATEMENT_IMPORT,
   bankStatementImportPageSchema: page(STATEMENT_IMPORT),
+  bankStatementImportQueuedSchema: { id: UUID(6), bankAccountId: UUID(5), status: 'queued' },
   createBankStatementImportRequestSchema: {
     bankAccountId: UUID(5),
     format: 'csv',
@@ -331,32 +333,90 @@ describe('what M4 publishes as an OpenAPI component', () => {
   /**
    * `jsonSchemaTransformObject` copies every schema carrying an `id` out of zod's
    * global registry into `components.schemas` whether or not a route references it,
-   * so an `id` added before OB-084's routes publishes a component nothing can reach
-   * and fails A10. Every milestone since M2 has hit this; asserting it is cheaper
-   * than rediscovering it, and these two tests are what OB-084 deletes in the same
-   * diff as it adds them.
+   * so an `id` added before its route publishes a component nothing can reach and
+   * fails A10. OB-075 held the empty line for all of M4; OB-084 added the routes and
+   * the ids in the same diff, and this is now the published catalogue — the pin that
+   * catches a schema published without a route to reach it, or a route added without
+   * its component.
+   *
+   * The absences are as deliberate as the presences. Enums and list-query schemas
+   * never carry ids (an enum inlines identically in a generated client; a querystring
+   * is emitted as individual `parameters`), and three routed-nowhere shapes stay
+   * unpublished: `updateBankImportMappingRequestSchema` (no mapping-update route) and
+   * the `bankStatementImport…` read pair (the import-poll surface is a follow-up).
    */
-  it('is nothing at all until OB-084 adds the routes', () => {
-    const withIds = zodTypes(banking)
-      .filter(([, schema]) => z.globalRegistry.get(schema)?.id !== undefined)
-      .map(([name]) => name);
+  it('publishes exactly the components OB-084’s routes reach', () => {
+    const publishedIds = zodTypes(banking)
+      .map(([, schema]) => z.globalRegistry.get(schema)?.id)
+      .filter((id): id is string => id !== undefined)
+      .sort();
 
-    expect(withIds).toEqual([]);
+    expect(publishedIds).toEqual(
+      [
+        'BankAccount',
+        'BankAccountPage',
+        'CreateBankAccountRequest',
+        'UpdateBankAccountRequest',
+        'BankImportColumns',
+        'BankImportMappingDefinition',
+        'BankImportMapping',
+        'BankImportMappingPage',
+        'CreateBankImportMappingRequest',
+        'BankStatementImportResult',
+        'BankStatementImport',
+        'BankStatementImportPage',
+        'CreateBankStatementImportRequest',
+        'BankStatementImportQueued',
+        'PreviewBankStatementImportRequest',
+        'BankStatementImportPreview',
+        'BankStatementLineDraft',
+        'BankStatementLine',
+        'BankStatementLinePage',
+        'BankRuleCondition',
+        'BankRuleOutcome',
+        'BankRule',
+        'BankRulePage',
+        'CreateBankRuleRequest',
+        'UpdateBankRuleRequest',
+        'BankMatchReason',
+        'BankMatchProposal',
+        'BankLineProposals',
+        'BankMatchProposalsRequest',
+        'BankMatchProposalList',
+        'BankLineClearing',
+        'ClearBankStatementLineRequest',
+        'RemoveBankLineClearingRequest',
+        'ReconciliationBalances',
+        'ReconciliationSessionEvent',
+        'ReconciliationSession',
+        'ReconciliationSessionSummary',
+        'ReconciliationSessionPage',
+        'CreateReconciliationSessionRequest',
+        'UpdateReconciliationSessionRequest',
+        'ReopenReconciliationSessionRequest',
+        'ReconcilingItem',
+        'UnclearedStatementLine',
+        'ReconciliationReport',
+      ].sort(),
+    );
   });
 
   /**
-   * The test above checks the *exported* schemas, and it was measured not to be
-   * enough: an `id` on a field inside one of them publishes a component just the
-   * same, and passes. So the reachable set is asserted too, via `toJSONSchema`,
-   * which emits a `$defs` entry for every registered schema it reaches.
-   *
-   * The three that are allowed are M1's, referenced and not defined here —
-   * `MinorUnits` and `CalendarDate` from `wire.ts`, `PageCursor` from the page
-   * envelope. Anything else is banking publishing something.
+   * The test above checks the *exported* schemas' own ids; this checks what they
+   * *reach*, via `toJSONSchema`, which emits a `$defs` entry for every registered
+   * schema it descends into. Banking may publish its own components, but beyond them
+   * it must reference only M1's scalars — `MinorUnits` and `CalendarDate` from
+   * `wire.ts`, `PageCursor` from the page envelope. Anything else foreign is a nested
+   * `id` this module published by accident.
    */
-  it('publishes nothing nested either, and references only M1’s scalars', () => {
-    const reachable = new Set<string>();
+  it('references only M1’s scalars beyond its own components', () => {
+    const own = new Set(
+      zodTypes(banking)
+        .map(([, schema]) => z.globalRegistry.get(schema)?.id)
+        .filter((id): id is string => id !== undefined),
+    );
 
+    const reachable = new Set<string>();
     for (const [, schema] of zodTypes(banking)) {
       for (const io of ['input', 'output'] as const) {
         const json = z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as {
@@ -368,7 +428,8 @@ describe('what M4 publishes as an OpenAPI component', () => {
       }
     }
 
-    expect([...reachable].sort()).toEqual(['CalendarDate', 'MinorUnits', 'PageCursor']);
+    const foreign = [...reachable].filter((id) => !own.has(id)).sort();
+    expect(foreign).toEqual(['CalendarDate', 'MinorUnits', 'PageCursor']);
   });
 });
 

@@ -52,7 +52,7 @@ import { reconciliationBalancesSchema, reconciliationSessionStateSchema } from '
  * the cleared books — the `difference` gap, and the `unclearedLineCount` a session
  * already reports — which is a different assertion on the other side of the same page.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
  */
 
 /**
@@ -68,30 +68,37 @@ import { reconciliationBalancesSchema, reconciliationSessionStateSchema } from '
  * `reference` are the journal's own, verbatim; a reconciler recognises the entry by
  * them, and they are the only thing that turns a number back into the cheque it is.
  */
-export const reconcilingItemSchema = z.strictObject({
-  journalId: z.uuid().meta({
+export const reconcilingItemSchema = z
+  .strictObject({
+    journalId: z.uuid().meta({
+      description:
+        'The journal whose net movement on the bank account this item is. One item per journal, ' +
+        'so a client can open the entry the report is pointing at.',
+    }),
+    date: calendarDateSchema.meta({
+      description:
+        'The journal’s entry date — the date the ledger moved, and the date `bookBalance` counts it ' +
+        'under (D-46). At or before the session’s `endDate` by construction.',
+    }),
+    amount: minorUnitsSchema.meta({
+      description:
+        'The journal’s signed net movement on the bank account, in the account’s frame: positive ' +
+        'is money the books show in that the bank has not (a deposit in transit), negative is money ' +
+        'the books show out that the bank has not (an unpresented cheque).',
+    }),
+    description: z.string().nullable().meta({
+      description: 'The journal’s memo, verbatim, or null. How a reconciler recognises the entry.',
+    }),
+    reference: z.string().nullable().meta({
+      description: 'The journal’s own reference, or null.',
+    }),
+  })
+  .meta({
+    id: 'ReconcilingItem',
     description:
-      'The journal whose net movement on the bank account this item is. One item per journal, ' +
-      'so a client can open the entry the report is pointing at.',
-  }),
-  date: calendarDateSchema.meta({
-    description:
-      'The journal’s entry date — the date the ledger moved, and the date `bookBalance` counts it ' +
-      'under (D-46). At or before the session’s `endDate` by construction.',
-  }),
-  amount: minorUnitsSchema.meta({
-    description:
-      'The journal’s signed net movement on the bank account, in the account’s frame: positive ' +
-      'is money the books show in that the bank has not (a deposit in transit), negative is money ' +
-      'the books show out that the bank has not (an unpresented cheque).',
-  }),
-  description: z.string().nullable().meta({
-    description: 'The journal’s memo, verbatim, or null. How a reconciler recognises the entry.',
-  }),
-  reference: z.string().nullable().meta({
-    description: 'The journal’s own reference, or null.',
-  }),
-});
+      'One bank-account ledger movement the session did not clear — a cheque not presented, a ' +
+      'deposit in transit. Signed in the account’s frame; the items sum to `unclearedAmount` (D-50).',
+  });
 
 export type ReconcilingItem = z.infer<typeof reconcilingItemSchema>;
 
@@ -104,21 +111,29 @@ export type ReconcilingItem = z.infer<typeof reconcilingItemSchema>;
  * statement's side of the reconciliation, the one a session already counts in
  * `unclearedLineCount`.
  */
-export const unclearedStatementLineSchema = z.strictObject({
-  lineId: z.uuid(),
-  date: calendarDateSchema.meta({
-    description: 'The line’s `postedDate` — the date the bank’s own balance moved on (D-45).',
-  }),
-  amount: minorUnitsSchema.meta({
-    description: 'What the bank moved, signed, in the line’s frame (`bankLineAmountSchema`).',
-  }),
-  description: z.string().meta({
-    description: 'The bank’s narrative for the line, verbatim.',
-  }),
-  reference: z.string().nullable().meta({
-    description: 'The bank’s own transaction identifier, where it supplied one.',
-  }),
-});
+export const unclearedStatementLineSchema = z
+  .strictObject({
+    lineId: z.uuid(),
+    date: calendarDateSchema.meta({
+      description: 'The line’s `postedDate` — the date the bank’s own balance moved on (D-45).',
+    }),
+    amount: minorUnitsSchema.meta({
+      description: 'What the bank moved, signed, in the line’s frame (`bankLineAmountSchema`).',
+    }),
+    description: z.string().meta({
+      description: 'The bank’s narrative for the line, verbatim.',
+    }),
+    reference: z.string().nullable().meta({
+      description: 'The bank’s own transaction identifier, where it supplied one.',
+    }),
+  })
+  .meta({
+    id: 'UnclearedStatementLine',
+    description:
+      'One statement line the bank has shown that the books have not caught. Reported so the ' +
+      'backlog is visible, but outside `unclearedAmount` — it has no journal, so it moves neither ' +
+      'balance in it.',
+  });
 
 export type UnclearedStatementLine = z.infer<typeof unclearedStatementLineSchema>;
 
@@ -137,27 +152,34 @@ export type UnclearedStatementLine = z.infer<typeof unclearedStatementLineSchema
  * tomorrow as it did the day it was made — reproducibility in the sense D-40 requires
  * and D-32 warned is easy to lose.
  */
-export const reconciliationReportSchema = z.strictObject({
-  sessionId: z.uuid(),
-  bankAccountId: z.uuid(),
-  startDate: calendarDateSchema,
-  endDate: calendarDateSchema.meta({
-    description: 'The date every figure and every item on this report is computed as at.',
-  }),
-  state: reconciliationSessionStateSchema,
-  balances: reconciliationBalancesSchema,
-  reconcilingItems: z.array(reconcilingItemSchema).meta({
+export const reconciliationReportSchema = z
+  .strictObject({
+    sessionId: z.uuid(),
+    bankAccountId: z.uuid(),
+    startDate: calendarDateSchema,
+    endDate: calendarDateSchema.meta({
+      description: 'The date every figure and every item on this report is computed as at.',
+    }),
+    state: reconciliationSessionStateSchema,
+    balances: reconciliationBalancesSchema,
+    reconcilingItems: z.array(reconcilingItemSchema).meta({
+      description:
+        'The bank-account ledger movements this session did not clear, oldest first. Their signed ' +
+        'amounts sum to `balances.unclearedAmount` exactly: `clearedBalance + Σ items === ' +
+        'bookBalance` (D-50).',
+    }),
+    unclearedStatementLines: z.array(unclearedStatementLineSchema).meta({
+      description:
+        'Statement lines in the window the books have not caught, oldest first. The other half of ' +
+        'the reconciliation — shown, but not part of `unclearedAmount`, because a line with no ' +
+        'journal moves neither balance in it.',
+    }),
+  })
+  .meta({
+    id: 'ReconciliationReport',
     description:
-      'The bank-account ledger movements this session did not clear, oldest first. Their signed ' +
-      'amounts sum to `balances.unclearedAmount` exactly: `clearedBalance + Σ items === ' +
-      'bookBalance` (D-50).',
-  }),
-  unclearedStatementLines: z.array(unclearedStatementLineSchema).meta({
-    description:
-      'Statement lines in the window the books have not caught, oldest first. The other half of ' +
-      'the reconciliation — shown, but not part of `unclearedAmount`, because a line with no ' +
-      'journal moves neither balance in it.',
-  }),
-});
+      'The reconciliation report for one session: the gap between the ledger and the bank, ' +
+      'itemised. `reconcilingItems` ties to `balances.unclearedAmount` exactly (D-50).',
+  });
 
 export type ReconciliationReport = z.infer<typeof reconciliationReportSchema>;

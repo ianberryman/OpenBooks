@@ -1,14 +1,9 @@
 import { z } from 'zod';
 
 import { isOrderedRange } from '../subledger';
-import { calendarDateSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
 
-import {
-  bankDateRangeShape,
-  bankLineAmountSchema,
-  bankLineDirectionSchema,
-  unpublishedPageSchema,
-} from './banking';
+import { bankDateRangeShape, bankLineAmountSchema, bankLineDirectionSchema } from './banking';
 import { bankLineClearingSchema } from './clearing';
 
 /**
@@ -45,7 +40,11 @@ import { bankLineClearingSchema } from './clearing';
  * occurrence index *within the file*, so the second coffee survives, and
  * re-importing the same file still collapses to two rather than four.
  *
- * ## No `.meta({ id })`, and no route yet — see `banking.ts`.
+ * ## The component ids arrived with OB-084's routes — see `banking.ts`.
+ *
+ * The line, its preview draft and the page are routed now (list, get, and the preview
+ * sample), so they are components. There is still no update shape and no `id` on one,
+ * because there is still no update route — D-42 has no wire surface to acquire.
  */
 
 export const BANK_LINE_DESCRIPTION_MAX_LENGTH = 512;
@@ -144,12 +143,19 @@ const bankLineFactsShape = {
  * because it is not a thing yet, and it carries `isDuplicate` because that is the
  * one fact a preview can tell a user that the file itself cannot.
  */
-export const bankStatementLineDraftSchema = z.strictObject({
-  ...bankLineFactsShape,
-  isDuplicate: z.boolean().meta({
-    description: 'Whether a line with this fingerprint is already present on the bank account.',
-  }),
-});
+export const bankStatementLineDraftSchema = z
+  .strictObject({
+    ...bankLineFactsShape,
+    isDuplicate: z.boolean().meta({
+      description: 'Whether a line with this fingerprint is already present on the bank account.',
+    }),
+  })
+  .meta({
+    id: 'BankStatementLineDraft',
+    description:
+      'A row as the parser read it, before anything is written — only a preview returns these. No ' +
+      '`id` because it is not a thing yet; `isDuplicate` is the one fact a preview can add.',
+  });
 
 export type BankStatementLineDraft = z.infer<typeof bankStatementLineDraftSchema>;
 
@@ -163,23 +169,30 @@ export type BankStatementLineDraft = z.infer<typeof bankStatementLineDraftSchema
  * reconciled is whether `clearing` is present, and a label beside it would be a
  * second encoding that drifts the first time a clearing is removed.
  */
-export const bankStatementLineSchema = z.strictObject({
-  id: z.uuid(),
-  bankAccountId: z.uuid(),
-  importId: z.uuid().meta({
+export const bankStatementLineSchema = z
+  .strictObject({
+    id: z.uuid(),
+    bankAccountId: z.uuid(),
+    importId: z.uuid().meta({
+      description:
+        'The import that first created this line. A re-import that recognised it as a duplicate ' +
+        'does not become its import — the line records where it came from, and that is the upload ' +
+        'that introduced it.',
+    }),
+    ...bankLineFactsShape,
+    clearing: bankLineClearingSchema.nullable().meta({
+      description:
+        'What cleared this line, or null. Presence *is* the reconciled state — there is no status ' +
+        'field, because a label beside this would be a second encoding of the same fact.',
+    }),
+    createdAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'BankStatementLine',
     description:
-      'The import that first created this line. A re-import that recognised it as a duplicate ' +
-      'does not become its import — the line records where it came from, and that is the upload ' +
-      'that introduced it.',
-  }),
-  ...bankLineFactsShape,
-  clearing: bankLineClearingSchema.nullable().meta({
-    description:
-      'What cleared this line, or null. Presence *is* the reconciled state — there is no status ' +
-      'field, because a label beside this would be a second encoding of the same fact.',
-  }),
-  createdAt: z.iso.datetime(),
-});
+      'A statement line as the API returns it. What the bank said, never modified (D-42) — no ' +
+      '`updatedAt` and no status; `clearing` present *is* the reconciled state.',
+  });
 
 export type BankStatementLine = z.infer<typeof bankStatementLineSchema>;
 
@@ -220,6 +233,9 @@ export type ListBankStatementLinesQuery = z.input<typeof listBankStatementLinesQ
  * Reconciliation reads a statement in date order, so any other ordering would make
  * the milestone's central screen sort a whole account client-side.
  */
-export const bankStatementLinePageSchema = unpublishedPageSchema(bankStatementLineSchema);
+export const bankStatementLinePageSchema = pageSchema(bankStatementLineSchema, {
+  id: 'BankStatementLinePage',
+  description: 'One page of a bank account’s statement lines, in `(posted_date, id)` order.',
+});
 
 export type BankStatementLinePage = z.infer<typeof bankStatementLinePageSchema>;

@@ -2,6 +2,9 @@ import type { Config } from '../../config';
 import type { App } from '../types';
 import { registerAccountRoutes } from './accounts';
 import { registerAuthRoutes } from './auth';
+import { registerBankAccountRoutes } from './bank-accounts';
+import { registerBankImportRoutes } from './bank-imports';
+import { registerBankRuleRoutes } from './bank-rules';
 import { registerBillRoutes } from './bills';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
@@ -14,8 +17,10 @@ import { registerMemberRoutes } from './members';
 import { registerOrgRoutes } from './orgs';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
+import { registerReconciliationRoutes } from './reconciliation';
 import { registerReportRoutes } from './reports';
 import { registerSettingsRoutes } from './settings';
+import { registerStatementLineRoutes } from './statement-lines';
 import { registerTaxRateRoutes } from './tax-rates';
 
 /**
@@ -135,6 +140,48 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/allocations`| `allocateVendorCredit`      | required        | org            |
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/approve`    | `approveVendorCredit`       | required        | org            |
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/void`       | `voidVendorCredit`          | required        | org            |
+ *
+ * ### OB-084 — the `/v1` surface for banking (M4)
+ *
+ * | Method   | Path                                                         | operationId                    | Idempotency-Key | Claim scope    |
+ * | -------- | ------------------------------------------------------------ | ------------------------------ | --------------- | -------------- |
+ * | `POST`   | `/v1/bank-accounts`                                          | `createBankAccount`            | required        | org            |
+ * | `GET`    | `/v1/bank-accounts`                                          | `listBankAccounts`             | —               | —              |
+ * | `GET`    | `/v1/bank-accounts/:bankAccountId`                           | `getBankAccount`               | —               | —              |
+ * | `PATCH`  | `/v1/bank-accounts/:bankAccountId`                           | `updateBankAccount`            | required        | org            |
+ * | `POST`   | `/v1/bank-statement-imports/preview`                         | `previewBankStatementImport`   | required        | org            |
+ * | `POST`   | `/v1/bank-statement-imports`                                 | `startBankStatementImport`     | required        | org            |
+ * | `GET`    | `/v1/bank-statement-imports`                                 | `listBankStatementImports`     | —               | —              |
+ * | `GET`    | `/v1/bank-statement-imports/:importId`                       | `getBankStatementImport`       | —               | —              |
+ * | `POST`   | `/v1/bank-accounts/:bankAccountId/import-mappings`           | `saveBankImportMapping`        | required        | org            |
+ * | `GET`    | `/v1/import-mappings`                                        | `listBankImportMappings`       | —               | —              |
+ * | `GET`    | `/v1/import-mappings/:mappingId`                             | `getBankImportMapping`         | —               | —              |
+ * | `GET`    | `/v1/statement-lines`                                        | `listStatementLines`           | —               | —              |
+ * | `GET`    | `/v1/statement-lines/:lineId`                                | `getStatementLine`             | —               | —              |
+ * | `POST`   | `/v1/bank-match-proposals`                                   | `proposeBankMatches`           | required        | org            |
+ * | `POST`   | `/v1/statement-lines/:lineId/clearing`                       | `clearBankStatementLine`       | required        | org            |
+ * | `DELETE` | `/v1/statement-lines/:lineId/clearing`                       | `removeBankLineClearing`       | required        | org            |
+ * | `POST`   | `/v1/bank-rules`                                             | `createBankRule`               | required        | org            |
+ * | `GET`    | `/v1/bank-rules`                                             | `listBankRules`                | —               | —              |
+ * | `GET`    | `/v1/bank-rules/:ruleId`                                     | `getBankRule`                  | —               | —              |
+ * | `PATCH`  | `/v1/bank-rules/:ruleId`                                     | `updateBankRule`               | required        | org            |
+ * | `POST`   | `/v1/reconciliation-sessions`                               | `createReconciliationSession`  | required        | org            |
+ * | `GET`    | `/v1/reconciliation-sessions`                               | `listReconciliationSessions`   | —               | —              |
+ * | `GET`    | `/v1/reconciliation-sessions/:sessionId`                    | `getReconciliationSession`     | —               | —              |
+ * | `PATCH`  | `/v1/reconciliation-sessions/:sessionId`                    | `updateReconciliationSession`  | required        | org            |
+ * | `POST`   | `/v1/reconciliation-sessions/:sessionId/finalise`           | `finaliseReconciliationSession`| required        | org            |
+ * | `POST`   | `/v1/reconciliation-sessions/:sessionId/reopen`             | `reopenReconciliationSession`  | required        | org            |
+ * | `GET`    | `/v1/reconciliation-sessions/:sessionId/report`             | `getReconciliationReport`      | —               | —              |
+ *
+ * The permission each banking operation enforces (the service's, not repeated here —
+ * spec §5) is: `banking.read` for every read (including the import-poll reads
+ * `getBankStatementImport`/`listBankStatementImports`) plus the two read-shaped `POST`s
+ * (`previewBankStatementImport`, `proposeBankMatches`); `banking.import` for
+ * `createBankAccount`, `updateBankAccount`, `startBankStatementImport` and
+ * `saveBankImportMapping`; `banking.match` for the rule writes and the two clearing
+ * operations; `banking.reconcile` for every session operation except `reopen`, which is
+ * `banking.reopen`; and `banking.read` for `getReconciliationReport`. The list, get and
+ * report reads on a session are `banking.reconcile`, because the service gates them so.
  *
  * ## What a handler in this directory is allowed to contain
  *
@@ -287,4 +334,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerInvoiceRoutes(app);
   registerBillRoutes(app);
   registerPaymentRoutes(app);
+  registerBankAccountRoutes(app);
+  registerBankImportRoutes(app);
+  registerStatementLineRoutes(app);
+  registerBankRuleRoutes(app);
+  registerReconciliationRoutes(app);
 }

@@ -8,6 +8,7 @@ import { SignOutButton } from './auth/sign-out';
 import { ErrorBanner } from './components';
 import { AccountsScreen } from './screens/accounts';
 import { AuthScreen } from './screens/auth';
+import { BankingScreen } from './screens/banking';
 import { ContactsScreen } from './screens/contacts';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
@@ -144,6 +145,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/sales" element={<SalesScreen />} />
         <Route path="/purchases" element={<PurchasesScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
+        <Route path="/banking/*" element={<BankingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />

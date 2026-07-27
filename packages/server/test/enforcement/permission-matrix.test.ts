@@ -2,11 +2,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { runInContext, type RequestContext } from '../../src/context';
 import { uuidToBuffer } from '../../src/db';
 import { toWireError } from '../../src/errors';
+import { InProcessQueue, setQueueProvider } from '../../src/providers';
 import {
   applyChartTemplate,
   createAccount,
@@ -111,12 +112,35 @@ import {
   updatePayment,
   voidPayment,
 } from '../../src/modules/payments';
-import { listBankImportMappings, saveBankImportMapping } from '../../src/modules/banking/csv';
-import { createBankRule } from '../../src/modules/banking/rules';
 import {
+  clearBankStatementLine,
+  createBankAccount,
+  createBankRule,
   createReconciliationSession,
+  finaliseReconciliationSession,
+  getBankAccount,
+  getBankImportMapping,
+  getBankRule,
+  getBankStatementImport,
+  getReconciliationReport,
+  getReconciliationSession,
+  getStatementLine,
+  listBankAccounts,
+  listBankImportMappings,
+  listBankRules,
+  listBankStatementImports,
+  listReconciliationSessions,
+  listStatementLines,
+  previewImportWithParsers,
+  proposeMatchesWithRules,
+  removeBankLineClearing,
   reopenReconciliationSession,
-} from '../../src/modules/banking/reconciliation';
+  saveBankImportMapping,
+  startImport,
+  updateBankAccount,
+  updateBankRule,
+  updateReconciliationSession,
+} from '../../src/modules/banking';
 import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
@@ -154,10 +178,11 @@ import {
   updateTaxRate,
 } from '../../src/modules/tax';
 import { generateOpenApiDocument } from '../../src/transport';
-import { buildTestApp } from '../transport/harness';
+import { silentLogger } from '../banking/support';
 import { newUuid, SYSTEM_ROLE_UUIDS, systemRoleId, type SystemRoleName } from '../db';
 import { captureEmail } from '../members/support';
 import { useServiceDatabase } from '../permissions/support';
+import { buildTestApp } from '../transport/harness';
 import { contextFor } from './support';
 
 /**
@@ -257,6 +282,16 @@ import { contextFor } from './support';
  * catalog itself, so adding either code has to come past this file.
  */
 const db = useServiceDatabase();
+
+// `startBankStatementImport` enqueues (D-47). A queue with no handler in this process
+// drops the job (and logs it) rather than reaching for a process config these
+// service-layer tests never load, so the row reaches its gate and returns cleanly.
+beforeAll(() => {
+  setQueueProvider(new InProcessQueue(silentLogger));
+});
+afterAll(() => {
+  setQueueProvider(undefined);
+});
 
 // `inviteMember` sends. The real `log` adapter over a capture stream, because a
 // stubbed provider would make the one row that exercises `members.write` a test of
@@ -476,6 +511,28 @@ interface Scene {
    * something to reopen without colliding with the session `banking.reconcile` opens.
    */
   readonly reconciliationSessionId: string;
+  /**
+   * An *open* session on a third bank account (D-45), for the `getReconciliationSession`,
+   * `updateReconciliationSession` and `finaliseReconciliationSession` rows. A third
+   * account because `createReconciliationSession` opens one on `bankAccountId` and the
+   * finalised one lives on the second — one open session per account (`open_marker`).
+   */
+  readonly openReconciliationSessionId: string;
+  /** A saved import mapping on `bankAccountId`, for `getBankImportMapping`. */
+  readonly bankImportMappingId: string;
+  /** A complete statement import on `bankAccountId`, for `getBankStatementImport`. */
+  readonly bankImportId: string;
+  /** A bank rule, for `getBankRule` and `updateBankRule`. */
+  readonly bankRuleId: string;
+  /**
+   * An uncleared statement line on `bankAccountId`, for `getStatementLine`,
+   * `proposeBankMatches`, and `clearBankStatementLine` (which posts a journal onto it).
+   */
+  readonly statementLineId: string;
+  /** A cleared statement line, for `removeBankLineClearing` (which reverses its journal). */
+  readonly clearedStatementLineId: string;
+  /** A ledger account with no bank account yet, for `createBankAccount` to register. */
+  readonly registrableBankLedgerAccountId: string;
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
@@ -1415,26 +1472,130 @@ const OPERATIONS: readonly Operation[] = [
         s.ctx,
       ),
   },
-  // M4 wave 1: the service is here before the wire is, so `operationId` is `null`
-  // and the coverage check ignores these two — the same shape `getPeriod` and
-  // `getAccountBalances` carry, and the reason the source scan is a second axis.
-  // OB-084 gives them routes and OB-089 fills the ids in. Reads gate on
-  // `banking.read`, saving a mapping on `banking.import`.
+  // ---------------------------------------------------------------------------
+  // M4 (OB-084). Every banking operation the wire publishes, gated by the five
+  // banking codes waves 1–3 wired live. The verdict turns on the *first* gate:
+  // `judge` reads a `permission_denied` and nothing else, so a permitted role's call
+  // may 404 or precondition-fail past its gate and still read `allowed` — the reason
+  // a read row needs the resource it names to exist, and a write row a real target.
+  //
+  // Three rows gate `banking.read` from a `POST` (`previewBankStatementImport`,
+  // `proposeBankMatches`) or a start (`startBankStatementImport`); those services
+  // parse before they check permission, so the input is kept valid — otherwise a
+  // `validation_failed` would reach `judge` as `allowed` and hide the gate.
+  // ---------------------------------------------------------------------------
+
   {
-    name: 'listBankImportMappings',
-    operationId: null,
+    name: 'createBankAccount',
+    operationId: 'createBankAccount',
+    permission: 'banking.import',
+    call: (s) =>
+      createBankAccount(
+        { accountId: s.registrableBankLedgerAccountId, name: 'New account' },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listBankAccounts',
+    operationId: 'listBankAccounts',
     permission: 'banking.read',
-    call: (s) => listBankImportMappings(s.bankAccountId, {}, s.ctx),
+    call: (s) => listBankAccounts({}, s.ctx),
+  },
+  {
+    name: 'getBankAccount',
+    operationId: 'getBankAccount',
+    permission: 'banking.read',
+    call: (s) => getBankAccount(s.bankAccountId, s.ctx),
+  },
+  {
+    name: 'updateBankAccount',
+    operationId: 'updateBankAccount',
+    permission: 'banking.import',
+    call: (s) => updateBankAccount(s.bankAccountId, { name: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'previewBankStatementImport',
+    operationId: 'previewBankStatementImport',
+    permission: 'banking.read',
+    call: (s) =>
+      previewImportWithParsers(
+        {
+          bankAccountId: s.bankAccountId,
+          format: 'csv',
+          filename: 'march.csv',
+          content: 'date,description,amount\n2026-01-01,COFFEE,-4.50\n',
+          mapping: {
+            hasHeaderRow: true,
+            delimiter: ',',
+            dateOrder: 'ymd',
+            amountConvention: 'signed',
+            columns: {
+              postedDate: 0,
+              description: 1,
+              amount: 2,
+              debit: null,
+              credit: null,
+              valueDate: null,
+              counterparty: null,
+              bankReference: null,
+            },
+          },
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'startBankStatementImport',
+    operationId: 'startBankStatementImport',
+    permission: 'banking.import',
+    call: (s) =>
+      startImport(
+        {
+          bankAccountId: s.bankAccountId,
+          format: 'csv',
+          filename: 'march.csv',
+          content: 'date,description,amount\n2026-01-01,COFFEE,-4.50\n',
+          mapping: {
+            hasHeaderRow: true,
+            delimiter: ',',
+            dateOrder: 'ymd',
+            amountConvention: 'signed',
+            columns: {
+              postedDate: 0,
+              description: 1,
+              amount: 2,
+              debit: null,
+              credit: null,
+              valueDate: null,
+              counterparty: null,
+              bankReference: null,
+            },
+          },
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listBankStatementImports',
+    operationId: 'listBankStatementImports',
+    permission: 'banking.read',
+    call: (s) => listBankStatementImports({}, s.ctx),
+  },
+  {
+    name: 'getBankStatementImport',
+    operationId: 'getBankStatementImport',
+    permission: 'banking.read',
+    call: (s) => getBankStatementImport(s.bankImportId, s.ctx),
   },
   {
     name: 'saveBankImportMapping',
-    operationId: null,
+    operationId: 'saveBankImportMapping',
     permission: 'banking.import',
     call: (s) =>
       saveBankImportMapping(
         s.bankAccountId,
         {
-          name: 'Monthly export',
+          name: 'Another export',
           definition: {
             hasHeaderRow: true,
             delimiter: ',',
@@ -1455,31 +1616,96 @@ const OPERATIONS: readonly Operation[] = [
         s.ctx,
       ),
   },
-  // Wave 2's `banking.match`. Authoring a rule is the lightest of the code's two
-  // enforcement points (the other is clearing a line, which reaches `journals.post`
-  // and needs a line to clear) — one call is enough to prove the code is gated, and
-  // OB-089 gives the heavier operations their routes. Codes to the expense account
-  // that already exists in the scene.
+  {
+    name: 'listBankImportMappings',
+    operationId: 'listBankImportMappings',
+    permission: 'banking.read',
+    call: (s) => listBankImportMappings(s.bankAccountId, {}, s.ctx),
+  },
+  {
+    name: 'getBankImportMapping',
+    operationId: 'getBankImportMapping',
+    permission: 'banking.read',
+    call: (s) => getBankImportMapping(s.bankImportMappingId, s.ctx),
+  },
+  {
+    name: 'listStatementLines',
+    operationId: 'listStatementLines',
+    permission: 'banking.read',
+    call: (s) => listStatementLines({}, s.ctx),
+  },
+  {
+    name: 'getStatementLine',
+    operationId: 'getStatementLine',
+    permission: 'banking.read',
+    call: (s) => getStatementLine(s.statementLineId, s.ctx),
+  },
+  {
+    name: 'proposeBankMatches',
+    operationId: 'proposeBankMatches',
+    permission: 'banking.read',
+    call: (s) => proposeMatchesWithRules({ lineIds: [s.statementLineId] }, s.ctx),
+  },
+  // Clearing and un-clearing both reach `journals.post` after their own gate — a
+  // clearing posts a journal, undoing one reverses it (D-16) — so a role holding
+  // `banking.match` but not `journals.post` is refused there. No seeded role is, but
+  // the downstream gate is declared so the prediction stays exact.
+  {
+    name: 'clearBankStatementLine',
+    operationId: 'clearBankStatementLine',
+    permission: 'banking.match',
+    thenRequires: ['journals.post'],
+    call: (s) =>
+      clearBankStatementLine(
+        s.statementLineId,
+        { method: 'post_entry', accountId: s.expenseId },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'removeBankLineClearing',
+    operationId: 'removeBankLineClearing',
+    permission: 'banking.match',
+    thenRequires: ['journals.post'],
+    call: (s) => removeBankLineClearing(s.clearedStatementLineId, { date: s.date }, s.ctx),
+  },
   {
     name: 'createBankRule',
-    operationId: null,
+    operationId: 'createBankRule',
     permission: 'banking.match',
     call: (s) =>
       createBankRule(
         {
-          name: 'Coffee is subsistence',
-          condition: { description: { mode: 'contains', value: 'COFFEE' } },
+          name: 'Tesco is groceries',
+          condition: { description: { mode: 'contains', value: 'TESCO' } },
           outcome: { accountId: s.expenseId },
         },
         s.ctx,
       ),
   },
-  // Wave 3's two codes. Opening a session gates on `banking.reconcile`; reopening a
-  // finalised one on `banking.reopen` — the E6 power to withdraw an assertion, held
-  // apart from making one, which is why it is its own operation and its own code.
+  {
+    name: 'listBankRules',
+    operationId: 'listBankRules',
+    permission: 'banking.read',
+    call: (s) => listBankRules({}, s.ctx),
+  },
+  {
+    name: 'getBankRule',
+    operationId: 'getBankRule',
+    permission: 'banking.read',
+    call: (s) => getBankRule(s.bankRuleId, s.ctx),
+  },
+  {
+    name: 'updateBankRule',
+    operationId: 'updateBankRule',
+    permission: 'banking.match',
+    call: (s) => updateBankRule(s.bankRuleId, { isActive: false }, s.ctx),
+  },
+  // The reconciliation reads gate on `banking.reconcile`, not `banking.read`, because
+  // the service does — a reconciliation is not something a read-only role sees.
   {
     name: 'createReconciliationSession',
-    operationId: null,
+    operationId: 'createReconciliationSession',
     permission: 'banking.reconcile',
     call: (s) =>
       createReconciliationSession(
@@ -1488,8 +1714,41 @@ const OPERATIONS: readonly Operation[] = [
       ),
   },
   {
+    name: 'listReconciliationSessions',
+    operationId: 'listReconciliationSessions',
+    permission: 'banking.reconcile',
+    call: (s) => listReconciliationSessions({}, s.ctx),
+  },
+  {
+    name: 'getReconciliationSession',
+    operationId: 'getReconciliationSession',
+    permission: 'banking.reconcile',
+    call: (s) => getReconciliationSession(s.openReconciliationSessionId, s.ctx),
+  },
+  {
+    name: 'updateReconciliationSession',
+    operationId: 'updateReconciliationSession',
+    permission: 'banking.reconcile',
+    call: (s) =>
+      updateReconciliationSession(
+        s.openReconciliationSessionId,
+        { statementClosingBalance: '0' },
+        s.ctx,
+      ),
+  },
+  // Ordered after `getReconciliationSession`/`updateReconciliationSession` above, which
+  // read and edit the same open session: finalising it turns it `finalised`, so a
+  // later edit would precondition-fail — still `allowed`, but the order keeps every
+  // row a real success.
+  {
+    name: 'finaliseReconciliationSession',
+    operationId: 'finaliseReconciliationSession',
+    permission: 'banking.reconcile',
+    call: (s) => finaliseReconciliationSession(s.openReconciliationSessionId, s.ctx),
+  },
+  {
     name: 'reopenReconciliationSession',
-    operationId: null,
+    operationId: 'reopenReconciliationSession',
     permission: 'banking.reopen',
     call: (s) =>
       reopenReconciliationSession(
@@ -1497,6 +1756,12 @@ const OPERATIONS: readonly Operation[] = [
         { reason: 'A cleared line was miscoded and needs correcting.' },
         s.ctx,
       ),
+  },
+  {
+    name: 'getReconciliationReport',
+    operationId: 'getReconciliationReport',
+    permission: 'banking.read',
+    call: (s) => getReconciliationReport(s.reconciliationSessionId, s.ctx),
   },
 ];
 
@@ -1772,8 +2037,174 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     taxAccountId: taxAccount.uuid,
   });
 
+  // --- OB-084 banking read/write fixtures ---
+  //
+  // Built as Owner (`setup`) where a service exists, and by direct insert where one does
+  // not: a statement line is only ever created by an import (OB-078) and is append-only,
+  // so the scene writes the import row and its lines directly rather than driving the
+  // worker. Everything a read row names has to exist, or the row would read `allowed`
+  // because it 404'd rather than because the gate let it through.
+  const bankMapping = await saveBankImportMapping(
+    bankAccountUuid,
+    {
+      name: 'Monthly export',
+      definition: {
+        hasHeaderRow: true,
+        delimiter: ',',
+        dateOrder: 'ymd',
+        amountConvention: 'signed',
+        columns: {
+          postedDate: 0,
+          description: 1,
+          amount: 2,
+          debit: null,
+          credit: null,
+          valueDate: null,
+          counterparty: null,
+          bankReference: null,
+        },
+      },
+    },
+    setup,
+  );
+  const bankRule = await createBankRule(
+    {
+      name: 'Coffee is subsistence',
+      condition: { description: { mode: 'contains', value: 'COFFEE' } },
+      outcome: { accountId: expense.uuid },
+    },
+    setup,
+  );
+
+  const bankImportUuid = newUuid();
+  await db.app
+    .insertInto('bank_statement_imports')
+    .values({
+      id: uuidToBuffer(bankImportUuid),
+      org_id: org.id,
+      bank_account_id: uuidToBuffer(bankAccountUuid),
+      format: 'csv',
+      filename: 'march.csv',
+      file_hash: 'fixture',
+      imported_by_user_id: user.id,
+      status: 'complete',
+      lines_read: 2,
+      lines_duplicate: 0,
+    })
+    .execute();
+
+  const statementLineUuid = newUuid();
+  await db.app
+    .insertInto('bank_statement_lines')
+    .values({
+      id: uuidToBuffer(statementLineUuid),
+      org_id: org.id,
+      bank_account_id: uuidToBuffer(bankAccountUuid),
+      import_id: uuidToBuffer(bankImportUuid),
+      // In the open fiscal period, so `clearBankStatementLine` posts rather than being
+      // refused by the period lock (still not a `permission_denied`, but a real success
+      // is a truer row).
+      posted_date: period.startDate,
+      description: 'COFFEE SHOP',
+      amount_minor: -450n,
+      fingerprint: 'fixture-uncleared',
+      occurrence_index: 0,
+    })
+    .execute();
+
+  // A second line already carrying a `post_entry` clearing, so `removeBankLineClearing`
+  // has one to undo. The clearing points at the scene journal; undoing it reverses that
+  // journal, which is the `journals.post` gate the row reaches after its own.
+  const clearedLineUuid = newUuid();
+  await db.app
+    .insertInto('bank_statement_lines')
+    .values({
+      id: uuidToBuffer(clearedLineUuid),
+      org_id: org.id,
+      bank_account_id: uuidToBuffer(bankAccountUuid),
+      import_id: uuidToBuffer(bankImportUuid),
+      posted_date: period.startDate,
+      description: 'BANK CHARGE',
+      amount_minor: -1000n,
+      fingerprint: 'fixture-cleared',
+      occurrence_index: 0,
+    })
+    .execute();
+  await db.app
+    .insertInto('bank_line_clearings')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: org.id,
+      statement_line_id: uuidToBuffer(clearedLineUuid),
+      method: 'post_entry',
+      cleared_journal_id: journal.id,
+      cleared_amount_minor: -1000n,
+      difference_amount_minor: 0n,
+      created_by_user_id: user.id,
+    })
+    .execute();
+
+  // A third bank account carrying an *open* session (D-45). Kept off the two accounts
+  // above so finalising it — a mutating row — cannot collide with the session
+  // `createReconciliationSession` opens on `bankAccountId` or the finalised one
+  // `reopenReconciliationSession` reopens on the second: one open session per account
+  // (`open_marker`). Backed by its own ledger account, since `uq_bank_accounts_account`
+  // allows a ledger account only one bank account.
+  const reconciling = await db.factories.account({
+    orgId: org.id,
+    code: '1030',
+    name: 'Reconciling account',
+    type: 'asset',
+    normalBalance: 'debit',
+  });
+  const openBankAccountUuid = newUuid();
+  await db.app
+    .insertInto('bank_accounts')
+    .values({
+      id: uuidToBuffer(openBankAccountUuid),
+      org_id: org.id,
+      account_id: reconciling.id,
+      name: 'Open recon account',
+      external_account_id: null,
+      is_active: 1,
+    })
+    .execute();
+  // No `opened` event row: the DB `event_type` enum is `finalised`/`reopened` only, and
+  // the `opened` event a session reports is synthesized on read from its creation. So an
+  // open session is the row alone (matching what `createReconciliationSession` writes).
+  const openSessionUuid = newUuid();
+  await db.app
+    .insertInto('reconciliation_sessions')
+    .values({
+      id: uuidToBuffer(openSessionUuid),
+      org_id: org.id,
+      bank_account_id: uuidToBuffer(openBankAccountUuid),
+      end_date: '2025-06-30',
+      statement_closing_balance_minor: 0n,
+      state: 'in_progress',
+      created_by_user_id: user.id,
+    })
+    .execute();
+
+  // A spare ledger account with no bank account, for `createBankAccount` to register —
+  // so its permitted call reaches the write rather than a 404.
+  const registrable = await db.factories.account({
+    orgId: org.id,
+    code: '1020',
+    name: 'Deposit account',
+    type: 'asset',
+    normalBalance: 'debit',
+  });
+
   return {
     ...subledger,
+    openReconciliationSessionId: openSessionUuid,
+    bankImportMappingId: bankMapping.id,
+    bankImportId: bankImportUuid,
+    bankRuleId: bankRule.id,
+    statementLineId: statementLineUuid,
+    clearedStatementLineId: clearedLineUuid,
+    registrableBankLedgerAccountId: registrable.uuid,
     receivableId: receivable.uuid,
     payableId: payable.uuid,
     expenseId: expense.uuid,

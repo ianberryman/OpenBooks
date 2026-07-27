@@ -25,7 +25,12 @@
  * sibling: they take the parser as an injected `StatementParseFn`, so the dedupe and
  * the async lifecycle are provable while the parsers are still in flight.
  */
-import type { BankMatchProposalList, BankMatchProposalsRequest } from '@openbooks/shared-types';
+import type {
+  BankMatchProposalList,
+  BankMatchProposalsRequest,
+  BankStatementImportPreview,
+  PreviewBankStatementImportRequest,
+} from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
 
@@ -34,6 +39,7 @@ import { proposeMatches } from './matching';
 import type { MatchProposalDeps } from './matching';
 import { ofxStatementParser } from './ofx';
 import { bankRuleEvaluator } from './rules';
+import { previewImport } from './statements/service';
 import type { StatementParseFn } from './statements/service';
 
 /**
@@ -58,6 +64,21 @@ export const parseStatement: StatementParseFn = ({ format, raw, mapping }) => {
   }
 };
 
+/**
+ * Preview an import, wired to the concrete parsers — the composition wrapper the
+ * transport reaches, so a route (OB-084) calls one function rather than assembling the
+ * parser seam itself. The same shape as `proposeMatchesWithRules`: `previewImport`
+ * takes its `StatementParseFn` injected (the dedupe is testable without the parsers),
+ * and this barrel is where the injection is made, pairing it with `parseStatement`
+ * above. `startImport` needs no wrapper — it enqueues, and the worker parses.
+ */
+export function previewImportWithParsers(
+  input: PreviewBankStatementImportRequest,
+  ctx?: RequestContext,
+): Promise<BankStatementImportPreview> {
+  return previewImport(input, parseStatement, ctx);
+}
+
 export {
   createStatementImportHandler,
   previewImport,
@@ -65,6 +86,7 @@ export {
   registerStatementImportJob,
   startImport,
 } from './statements/service';
+export { getBankStatementImport, listBankStatementImports } from './statements/reads';
 export type { StartedImport, StatementImportDeps, StatementParseFn } from './statements/service';
 export { STATEMENT_IMPORT_QUEUE } from './statements/job';
 export type { StatementImportJob, StatementImportJobContext } from './statements/job';
@@ -111,3 +133,16 @@ export {
   reopenReconciliationSession,
   updateReconciliationSession,
 } from './reconciliation';
+
+/**
+ * The thin read/create surfaces OB-084 had to add: no earlier wave built a bank-account
+ * register/list/get/update or a statement-line list, because waves 1–3 only ever read a
+ * bank account by id and a line one at a time. See each module's header.
+ */
+export {
+  createBankAccount,
+  getBankAccount,
+  listBankAccounts,
+  updateBankAccount,
+} from './bank-accounts/bank-accounts.service';
+export { getStatementLine, listStatementLines } from './statement-lines/service';

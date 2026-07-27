@@ -2,6 +2,7 @@ import type { LightMyRequestResponse } from 'fastify';
 import { describe, expect, it } from 'vitest';
 
 import { runInContext } from '../../src/context';
+import { newUuid, uuidToBuffer } from '../../src/db';
 import { toWireError } from '../../src/errors';
 import { getAccount } from '../../src/modules/accounts';
 import { reverseJournal } from '../../src/modules/ledger';
@@ -99,6 +100,21 @@ interface Scene {
   readonly paymentId: string;
   readonly voidablePaymentId: string;
   readonly allocationId: string;
+
+  /**
+   * M4's fixtures (OB-084). Every one exists in the owner's org so the control pass
+   * resolves it rather than 404ing — which is what makes the stranger's 404 a statement
+   * about ownership. The lines, their clearing, the import and the session are inserted
+   * directly: a statement line is only ever created by an import (OB-078), and there is
+   * no HTTP path to one.
+   */
+  readonly bankAccountId: string;
+  readonly bankImportMappingId: string;
+  readonly bankImportId: string;
+  readonly bankRuleId: string;
+  readonly statementLineId: string;
+  readonly clearedStatementLineId: string;
+  readonly reconciliationSessionId: string;
 }
 
 /**
@@ -206,6 +222,7 @@ async function scene(app: App): Promise<Scene> {
   const inviteId = invited.json<{ invitation: { id: string } }>().invitation.id;
 
   const subledger = await subledgerScene(app, owner, created, revenueId);
+  const banking = await bankingScene(app, owner, created, revenueId, journalId);
 
   return {
     owner,
@@ -221,6 +238,179 @@ async function scene(app: App): Promise<Scene> {
     discardableDraftId,
     inviteId,
     ...subledger,
+    ...banking,
+  };
+}
+
+/** Everything `bankingScene` contributes: M4's half of the scene. */
+type BankingScene = Pick<
+  Scene,
+  | 'bankAccountId'
+  | 'bankImportId'
+  | 'bankImportMappingId'
+  | 'bankRuleId'
+  | 'clearedStatementLineId'
+  | 'reconciliationSessionId'
+  | 'statementLineId'
+>;
+
+/**
+ * One org's worth of banking, built by an Owner (OB-084).
+ *
+ * A bank account, a mapping and a rule over HTTP, then the import, its lines, one
+ * clearing and an open reconciliation session by direct insert — a statement line is
+ * only ever created by an import (OB-078, append-only) and there is no HTTP path to one.
+ *
+ * Nothing here needs to *succeed* under the operation the matrix runs; it needs to
+ * *exist*, so the owner's own call resolves it rather than 404ing. A clearing whose
+ * reversal precondition-fails, or a session whose finalise finds a mismatch, still
+ * answers the owner with something other than a 404 — which is all `ownerGetsNotFound`
+ * asks.
+ */
+async function bankingScene(
+  app: App,
+  owner: Session,
+  created: Create,
+  revenueId: string,
+  journalId: string,
+): Promise<BankingScene> {
+  const bankLedgerId = await createAccount(app, owner, {
+    code: '1050',
+    name: 'Bank',
+    type: 'asset',
+    normalBalance: 'debit',
+  });
+
+  const bankAccountId = await created('bank-account', '/v1/bank-accounts', {
+    accountId: bankLedgerId,
+    name: 'Current account',
+  });
+
+  const mappingId = await created(
+    'bank-mapping',
+    `/v1/bank-accounts/${bankAccountId}/import-mappings`,
+    {
+      name: 'Monthly export',
+      definition: {
+        hasHeaderRow: true,
+        delimiter: ',',
+        dateOrder: 'ymd',
+        amountConvention: 'signed',
+        columns: {
+          postedDate: 0,
+          description: 1,
+          amount: 2,
+          debit: null,
+          credit: null,
+          valueDate: null,
+          counterparty: null,
+          bankReference: null,
+        },
+      },
+    },
+  );
+
+  const ruleId = await created('bank-rule', '/v1/bank-rules', {
+    name: 'Coffee is subsistence',
+    condition: { description: { mode: 'contains', value: 'COFFEE' } },
+    outcome: { accountId: revenueId },
+  });
+
+  // The lines, clearing, import and session directly, as the owner's org. `harness.db`
+  // is the app-user handle — the identity the routes run as — so a line inserted here is
+  // one the app could have written (append-only: insert, never update).
+  const db = harness.db;
+  const orgId = uuidToBuffer(owner.orgId);
+  const userId = uuidToBuffer(owner.userId);
+  const bankAccountBytes = uuidToBuffer(bankAccountId);
+
+  const bankImportId = newUuid();
+  await db.app
+    .insertInto('bank_statement_imports')
+    .values({
+      id: uuidToBuffer(bankImportId),
+      org_id: orgId,
+      bank_account_id: bankAccountBytes,
+      format: 'csv',
+      filename: 'march.csv',
+      file_hash: 'fixture',
+      imported_by_user_id: userId,
+      status: 'complete',
+      lines_read: 2,
+      lines_duplicate: 0,
+    })
+    .execute();
+
+  const statementLineId = newUuid();
+  await db.app
+    .insertInto('bank_statement_lines')
+    .values({
+      id: uuidToBuffer(statementLineId),
+      org_id: orgId,
+      bank_account_id: bankAccountBytes,
+      import_id: uuidToBuffer(bankImportId),
+      posted_date: DOCUMENT_DATE,
+      description: 'COFFEE SHOP',
+      amount_minor: -450n,
+      fingerprint: 'fixture-uncleared',
+      occurrence_index: 0,
+    })
+    .execute();
+
+  const clearedStatementLineId = newUuid();
+  await db.app
+    .insertInto('bank_statement_lines')
+    .values({
+      id: uuidToBuffer(clearedStatementLineId),
+      org_id: orgId,
+      bank_account_id: bankAccountBytes,
+      import_id: uuidToBuffer(bankImportId),
+      posted_date: DOCUMENT_DATE,
+      description: 'BANK CHARGE',
+      amount_minor: -1000n,
+      fingerprint: 'fixture-cleared',
+      occurrence_index: 0,
+    })
+    .execute();
+  await db.app
+    .insertInto('bank_line_clearings')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: orgId,
+      statement_line_id: uuidToBuffer(clearedStatementLineId),
+      method: 'post_entry',
+      cleared_journal_id: uuidToBuffer(journalId),
+      cleared_amount_minor: -1000n,
+      difference_amount_minor: 0n,
+      created_by_user_id: userId,
+    })
+    .execute();
+
+  // An open session on this account (D-45), for the get/update/report/finalise/reopen
+  // rows. `createReconciliationSession` is not a resource-id surface, so one open session
+  // here collides with nothing.
+  const reconciliationSessionId = newUuid();
+  await db.app
+    .insertInto('reconciliation_sessions')
+    .values({
+      id: uuidToBuffer(reconciliationSessionId),
+      org_id: orgId,
+      bank_account_id: bankAccountBytes,
+      end_date: DOCUMENT_DATE,
+      statement_closing_balance_minor: 0n,
+      state: 'in_progress',
+      created_by_user_id: userId,
+    })
+    .execute();
+
+  return {
+    bankAccountId,
+    bankImportMappingId: mappingId,
+    bankImportId,
+    bankRuleId: ruleId,
+    statementLineId,
+    clearedStatementLineId,
+    reconciliationSessionId,
   };
 }
 
@@ -969,6 +1159,141 @@ const SURFACES: readonly Surface[] = [
     method: 'DELETE',
     path: '/v1/tax-rates/%s',
     id: (s) => s.taxRateId,
+  },
+
+  // ---------------------------------------------------------------------------
+  // M4 (OB-084). Every banking operation whose id travels in the *path* — the ones
+  // that assert their resource and so answer a cross-org id with a 404. The listing
+  // reads that filter rather than assert (`GET /v1/import-mappings?bankAccountId=`,
+  // `GET /v1/statement-lines`, …) carry their ids in the *query*, so an unknown one is
+  // an empty page, not a 404; those are `cross-org-references.test.ts`'s (B11), not
+  // here. For the mutating rows a precondition failure is fine — a `412` is not a
+  // `404`, so `ownerGetsNotFound` stays false and the fixture need only exist.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getBankAccount',
+    method: 'GET',
+    path: '/v1/bank-accounts/%s',
+    id: (s) => s.bankAccountId,
+  },
+  {
+    operationId: 'updateBankAccount',
+    method: 'PATCH',
+    path: '/v1/bank-accounts/%s',
+    id: (s) => s.bankAccountId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'saveBankImportMapping',
+    method: 'POST',
+    path: '/v1/bank-accounts/%s/import-mappings',
+    id: (s) => s.bankAccountId,
+    payload: () => ({
+      name: 'Another export',
+      definition: {
+        hasHeaderRow: true,
+        delimiter: ',',
+        dateOrder: 'ymd',
+        amountConvention: 'signed',
+        columns: {
+          postedDate: 0,
+          description: 1,
+          amount: 2,
+          debit: null,
+          credit: null,
+          valueDate: null,
+          counterparty: null,
+          bankReference: null,
+        },
+      },
+    }),
+  },
+  {
+    operationId: 'getBankImportMapping',
+    method: 'GET',
+    path: '/v1/import-mappings/%s',
+    id: (s) => s.bankImportMappingId,
+  },
+  {
+    operationId: 'getBankStatementImport',
+    method: 'GET',
+    path: '/v1/bank-statement-imports/%s',
+    id: (s) => s.bankImportId,
+  },
+  {
+    operationId: 'getStatementLine',
+    method: 'GET',
+    path: '/v1/statement-lines/%s',
+    id: (s) => s.statementLineId,
+  },
+  /**
+   * The id under test is the *line* in the path; the account it codes to is the owner's
+   * own in both passes, so a `404` here is a statement about the line, which is the id
+   * an outsider would be probing. Clearing the line posts a journal — but only after
+   * the line resolves, so a cross-org line 404s before anything is posted.
+   */
+  {
+    operationId: 'clearBankStatementLine',
+    method: 'POST',
+    path: '/v1/statement-lines/%s/clearing',
+    id: (s) => s.statementLineId,
+    payload: (_id, s) => ({ method: 'post_entry', accountId: s.accountId }),
+  },
+  {
+    operationId: 'removeBankLineClearing',
+    method: 'DELETE',
+    path: '/v1/statement-lines/%s/clearing',
+    id: (s) => s.clearedStatementLineId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  {
+    operationId: 'getBankRule',
+    method: 'GET',
+    path: '/v1/bank-rules/%s',
+    id: (s) => s.bankRuleId,
+  },
+  {
+    operationId: 'updateBankRule',
+    method: 'PATCH',
+    path: '/v1/bank-rules/%s',
+    id: (s) => s.bankRuleId,
+    payload: () => ({ isActive: false }),
+  },
+  {
+    operationId: 'getReconciliationSession',
+    method: 'GET',
+    path: '/v1/reconciliation-sessions/%s',
+    id: (s) => s.reconciliationSessionId,
+  },
+  {
+    operationId: 'updateReconciliationSession',
+    method: 'PATCH',
+    path: '/v1/reconciliation-sessions/%s',
+    id: (s) => s.reconciliationSessionId,
+    payload: () => ({ statementClosingBalance: '0' }),
+  },
+  {
+    operationId: 'getReconciliationReport',
+    method: 'GET',
+    path: '/v1/reconciliation-sessions/%s/report',
+    id: (s) => s.reconciliationSessionId,
+  },
+  // Finalise then reopen, on the one session: finalising it makes the reopen's control
+  // pass find a finalised session to reopen. Both are still judged only on not being a
+  // 404, so the order is for realism, not correctness.
+  {
+    operationId: 'finaliseReconciliationSession',
+    method: 'POST',
+    path: '/v1/reconciliation-sessions/%s/finalise',
+    id: (s) => s.reconciliationSessionId,
+  },
+  {
+    operationId: 'reopenReconciliationSession',
+    method: 'POST',
+    path: '/v1/reconciliation-sessions/%s/reopen',
+    id: (s) => s.reconciliationSessionId,
+    payload: () => ({ reason: 'A cleared line was miscoded and needs correcting.' }),
   },
 ];
 

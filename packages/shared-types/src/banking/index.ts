@@ -12,8 +12,9 @@
  * dedupe fingerprint is over; `clearing.ts` states E4 as an equation; and
  * `reconciliation.ts` explains why the session lock is not the fiscal period's.
  *
- * Nothing here carries `.meta({ id })`. The component ids arrive with OB-084's
- * routes, in the same diff, and `contracts.test.ts` asserts the empty set until then.
+ * The component ids arrived with OB-084's routes, in the same diff. A schema carries
+ * an `id` exactly when a route reaches it (see `banking.ts`); `contracts.test.ts`
+ * asserts the published set.
  */
 
 export {
@@ -21,7 +22,6 @@ export {
   bankDateRangeShape,
   bankLineAmountSchema,
   bankLineDirectionSchema,
-  unpublishedPageSchema,
 } from './banking';
 export type { BankLineDirection } from './banking';
 
@@ -57,6 +57,7 @@ export {
   BANK_IMPORT_PREVIEW_ROWS,
   BANK_STATEMENT_CONTENT_MAX_LENGTH,
   BANK_STATEMENT_FORMATS,
+  BANK_STATEMENT_IMPORT_STATUSES,
   bankAmountConventionSchema,
   bankDateOrderSchema,
   bankImportColumnsSchema,
@@ -66,8 +67,10 @@ export {
   bankStatementFormatSchema,
   bankStatementImportPageSchema,
   bankStatementImportPreviewSchema,
+  bankStatementImportQueuedSchema,
   bankStatementImportResultSchema,
   bankStatementImportSchema,
+  bankStatementImportStatusSchema,
   createBankImportMappingRequestSchema,
   createBankStatementImportRequestSchema,
   listBankImportMappingsQuerySchema,
@@ -86,7 +89,9 @@ export type {
   BankStatementImport,
   BankStatementImportPage,
   BankStatementImportPreview,
+  BankStatementImportQueued,
   BankStatementImportResult,
+  BankStatementImportStatus,
   CreateBankImportMappingRequest,
   CreateBankStatementImportRequest,
   ListBankImportMappingsQuery,

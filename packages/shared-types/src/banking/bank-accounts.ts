@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-import { pageQueryShape } from '../wire';
-
-import { unpublishedPageSchema } from './banking';
+import { pageQueryShape, pageSchema } from '../wire';
 
 /**
  * Bank accounts (OB-075, for OB-076; ROADMAP D-41, D-46).
@@ -48,11 +46,12 @@ import { unpublishedPageSchema } from './banking';
  * `strictObject` throughout, so a client that sends what it thinks is a balance is
  * told rather than having it silently dropped.
  *
- * ## No `.meta({ id })`, and no route yet
+ * ## The component ids arrived with OB-084's routes
  *
- * OB-084 adds `/v1`'s banking surface and the component ids arrive with it, in the
- * same diff — the sequence `accounts/accounts.ts` argues in full and every
- * milestone since has repeated. See `banking.ts`.
+ * `/v1`'s banking surface (OB-084) routes a bank account, so the component ids are
+ * here now — added in the same diff as the routes, the sequence `accounts/accounts.ts`
+ * argues in full and every milestone since has repeated. The list query carries none
+ * (a querystring is emitted as individual `parameters`); see `banking.ts`.
  */
 
 /**
@@ -128,33 +127,40 @@ const bankExternalAccountIdSchema = z
  * cached, it is where the balance *is*. A caller wanting the balance reads the
  * ledger account, through the reports it already has.
  */
-export const bankAccountSchema = z.strictObject({
-  id: z.uuid(),
-  accountId: z.uuid().meta({
+export const bankAccountSchema = z
+  .strictObject({
+    id: z.uuid(),
+    accountId: z.uuid().meta({
+      description:
+        'The ledger account this bank account *is* (D-46). Its balance is this bank account’s ' +
+        'balance — there is no second figure here, because a banking module that stored its own ' +
+        'would eventually disagree with the general ledger it is meant to corroborate.',
+    }),
+    name: bankAccountNameSchema,
+    institutionName: bankInstitutionNameSchema.nullable(),
+    externalAccountId: bankExternalAccountIdSchema.nullable().meta({
+      description:
+        'What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be ' +
+        'checked against the account it is being imported into; not a full account number, because ' +
+        'nothing in v1 initiates a payment.',
+    }),
+    feedSource: bankFeedSourceSchema,
+    isActive: z.boolean().meta({
+      description:
+        'An inactive bank account keeps every line, import and reconciliation it already has and ' +
+        'accepts no new ones. Deactivation rather than deletion, for the reason it is deactivation ' +
+        'everywhere else: the ledger references this account and nothing referenced by a journal ' +
+        'may vanish.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'BankAccount',
     description:
-      'The ledger account this bank account *is* (D-46). Its balance is this bank account’s ' +
-      'balance — there is no second figure here, because a banking module that stored its own ' +
-      'would eventually disagree with the general ledger it is meant to corroborate.',
-  }),
-  name: bankAccountNameSchema,
-  institutionName: bankInstitutionNameSchema.nullable(),
-  externalAccountId: bankExternalAccountIdSchema.nullable().meta({
-    description:
-      'What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be ' +
-      'checked against the account it is being imported into; not a full account number, because ' +
-      'nothing in v1 initiates a payment.',
-  }),
-  feedSource: bankFeedSourceSchema,
-  isActive: z.boolean().meta({
-    description:
-      'An inactive bank account keeps every line, import and reconciliation it already has and ' +
-      'accepts no new ones. Deactivation rather than deletion, for the reason it is deactivation ' +
-      'everywhere else: the ledger references this account and nothing referenced by a journal ' +
-      'may vanish.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'A bank account: a ledger account (`accountId`, D-46) plus the import metadata a ' +
+      'statement needs. Its balance is the ledger account’s — there is no second figure here.',
+  });
 
 export type BankAccount = z.infer<typeof bankAccountSchema>;
 
@@ -170,12 +176,20 @@ export type BankAccount = z.infer<typeof bankAccountSchema>;
  * `isActive` is absent, as it is on every create request in this API — a resource
  * is created active, and deactivation is its own operation.
  */
-export const createBankAccountRequestSchema = z.strictObject({
-  accountId: z.uuid(),
-  name: bankAccountNameSchema,
-  institutionName: bankInstitutionNameSchema.nullish(),
-  externalAccountId: bankExternalAccountIdSchema.nullish(),
-});
+export const createBankAccountRequestSchema = z
+  .strictObject({
+    accountId: z.uuid(),
+    name: bankAccountNameSchema,
+    institutionName: bankInstitutionNameSchema.nullish(),
+    externalAccountId: bankExternalAccountIdSchema.nullish(),
+  })
+  .meta({
+    id: 'CreateBankAccountRequest',
+    description:
+      'Registers an existing ledger account as a bank account. `accountId` names an account the ' +
+      'org already has — the chart is the org’s, and a module that invented accounts in it would ' +
+      'decide the org’s chart on its behalf (D-23).',
+  });
 
 export type CreateBankAccountRequest = z.infer<typeof createBankAccountRequestSchema>;
 
@@ -201,6 +215,13 @@ export const updateBankAccountRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateBankAccountRequest',
+    description:
+      'Partial update. `accountId` and `isActive` are absent on purpose: repointing at a different ' +
+      'ledger account would orphan every cleared line, and deactivation is its own operation so it ' +
+      'can refuse an account with an open session (`bank_account_has_open_session`).',
   });
 
 export type UpdateBankAccountRequest = z.infer<typeof updateBankAccountRequestSchema>;
@@ -223,6 +244,9 @@ export type ListBankAccountsQuery = z.input<typeof listBankAccountsQuerySchema>;
  * `name` is what a user would sort on and is editable, and a keyset over a mutable
  * column silently drops the rows that moved behind the cursor.
  */
-export const bankAccountPageSchema = unpublishedPageSchema(bankAccountSchema);
+export const bankAccountPageSchema = pageSchema(bankAccountSchema, {
+  id: 'BankAccountPage',
+  description: 'One page of bank accounts, oldest first by creation.',
+});
 
 export type BankAccountPage = z.infer<typeof bankAccountPageSchema>;
