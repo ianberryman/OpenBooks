@@ -8,15 +8,15 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                | Status                       |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Wave 0 built — see below** |
-| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
+| Milestone | Spec phase | Outcome                                                                                                | Status                          |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below**    |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below**    |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below**    |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–1 built — see below** |
+| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                      |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                      |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                      |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import.
 
@@ -24,18 +24,22 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4's wave 0 is built; waves 1–5 are not started.** Read this
+**M1, M2 and M3 are built. M4's waves 0–1 are built; waves 2–5 are not started.** Read this
 section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                       |
-| ------ | ----------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                         |
-| Gate   | `yarn check` passes — 1,843 tests across 148 files, ~2.5 min                                          |
-| Push   | **38 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold     |
-| Next   | M4 wave 1: **OB-076** (CSV import), **OB-077** (OFX parser), **OB-078** (statement service), parallel |
+|        |                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                                             |
+| Gate   | `yarn check` passes — 1,922 tests across 154 files, ~2.5 min                                                              |
+| Push   | **43 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                         |
+| Next   | M4 wave 2: **OB-079** (match engine) and **OB-080** (bank rules) are parallel; **OB-081** (accept a match) follows OB-079 |
 
-Wave 1 also builds the queue [D-49](#d-49) settles, and flips the worker's Compose restart
-policy to `unless-stopped` in the same change — see [Status — Milestone 4](#status--milestone-4).
+Wave 1 built the ingest pipeline (CSV + OFX/QFX parsers, the dedupe/fingerprint statement
+service), the in-process queue [D-49](#d-49) settles, and the async import path — flipping the
+worker's Compose restart policy to `unless-stopped` in the same change. It also took
+`banking.import` and `banking.read` live in the permission matrix (the wave-1 slice of
+OB-089), because a service that enforces a code must move it out of `LATENT_GRANTS` in the
+same commit. See [Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1062,8 +1066,43 @@ decision, both of which M4 is the first milestone to actually need. Both are now
 
 ### Status — Milestone 4
 
-**Wave 0 is built** (OB-074, OB-075). Ten tenant-scoped tables in `0006_banking`, nine wire
-contract files in `packages/shared-types/src/banking/`. Waves 1–5 are not started.
+**Waves 0–1 are built.** Waves 2–5 are not started.
+
+#### Wave 1 — ingest, the queue, the async import path (OB-076, OB-077, OB-078)
+
+Fanned out around a committed parser seam (`modules/banking/parser.ts`): a parser turns
+bytes into bank facts and nothing else — the occurrence index, the fingerprint and the
+dedupe belong to the stage that can see the stored lines and the rest of the file, which is
+the statement service. Both parsers add **no dependency**: a tolerant hand-written
+tokeniser reads OFX 1.x SGML and 2.x XML alike (a strict XML parser rejects valid 1.x), and
+a hand-written RFC-4180 tokeniser reads CSV.
+
+- **E1 is proven as properties, not examples.** The fingerprint is SHA-256 over a canonical
+  JSON array of the supplied fields (injective, delimiter-safe); the occurrence index is
+  stored beside it and numbered order-independently; persistence is `INSERT IGNORE`. The
+  suite asserts re-import collapses, a shuffled file produces the identical stored set, two
+  identical transactions both survive, an overlapping re-upload adds only the new lines, and
+  a **crash re-run inserts nothing new** — which matters because the in-process queue does
+  not survive a restart, so an interrupted import is re-run and E1 is what makes that safe.
+- **`bank_statement_imports` became mutable** — the resolution of the tension wave 0 handed
+  forward. The async lifecycle updates a `status` (`queued`→`complete`/`failed`) on a single
+  pollable row, which an append-only table cannot carry. The evidence argument is unmoved: a
+  re-import creates a **new** row and rewrites none, and E2's immutability lives on
+  `bank_statement_lines`, still append-only at the grant level. `0999_app_grants` moved the
+  import table from `APPEND_ONLY_TABLES` to `MUTABLE_TABLES`; the line log stays append-only.
+- **The queue is the in-process adapter of the existing `QueueProvider`** (D-49, D-07's rule
+  a third time), selected like the email provider. `startImport` enqueues; the worker parses,
+  dedupes and inserts. The worker's Compose restart policy is now `unless-stopped`.
+- **The permission matrix moved with the services.** `banking.import` and `banking.read` left
+  `LATENT_GRANTS` for `GRANTED_TO` the moment the import and mapping services enforced them,
+  with `OPERATIONS` rows carrying `operationId: null` until OB-084 gives them routes — the
+  shape `getPeriod` has held since M2. This is the wave-1 slice of **OB-089**;
+  `banking.match`/`reconcile`/`reopen` stay latent for waves 2–3.
+
+#### Wave 0 — schema and contracts (OB-074, OB-075)
+
+Ten tenant-scoped tables in `0006_banking`, nine wire contract files in
+`packages/shared-types/src/banking/`.
 
 Three facts the schema had to be **measured** to learn, all recorded in `0006_banking.ts`'s
 header so they are not paid for twice:
@@ -1090,15 +1129,18 @@ Two things wave 0 decided against its own brief, both worth knowing before wave 
   proprietary tags and one parser; a second token would be a second name for one thing.
   OB-077's title still says "OFX/QFX" and means this.
 
-#### Carried into wave 1
+#### Carried forward (waves 2–3)
 
-| What                                                                       | Owner  |
-| -------------------------------------------------------------------------- | ------ |
-| `bank_statement_imports` gains a `status` once parsing moves to the worker | OB-078 |
-| Session membership is by date and is not frozen at finalisation            | OB-082 |
-| E5 vs D-45: does an unpresented cheque block finalisation?                 | OB-082 |
+| What                                                              | Owner  |
+| ----------------------------------------------------------------- | ------ |
+| `bank_match_proposals` carries `rank`, no `score` ([D-48](#d-48)) | OB-079 |
+| Session membership is by date and is not frozen at finalisation   | OB-082 |
+| E5 vs D-45: does an unpresented cheque block finalisation?        | OB-082 |
 
-The last of those is a genuine ambiguity in this roadmap, not an implementation question.
+`bank_statement_imports` gaining a `status` (carried out of wave 0) is done — OB-078 built
+it, and the append-only-vs-mutable resolution is recorded above.
+
+The last row is a genuine ambiguity in this roadmap, not an implementation question.
 E5 says "book balance = statement balance at the date"; read literally, an uncleared item —
 a written cheque not yet presented — would block finalisation, which is wrong for a bank
 reconciliation. The contracts model `clearedBalance` alongside `bookBalance` with
