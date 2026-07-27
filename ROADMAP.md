@@ -713,8 +713,8 @@ the chain, since `done(failure)` only skips what comes after. That guarantee now
 registration order in `app.ts` rather than on a hook choice, which is a more fragile place
 to hold it — worth knowing before anyone reorders that file.
 
-Wave 2 left three things that are work rather than notes, and they belong to nobody's
-ticket yet:
+Wave 2 left two things that are work rather than notes, and they belong to nobody's
+ticket yet (a third, retagging in a closed period, is settled as [D-32](#d-32)):
 
 1. **A draft's `contactId` and dimension tags are dropped at post.** They are held on the
    draft and absent from the journal it produces, pinned by a test that fails the day it is
@@ -735,13 +735,6 @@ ticket yet:
    `createOrgIn`'s transaction — which the service then joins ambiently. OB-039 correctly
    declined to add an `applyChartTemplateTo(orgId, …)` escape hatch, since spec §4 forbids
    passing an org as a parameter.
-
-3. **Whether a line in a closed period may be retagged is undecided.** The period is not
-   consulted today, and `tagging.service.ts` says so rather than leaving it silent. The
-   argument for allowing it is the one that made tags mutable in the first place — a tag is
-   an analysis slice, not a term of the entry, and no total moves. The argument against is
-   that closing a period is meant to mean its reports are final, and sliced reports would
-   change.
 
 Two threads left loose:
 
@@ -1154,6 +1147,38 @@ select `log`.
 A consequence worth noting: the email config union no longer carries a secret, so the
 redaction path list shrinks. That is a real reduction in what the logger has to be trusted
 about, not just a smaller list.
+
+<a id="d-32"></a>
+**D-32 — A closed period does not stop a retag.** Left open when OB-037 shipped and now
+decided: `setJournalLineDimensions` deliberately does not consult the period and does not
+call `assertPostable`.
+
+Closing a period stops the _books_ moving, and a tag is not part of what the books say —
+it is the analysis laid over them. Every statement a close is meant to freeze is unchanged
+by a retag: the trial balance, the P&L, the balance sheet, every account total, and the
+entry itself. What moves is only how a sliced report divides a total that stays the same,
+which is the same reasoning that made tags mutable in the first place.
+
+The practical case is what settles it. Dimensions are almost always introduced _after_ a
+business has been keeping books for a while, and the first thing an owner wants from a new
+axis is last year's numbers split by it. If a closed period refused tags that is
+impossible — the data needed to answer "which of my locations lost money" would exist and
+be permanently unreachable, and the only route to it would be reversing and reposting
+entries that were correct. That is precisely the two-journals-to-fix-a-label outcome
+[D-18](#d-18)'s mutable tags exist to avoid, arriving through the period lock instead of
+through the grant.
+
+The cost, stated rather than hidden: **a sliced report over a closed period is not
+reproducible from the period alone** — it depends on when it was run. An unsliced report
+still is, and that is the one the books, the filed return, and the auditor are about. If a
+sliced report ever needs to be reproducible, the answer is to snapshot the report, not to
+freeze the tags.
+
+`test/dimensions/tagging.test.ts` asserts the pair: a retag in a closed period succeeds
+**and** the same closed period still refuses a posting. Both halves are needed, because the
+way this goes wrong is not a refused retag — a caller would notice that immediately — but
+the period lock quietly ceasing to apply to the ledger. Mutation-checked: leaving the
+period open fails the test.
 
 ## Status
 

@@ -62,13 +62,30 @@ import {
  * table. Retagging therefore cannot move money, and `test/dimensions/tagging.test.ts`
  * asserts that against a real trial balance rather than trusting the reading.
  *
- * ## One question left open on purpose
+ * ## A closed period does not stop a retag (ROADMAP D-32)
  *
- * Whether a line in a *closed* period may be retagged. There is an argument each
- * way — the period lock exists so the books for a month stop moving, and a tag is
- * not part of what the books say — and answering it belongs with the sliced
- * reports that would be restated (OB-053), where the cost is visible. Today the
- * period is not consulted.
+ * This was left open when the module was written and is now decided: the period is
+ * deliberately not consulted, and `assertPostable` is deliberately not called.
+ *
+ * Closing a period stops the *books* moving, and a tag is not part of what the books
+ * say — it is the analysis laid over them. Every statement a closed period is meant
+ * to freeze is unchanged by a retag: the trial balance, the P&L, the balance sheet,
+ * every account total, and the entry itself. What changes is only how a sliced
+ * report divides a total that stays the same, which is the property B6 asserts and
+ * `test/dimensions/tagging.test.ts` proves against a real trial balance.
+ *
+ * The practical case decides it. Dimensions are usually introduced *after* a business
+ * has been keeping books for a while, and the first thing an owner wants is last
+ * year's numbers split by the axis they just created. If a closed period refused
+ * tags, that is impossible — the data needed to answer "which of my locations lost
+ * money" would exist and be permanently unreachable, and the only route to it would
+ * be reversing and reposting correct entries, which is exactly the two-journals-to-
+ * fix-a-label outcome the mutable-tag decision rejected.
+ *
+ * The cost, stated plainly rather than hidden: a sliced report over a closed period
+ * is **not** reproducible from the period alone — it depends on when it was run. An
+ * unsliced report still is, and that is the one the books, the return, and the
+ * auditor are about.
  */
 
 /**

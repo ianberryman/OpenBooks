@@ -70,9 +70,10 @@
  * cannot change an amount — nothing in this module writes one — and the test suite
  * asserts that against a real trial balance rather than against the reading.
  *
- * One question is deliberately left open: **whether a line in a closed period may
- * be retagged.** There is an argument each way, and it belongs with the sliced
- * reports that would be restated (OB-053). Today the period is not consulted.
+ * **A closed period does not stop a retag** (ROADMAP D-32). The period is not
+ * consulted, deliberately: closing stops the books moving, and a tag is not part of
+ * what the books say. The argument in full, including the cost it accepts, is on
+ * `setJournalLineDimensions` in `tagging.service.ts`.
  */
 
 export { MAX_DIMENSIONS_PER_ORG } from '@openbooks/shared-types';

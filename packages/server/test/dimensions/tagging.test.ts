@@ -18,6 +18,7 @@ import {
   setJournalLineDimensions,
 } from '../../src/modules/dimensions';
 import { getTrialBalance, postJournal } from '../../src/modules/ledger';
+import { closePeriod } from '../../src/modules/periods';
 import { SYSTEM_ROLE_UUIDS, systemRoleId, uuidToBuffer } from '../db';
 import { contextFor, useServiceDatabase, withContext } from './support';
 
@@ -38,6 +39,11 @@ interface Scene {
   readonly orgUuid: string;
   readonly orgId: Buffer;
   readonly userId: Buffer;
+  readonly userUuid: string;
+  readonly periodUuid: string;
+  readonly periodStartDate: string;
+  readonly debitAccountUuid: string;
+  readonly creditAccountUuid: string;
   readonly lineId: string;
   readonly otherLineId: string;
   readonly department: string;
@@ -83,6 +89,11 @@ async function scene(): Promise<Scene> {
     orgUuid: ledger.org.uuid,
     orgId: ledger.org.id,
     userId: ledger.user.id,
+    userUuid: ledger.user.uuid,
+    periodUuid: ledger.period.uuid,
+    periodStartDate: ledger.period.startDate,
+    debitAccountUuid: ledger.debitAccount.uuid,
+    creditAccountUuid: ledger.creditAccount.uuid,
     lineId: first.lineId,
     otherLineId: second.lineId,
     department: department.id,
@@ -197,6 +208,47 @@ describe('tagging a posted journal line', () => {
     await setJournalLineDimensions(s.otherLineId, { valueIds: [s.alpha] }, s.ctx);
 
     expect(await getTrialBalance({}, s.ctx)).toEqual(before);
+  });
+
+  /**
+   * ROADMAP D-32. Closing a period stops the books moving; a tag is not part of what
+   * the books say, so the period is deliberately not consulted here.
+   *
+   * The assertion is the *pair*, and both halves matter. Retagging succeeds, and the
+   * same closed period still refuses a posting — because the way this decision could
+   * be got wrong is not "retagging is refused", which any caller would notice
+   * immediately, but "the period lock quietly stopped applying to the ledger too",
+   * which nothing else in this file would catch.
+   */
+  it('permits a retag in a closed period while the period still refuses a posting', async () => {
+    const before = await getTrialBalance({}, s.ctx);
+    await withContext(s.ctx, () => closePeriod({ periodId: s.periodUuid }));
+
+    await setJournalLineDimensions(s.lineId, { valueIds: [s.sales] }, s.ctx);
+    expect(await getJournalLineDimensions(s.lineId, s.ctx)).toHaveLength(1);
+
+    await setJournalLineDimensions(s.lineId, { valueIds: [s.operations] }, s.ctx);
+    await setJournalLineDimensions(s.lineId, { valueIds: [] }, s.ctx);
+
+    expect(await getTrialBalance({}, s.ctx)).toEqual(before);
+
+    await expect(
+      withContext(s.ctx, () =>
+        postJournal(
+          {
+            date: s.periodStartDate,
+            memo: 'Into a closed period',
+            actorType: 'user',
+            actorId: s.userUuid,
+            lines: [
+              { accountId: s.debitAccountUuid, side: 'debit', amount: 100n },
+              { accountId: s.creditAccountUuid, side: 'credit', amount: 100n },
+            ],
+          },
+          s.ctx,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(PreconditionFailedError);
   });
 
   it('answers an unknown, malformed, or cross-org line identically (A7)', async () => {
