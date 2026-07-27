@@ -169,6 +169,14 @@ describe('the tenant table set is derived from the schema', () => {
       'ar_document_line_dimensions',
       'ar_document_lines',
       'ar_documents',
+      'bank_accounts',
+      'bank_import_mappings',
+      'bank_line_clearings',
+      'bank_match_proposals',
+      'bank_rule_dimensions',
+      'bank_rules',
+      'bank_statement_imports',
+      'bank_statement_lines',
       'contacts',
       'dimension_values',
       'dimensions',
@@ -186,6 +194,8 @@ describe('the tenant table set is derived from the schema', () => {
       'org_invites',
       'org_members',
       'payments',
+      'reconciliation_session_events',
+      'reconciliation_sessions',
       'tax_rates',
     ]);
   });

@@ -143,6 +143,38 @@ const OVERRIDES = {
     'ar_allocations.allocated_on': 'string',
     'ap_allocations.amount_minor': 'bigint',
     'ap_allocations.allocated_on': 'string',
+
+    // ── M4 banking (0006_banking) ───────────────────────────────────────────
+    //
+    // The same two corrections again. `bank_statement_imports.lines_read` and
+    // `lines_duplicate` are INT UNSIGNED and need no override — well inside 2^53,
+    // and the generator maps them to `number` correctly — as do
+    // `bank_match_proposals.score` and every column-index column on a mapping.
+    'bank_statement_lines.posted_date': 'string',
+    'bank_statement_lines.value_date': 'string | null',
+    // Signed, unlike every other money column in this schema: E4 is an equation over
+    // amounts and a term whose sign must be looked up is where a sign error goes.
+    // See the header of `0006_banking`.
+    'bank_statement_lines.amount_minor': 'bigint',
+    // Nullability has to be spelled out, because an override replaces the whole
+    // mapped type: `'bigint'` here would type an unbounded rule's amount as
+    // non-null.
+    'bank_rules.match_amount_min_minor': 'bigint | null',
+    'bank_rules.match_amount_max_minor': 'bigint | null',
+    // Plain bigint despite the DEFAULT 0, exactly as `journal_lines.debit_minor`
+    // is: a difference that silently defaults to zero because a caller forgot it
+    // is the discrepancy E4 exists to record going unrecorded.
+    'bank_line_clearings.cleared_amount_minor': 'bigint',
+    'bank_line_clearings.difference_amount_minor': 'bigint',
+    'reconciliation_sessions.end_date': 'string',
+    'reconciliation_sessions.statement_closing_balance_minor': 'bigint',
+    // A STORED generated column, as `idempotency_keys.claim_scope` is: MySQL
+    // rejects any attempt to write it, so `Generated<>` is what keeps it off the
+    // insert type. Nullable — it holds the bank account id only while the session
+    // is open — and the two have to be combined by hand, since an override
+    // replaces the mapped type outright.
+    'reconciliation_sessions.open_marker': 'Generated<Buffer | null>',
+    'reconciliation_session_events.asserted_balance_minor': 'bigint | null',
   },
 };
 

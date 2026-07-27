@@ -63,13 +63,15 @@ const APP_DB_USER = 'openbooks_app';
 /**
  * Tables the application may never UPDATE or DELETE.
  *
- * Two different reasons land a table here, and both matter:
+ * Three different reasons land a table here, and all three matter:
  *
  *  - `journals` / `journal_lines` — the ledger is append-only and corrections are
  *    reversing entries (spec §2.2, §12). This is the guarantee the whole grant split
  *    exists to enforce.
  *  - `permissions` — the fixed catalog (spec §5). The application reads it and never
  *    writes it; only a migration may change it.
+ *  - The three M4 banking tables — each is a record of something that happened, and
+ *    a record the application can rewrite is not one. See the block beside them.
  *
  * `permissions` is listed rather than left out even though omission produced the same
  * behaviour, because the *signal* is what this file trades on: "in neither list" has
@@ -77,7 +79,38 @@ const APP_DB_USER = 'openbooks_app';
  * cannot be told apart from an oversight, which is precisely the confusion the
  * declarative lists are here to prevent. Found by OB-026's converse check.
  */
-const APPEND_ONLY_TABLES = ['journals', 'journal_lines', 'permissions'] as const;
+const APPEND_ONLY_TABLES = [
+  'journals',
+  'journal_lines',
+  'permissions',
+  // ── The M4 banking evidence (0006_banking) ─────────────────────────────────
+  //
+  // The first tables since M1 to join this list, and the first ever added for a
+  // reason other than the ledger's own immutability.
+  //
+  // `bank_statement_lines` is criterion E2 and ROADMAP D-42: a statement line is
+  // what the bank said. The argument is `journals`' argument applied to a different
+  // record — the reason to keep a line is that it *independently corroborates* the
+  // ledger, and a corroborating record you can rewrite corroborates nothing. So
+  // everything the matching pipeline decides lives in a row that references a line
+  // (`bank_match_proposals`, `bank_line_clearings`), and both of those are mutable
+  // while the line is not.
+  //
+  // `bank_statement_imports` is the same fact one level up: that a named file, with
+  // this hash, was uploaded by this person at this time and contained this many
+  // rows of which this many were already present. The counts are not recoverable
+  // afterwards — a duplicate leaves no row behind — so an editable import record
+  // would be the only witness to a re-import and also the one thing able to deny it.
+  //
+  // `reconciliation_session_events` is criterion E6: reopening a finalised session
+  // is permission-gated and leaves a record of who and when. A deletable audit trail
+  // satisfies neither half. The session itself is mutable — `state` is the row the
+  // application takes `FOR UPDATE`, which is only possible for a table in the list
+  // below (D-14) — so the lock is mutable and the history is not.
+  'bank_statement_imports',
+  'bank_statement_lines',
+  'reconciliation_session_events',
+] as const;
 
 /**
  * Tables the application may UPDATE and DELETE. Ordinary mutable state:
@@ -167,6 +200,41 @@ const MUTABLE_TABLES = [
   // would make every outstanding calculation sum signed amounts.
   'ar_allocations',
   'ap_allocations',
+  // ── M4 banking (0006_banking) ──────────────────────────────────────────────
+  //
+  // Seven of the ten new tables; the other three are in APPEND_ONLY_TABLES above,
+  // and the split is the whole shape of D-42: what the bank said is evidence, what
+  // anyone concluded from it is working state.
+  //
+  // `bank_accounts` and `bank_import_mappings` are settings — a nominated ledger
+  // account and a saved CSV layout — and hold no financial fact between them (D-46).
+  // `bank_rules` and its tags are a lookup table the user edits, and D-44's E8 is
+  // enforced by what the schema does not contain rather than by a grant: no rule is
+  // reachable from a posted entry, so no edit here can restate one.
+  'bank_accounts',
+  'bank_import_mappings',
+  'bank_rules',
+  'bank_rule_dimensions',
+  // Proposals are deleted and regenerated wholesale. D-43's corollary is that
+  // nothing depends on a proposal being right, only on it being ranked well, so
+  // they are the most disposable rows in the schema.
+  'bank_match_proposals',
+  // The two that look like they belong above, and do not.
+  //
+  // A clearing is deletable for the reason `ar_allocations` is: it posts no journal.
+  // The entry was posted separately, by a human, through the ordinary path (D-43,
+  // E3), and the clearing states which bank line it corresponds to. Un-matching a
+  // line restates no financial statement, and modelling it as a reversing row would
+  // make every cleared-balance sum signed amounts. What must not be deletable is a
+  // clearing inside a *finalised* session, and that is a rule about another row's
+  // column value which no grant can express — it lives in OB-082 beside the rest of
+  // the session lock.
+  'bank_line_clearings',
+  // The session is mutable because `state` is the lock. A concurrent clearing has to
+  // test it, testing it means `SELECT … FOR UPDATE`, and MySQL requires UPDATE,
+  // DELETE or LOCK TABLES for a locking read — which is exactly why the journal
+  // sequence counter is its own table (D-14). Its history is append-only above.
+  'reconciliation_sessions',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

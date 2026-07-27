@@ -5,6 +5,7 @@ import * as m0001 from './0001_tenancy';
 import * as m0002 from './0002_ledger';
 import * as m0003 from './0003_idempotency';
 import * as m0005 from './0005_subledger';
+import * as m0006 from './0006_banking';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -48,6 +49,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0002_ledger': m0002,
   '0003_idempotency': m0003,
   '0005_subledger': m0005,
+  '0006_banking': m0006,
   '0999_app_grants': m0999,
 };
 

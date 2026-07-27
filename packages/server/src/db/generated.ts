@@ -160,6 +160,131 @@ export interface ArDocuments {
   void_journal_id: Buffer | null;
 }
 
+export interface BankAccounts {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  external_account_id: string | null;
+  feed_source: Generated<"file">;
+  id: Buffer;
+  institution_name: string | null;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface BankImportMappings {
+  amount_column: number | null;
+  amount_convention: "debit_credit_columns" | "signed" | "signed_reversed";
+  bank_account_id: Buffer;
+  bank_reference_column: number | null;
+  counterparty_column: number | null;
+  created_at: Generated<Date>;
+  credit_column: number | null;
+  date_order: "dmy" | "mdy" | "ymd";
+  debit_column: number | null;
+  delimiter: Generated<string>;
+  description_column: number;
+  has_header_row: Generated<number>;
+  id: Buffer;
+  name: string;
+  org_id: Buffer;
+  posted_date_column: number;
+  updated_at: Generated<Date>;
+  value_date_column: number | null;
+}
+
+export interface BankLineClearings {
+  cleared_amount_minor: bigint;
+  cleared_journal_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  difference_account_id: Buffer | null;
+  difference_amount_minor: bigint;
+  difference_journal_id: Buffer | null;
+  id: Buffer;
+  method: "allocate_document" | "link_entry" | "post_entry";
+  org_id: Buffer;
+  payment_id: Buffer | null;
+  reconciliation_session_id: Buffer | null;
+  statement_line_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface BankMatchProposals {
+  account_id: Buffer | null;
+  ap_document_id: Buffer | null;
+  ar_document_id: Buffer | null;
+  bank_rule_id: Buffer | null;
+  contact_id: Buffer | null;
+  created_at: Generated<Date>;
+  id: Buffer;
+  journal_id: Buffer | null;
+  org_id: Buffer;
+  proposal_type: "ap_document" | "ar_document" | "coding" | "journal";
+  reason_code: string;
+  score: number;
+  statement_line_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface BankRuleDimensions {
+  bank_rule_id: Buffer;
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  dimension_value_id: Buffer;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface BankRules {
+  bank_account_id: Buffer | null;
+  created_at: Generated<Date>;
+  id: Buffer;
+  is_active: Generated<number>;
+  match_amount_max_minor: bigint | null;
+  match_amount_min_minor: bigint | null;
+  match_description: string | null;
+  match_description_mode: "contains" | "equals" | "starts_with" | null;
+  match_direction: "inbound" | "outbound" | null;
+  name: string;
+  org_id: Buffer;
+  priority: Generated<number>;
+  set_account_id: Buffer;
+  set_contact_id: Buffer | null;
+  updated_at: Generated<Date>;
+}
+
+export interface BankStatementImports {
+  bank_account_id: Buffer;
+  created_at: Generated<Date>;
+  file_hash: string;
+  filename: string;
+  format: "csv" | "ofx";
+  id: Buffer;
+  imported_by_user_id: Buffer;
+  lines_duplicate: number;
+  lines_read: number;
+  mapping_id: Buffer | null;
+  org_id: Buffer;
+}
+
+export interface BankStatementLines {
+  amount_minor: bigint;
+  bank_account_id: Buffer;
+  bank_reference: string | null;
+  counterparty: string | null;
+  created_at: Generated<Date>;
+  description: string;
+  fingerprint: string;
+  id: Buffer;
+  import_id: Buffer;
+  occurrence_index: Generated<number>;
+  org_id: Buffer;
+  posted_date: string;
+  value_date: string | null;
+}
+
 export interface Contacts {
   code: string | null;
   created_at: Generated<Date>;
@@ -373,6 +498,31 @@ export interface Permissions {
   description: string;
 }
 
+export interface ReconciliationSessionEvents {
+  asserted_balance_minor: bigint | null;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  event_type: "finalised" | "reopened";
+  id: Buffer;
+  org_id: Buffer;
+  reason: string | null;
+  session_id: Buffer;
+}
+
+export interface ReconciliationSessions {
+  bank_account_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  end_date: string;
+  finalised_at: Date | null;
+  id: Buffer;
+  open_marker: Generated<Buffer | null>;
+  org_id: Buffer;
+  state: Generated<"finalised" | "in_progress">;
+  statement_closing_balance_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
 export interface RolePermissions {
   permission_code: string;
   role_id: Buffer;
@@ -435,6 +585,14 @@ export interface DB {
   ar_document_line_dimensions: ArDocumentLineDimensions;
   ar_document_lines: ArDocumentLines;
   ar_documents: ArDocuments;
+  bank_accounts: BankAccounts;
+  bank_import_mappings: BankImportMappings;
+  bank_line_clearings: BankLineClearings;
+  bank_match_proposals: BankMatchProposals;
+  bank_rule_dimensions: BankRuleDimensions;
+  bank_rules: BankRules;
+  bank_statement_imports: BankStatementImports;
+  bank_statement_lines: BankStatementLines;
   contacts: Contacts;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
@@ -454,6 +612,8 @@ export interface DB {
   orgs: Orgs;
   payments: Payments;
   permissions: Permissions;
+  reconciliation_session_events: ReconciliationSessionEvents;
+  reconciliation_sessions: ReconciliationSessions;
   role_permissions: RolePermissions;
   roles: Roles;
   sessions: Sessions;

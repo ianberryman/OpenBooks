@@ -26,7 +26,7 @@ describe('test database harness', () => {
 
       // Ordered by name, which is also the order they ran in. `0999_app_grants` is
       // last on purpose: MySQL refuses a table-level GRANT on a table that does not
-      // exist yet, so every table it names is created in one of the four above it.
+      // exist yet, so every table it names is created in one of the five above it.
       // `0004` is skipped and stays skipped — it is the number the grants migration
       // held before OB-060 renumbered it, and reusing it would make one prefix mean
       // two migrations in this project's history.
@@ -35,6 +35,7 @@ describe('test database harness', () => {
         '0002_ledger',
         '0003_idempotency',
         '0005_subledger',
+        '0006_banking',
         '0999_app_grants',
       ]);
     });
@@ -66,6 +67,12 @@ describe('test database harness', () => {
       expect(names).toContain('chk_journal_lines_one_sided');
       expect(names).toContain('chk_journals_invocation_mode');
       expect(names).toContain('chk_fiscal_periods_closed_consistency');
+      // M4's equivalents. `chk_bmp_target` is the one that makes
+      // `bank_match_proposals`' four nullable target columns a tagged union rather
+      // than a bag of optional fields; `chk_rs_finalised` is the session lock's
+      // state and timestamp kept in step, as `fiscal_periods` does for its close.
+      expect(names).toContain('chk_bmp_target');
+      expect(names).toContain('chk_rs_finalised');
     });
   });
 

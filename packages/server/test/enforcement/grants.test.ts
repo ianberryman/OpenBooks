@@ -324,7 +324,23 @@ describe('the grant lists and the live server agree', () => {
     // no total on any report — see the block in `0999_app_grants`. A table moving
     // *into* this list is a widening of immutability and fine; `journals` or
     // `journal_lines` moving *out* is the regression this literal exists to catch.
-    expect(APPEND_ONLY_TABLES).toEqual(['journals', 'journal_lines', 'permissions']);
+    // The three M4 additions widened it for a reason the ledger tables do not have:
+    // each is a record of something that happened rather than a financial fact.
+    // `bank_statement_lines` is criterion E2 and the one this literal now pins
+    // hardest — D-42 says a statement line is what the bank said, and a statement
+    // line that could be edited stops being evidence. `bank_line_clearings` and
+    // `reconciliation_sessions` are deliberately in the mutable list beside them:
+    // a clearing posts no journal (the `ar_allocations` argument) and a session's
+    // `state` is the row the application takes `FOR UPDATE`.
+    expect(APPEND_ONLY_TABLES).toEqual([
+      'journals',
+      'journal_lines',
+      'permissions',
+      'bank_statement_imports',
+      'bank_statement_lines',
+      'reconciliation_session_events',
+    ]);
+    expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');
     expect(MUTABLE_TABLES.length).toBeGreaterThan(10);
     expect(MUTABLE_TABLES).not.toContain('journals');
     expect(MUTABLE_TABLES).not.toContain('journal_lines');
