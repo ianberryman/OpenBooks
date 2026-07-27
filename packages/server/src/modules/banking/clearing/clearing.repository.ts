@@ -249,28 +249,9 @@ export async function deleteClearing(db: TenantDatabase, id: Buffer): Promise<vo
   await db.deleteFrom('bank_line_clearings').where('id', '=', id).execute();
 }
 
-/**
- * Whether a finalised session on this bank account counts a line dated `postedDate`.
- *
- * The membership rule `0006_banking` states: a session's computation includes every
- * clearing for its bank account whose line falls on or before the session's end date.
- * So a clearing is "counted by a finalised session" exactly when a finalised session
- * exists on the same account with `end_date >= line.posted_date`. Undoing such a
- * clearing would silently falsify the balance that session asserted (E6), which is why
- * the undo path refuses it. The broader session lock — clearing *into* a finalised
- * window, and reopening — is OB-082's; this is the one query the undo refusal needs.
- */
-export async function finalisedSessionCoversLine(
-  db: TenantDatabase,
-  bankAccountId: Buffer,
-  postedDate: string,
-): Promise<boolean> {
-  const row = await db
-    .selectFrom('reconciliation_sessions')
-    .select('id')
-    .where('bank_account_id', '=', bankAccountId)
-    .where('state', '=', 'finalised')
-    .where('end_date', '>=', postedDate)
-    .executeTakeFirst();
-  return row !== undefined;
-}
+// Whether a finalised session counts a clearing is read from the clearing's own
+// `reconciliation_session_id` stamp (D-51), which `selectClearingByLine` already
+// returns — a finalising session stamps its members and a reopen unstamps them, so
+// the stamp is the membership. There is deliberately no date-range query here: it
+// would refuse undoing a straggler cleared into an already-finalised window that the
+// assertion never counted. The undo refusal lives in `clearing.service.ts`.

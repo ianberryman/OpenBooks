@@ -40,7 +40,6 @@ import {
   JOURNAL_RESOURCE,
   STATEMENT_LINE_RESOURCE,
   deleteClearing,
-  finalisedSessionCoversLine,
   insertClearing,
   journalBankMovement,
   journalExists,
@@ -213,7 +212,10 @@ export async function removeBankLineClearing(
   const lineBytes = assertFound(tryUuidToBuffer(lineId), STATEMENT_LINE_RESOURCE);
 
   await orgScope(ctx).transaction(async (trx) => {
-    const line = assertFound(await selectStatementLine(trx, lineBytes), STATEMENT_LINE_RESOURCE);
+    // Guards the 404: an unknown or cross-org line is not-found, not "not cleared"
+    // (E9). The result is otherwise unused now that the finalised-session refusal
+    // reads the clearing's own stamp rather than the line's date.
+    assertFound(await selectStatementLine(trx, lineBytes), STATEMENT_LINE_RESOURCE);
 
     const clearing = await selectClearingByLine(trx, lineBytes);
     if (clearing === undefined) {
@@ -223,7 +225,14 @@ export async function removeBankLineClearing(
       );
     }
 
-    if (await finalisedSessionCoversLine(trx, line.bank_account_id, line.posted_date)) {
+    // D-51: a finalised session freezes its membership by stamping its id onto the
+    // clearings it counted, so "counted by a finalised session" is exactly this
+    // stamp — not the line's date. A straggler cleared into an already-finalised
+    // window is left unstamped and was never part of the assertion, so it may be
+    // undone; a stamped clearing may not, because doing so would silently falsify the
+    // balance that session asserted (E6). The stamp is cleared on reopen, which is
+    // the permission-gated, recorded way back in.
+    if (clearing.reconciliation_session_id !== null) {
       throw new PreconditionFailedError(
         BANKING_PRECONDITIONS.RECONCILIATION_SESSION_ALREADY_FINALISED,
         'A finalised reconciliation session counts this line, so its clearing cannot be undone: ' +

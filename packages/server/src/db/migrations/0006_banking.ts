@@ -959,28 +959,24 @@ export async function up(db: MigrationDb): Promise<void> {
   // property of a ranking that no longer exists.
   //
   // `reconciliation_session_id` is NULL when the line was matched outside a session,
-  // which is the ordinary case on the matching screen. A session's computation
-  // includes every clearing for its bank account whose line falls on or before the
-  // session's end date, so a NULL here is included by date rather than excluded.
+  // which is the ordinary case on the matching screen. While a session is open its
+  // membership is the *query* — this bank account, line dated on or before `end_date`,
+  // stamp still NULL — so a NULL here is included by date rather than excluded.
   //
-  // ## Membership falls back to date, and finalising does not freeze it — OB-082
+  // ## Finalising freezes membership by writing this stamp — D-51, OB-082
   //
-  // The consequence of that fallback, written down because it is not obvious and
-  // because it is a real property of what E5 asserts. A finalised session's set of
-  // clearings is a *query* — this bank account, line dated on or before `end_date` —
-  // and nothing in this file stops that query returning a different answer tomorrow.
-  // A statement line arriving late (imports are append-only but not date-ordered) and
-  // cleared afterwards falls inside a window already finalised, and the assertion the
-  // session recorded stops reproducing.
+  // The stamp is how a finalised assertion stays reproducible. When a session
+  // finalises, OB-082 writes its id onto exactly the clearings the query returned, so
+  // the finalised set is a *stored fact* rather than a query that could answer
+  // differently tomorrow. A statement line arriving late (imports are append-only but
+  // not date-ordered) and cleared afterwards is left unstamped and is not part of the
+  // assertion — it cannot silently change what the session recorded. Reopening
+  // unstamps, which is the permission-gated, recorded way to re-gather membership (E6).
   //
-  // So a finalised reconciliation here is **falsifiable rather than impossible**,
-  // which is the weaker of the two guarantees and worth naming as such. The
-  // alternatives — freezing membership into a join table at finalisation, or refusing
-  // to clear a line into a finalised window at all — are both rules about rows
-  // that already exist, enforceable by a service and by no grant or constraint. That
-  // makes them OB-082's, with the rest of the session lock; the schema's contribution
-  // is `reconciliation_session_events`, which records what was asserted and when, so
-  // a later divergence is at least attributable.
+  // This is [D-42](ROADMAP)'s argument applied to an assertion rather than a line: a
+  // record whose meaning can be rewritten after the fact records nothing. The column
+  // was designed nullable for exactly this write; `reconciliation_session_events`
+  // records what was asserted and when, and the stamp records over what.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE bank_line_clearings (

@@ -208,11 +208,18 @@ export type ReconciliationSession = z.infer<typeof reconciliationSessionSchema>;
 /**
  * Opens a session.
  *
- * `startDate` is derivable and is accepted anyway, for the first session on an
- * account that has years of history it does not intend to reconcile. Omitting it
- * means "carry on from the last one", which is what every session after the first
- * wants; supplying it on an account that already has a finalised session and
- * disagreeing with its `endDate` is `reconciliation_session_overlaps`.
+ * `startDate` is derived — the day after the previous session's `endDate`, or the
+ * account's earliest line for the first one — and is not stored (there is no
+ * `start_date` column; a session records only its `end_date`). It is accepted on the
+ * request as an *assertion*: a supplied value that disagrees with the derived start is
+ * `reconciliation_session_overlaps`, which catches a client that thinks it is opening a
+ * window the account has already reconciled past. Omitting it means "carry on from the
+ * last one", which is what every session wants.
+ *
+ * Deliberately not an override: truncating an account's first session to skip years of
+ * pre-OpenBooks history is an onboarding concern (it needs an opening balance the
+ * ledger cannot supply), and belongs with M7's historical import rather than here.
+ * Supplying a later start does not persist one.
  */
 export const createReconciliationSessionRequestSchema = z
   .strictObject({

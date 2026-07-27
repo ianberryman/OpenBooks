@@ -113,6 +113,10 @@ import {
 } from '../../src/modules/payments';
 import { listBankImportMappings, saveBankImportMapping } from '../../src/modules/banking/csv';
 import { createBankRule } from '../../src/modules/banking/rules';
+import {
+  createReconciliationSession,
+  reopenReconciliationSession,
+} from '../../src/modules/banking/reconciliation';
 import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
@@ -222,13 +226,12 @@ import { contextFor } from './support';
  * twice: it gained `orgs.write`, which decides where every future invoice and bill
  * posts, and no migration recorded that either.
  *
- * What is left latent is the rest of `banking.*` (M4 wave 3:
- * `banking.reconcile`/`reopen`), `agents.review` and `integrations.*` (M5),
- * `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at all. M4
- * wave 1 took `banking.import` and `banking.read` live, and wave 2 took
- * `banking.match` — each the moment a service enforced it, exactly as the AR/AP
- * services did to their codes — and the same table loses the remaining two as wave 3
- * lands.
+ * What is left latent is `agents.review` and `integrations.*` (M5), `workflows.*`
+ * (M6), and `api_keys.*`, which have no milestone scoped at all. **No `banking.*` code
+ * is latent any longer**: wave 1 took `banking.import` and `banking.read` live, wave 2
+ * `banking.match`, and wave 3 `banking.reconcile` and `banking.reopen` — each the
+ * moment a service enforced it, exactly as the AR/AP services did to their codes. M4
+ * emptied the banking half of this table over three waves without a migration.
  *
  * ## And what OB-072 added to it
  *
@@ -286,16 +289,19 @@ const ROLES = [
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   'accounts.write': ['owner', 'bookkeeper'],
-  // M4 waves 1–2: the banking codes services now enforce. `banking.import` gates
+  // M4 waves 1–3: the banking codes services now enforce. `banking.import` gates
   // saving a mapping and starting an import; `banking.read` gates the reads, the
   // preview and the match proposals; `banking.match` gates authoring a rule (OB-080)
-  // and clearing a line (OB-081) — the classification and acceptance a matched line
-  // gets. `banking.reconcile`/`reopen` stay in `LATENT_GRANTS` until wave 3. Read
-  // follows the other read codes — the two read-only roles hold it — while import
-  // and match are writes, held by Owner and Bookkeeper only.
+  // and clearing a line (OB-081); `banking.reconcile` gates opening, updating and
+  // finalising a reconciliation session, and `banking.reopen` gates reopening a
+  // finalised one (OB-082) — the E6 power to withdraw an assertion, held apart from
+  // making one. All five writes are Owner and Bookkeeper; read alone reaches the two
+  // read-only roles. No banking code is latent any longer.
   'banking.import': ['owner', 'bookkeeper'],
   'banking.match': ['owner', 'bookkeeper'],
   'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'banking.reconcile': ['owner', 'bookkeeper'],
+  'banking.reopen': ['owner', 'bookkeeper'],
   'contacts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
   // AP-only and AR-only hold `contacts.write` — a vendor or a customer is created
   // in the course of entering the bill or the invoice it belongs to.
@@ -393,37 +399,27 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  * existed to make the AR/AP half of the catalog meaningful now hold nothing they
  * cannot use. No migration ran.
  *
- * What is left is three milestones' worth, and `banking.*` is now landing across
- * M4's waves: wave 1 took `banking.import` and `banking.read` off Bookkeeper and
- * Owner (and `banking.read` off each reader), wave 2 took `banking.match` off
- * Bookkeeper and Owner, each the moment a service enforced it, and wave 3 takes the
- * remaining `banking.reconcile` and `banking.reopen`. `agents.review` and
- * `integrations.*` go at M5; `workflows.*` at M6. That leaves `api_keys.*` on Owner
- * as the only pair with no milestone scoped at all — granted, administrative-looking,
- * and checked by nothing. It is the last of the original gap-6 set that has no plan
- * behind it.
+ * What is left is two milestones' worth. `banking.*` is fully wired now: wave 1 took
+ * `banking.import` and `banking.read` off Bookkeeper and Owner (and `banking.read` off
+ * each reader), wave 2 took `banking.match`, and wave 3 took `banking.reconcile` and
+ * `banking.reopen` — each the moment a service enforced it, so the banking half of
+ * this table is empty. `agents.review` and `integrations.*` go at M5; `workflows.*` at
+ * M6. That leaves `api_keys.*` on Owner as the only pair with no milestone scoped at
+ * all — granted, administrative-looking, and checked by nothing. It is the last of the
+ * original gap-6 set that has no plan behind it.
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   owner: [
     'agents.review',
     'api_keys.read',
     'api_keys.write',
-    'banking.reconcile',
-    'banking.reopen',
     'integrations.read',
     'integrations.write',
     'workflows.activate',
     'workflows.read',
     'workflows.write',
   ],
-  bookkeeper: [
-    'agents.review',
-    'banking.reconcile',
-    'banking.reopen',
-    'integrations.read',
-    'workflows.read',
-    'workflows.write',
-  ],
+  bookkeeper: ['agents.review', 'integrations.read', 'workflows.read', 'workflows.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
@@ -475,6 +471,11 @@ interface Scene {
    * 404, or the row would read `allowed` for the wrong reason.
    */
   readonly bankAccountId: string;
+  /**
+   * A finalised session on a second bank account, so the `banking.reopen` row has
+   * something to reopen without colliding with the session `banking.reconcile` opens.
+   */
+  readonly reconciliationSessionId: string;
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
@@ -1473,6 +1474,30 @@ const OPERATIONS: readonly Operation[] = [
         s.ctx,
       ),
   },
+  // Wave 3's two codes. Opening a session gates on `banking.reconcile`; reopening a
+  // finalised one on `banking.reopen` — the E6 power to withdraw an assertion, held
+  // apart from making one, which is why it is its own operation and its own code.
+  {
+    name: 'createReconciliationSession',
+    operationId: null,
+    permission: 'banking.reconcile',
+    call: (s) =>
+      createReconciliationSession(
+        { bankAccountId: s.bankAccountId, endDate: '2025-06-30', statementClosingBalance: '0' },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'reopenReconciliationSession',
+    operationId: null,
+    permission: 'banking.reopen',
+    call: (s) =>
+      reopenReconciliationSession(
+        s.reconciliationSessionId,
+        { reason: 'A cleared line was miscoded and needs correcting.' },
+        s.ctx,
+      ),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -1643,6 +1668,51 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     })
     .execute();
 
+  // A second bank account carrying a finalised reconciliation session, so the
+  // `banking.reopen` row has a session to reopen. It is a *different* account from
+  // the one above because `createReconciliationSession` (the `banking.reconcile` row)
+  // opens a session there, and reopening a finalised one turns it open too — two open
+  // sessions on one account would collide on `open_marker`. Backed by `cash`, since
+  // `uq_bank_accounts_account` allows a ledger account only one bank account.
+  const reconciledBankAccountUuid = newUuid();
+  await db.app
+    .insertInto('bank_accounts')
+    .values({
+      id: uuidToBuffer(reconciledBankAccountUuid),
+      org_id: org.id,
+      account_id: cash.id,
+      name: 'Reconciled savings',
+      external_account_id: null,
+      is_active: 1,
+    })
+    .execute();
+
+  const reconciliationSessionUuid = newUuid();
+  await db.app
+    .insertInto('reconciliation_sessions')
+    .values({
+      id: uuidToBuffer(reconciliationSessionUuid),
+      org_id: org.id,
+      bank_account_id: uuidToBuffer(reconciledBankAccountUuid),
+      end_date: '2025-05-31',
+      statement_closing_balance_minor: 0n,
+      state: 'finalised',
+      finalised_at: new Date(),
+      created_by_user_id: user.id,
+    })
+    .execute();
+  await db.app
+    .insertInto('reconciliation_session_events')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: org.id,
+      session_id: uuidToBuffer(reconciliationSessionUuid),
+      event_type: 'finalised',
+      asserted_balance_minor: 0n,
+      created_by_user_id: user.id,
+    })
+    .execute();
+
   const journal = await db.factories.journal({
     orgId: org.id,
     periodId: period.id,
@@ -1709,6 +1779,7 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     expenseId: expense.uuid,
     bankId: bank.uuid,
     bankAccountId: bankAccountUuid,
+    reconciliationSessionId: reconciliationSessionUuid,
     taxAccountId: taxAccount.uuid,
     ctx: contextFor(org.uuid, SYSTEM_ROLE_UUIDS[role], user.uuid),
     orgUuid: org.uuid,
@@ -2158,7 +2229,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the thirty-eight codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the forty codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -2168,12 +2239,12 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     const latent = catalog.filter((code) => !enforced.has(code)).sort();
 
     expect(latent).toEqual([...new Set(Object.values(LATENT_GRANTS).flat())].sort());
-    // Thirty-one before M3, thirteen after it. M4 wave 1 took `banking.import` and
-    // `banking.read` as the import and mapping services began enforcing them (eleven),
-    // and wave 2 took `banking.match` for rules and clearing (ten). This number is the
-    // only place the count is asserted rather than described, so it moves once per wave
-    // that wires a code.
-    expect(latent).toHaveLength(10);
+    // Thirty-one before M3, thirteen after it. M4 wired the banking codes over three
+    // waves — `banking.import`/`banking.read` (eleven), `banking.match` (ten), then
+    // `banking.reconcile`/`banking.reopen` (eight) — leaving only the M5/M6 codes and
+    // the unscoped `api_keys.*`. This number is the only place the count is asserted
+    // rather than described, so it moves once per wave that wires a code.
+    expect(latent).toHaveLength(8);
   });
 
   /**

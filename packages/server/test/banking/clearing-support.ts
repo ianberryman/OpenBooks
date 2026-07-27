@@ -457,4 +457,26 @@ export async function finalisedSessionIn(
       created_by_user_id: scene.userId,
     })
     .execute();
+  // D-51: finalising freezes membership by stamping the session id onto the clearings
+  // it counted — the clearings on this account whose line is dated on or before the
+  // session's end date. The undo refusal reads this stamp, so the helper must set it
+  // for a finalised session to actually "count" a line, exactly as the real
+  // `finaliseReconciliationSession` does.
+  await db.app
+    .updateTable('bank_line_clearings')
+    .set({ reconciliation_session_id: id })
+    .where('org_id', '=', scene.orgId)
+    .where('reconciliation_session_id', 'is', null)
+    .where((eb) =>
+      eb(
+        'statement_line_id',
+        'in',
+        eb
+          .selectFrom('bank_statement_lines')
+          .select('id')
+          .where('bank_account_id', '=', scene.bankAccountId)
+          .where('posted_date', '<=', endDate),
+      ),
+    )
+    .execute();
 }

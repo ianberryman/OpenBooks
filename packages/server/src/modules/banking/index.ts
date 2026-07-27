@@ -102,3 +102,11 @@ export {
   mostRecentlyUsedMapping,
   saveBankImportMapping,
 } from './csv';
+export {
+  createReconciliationSession,
+  finaliseReconciliationSession,
+  getReconciliationSession,
+  listReconciliationSessions,
+  reopenReconciliationSession,
+  updateReconciliationSession,
+} from './reconciliation';
