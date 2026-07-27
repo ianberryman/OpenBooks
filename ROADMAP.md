@@ -13,7 +13,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Scoped — see below**       |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Scoped — see below**       |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | Not scoped                   |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Scoped — see below**       |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
@@ -437,7 +437,7 @@ ledger cannot. One convention, decided once, applied to all four. Keyset, not of
 | **OB-035** | Account hierarchy: activate `parent_account_id`        | M    | 031        |
 
 Read `src/db/migrations/README.md` first. Three of these add tables and get their own
-migration files; the two that touch `journal_lines` and `0004_app_grants` are **edited in
+migration files; the two that touch `journal_lines` and `0999_app_grants` are **edited in
 place**, per [D-15](#d-15) — and the grants edit is the one to be careful with, because it
 is the file that makes A6 true.
 
@@ -453,7 +453,7 @@ being tagged twice on one axis; without it "slices sum to the whole" (B6) is fal
 report is the place you'd find out.
 
 **OB-034** — `journal_drafts` and `journal_draft_lines`, mutable, and therefore the first
-tables since M1 to need `UPDATE`/`DELETE` in `0004_app_grants`. That allowlist is the
+tables since M1 to need `UPDATE`/`DELETE` in `0999_app_grants`. That allowlist is the
 milestone's most load-bearing edit: it is an explicit grant per table, and the reason it is
 an allowlist rather than a schema-level grant is that MySQL cannot revoke a schema-level
 privilege afterwards. Adding these two tables must not widen anything else. A test asserts
@@ -689,7 +689,7 @@ picker is that component.
 All four schema tickets were consolidated into `0002_ledger` rather than shipping as
 separate migrations. Pre-release that is what D-15 asks for, and it also removes a trap:
 MySQL refuses a table-level `GRANT` on a table that does not exist, so a migration added
-after `0004_app_grants` can never be granted, and numbering around it (`0003a`, `0003b`, …)
+after `0999_app_grants` can never be granted, and numbering around it (`0003a`, `0003b`, …)
 accumulates forever. With every table in one file the ordering holds by construction. The
 cost is written up in `migrations/README.md`: editing a migration in place leaves an
 already-migrated local database inconsistent, and `down` is what discovers it.
@@ -812,7 +812,7 @@ deferred test arriving.
 | **OB-060** | The M3 schema, and the grants migration renumbered | L    | —          |
 | **OB-061** | M3 wire contracts and the tax primitive            | M    | —          |
 
-**OB-060** — Every M3 table, plus the structural fix M2 deferred: `0004_app_grants` is
+**OB-060** — Every M3 table, plus the structural fix M2 deferred: `0999_app_grants` is
 renumbered to sort **last** permanently. M2 worked around the ordering constraint with
 `0003a`/`0003b`/`0003c` suffixes and then dissolved them by folding everything into
 `0002_ledger`; that file is now large, and M3's ten-odd tables are a coherent subsystem
@@ -855,6 +855,106 @@ inventing its own money-and-tax vocabulary.
 OB-071 is the milestone's centre of gravity, not its afterthought. Spec §11 named
 subledger agreement as an invariant in M1 and it has waited two milestones for something
 to agree with.
+
+---
+
+## Milestone 4 — Banking
+
+The largest phase, and the last one before a credible public launch (M1–M4 plus
+QuickBooks import).
+
+### Definition of done
+
+A business uploads a statement, sees each line proposed against something — an existing
+entry, an open invoice or bill, or a new coding — accepts or corrects the proposals, and
+finishes a reconciliation that asserts the books agreed with the bank at a stated balance
+on a stated date.
+
+Acceptance criteria are lettered **E** rather than D, because `D-nn` is already the
+decision register.
+
+| #   | Acceptance criterion                                                                           | Verified by    |
+| --- | ---------------------------------------------------------------------------------------------- | -------------- |
+| E1  | Re-importing the same statement produces no duplicate lines, whatever the file's ordering      | OB-078, OB-088 |
+| E2  | A statement line is never modified after import — what the bank said is a fact                 | OB-074, OB-088 |
+| E3  | **Matching proposes; it never posts.** Every ledger write on this path is a human decision     | OB-079, OB-088 |
+| E4  | A cleared line and the entry it clears agree exactly on amount, and the difference is recorded | OB-081, OB-088 |
+| E5  | Finalising a session asserts book balance = statement balance at the date, or refuses          | OB-082, OB-088 |
+| E6  | Reopening a finalised session is permission-gated and leaves a record of who and when          | OB-082, OB-089 |
+| E7  | Reconciliation and fiscal-period close are independent locks                                   | OB-082, OB-088 |
+| E8  | A rule change never restates an entry already posted                                           | OB-080, OB-088 |
+| E9  | Cross-org holds for every new resource — 404, byte-identical                                   | OB-089         |
+| E10 | A 5,000-line statement imports and matches without pathological behaviour, measured            | OB-088         |
+
+### Explicitly out of M4
+
+- **Live bank feeds.** File import only; see [D-41](#d-41). The provider interface ships so
+  a feed slots in behind it.
+- Multi-currency, still (spec §13) — and therefore FX on settlement.
+- Payment initiation. This reads what happened; it never moves money.
+- The workflow engine. Bank rules are a lookup table, not an engine — [D-44](#d-44).
+- Cash-basis reporting. Possible since M3 gave payments a date, still not scoped; it
+  belongs to a reporting milestone rather than to banking.
+
+---
+
+### Ticket board
+
+18 tickets across 6 waves.
+
+#### Wave 0 — Schema and contracts (2 parallel)
+
+| ID         | Title                     | Size | Depends on |
+| ---------- | ------------------------- | ---- | ---------- |
+| **OB-074** | Banking schema and grants | L    | M3         |
+| **OB-075** | Banking wire contracts    | M    | M3         |
+
+#### Wave 1 — Ingest (3 parallel)
+
+| ID         | Title                                           | Size | Depends on |
+| ---------- | ----------------------------------------------- | ---- | ---------- |
+| **OB-076** | CSV import with saved column mappings           | L    | 074, 075   |
+| **OB-077** | OFX/QFX parser                                  | M    | 074, 075   |
+| **OB-078** | Statement service: dedupe, idempotent re-import | L    | 074, 075   |
+
+#### Wave 2 — Matching (3 parallel)
+
+| ID         | Title                                      | Size | Depends on |
+| ---------- | ------------------------------------------ | ---- | ---------- |
+| **OB-079** | Match proposal engine                      | L    | 078        |
+| **OB-080** | Bank rules                                 | M    | 078        |
+| **OB-081** | Accepting a match: post, link, or allocate | L    | 079, M3    |
+
+#### Wave 3 — Reconciliation (2 parallel)
+
+| ID         | Title                                                   | Size | Depends on |
+| ---------- | ------------------------------------------------------- | ---- | ---------- |
+| **OB-082** | Reconciliation sessions and the reopen                  | L    | 081        |
+| **OB-083** | Reconciliation reporting and the cleared-balance report | M    | 082        |
+
+#### Wave 4 — Transport and screens (4)
+
+| ID         | Title                             | Size | Depends on |
+| ---------- | --------------------------------- | ---- | ---------- |
+| **OB-084** | `/v1` surface for banking         | M    | 076–083    |
+| **OB-085** | Import and column-mapping screens | M    | 084        |
+| **OB-086** | The matching screen               | L    | 084        |
+| **OB-087** | The reconciliation screen         | L    | 084        |
+
+OB-086 is the milestone's hardest screen and the one its usability rests on: a few hundred
+rows, each with a proposal to accept, correct, split, or defer, and it has to stay fast and
+keyboard-driven or the whole feature is worse than a spreadsheet.
+
+#### Wave 5 — Verification and the worker (3)
+
+| ID         | Title                                                    | Size | Depends on |
+| ---------- | -------------------------------------------------------- | ---- | ---------- |
+| **OB-088** | Banking property suite and the reconciliation invariants | L    | 082, 083   |
+| **OB-089** | Enforcement matrix extension                             | M    | 084        |
+| **OB-090** | E2E: import → match → reconcile                          | M    | 085–087    |
+
+Plus the carried item [D-47](#d-47) forces: the worker's restart policy and the queue
+decision, both of which M4 is the first milestone to actually need.
 
 ---
 
@@ -1060,7 +1160,7 @@ cannot be a status column on `journals`, and not for style reasons: no journal c
 value changes after insert, and the app user holds no `UPDATE` grant on the table at all
 (A6). Anything editable has to live elsewhere. So `journal_drafts` and
 `journal_draft_lines`, which are ordinary mutable tables and are named in the
-`0004_app_grants` allowlist for exactly that reason.
+`0999_app_grants` allowlist for exactly that reason.
 
 A draft is not a weaker journal — it is a different kind of thing, and the distinction is
 the whole point of [D-16](#d-16). It has no sequence number, because numbers come from the
@@ -1445,6 +1545,108 @@ of hopes. Note this requires aging to be computed **as at** a historical date �
 today's allocations against a past date's documents would produce a report that cannot be
 reproduced tomorrow, which is the same failure D-32 accepted deliberately for sliced
 reports and must not accept here.
+
+<a id="d-41"></a>
+**D-41 — File import only; the feed interface ships without a hosted adapter.** CSV and
+OFX/QFX, uploaded by the user. This is [D-07](#d-07) applied honestly rather than
+inverted: the rule is that adapters ship with their first consumer, and M4 _is_ the first
+consumer — so `BankFeedProvider` gains a real file-based implementation, and the hosted
+aggregator adapter still has none.
+
+A live feed is a different milestone wearing M4's clothes: OAuth to a third party,
+custody of credentials that read a customer's bank, webhook delivery and replay,
+per-institution quirks, feed outages that look like missing transactions, and a paid
+dependency in the critical path. None of that is banking logic, and all of it would be
+built before a single statement line had ever been matched.
+
+File import also has a property a feed does not: the user can see the file. When a line is
+wrong, there is an artifact to compare against, which is worth a great deal while the
+matching pipeline is new.
+
+<a id="d-42"></a>
+**D-42 — A statement line is what the bank said, and is never modified.** Append-only, in
+the grants allowlist sense — the app may insert and read, not update. Everything the
+matching pipeline decides lives in rows that _reference_ a line, never in the line itself.
+
+This is the same argument as journals (spec §2.2) applied to a different record. A
+statement line that could be edited stops being evidence: the reason to keep it is that it
+independently corroborates the ledger, and a corroborating record you can rewrite
+corroborates nothing.
+
+Re-import must therefore be idempotent rather than destructive (E1). The dedupe key is a
+fingerprint over the fields the bank actually supplies — date, amount, description, and
+the bank's own id where there is one — because statements overlap at their edges as a
+matter of course, and a user re-uploading last month's file to catch a straggler must not
+double the month.
+
+The hard case, stated so nobody has to rediscover it: two genuinely distinct transactions
+can be identical in every supplied field — two £4.50 coffees at the same shop on the same
+day, from a bank that provides no transaction id. The fingerprint must include an
+occurrence index within the file so the second one survives, and re-importing the same
+file must still collapse to two rather than four.
+
+<a id="d-43"></a>
+**D-43 — Matching proposes; a human posts.** The pipeline ranks candidates and explains
+why; it never writes to the ledger on its own. Accepting is the write, and it carries the
+actor provenance every posting carries (spec §6).
+
+This is not timidity about automation. It is that a bank statement is the one input a
+bookkeeping system takes from outside itself, and an auto-poster's mistakes land in an
+append-only ledger where the correction is a reversing entry — so a matcher confident
+enough to post is a matcher that manufactures journal pairs when it is wrong. Confidence
+belongs in the ordering of proposals, not in the decision to write.
+
+The corollary is that a proposal is cheap and disposable. Nothing depends on a proposal
+being right, only on it being ranked well, which is what lets the ranking be improved
+later without a migration.
+
+<a id="d-44"></a>
+**D-44 — Bank rules are a deterministic lookup, not an engine.** Match on description,
+amount and direction; set an account, a contact, and dimension tags. Same input, same
+proposal, every time.
+
+M6 owns the workflow engine, and the temptation is to make bank rules its first consumer
+so the action catalog gets designed once. That pulls M6's hardest open decision forward
+into a milestone that does not need it — and the two are not actually the same shape: a
+bank rule answers "what is this line", which is classification, while a workflow answers
+"what should happen next", which is orchestration.
+
+**A rule change never restates a posted entry** (E8). Rules act on proposals only. If they
+reached backwards, editing a rule would silently rewrite last quarter's coding, which is
+the property [D-16](#d-16) refuses for transactions arriving through a side door.
+
+<a id="d-45"></a>
+**D-45 — Reconciliation is a session, and its lock is independent of the period close.** A
+session names a bank account, an end date, and the statement's closing balance. Lines are
+cleared into it until the computed book balance equals that figure; finalising records the
+assertion. Reopening is permission-gated and recorded, which is the flow
+[D-08](#d-08) said spec Phase 3 was describing when it declined to build it for fiscal
+periods in M1.
+
+The independence matters and is easy to get wrong. A bank reconciliation and a period
+close are different assertions on different cadences — one says "the bank agreed with us",
+the other says "we are done changing this month". Coupling them means a single bank
+account's unreconciled straggler can freeze the whole ledger, or worse, that closing a
+period silently asserts a reconciliation nobody performed.
+
+<a id="d-46"></a>
+**D-46 — A bank account is a ledger account plus import metadata.** Not a second balance,
+not a second source of truth — the same rule [D-34](#d-34) applies to invoices. The
+"balance" a user sees is the ledger account's balance; the statement's closing balance is
+a _claim_ from outside that reconciliation exists to test against it. Storing both as
+peers is how a banking module ends up disagreeing with its own general ledger.
+
+<a id="d-47"></a>
+**D-47 — M4 forces the queue decision and the worker's restart policy.** Both have been
+carried since M1 as "interface only", and banking is where they stop being deferrable:
+parsing a 5,000-line statement and ranking proposals against an open subledger is the
+first work that does not belong in a request.
+
+Two consequences already recorded. Known gap 7: the worker's Compose restart policy is
+`on-failure`, correct while the worker returns immediately, and an outage the moment it
+blocks on a queue — it becomes `unless-stopped`. And the open decision "Redis vs
+in-process queue for self-host" must be answered, because a self-hosted single-container
+install should not require Redis to import a CSV.
 
 ## Status
 
