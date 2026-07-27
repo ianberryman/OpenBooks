@@ -372,25 +372,149 @@ describe('re-import produces no duplicates, and the two coffees both survive (E1
 });
 
 /**
+ * The two things an import carries that its lines cannot supply (ROADMAP D-46).
+ *
+ * Both are nullable because a bare CSV states neither and OFX states both, and both
+ * are recorded rather than derived: no arithmetic over the lines produces a closing
+ * balance, and nothing in a line says which account the file claimed to be for.
+ */
+describe('an import records what the file claimed, beyond its lines (D-46)', () => {
+  function insertImport(
+    s: Scene,
+    columns: {
+      readonly closingBalance?: number | null;
+      readonly externalAccountId?: string | null;
+    },
+  ): RawBuilder<unknown> {
+    return sql`
+      INSERT INTO bank_statement_imports
+        (id, org_id, bank_account_id, format, filename, file_hash, external_account_id,
+         closing_balance_minor, lines_read, lines_duplicate, imported_by_user_id)
+      VALUES (
+        ${newUuidBuffer()}, ${s.orgId}, ${s.bankAccountId}, 'ofx', 'march.qfx',
+        ${'b'.repeat(64)}, ${columns.externalAccountId ?? null},
+        ${columns.closingBalance ?? null}, 12, 0, ${s.userId}
+      )
+    `;
+  }
+
+  it('stores the closing balance as a signed bigint, or nothing at all', async () => {
+    const s = await scene();
+    // Overdrawn. A balance has a sign, unlike every amount in M1–M3, and there is no
+    // positivity CHECK here for the reason there is none on a session's.
+    await insertImport(s, { closingBalance: -125_000 }).execute(db.app);
+    await insertImport(s, { closingBalance: null }).execute(db.app);
+
+    const rows = await db.app
+      .selectFrom('bank_statement_imports')
+      .select(['closing_balance_minor'])
+      .where('org_id', '=', s.orgId)
+      .where('format', '=', 'ofx')
+      .execute();
+
+    const balances = rows.map((row) => row.closing_balance_minor);
+    expect(balances).toHaveLength(2);
+    expect(balances).toContain(null);
+    expect(balances).toContain(-125_000n);
+    expect(typeof balances.find((balance) => balance !== null)).toBe('bigint');
+  });
+
+  /**
+   * The decision, asserted so it cannot drift into a refusal: an account identifier
+   * that disagrees with the bank account's is **surfaced, never refused**. The wire
+   * contract says so — `externalAccountMatches` is a warning, "because a bank that
+   * changes its identifier would otherwise lock a business out of its own
+   * statements" — and the schema has to agree, or the service would be arguing with
+   * a constraint.
+   */
+  it('accepts an account identifier that disagrees with the account’s own', async () => {
+    const s = await scene();
+    await sql`
+      UPDATE bank_accounts SET external_account_id = '****4321' WHERE id = ${s.bankAccountId}
+    `.execute(db.migrator);
+
+    expect(
+      await errnoOf(insertImport(s, { externalAccountId: '****9999' }).execute(db.app)),
+    ).toBeNull();
+
+    // And nothing ties the two columns together, which is what keeps it a warning:
+    // a foreign key or a CHECK here would be the refusal the contract declined.
+    const { rows: constrained } = await sql<{ constraint_name: string }>`
+      SELECT CONSTRAINT_NAME AS constraint_name
+      FROM information_schema.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'bank_statement_imports'
+        AND COLUMN_NAME = 'external_account_id'
+    `.execute(db.migrator);
+    expect(constrained).toEqual([]);
+  });
+});
+
+/**
  * ROADMAP D-46. The claim is about a column that must not exist, so it is asserted
  * by reading the live schema — a test written against the columns that do exist
  * would pass unchanged the day someone adds `current_balance_minor`.
  */
 describe('a bank account is a ledger account, not a second balance (D-46)', () => {
-  it('holds no balance column anywhere in the banking schema outside a reconciliation', async () => {
+  it('holds every balance in M4 on a claim from outside, and none on the account', async () => {
     const { rows } = await sql<{ table_name: string; column_name: string }>`
       SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name
       FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA = ${db.info.database}
-        AND TABLE_NAME LIKE 'bank\\_%'
+        AND (TABLE_NAME LIKE 'bank\\_%' OR TABLE_NAME LIKE 'reconciliation\\_%')
         AND COLUMN_NAME LIKE '%balance%'
+      ORDER BY table_name, column_name
     `.execute(db.migrator);
 
-    // The only balances in M4 are the statement's *claim* on a reconciliation
-    // session and the figure a finalise event asserted. Neither is on a bank
-    // account, and a bank account's balance is its ledger account's, computed from
-    // journal lines like every other balance in this system.
-    expect(rows).toEqual([]);
+    // Every balance in M4, exhaustively, and every one of them is something someone
+    // outside this system asserted: the figure the uploaded file printed, the figure
+    // a session is testing against, and the figure a finalise event recorded. None is
+    // on `bank_accounts`, whose balance is its ledger account's, computed from
+    // journal lines like every other balance here.
+    //
+    // Asserted as the whole list rather than as an emptiness, because emptiness
+    // stopped being the claim the moment an import could carry the bank's own closing
+    // figure — and "no balance anywhere" would then have to be relaxed rather than
+    // restated, which is how the D-46 line gets quietly redrawn.
+    expect(rows).toEqual([
+      { table_name: 'bank_statement_imports', column_name: 'closing_balance_minor' },
+      { table_name: 'reconciliation_session_events', column_name: 'asserted_balance_minor' },
+      { table_name: 'reconciliation_sessions', column_name: 'statement_closing_balance_minor' },
+    ]);
+  });
+
+  /**
+   * D-46 again, from the other side. A default mapping on the account is the field
+   * that would put one there: it needs a foreign key into `bank_import_mappings`,
+   * which already has one into `bank_accounts`, and the cycle has no safe delete
+   * action — no composite tenant key in this schema can be `ON DELETE SET NULL`.
+   * OB-076 reads the most recently used mapping instead, out of the index below.
+   */
+  it('gives a bank account no default mapping, and keeps the index that replaces it', async () => {
+    const { rows: columns } = await sql<{ column_name: string }>`
+      SELECT COLUMN_NAME AS column_name
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'bank_accounts'
+        AND COLUMN_NAME LIKE '%mapping%'
+    `.execute(db.migrator);
+    expect(columns).toEqual([]);
+
+    // Load-bearing rather than redundant with `uq_bank_import_mappings_account_name`:
+    // that key orders by `name`, and most-recently-used needs `updated_at`.
+    const { rows: index } = await sql<{ column_name: string }>`
+      SELECT COLUMN_NAME AS column_name
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'bank_import_mappings'
+        AND INDEX_NAME = 'idx_bank_import_mappings_org_account'
+      ORDER BY SEQ_IN_INDEX
+    `.execute(db.migrator);
+    expect(index.map((row) => row.column_name)).toEqual([
+      'org_id',
+      'bank_account_id',
+      'updated_at',
+    ]);
   });
 
   it('refuses two bank accounts pointing at one ledger account', async () => {
@@ -471,11 +595,11 @@ describe('a proposal names exactly one target (D-43)', () => {
       sql`
         INSERT INTO bank_match_proposals
           (id, org_id, statement_line_id, proposal_type, journal_id, ar_document_id,
-           ap_document_id, account_id, score, reason_code)
+           ap_document_id, account_id, \`rank\`, reason_code)
         VALUES (
           ${newUuidBuffer()}, ${s.orgId}, ${targets.lineId}, ${type},
           ${targets.journalId ?? null}, ${null}, ${null}, ${targets.accountId ?? null},
-          500, 'exact_amount_and_date'
+          1, 'exact_amount_and_date'
         )
       `.execute(db.app),
     );
@@ -523,6 +647,82 @@ describe('a proposal names exactly one target (D-43)', () => {
       .where('org_id', '=', s.orgId)
       .executeTakeFirst();
     expect(result.numDeletedRows).toBe(1n);
+  });
+
+  /**
+   * D-43 puts confidence in the *ordering* of proposals and never in a decision to
+   * write, and a stored score is the column an auto-accept threshold gets built on.
+   * This table held one; it does not now, and the absence is the decision.
+   *
+   * Asserted by reading the live schema, for the reason the balance test below is:
+   * a test written against the columns that do exist passes unchanged the day
+   * somebody adds a `score`, a `confidence`, or a `probability` back.
+   */
+  it('stores the ranking and no score behind it (D-43)', async () => {
+    const { rows } = await sql<{ column_name: string }>`
+      SELECT COLUMN_NAME AS column_name
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'bank_match_proposals'
+        AND (COLUMN_NAME LIKE '%score%'
+          OR COLUMN_NAME LIKE '%confidence%'
+          OR COLUMN_NAME LIKE '%probability%')
+    `.execute(db.migrator);
+    expect(rows).toEqual([]);
+
+    const { rows: rank } = await sql<{ column_name: string; data_type: string }>`
+      SELECT COLUMN_NAME AS column_name, DATA_TYPE AS data_type
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ${db.info.database}
+        AND TABLE_NAME = 'bank_match_proposals'
+        AND COLUMN_NAME = 'rank'
+    `.execute(db.migrator);
+    expect(rank).toEqual([{ column_name: 'rank', data_type: 'smallint' }]);
+  });
+
+  /**
+   * The read this table exists for is "the best few proposals for this line", and it
+   * has to come out of the index rather than out of a sort — a matching screen shows
+   * a few hundred lines at once (E10).
+   *
+   * The ordering was measured when the column was a descending `score` and is
+   * re-measured here rather than assumed to carry over, because it did not carry
+   * over unchanged: `rank` runs *ascending*, so `SHOW INDEX` reports collation `A`
+   * where it used to report `D`. What is unchanged is the property that matters,
+   * which is why the EXPLAIN is asserted and not just the collation.
+   */
+  it('reads a line’s best proposals out of the index, with no filesort', async () => {
+    // `SHOW INDEX` names its own columns and they cannot be aliased, so the keys
+    // here are MySQL's own spelling rather than this file's.
+    const { rows: index } = await sql<{ Column_name: string; Collation: string | null }>`
+      SHOW INDEX FROM bank_match_proposals WHERE Key_name = 'idx_bmp_org_line_rank'
+    `.execute(db.migrator);
+
+    expect(index.map((row) => [row.Column_name, row.Collation])).toEqual([
+      ['org_id', 'A'],
+      ['statement_line_id', 'A'],
+      ['rank', 'A'],
+      ['id', 'A'],
+    ]);
+
+    const s = await scene();
+    const lineId = newUuidBuffer();
+    await insertLine(s, { id: lineId }).execute(db.app);
+    for (let i = 0; i < 10; i += 1) {
+      await insertProposal(s, 'coding', { lineId, accountId: s.expenseAccountId });
+    }
+
+    const { rows: plan } = await sql<{ key: string | null; ref: string | null; Extra: string }>`
+      EXPLAIN
+      SELECT id FROM bank_match_proposals
+      WHERE org_id = ${s.orgId} AND statement_line_id = ${lineId}
+      ORDER BY \`rank\`, id
+      LIMIT 5
+    `.execute(db.migrator);
+
+    expect(plan[0]?.key).toBe('idx_bmp_org_line_rank');
+    expect(plan[0]?.ref).toBe('const,const');
+    expect(plan[0]?.Extra ?? '').not.toContain('filesort');
   });
 });
 

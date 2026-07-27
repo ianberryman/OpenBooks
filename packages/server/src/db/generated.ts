@@ -222,8 +222,8 @@ export interface BankMatchProposals {
   journal_id: Buffer | null;
   org_id: Buffer;
   proposal_type: "ap_document" | "ar_document" | "coding" | "journal";
+  rank: number;
   reason_code: string;
-  score: number;
   statement_line_id: Buffer;
   updated_at: Generated<Date>;
 }
@@ -257,7 +257,9 @@ export interface BankRules {
 
 export interface BankStatementImports {
   bank_account_id: Buffer;
+  closing_balance_minor: bigint | null;
   created_at: Generated<Date>;
+  external_account_id: string | null;
   file_hash: string;
   filename: string;
   format: "csv" | "ofx";

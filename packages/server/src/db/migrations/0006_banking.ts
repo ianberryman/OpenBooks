@@ -59,11 +59,14 @@ import type { MigrationDb } from './types';
  * ## Matching proposes, and proposals are disposable
  *
  * [D-43] — nothing here writes to the ledger. A `bank_match_proposals` row names a
- * candidate and a score, and accepting one is a separate human act that posts a
- * journal through the ordinary path with the ordinary actor provenance. The
- * corollary is that a proposal is cheap: the whole set for a line is deleted and
- * regenerated, `score` is an opaque ordering key rather than a probability, and the
- * ranking can be improved later without a migration.
+ * candidate and where it came in the ranking, and accepting one is a separate human
+ * act that posts a journal through the ordinary path with the ordinary actor
+ * provenance. The corollary is that a proposal is cheap: the whole set for a line is
+ * deleted and regenerated, and the ranking can be improved later without a
+ * migration.
+ *
+ * There is no stored score anywhere in this file, and the absence is the decision
+ * rather than an omission — `bank_match_proposals` below argues it.
  *
  * ## Two locks that must not become one
  *
@@ -197,6 +200,28 @@ export async function up(db: MigrationDb): Promise<void> {
   //
   // `delimiter` is CHAR(1) and holds the character itself. A tab is a tab, not the
   // two-character escape sequence that spells one — this is data, not source code.
+  //
+  // ## There is no default mapping on a bank account, and this index is why
+  //
+  // `bank_accounts` carries no `default_import_mapping_id` and the wire contract
+  // carries no `defaultImportMappingId`. A column for it would need a foreign key
+  // into this table, and this table already has one into `bank_accounts` — which
+  // closes the `bank_accounts ⇄ bank_import_mappings` cycle that
+  // `0005_subledger`'s `org_accounting_settings` header argues against at length.
+  // Both of the usual escapes are shut here: an unenforced id is a dangling
+  // reference by another name, and `ON DELETE SET NULL` is refused outright on any
+  // composite tenant key in this schema (see the file header). Deleting the last
+  // mapping would leave an account pointing at nothing, or refuse the delete to
+  // protect a *preference*.
+  //
+  // OB-076 offers the most-recently-used mapping instead, which is what a default
+  // was standing in for and needs no column: `updated_at` is in
+  // `idx_bank_import_mappings_org_account`, so "this account's mappings, most
+  // recently touched first" is an index read. **That index is load-bearing and is
+  // not redundant with `uq_bank_import_mappings_account_name`** — the unique key
+  // orders by `name`, which is the wrong order for this and the only order a
+  // three-column prefix can give. Dropping it as duplicated coverage is the mistake
+  // this paragraph exists to prevent.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE bank_import_mappings (
@@ -222,6 +247,8 @@ export async function up(db: MigrationDb): Promise<void> {
       PRIMARY KEY (id),
       UNIQUE KEY uq_bank_import_mappings_org_id (org_id, id),
       UNIQUE KEY uq_bank_import_mappings_account_name (org_id, bank_account_id, name),
+      -- Load-bearing, not redundant: this is the most-recently-used read OB-076 uses
+      -- in place of a default mapping on the account. See the block comment above.
       KEY idx_bank_import_mappings_org_account (org_id, bank_account_id, updated_at),
       CONSTRAINT fk_bank_import_mappings_org
         FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
@@ -247,10 +274,53 @@ export async function up(db: MigrationDb): Promise<void> {
   // the transaction it guards — and it is what makes a retry after a failure a clean
   // re-upload rather than a repair.
   //
-  // If [D-47]'s queue decision moves parsing to the worker and the upload needs a
-  // row before the lines exist, that is a status column and nullable counts, and it
-  // is an in-place edit to this file (D-15) rather than something this table is
-  // trying to anticipate.
+  // ## That assumption is on borrowed time, and OB-078 is where it runs out
+  //
+  // Written down here so OB-078 finds it rather than rediscovering it halfway
+  // through. The one-transaction shape above is only available while parsing happens
+  // inside the request, and [D-47] has now been decided the other way: an in-process
+  // queue with Redis behind the interface, which is to say the interface is real and
+  // parsing a 5,000-line statement is the first work that moves to the worker (E10).
+  // The moment it does, the upload has to answer "where is my import?" before any
+  // line exists — and that is a `status` column, nullable counts, and probably a
+  // failure reason beside them.
+  //
+  // It is deliberately not added now. OB-078 owns the statement service and will know
+  // what the states actually are; a status enum guessed here would be three tokens
+  // nobody measured, and every reader between now and then would have to work out
+  // which of them the code can produce. Adding it is an in-place edit to this file
+  // (D-15), not a new migration.
+  //
+  // ## The closing balance and the account identifier are both claims from outside
+  //
+  // Neither is derivable from the lines, which is why both are columns. They are on
+  // OB-075's `bankStatementImport` wire contract already, and this table is where
+  // that contract's fields come from.
+  //
+  // `closing_balance_minor` is the figure the file itself states — OFX gives one, a
+  // bare CSV usually does not, hence nullable. [D-46]: it is *not* this account's
+  // balance, which is the ledger account's and is computed from journal lines like
+  // every other balance here. It is the claim from outside that reconciliation exists
+  // to test against, kept so a session can be opened against the number the bank
+  // actually printed rather than one somebody retyped. Signed and with no CHECK, for
+  // `reconciliation_sessions`' reason: an overdrawn account closes negative.
+  //
+  // `external_account_id` is the bank's own identifier for the account, out of the
+  // file — OFX's `ACCTID`, the reference a CSV export puts in its header. It exists
+  // to catch the ordinary disaster of this feature: March's current account uploaded
+  // into savings, which is silent, imports every line, matches none of them, and is
+  // found weeks later by a reconciliation that will not balance.
+  //
+  // **A mismatch is surfaced, never refused.** The wire contract already commits to
+  // this — `bankStatementImportPreviewSchema.externalAccountMatches` is "a warning,
+  // never a refusal, because a bank that changes its identifier would otherwise lock
+  // a business out of its own statements" — and the schema agrees with it here rather
+  // than having the service decide twice. So there is no CHECK, no foreign key to
+  // `bank_accounts.external_account_id`, and **no token for it** in
+  // `BANKING_PRECONDITIONS`: a refusal that cannot be spoken cannot be added by
+  // accident. The identifier is recorded on the row so that "which account did this
+  // file say it was for" stays answerable after the upload, which is what makes the
+  // warning worth anything.
   //
   // ## The counts are evidence, not an aggregate
   //
@@ -284,17 +354,19 @@ export async function up(db: MigrationDb): Promise<void> {
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE bank_statement_imports (
-      id                  BINARY(16)   NOT NULL,
-      org_id              BINARY(16)   NOT NULL,
-      bank_account_id     BINARY(16)   NOT NULL,
-      format              ENUM('csv','ofx') NOT NULL,
-      filename            VARCHAR(255) NOT NULL,
-      file_hash           CHAR(64)     NOT NULL,
-      mapping_id          BINARY(16)   NULL,
-      lines_read          INT UNSIGNED NOT NULL,
-      lines_duplicate     INT UNSIGNED NOT NULL,
-      imported_by_user_id BINARY(16)   NOT NULL,
-      created_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      id                    BINARY(16)   NOT NULL,
+      org_id                BINARY(16)   NOT NULL,
+      bank_account_id       BINARY(16)   NOT NULL,
+      format                ENUM('csv','ofx') NOT NULL,
+      filename              VARCHAR(255) NOT NULL,
+      file_hash             CHAR(64)     NOT NULL,
+      mapping_id            BINARY(16)   NULL,
+      external_account_id   VARCHAR(64)  NULL,
+      closing_balance_minor BIGINT       NULL,
+      lines_read            INT UNSIGNED NOT NULL,
+      lines_duplicate       INT UNSIGNED NOT NULL,
+      imported_by_user_id   BINARY(16)   NOT NULL,
+      created_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_bank_statement_imports_org_id (org_id, id),
       KEY idx_bsi_org_account_created (org_id, bank_account_id, created_at, id),
@@ -565,19 +637,50 @@ export async function up(db: MigrationDb): Promise<void> {
   // `allocate_document`, and 'coding' as `post_entry`, so a proposal whose kind has
   // no way to be accepted is unrepresentable.
   //
-  // ## score is an ordering key and nothing else
+  // ## The ranking is stored; the score behind it is not
   //
-  // Higher is better, comparable only among proposals for the same line, and not a
-  // probability. D-43's corollary is that nothing depends on a proposal being right,
-  // only on it being ranked well — so the scoring function is free to change without
-  // a migration, which it would not be if this column claimed to be a confidence.
+  // This table held a `score` and does not any more, and the absence is the whole of
+  // the decision. D-43 puts confidence "in the ordering of proposals, not in the
+  // decision to write", and a persisted score is the field an auto-accept threshold
+  // eventually gets built on: once a number is in a column, somebody adds a setting
+  // that accepts everything above it, and the auto-poster D-43 refuses is back with a
+  // slider in front of it. The schema should not make the wrong thing easy. D-43 also
+  // names "the ranking can be improved later without a migration" as the point of
+  // proposals being cheap and disposable, which a stored score undercuts — a column
+  // is exactly the thing a later scorer would have to keep meaning the same by.
   //
-  // `idx_bmp_org_line_score` is descending on `score`, which MySQL 8 honours in the
-  // index definition rather than merely accepting and ignoring as 5.7 did — verified
-  // here on 8.4, where `SHOW INDEX` reports the column's collation as `D`. The read
-  // this table exists for is "the best few proposals for this line", and an ascending
-  // index would make every one of a few hundred rows on the matching screen a
-  // filesort.
+  // So `rank` is what is written: 1 for the best candidate, ascending, comparable
+  // only among proposals for the same line, and the same field the wire contract
+  // publishes (`bankMatchProposalSchema`). A ranking function is free to change
+  // wholesale because nothing downstream reads anything but the order.
+  //
+  // `rank` is a **reserved word** on MySQL 8 — it is a window function — so the
+  // column and the index that names it are backquoted. Unquoted it is
+  // `ERROR 1064 … near 'rank SMALLINT UNSIGNED NOT NULL'`, measured on 8.4.10. Kysely
+  // quotes identifiers itself, so this is a fact about the raw DDL and about raw SQL
+  // in tests, not about query builders.
+  //
+  // `idx_bmp_org_line_rank` is ascending, because best-first now means lowest-first,
+  // and the descending index goes with the score that needed it. The old finding was
+  // re-measured rather than carried over, and it did not carry over unchanged:
+  // `SHOW INDEX` now reports collation `A` on all four columns where it reported `D`
+  // on `score`. What carries over is the property that mattered.
+  //
+  // Measured on MySQL 8.4.10 against 3,000 proposals over 300 lines. `EXPLAIN` of the
+  // read this table exists for — `WHERE org_id = ? AND statement_line_id = ?
+  // ORDER BY rank, id LIMIT 5`:
+  //
+  //   key: idx_bmp_org_line_rank   ref: const,const   rows: 10
+  //   Extra: Using where; Using index
+  //
+  // and the same query under `IGNORE INDEX (idx_bmp_org_line_rank)`, which is the
+  // control that makes the first line mean anything:
+  //
+  //   key: fk_bmp_account          ref: const         rows: 1490
+  //   Extra: Using index condition; Using where; Using filesort
+  //
+  // Ten rows read in index order, against 1,490 sorted. That is one line of one
+  // statement; the matching screen shows a few hundred at a time (E10).
   //
   // `reason_code` is a token — 'exact_amount_and_date', 'rule', 'contact_name' — not
   // prose. D-43 requires the pipeline to explain itself, and the explanation is
@@ -612,14 +715,14 @@ export async function up(db: MigrationDb): Promise<void> {
       account_id        BINARY(16)  NULL,
       contact_id        BINARY(16)  NULL,
       bank_rule_id      BINARY(16)  NULL,
-      score             INT UNSIGNED NOT NULL,
+      \`rank\`            SMALLINT UNSIGNED NOT NULL,
       reason_code       VARCHAR(64) NOT NULL,
       created_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
                                     ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_bmp_org_id (org_id, id),
-      KEY idx_bmp_org_line_score (org_id, statement_line_id, score DESC, id),
+      KEY idx_bmp_org_line_rank (org_id, statement_line_id, \`rank\`, id),
       KEY idx_bmp_org_journal (org_id, journal_id),
       KEY idx_bmp_org_ar_document (org_id, ar_document_id),
       KEY idx_bmp_org_ap_document (org_id, ap_document_id),
@@ -821,6 +924,25 @@ export async function up(db: MigrationDb): Promise<void> {
   // which is the ordinary case on the matching screen. A session's computation
   // includes every clearing for its bank account whose line falls on or before the
   // session's end date, so a NULL here is included by date rather than excluded.
+  //
+  // ## Membership falls back to date, and finalising does not freeze it — OB-082
+  //
+  // The consequence of that fallback, written down because it is not obvious and
+  // because it is a real property of what E5 asserts. A finalised session's set of
+  // clearings is a *query* — this bank account, line dated on or before `end_date` —
+  // and nothing in this file stops that query returning a different answer tomorrow.
+  // A statement line arriving late (imports are append-only but not date-ordered) and
+  // cleared afterwards falls inside a window already finalised, and the assertion the
+  // session recorded stops reproducing.
+  //
+  // So a finalised reconciliation here is **falsifiable rather than impossible**,
+  // which is the weaker of the two guarantees and worth naming as such. The
+  // alternatives — freezing membership into a join table at finalisation, or refusing
+  // to clear a line into a finalised window at all — are both rules about rows
+  // that already exist, enforceable by a service and by no grant or constraint. That
+  // makes them OB-082's, with the rest of the session lock; the schema's contribution
+  // is `reconciliation_session_events`, which records what was asserted and when, so
+  // a later divergence is at least attributable.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE bank_line_clearings (

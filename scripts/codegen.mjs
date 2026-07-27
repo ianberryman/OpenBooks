@@ -149,7 +149,11 @@ const OVERRIDES = {
     // The same two corrections again. `bank_statement_imports.lines_read` and
     // `lines_duplicate` are INT UNSIGNED and need no override — well inside 2^53,
     // and the generator maps them to `number` correctly — as do
-    // `bank_match_proposals.score` and every column-index column on a mapping.
+    // `bank_match_proposals.rank` and every column-index column on a mapping.
+    //
+    // The closing balance the uploaded file stated, which is money and is nullable
+    // because a bare CSV states none (D-46).
+    'bank_statement_imports.closing_balance_minor': 'bigint | null',
     'bank_statement_lines.posted_date': 'string',
     'bank_statement_lines.value_date': 'string | null',
     // Signed, unlike every other money column in this schema: E4 is an equation over

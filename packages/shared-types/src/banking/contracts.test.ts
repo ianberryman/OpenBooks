@@ -121,7 +121,6 @@ const BANK_ACCOUNT = {
   institutionName: 'Barclays',
   externalAccountId: null,
   feedSource: 'file',
-  defaultImportMappingId: UUID(7),
   isActive: true,
   createdAt: TIMESTAMP,
   updatedAt: TIMESTAMP,
@@ -388,19 +387,51 @@ describe('the shapes that must be impossible', () => {
   /**
    * D-43, E3: matching proposes, a human posts. A proposal carries a rank and no
    * score, and nothing in the module offers to accept one on the user's behalf.
+   *
+   * `score` is asserted by name and not merely covered by `strictObject`, because it
+   * is the field this decision actually lost once — the schema carried a `score`
+   * column and the wire a `rank`, and the column is what an auto-accept threshold
+   * would have been built on. An absence nobody tests is a field that comes back.
    */
   it('offers no way for the server to post on its own (D-43, E3)', () => {
     const autoPosters = Object.keys(banking).filter((name) =>
-      /auto|threshold|confidence/i.test(name),
+      /auto|threshold|confidence|score/i.test(name),
     );
     expect(autoPosters).toEqual([]);
 
     expect(bankingSchema('bankMatchProposalSchema').safeParse(PROPOSAL).success).toBe(true);
     expect(
+      bankingSchema('bankMatchProposalSchema').safeParse({ ...PROPOSAL, score: 970 }).success,
+    ).toBe(false);
+    expect(
       bankingSchema('bankMatchProposalSchema').safeParse({ ...PROPOSAL, confidence: 0.97 }).success,
     ).toBe(false);
     expect(
       bankingSchema('bankMatchProposalSchema').safeParse({ ...PROPOSAL, autoAccept: true }).success,
+    ).toBe(false);
+  });
+
+  /**
+   * The bank-account side of the same habit. `defaultImportMappingId` was on this
+   * contract and came off it: persisting it closes a `bank_accounts ⇄
+   * bank_import_mappings` foreign-key cycle, and neither escape is available —
+   * an unenforced id is a dangling reference, and no composite tenant key in this
+   * schema can be `ON DELETE SET NULL`. OB-076 reaches for the most recently used
+   * mapping instead. Asserted rather than commented, because a field removed for a
+   * reason a screen does not know is a field a screen re-adds.
+   */
+  it('gives a bank account no default import mapping', () => {
+    expect(Object.keys(BANK_ACCOUNT)).not.toContain('defaultImportMappingId');
+    expect(
+      bankingSchema('bankAccountSchema').safeParse({
+        ...BANK_ACCOUNT,
+        defaultImportMappingId: UUID(7),
+      }).success,
+    ).toBe(false);
+    expect(
+      bankingSchema('updateBankAccountRequestSchema').safeParse({
+        defaultImportMappingId: UUID(7),
+      }).success,
     ).toBe(false);
   });
 

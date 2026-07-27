@@ -11,8 +11,26 @@ import { unpublishedPageSchema } from './banking';
  *
  * D-46, and it is the shape of this whole file. A `bankAccount` names an account
  * that already exists in the chart, and adds the things a *statement* needs that a
- * ledger account has no business knowing: which institution it came from, what the
- * bank's own file calls it, and which saved column mapping to reach for next time.
+ * ledger account has no business knowing: which institution it came from, and what
+ * the bank's own file calls it.
+ *
+ * ## There is no default import mapping here
+ *
+ * A `defaultImportMappingId` was on this contract and has been taken off it. It
+ * reads as a harmless convenience and it is a foreign key in disguise: persisting it
+ * points `bank_accounts` at `bank_import_mappings`, which already points back at
+ * `bank_accounts`, and that cycle is the one `0005_subledger`'s
+ * `org_accounting_settings` header argues against — an `ON DELETE CASCADE` running
+ * into a `RESTRICT` pointing the other way. Neither usual escape is open: an
+ * unenforced id is a dangling reference by another name, and `ON DELETE SET NULL` is
+ * refused on every composite tenant key in this schema, because MySQL requires every
+ * column of a SET NULL key to be nullable and `org_id` never is.
+ *
+ * OB-076 offers the account's **most recently used** mapping instead, which is what
+ * a default was standing in for. It needs no field here and no column anywhere:
+ * `idx_bank_import_mappings_org_account (org_id, bank_account_id, updated_at)`
+ * already answers it, and a mapping the user last reached for is a better guess than
+ * one they nominated once and forgot.
  *
  * ## There is no balance here, and there must never be one
  *
@@ -127,15 +145,6 @@ export const bankAccountSchema = z.strictObject({
       'nothing in v1 initiates a payment.',
   }),
   feedSource: bankFeedSourceSchema,
-  defaultImportMappingId: z
-    .uuid()
-    .nullable()
-    .meta({
-      description:
-        'The saved column mapping to offer first for a CSV upload into this account (D-41, ' +
-        'OB-076). Null until one has been saved, and always overridable per import — a default ' +
-        'that could not be overridden would make a bank changing its export format unrecoverable.',
-    }),
   isActive: z.boolean().meta({
     description:
       'An inactive bank account keeps every line, import and reconciliation it already has and ' +
@@ -189,7 +198,6 @@ export const updateBankAccountRequestSchema = z
     name: bankAccountNameSchema.optional(),
     institutionName: bankInstitutionNameSchema.nullish(),
     externalAccountId: bankExternalAccountIdSchema.nullish(),
-    defaultImportMappingId: z.uuid().nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',

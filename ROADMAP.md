@@ -13,7 +13,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
 | M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Scoped — see below**       |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Wave 0 built — see below** |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
 | M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
@@ -24,15 +24,18 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4 is scoped and not started.** Read this section first; the
-per-milestone Status sections below carry the detail.
+**M1, M2 and M3 are built. M4's wave 0 is built; waves 1–5 are not started.** Read this
+section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                    |
-| ------ | -------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                      |
-| Gate   | `yarn check` passes — 1,745 tests across 146 files, ~2 min                                         |
-| Push   | **37 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold  |
-| Next   | M4 wave 0: **OB-074** (banking schema) and **OB-075** (banking wire contracts), which are parallel |
+|        |                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                         |
+| Gate   | `yarn check` passes — 1,843 tests across 148 files, ~2.5 min                                          |
+| Push   | **38 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold     |
+| Next   | M4 wave 1: **OB-076** (CSV import), **OB-077** (OFX parser), **OB-078** (statement service), parallel |
+
+Wave 1 also builds the queue [D-49](#d-49) settles, and flips the worker's Compose restart
+policy to `unless-stopped` in the same change — see [Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1052,7 +1055,55 @@ keyboard-driven or the whole feature is worse than a spreadsheet.
 | **OB-090** | E2E: import → match → reconcile                          | M    | 085–087    |
 
 Plus the carried item [D-47](#d-47) forces: the worker's restart policy and the queue
-decision, both of which M4 is the first milestone to actually need.
+decision, both of which M4 is the first milestone to actually need. Both are now settled by
+[D-49](#d-49) — the queue implementation and the policy change land together in wave 1.
+
+---
+
+### Status — Milestone 4
+
+**Wave 0 is built** (OB-074, OB-075). Ten tenant-scoped tables in `0006_banking`, nine wire
+contract files in `packages/shared-types/src/banking/`. Waves 1–5 are not started.
+
+Three facts the schema had to be **measured** to learn, all recorded in `0006_banking.ts`'s
+header so they are not paid for twice:
+
+- **No composite tenant FK can ever be `ON DELETE SET NULL`.** MySQL 8.4 requires every
+  column of a `SET NULL` key to be nullable, and `org_id` is `NOT NULL` on every tenant
+  table. `CASCADE` and `RESTRICT` are the only actions available anywhere in this schema.
+- **At most one open reconciliation session per bank account** is enforced by a stored
+  generated column plus a unique key — but only with `ON DELETE RESTRICT`, because MySQL
+  refuses a foreign-key action on a column a `STORED` generated column reads. This is the
+  same finding `0003` made, arrived at independently.
+- Amounts on `bank_statement_lines` are **signed, with no direction column** — the only
+  signed money in the schema. E4 is then `cleared + difference = line.amount`, an equation
+  rather than an equation with a conditional in it. `inbound`/`outbound` survives as a rule
+  condition and a list filter, which is where a direction is genuinely a category.
+
+Two things wave 0 decided against its own brief, both worth knowing before wave 1:
+
+- **`bank_line_clearings` is mutable, not append-only.** The argument is `ar_allocations`':
+  a clearing posts no journal, so un-matching restates no financial statement. Freezing
+  clearings inside a _finalised_ session is a rule about another row's column value that no
+  grant can express, and belongs to OB-082.
+- **QFX is not a third format.** `format` is `ENUM('csv','ofx')`. QFX is OFX with
+  proprietary tags and one parser; a second token would be a second name for one thing.
+  OB-077's title still says "OFX/QFX" and means this.
+
+#### Carried into wave 1
+
+| What                                                                       | Owner  |
+| -------------------------------------------------------------------------- | ------ |
+| `bank_statement_imports` gains a `status` once parsing moves to the worker | OB-078 |
+| Session membership is by date and is not frozen at finalisation            | OB-082 |
+| E5 vs D-45: does an unpresented cheque block finalisation?                 | OB-082 |
+
+The last of those is a genuine ambiguity in this roadmap, not an implementation question.
+E5 says "book balance = statement balance at the date"; read literally, an uncleared item —
+a written cheque not yet presented — would block finalisation, which is wrong for a bank
+reconciliation. The contracts model `clearedBalance` alongside `bookBalance` with
+`unclearedAmount` as the difference, so both readings stay visible and OB-082 settles which
+one refuses.
 
 ---
 
@@ -1761,6 +1812,51 @@ Two consequences already recorded. Known gap 7: the worker's Compose restart pol
 blocks on a queue — it becomes `unless-stopped`. And the open decision "Redis vs
 in-process queue for self-host" must be answered, because a self-hosted single-container
 install should not require Redis to import a CSV.
+
+Both are now answered — the queue by [D-49](#d-49), and the restart policy with it, since
+the policy only becomes wrong at the moment the worker starts blocking.
+
+<a id="d-48"></a>
+
+**D-48 — A match proposal carries a rank, not a score.** No confidence figure is persisted,
+and none is exposed on the wire. Proposals are ordered; that ordering is the entire output.
+
+[D-43](#d-43) puts confidence in the ordering of proposals and never in the decision to
+write. A stored score does not violate that on the day it is added — it violates it about
+six months later, because a score column is precisely the field an auto-accept threshold
+gets built on, and at that point E3 is guarded by convention rather than by the schema. The
+cheapest moment to not have that column is before OB-079 exists.
+
+It also protects the property D-43 names as the point of proposals being disposable: the
+ranking can be improved without a migration. A persisted score is a stored artifact of one
+particular ranking, and stored artifacts acquire consumers.
+
+The cost is real and accepted — tuning the ranking against real statements means
+instrumenting a run rather than querying a column.
+
+<a id="d-49"></a>
+
+**D-49 — An in-process queue, with Redis behind the interface.** The in-process
+implementation ships as the first consumer of the queue interface; the Redis adapter has
+none yet, exactly as [D-41](#d-41) left the hosted feed adapter.
+
+This is [D-07](#d-07)'s rule applied for the third time, and the constraint driving it is
+the one D-47 stated: a self-hosted single-container install should not require Redis to
+import a CSV. Requiring it would make the smallest deployment pay for the largest one's
+problem.
+
+The limits are worth stating rather than discovering. An in-process queue does not survive
+a worker restart and does not span instances, so a hosted multi-instance deployment needs
+the Redis adapter before it runs more than one worker. That is a present constraint, not a
+deferred one: it means an interrupted 5,000-line import is re-run rather than resumed, and
+E1's idempotent re-import is what makes re-running it safe. The dedupe property therefore
+carries more weight than it appears to — it is also the crash-recovery story.
+
+**The worker's restart policy changes with the queue, not before it.** `docker-compose.yml`
+still reads `on-failure`, and its comment is still correct: while the worker registers no
+jobs and returns immediately, `unless-stopped` restarts a _successful_ exit in a tight loop
+that reads as a broken stack. It becomes `unless-stopped` in the same ticket that makes the
+worker block. Changing it earlier trades a cosmetic problem for a real one.
 
 ## Status — Milestone 1
 
