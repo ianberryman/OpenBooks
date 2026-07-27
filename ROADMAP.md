@@ -34,11 +34,22 @@ away.** Read this section first; the per-milestone Status sections below carry t
 | Push   | **59 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                     |
 | Next   | M5 (platform surface) is scoped — start at wave 0 (OB-096 schema/grants, OB-097 wire contracts). Four follow-up tickets remain outstanding, none blocking — see below |
 
-M4 is complete. Wave 5 verified it and earned its keep: OB-088's cross-cutting property suite
+M4 is complete, including its two follow-ups: **OB-095** (the bank-account setup screen — the
+banking section's Accounts tab, with `deactivate`/`reactivate` guarded by the open-session
+refusal) is built, and **M5 is fully scoped** (below — 13 tickets OB-096…OB-108, criteria
+F1–F11, decisions [D-53](#d-53)…[D-62](#d-62)). Wave 5 earned its keep: OB-088's property suite
 computes the cleared balance four independent ways over four tables and asserts them equal (spec
-§11's subledger agreement, one level down), and OB-090's browser narrative caught **two real
-defects** that only exist at the seam between the screens, a real Fastify, and a real MySQL —
-both now fixed ([D-52](#d-52)). See [Status — Milestone 4](#status--milestone-4).
+§11's subledger agreement one level down), and OB-090's browser narrative caught two real seam
+defects, both fixed ([D-52](#d-52)). A third defect surfaced later during manual testing and is
+also fixed: a stale/revoked session cookie 401'd every request _including login_, with no way to
+clear an `HttpOnly` cookie — the identity-establishing routes now ignore the incoming session
+(commit `77850b1`). See [Status — Milestone 4](#status--milestone-4).
+
+**Before M5 starts, four choices are flagged for the human** (recorded in D-53…D-62): OAuth AS
+build-vs-buy and whether a security review rides with OB-098; per-org vs global event ordering;
+the event-log retention window (spec §14's open number); and opaque tokens vs JWT. The other
+open direction is **QuickBooks import** — the remaining gate for the minimum credible public
+launch, since M1–M4 are done.
 
 ### Outstanding tickets, none blocking M4
 
@@ -106,6 +117,18 @@ exactly at the ledger, which is a defensible place for it.
 - Editing a migration in place (D-15) leaves an already-migrated local database
   inconsistent, and `migrate:down` is what discovers it. Drop and recreate the schema; the
   reset procedure is in `src/db/migrations/README.md`.
+- **Running the app end to end from the host** (proven this session): Compose MySQL up on
+  13307, then two host processes with `.env.example`'s vars overridden to
+  `DATABASE_HOST=127.0.0.1 DATABASE_PORT=13307 HTTP_PORT=3100 QUEUE_PROVIDER=in-process
+SESSION_COOKIE_SECURE=false` — `OPENBOOKS_ROLE=api yarn workspace @openbooks/server dev`
+  (the api registers the import handler in-process, [D-52](#d-52)) and
+  `yarn workspace @openbooks/web dev` (Vite on 5173, proxies `/v1` and `/health` to 3100; its
+  default `OPENBOOKS_API_TARGET` is already 3100). Vite binds `localhost` (IPv6) by default; add
+  `--host 0.0.0.0` to reach it from a phone on the LAN, and note the macOS firewall may block
+  `node`'s inbound connections. To seed a demo org over the API, `register` requires a nested
+  `org` object (`{ name, chartTemplateId: 'general_small_business', fiscalYearStartMonth }`), the
+  fiscal-year field is `fiscalYear` (not `year`), the bank ledger account is code `1010`, and
+  every write needs an `Idempotency-Key`.
 
 ---
 
