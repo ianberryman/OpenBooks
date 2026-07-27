@@ -413,6 +413,64 @@ function allocatedTotal(
     WHERE ${sql.ref('alloc.org_id')} = ${sql.ref(`${documents}.org_id`)}
       AND ${sql.ref(`alloc.${link}`)} = ${sql.ref(`${documents}.id`)}
       AND ${sql.ref('alloc.allocated_on')} <= ${asOf}
+      AND ${counterpartPosted(allocations, link, asOf)}
+  )`;
+}
+
+/**
+ * The fourth as-at predicate, and the one the file's header originally missed (OB-071).
+ *
+ * An allocation counts only once **the document at its other end has itself posted**.
+ * Bounding it by `allocated_on` alone is not enough, because an allocation's date
+ * defaults to its *source's* date and a source routinely predates its target: a deposit
+ * taken on 5 January and applied to an invoice approved on 23 February carries 5 January,
+ * so at 22 February the subledger showed the customer owing nothing while the control
+ * account still held their credit. A back-dated credit note reads the same way from the
+ * other side — the invoice appears settled while the ledger still carries it.
+ *
+ * Nothing throws in either case and the report is internally consistent; only comparison
+ * with the ledger notices. That is exactly why spec §11 made subledger agreement an
+ * invariant rather than a review item, and it is what `test/properties/
+ * subledger-agreement.test.ts` caught on its first run.
+ */
+function counterpartPosted(
+  allocations: 'ar_allocations' | 'ap_allocations',
+  link: ArAllocationLink | ApAllocationLink,
+  asOf: string,
+): RawBuilder<boolean> {
+  const receivable = allocations === 'ar_allocations';
+
+  // A document is reduced by either a payment or a credit, so either far end posting
+  // makes the allocation count; a credit is reduced only by the document it was applied
+  // to, which is the single case below.
+  if (link === 'invoice_id' || link === 'bill_id') {
+    return sql<boolean>`(${postedCounterpart('payments', 'payment_id', asOf)} OR ${postedCounterpart(
+      receivable ? 'ar_documents' : 'ap_documents',
+      receivable ? 'credit_note_id' : 'vendor_credit_id',
+      asOf,
+    )})`;
+  }
+
+  return postedCounterpart(
+    receivable ? 'ar_documents' : 'ap_documents',
+    receivable ? 'invoice_id' : 'bill_id',
+    asOf,
+  );
+}
+
+/** Whether the row `alloc.<column>` names had reached the ledger by `asOf`. */
+function postedCounterpart(
+  table: 'ar_documents' | 'ap_documents' | 'payments',
+  column: string,
+  asOf: string,
+): RawBuilder<boolean> {
+  return sql<boolean>`EXISTS (
+    SELECT 1 FROM ${sql.table(table)} AS far
+    INNER JOIN journals AS far_journal
+      ON far_journal.id = far.journal_id AND far_journal.org_id = far.org_id
+    WHERE far.id = ${sql.ref(`alloc.${column}`)}
+      AND far.org_id = ${sql.ref('alloc.org_id')}
+      AND far_journal.entry_date <= ${asOf}
   )`;
 }
 
@@ -429,6 +487,11 @@ function allocatedPayment(
     WHERE ${sql.ref('alloc.org_id')} = ${sql.ref('payments.org_id')}
       AND ${sql.ref('alloc.payment_id')} = ${sql.ref('payments.id')}
       AND ${sql.ref('alloc.allocated_on')} <= ${asOf}
+      AND ${postedCounterpart(
+        allocations === 'ar_allocations' ? 'ar_documents' : 'ap_documents',
+        allocations === 'ar_allocations' ? 'invoice_id' : 'bill_id',
+        asOf,
+      )}
   )`;
 }
 

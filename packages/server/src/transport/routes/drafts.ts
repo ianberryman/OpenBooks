@@ -1,6 +1,4 @@
 import {
-  PAGE_SIZE_DEFAULT,
-  PAGE_SIZE_MAX,
   createDraftRequestSchema,
   journalDraftPageSchema,
   journalDraftSchema,
@@ -32,6 +30,7 @@ import {
   idempotencyKeyHeaderSchema,
   idempotentBody,
   noContentSchema,
+  pageLimitQuery,
   requireOrgScope,
 } from './support';
 
@@ -95,17 +94,7 @@ const listDraftsWireQuerySchema = z.strictObject({
         'Only this author’s drafts. Omitted lists every draft in the org — drafts are visible to ' +
         'anyone who can read journals, and are not private to their author.',
     }),
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .default(PAGE_SIZE_DEFAULT)
-    .meta({
-      description:
-        'How many drafts to return, at most. Over the maximum is refused rather than clamped, ' +
-        'so a short page always means the list is short.',
-    }),
+  limit: pageLimitQuery('drafts'),
   cursor: pageCursorSchema.optional(),
 });
 

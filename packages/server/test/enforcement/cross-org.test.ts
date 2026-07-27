@@ -9,6 +9,7 @@ import { OWNER_ROLE_ID, resolveOrgMembership } from '../../src/modules/orgs';
 import { getPeriod } from '../../src/modules/periods';
 import { generateOpenApiDocument } from '../../src/transport';
 import type { App } from '../../src/transport';
+import type { Session } from '../transport/v1-support';
 import { authorizedWrite, createAccount, registerUser, useV1App } from '../transport/v1-support';
 import { contextFor } from './support';
 
@@ -61,6 +62,43 @@ interface Scene {
    */
   readonly discardableDraftId: string;
   readonly inviteId: string;
+
+  /**
+   * M3's fixtures (OB-067's routes, OB-062 … OB-066's services).
+   *
+   * One document per operation rather than one per kind, which is the same
+   * arrangement `permission-matrix.test.ts` arrived at and for a related reason. The
+   * constraint here is the *control* pass: the owner runs every row against their
+   * own resource and `ownerGetsNotFound` must stay false, so a row that approved,
+   * voided or discarded a document another row later names would turn that row's
+   * control into a 404 — and a 404 in the control pass is indistinguishable from
+   * the leak this file exists to detect.
+   */
+  readonly partyId: string;
+  readonly taxRateId: string;
+  readonly targetInvoiceId: string;
+  readonly draftInvoiceId: string;
+  readonly approvableInvoiceId: string;
+  readonly voidableInvoiceId: string;
+  readonly discardableInvoiceId: string;
+  readonly allocatableCreditNoteId: string;
+  readonly draftCreditNoteId: string;
+  readonly approvableCreditNoteId: string;
+  readonly voidableCreditNoteId: string;
+  readonly discardableCreditNoteId: string;
+  readonly targetBillId: string;
+  readonly draftBillId: string;
+  readonly approvableBillId: string;
+  readonly voidableBillId: string;
+  readonly discardableBillId: string;
+  readonly allocatableVendorCreditId: string;
+  readonly draftVendorCreditId: string;
+  readonly approvableVendorCreditId: string;
+  readonly voidableVendorCreditId: string;
+  readonly discardableVendorCreditId: string;
+  readonly paymentId: string;
+  readonly voidablePaymentId: string;
+  readonly allocationId: string;
 }
 
 /**
@@ -167,6 +205,8 @@ async function scene(app: App): Promise<Scene> {
   if (invited.statusCode !== 201) throw new Error(`invite setup failed: ${invited.body}`);
   const inviteId = invited.json<{ invitation: { id: string } }>().invitation.id;
 
+  const subledger = await subledgerScene(app, owner, created, revenueId);
+
   return {
     owner,
     stranger,
@@ -180,6 +220,229 @@ async function scene(app: App): Promise<Scene> {
     draftId,
     discardableDraftId,
     inviteId,
+    ...subledger,
+  };
+}
+
+/**
+ * The date every M3 fixture is issued and every reversal is dated.
+ *
+ * The same day the control journal above is posted, which is what puts all of it
+ * inside the fiscal year the scene generates. An approval posts on the document's
+ * own `issueDate` and a period that did not contain it would refuse the approval
+ * with `period_closed` — leaving the void and allocation fixtures unapproved, and
+ * an unapproved document answers its *owner* with a `precondition_failed` rather
+ * than a `404`, so those rows would pass while asserting nothing.
+ */
+const DOCUMENT_DATE = '2026-03-31';
+
+/** The four document collections, as they appear in a path. */
+type Collection = 'bills' | 'credit-notes' | 'invoices' | 'vendor-credits';
+
+/** Creates one resource through its own route and returns the `id` in the response. */
+type Create = (label: string, url: string, payload: Record<string, unknown>) => Promise<string>;
+
+/** Everything `subledgerScene` contributes: M3's half of the scene. */
+type SubledgerScene = Pick<
+  Scene,
+  | 'allocatableCreditNoteId'
+  | 'allocatableVendorCreditId'
+  | 'allocationId'
+  | 'approvableBillId'
+  | 'approvableCreditNoteId'
+  | 'approvableInvoiceId'
+  | 'approvableVendorCreditId'
+  | 'discardableBillId'
+  | 'discardableCreditNoteId'
+  | 'discardableInvoiceId'
+  | 'discardableVendorCreditId'
+  | 'draftBillId'
+  | 'draftCreditNoteId'
+  | 'draftInvoiceId'
+  | 'draftVendorCreditId'
+  | 'partyId'
+  | 'paymentId'
+  | 'targetBillId'
+  | 'targetInvoiceId'
+  | 'taxRateId'
+  | 'voidableBillId'
+  | 'voidableCreditNoteId'
+  | 'voidableInvoiceId'
+  | 'voidablePaymentId'
+  | 'voidableVendorCreditId'
+>;
+
+/**
+ * One org's AR and AP, built over HTTP by the owner.
+ *
+ * Over HTTP and not through the services, unlike `permission-matrix.test.ts`'s
+ * equivalent: this file's claim is about what the *transport* answers, and a
+ * document written past the routes would be this test's own idea of what an
+ * approved document is rather than the one `POST …/approve` produces. An approved
+ * document is a row plus a journal plus a gapless number, tied together by
+ * `chk_ar_documents_approved`, and every `void` and `allocate` row below is judged
+ * against one.
+ *
+ * The control accounts are nominated first, for `DOCUMENT_DATE`'s reason: without
+ * them every approval refuses with `receivable_control_account_not_set`.
+ */
+async function subledgerScene(
+  app: App,
+  owner: Session,
+  created: Create,
+  revenueId: string,
+): Promise<SubledgerScene> {
+  const account = (
+    code: string,
+    name: string,
+    type: string,
+    normalBalance: string,
+  ): Promise<string> => createAccount(app, owner, { code, name, type, normalBalance });
+
+  const receivableId = await account('1150', 'Accounts receivable', 'asset', 'debit');
+  const payableId = await account('2050', 'Accounts payable', 'liability', 'credit');
+  const expenseId = await account('5000', 'Office expenses', 'expense', 'debit');
+  const bankId = await account('1010', 'Business checking', 'asset', 'debit');
+  const taxAccountId = await account('2100', 'VAT payable', 'liability', 'credit');
+
+  const nominated = await app.inject({
+    method: 'PATCH',
+    url: '/v1/accounting-settings',
+    headers: authorizedWrite(owner, 'a7-setup-settings'),
+    payload: { receivableControlAccountId: receivableId, payableControlAccountId: payableId },
+  });
+  if (nominated.statusCode !== 200) {
+    throw new Error(`control account setup failed: ${nominated.body}`);
+  }
+
+  // One contact carrying both flags: the AR routes refuse a non-customer and the AP
+  // routes refuse a non-vendor. Separate from `contactId` above, which is referenced
+  // by nothing so that `deleteContact`'s control pass can reach a 204.
+  const partyId = await created('party', '/v1/contacts', {
+    displayName: 'Subledger Party',
+    isCustomer: true,
+    isVendor: true,
+  });
+
+  // Cited by no document, so `deleteTaxRate`'s control pass reaches a 204 rather
+  // than the `precondition_failed` a rate in use earns.
+  const taxRateId = await created('tax-rate', '/v1/tax-rates', {
+    name: 'VAT 20%',
+    percentage: '20',
+    accountId: taxAccountId,
+  });
+
+  const arBody = {
+    contactId: partyId,
+    issueDate: DOCUMENT_DATE,
+    taxMode: 'exclusive',
+    lines: [
+      { description: 'Consulting', quantity: '1', unitAmount: '100000', accountId: revenueId },
+    ],
+  };
+  const apLines = [
+    { description: 'Paper', quantity: '1', unitAmount: '100000', accountId: expenseId },
+  ];
+  const billBody = { ...arBody, dueDate: DOCUMENT_DATE, lines: apLines };
+  const vendorCreditBody = { ...arBody, lines: apLines };
+
+  const bodies: Readonly<Record<Collection, Record<string, unknown>>> = {
+    invoices: { ...arBody, dueDate: DOCUMENT_DATE },
+    'credit-notes': arBody,
+    bills: billBody,
+    'vendor-credits': vendorCreditBody,
+  };
+
+  // A counter, not the row's purpose: every draft below needs its own idempotency
+  // key, and two identical bodies under one key is a replay rather than a second
+  // document — which would silently give two fixtures the same id.
+  let sequence = 0;
+  const draft = async (collection: Collection): Promise<string> => {
+    sequence += 1;
+    return created(`${collection}-${String(sequence)}`, `/v1/${collection}`, bodies[collection]);
+  };
+
+  const approved = async (collection: Collection): Promise<string> => {
+    const id = await draft(collection);
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/${collection}/${id}/approve`,
+      headers: authorizedWrite(owner, `a7-setup-approve-${collection}-${String(sequence)}`),
+    });
+    if (response.statusCode !== 200) {
+      throw new Error(
+        `${collection} approval failed: ${String(response.statusCode)} ${response.body}`,
+      );
+    }
+    return id;
+  };
+
+  const targetInvoiceId = await approved('invoices');
+  const targetBillId = await approved('bills');
+
+  /**
+   * Ten times what any row applies, so the fixture allocation and the three
+   * `allocate…` control rows all fit. Over-allocating a *document* is refused (C3),
+   * and that refusal is a `precondition_failed` — which would pass this file's
+   * control while meaning the row never reached an allocation at all.
+   */
+  const payment = async (label: string): Promise<string> =>
+    created(label, '/v1/payments', {
+      direction: 'received',
+      contactId: partyId,
+      date: DOCUMENT_DATE,
+      amount: '1000000',
+      accountId: bankId,
+    });
+
+  const paymentId = await payment('payment');
+
+  /**
+   * The row `deleteAllocation` is judged on, and the only fixture here whose
+   * response is not `{ id }`: `POST …/allocations` answers with the whole batch it
+   * wrote, because a batch is one decision and returning one member of it would
+   * make a client guess which.
+   */
+  const allocated = await app.inject({
+    method: 'POST',
+    url: `/v1/payments/${paymentId}/allocations`,
+    headers: authorizedWrite(owner, 'a7-setup-allocation'),
+    payload: {
+      allocations: [{ targetType: 'invoice', targetId: targetInvoiceId, amount: '10000' }],
+    },
+  });
+  if (allocated.statusCode !== 201) {
+    throw new Error(`allocation setup failed: ${String(allocated.statusCode)} ${allocated.body}`);
+  }
+  const allocationId = allocated.json<{ allocations: { id: string }[] }>().allocations[0]?.id;
+  if (allocationId === undefined) throw new Error('allocation setup wrote no rows');
+
+  return {
+    partyId,
+    taxRateId,
+    allocationId,
+    targetInvoiceId,
+    draftInvoiceId: await draft('invoices'),
+    approvableInvoiceId: await draft('invoices'),
+    voidableInvoiceId: await approved('invoices'),
+    discardableInvoiceId: await draft('invoices'),
+    allocatableCreditNoteId: await approved('credit-notes'),
+    draftCreditNoteId: await draft('credit-notes'),
+    approvableCreditNoteId: await draft('credit-notes'),
+    voidableCreditNoteId: await approved('credit-notes'),
+    discardableCreditNoteId: await draft('credit-notes'),
+    targetBillId,
+    draftBillId: await draft('bills'),
+    approvableBillId: await draft('bills'),
+    voidableBillId: await approved('bills'),
+    discardableBillId: await draft('bills'),
+    allocatableVendorCreditId: await approved('vendor-credits'),
+    draftVendorCreditId: await draft('vendor-credits'),
+    approvableVendorCreditId: await draft('vendor-credits'),
+    voidableVendorCreditId: await approved('vendor-credits'),
+    discardableVendorCreditId: await draft('vendor-credits'),
+    paymentId,
+    voidablePaymentId: await payment('payment-2'),
   };
 }
 
@@ -196,8 +459,17 @@ interface Surface {
   /** `%s` is replaced by the id under test. */
   readonly path: string;
   readonly id: (scene: Scene) => string;
-  /** A body, with `%s` replaced the same way. Absent for GET and DELETE. */
-  readonly payload?: (id: string) => Record<string, unknown>;
+  /**
+   * A body, given the id under test. Absent for GET and DELETE.
+   *
+   * The scene is passed as well as the id because M3's three `allocate…` rows need
+   * a *second* id in the body — the invoice or bill being settled — and it has to
+   * be the owner's real one in both passes. If the stranger's request carried an
+   * unresolvable target it could fail on the target rather than on the source, and
+   * the row would then be asserting that a nonexistent invoice 404s rather than
+   * that another org's payment does.
+   */
+  readonly payload?: (id: string, scene: Scene) => Record<string, unknown>;
 }
 
 /**
@@ -455,6 +727,249 @@ const SURFACES: readonly Surface[] = [
     id: (s) => s.owner.orgId,
     payload: (id) => ({ orgId: id }),
   },
+
+  // ---------------------------------------------------------------------------
+  // M3 (OB-067). Thirty-two rows, and the reason there are five per document kind
+  // rather than one is `ownerGetsNotFound`: approve, void and discard each move a
+  // document somewhere a later row could not read it from.
+  //
+  // Ordered so the control pass runs straight through. Within a kind: read, edit,
+  // approve, void, allocate, discard — discard last because it is the one that
+  // removes the row, and allocate after approve because only an approved document
+  // has anything to apply.
+  //
+  // Every one of these is a surface a competitor's *customer list* is behind, which
+  // is what makes M3 the milestone where a leak stops being abstract: an oracle on
+  // `/v1/invoices/{id}` tells an attacker that a given invoice id exists, and the
+  // ids on this surface are handed to the people who receive the documents.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getInvoice',
+    method: 'GET',
+    path: '/v1/invoices/%s',
+    id: (s) => s.targetInvoiceId,
+  },
+  {
+    operationId: 'updateInvoice',
+    method: 'PATCH',
+    path: '/v1/invoices/%s',
+    id: (s) => s.draftInvoiceId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  {
+    operationId: 'approveInvoice',
+    method: 'POST',
+    path: '/v1/invoices/%s/approve',
+    id: (s) => s.approvableInvoiceId,
+  },
+  {
+    operationId: 'voidInvoice',
+    method: 'POST',
+    path: '/v1/invoices/%s/void',
+    id: (s) => s.voidableInvoiceId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  // Last of the invoice rows: the control pass reaches a 204 and the draft is gone.
+  {
+    operationId: 'discardInvoice',
+    method: 'DELETE',
+    path: '/v1/invoices/%s',
+    id: (s) => s.discardableInvoiceId,
+  },
+  {
+    operationId: 'getCreditNote',
+    method: 'GET',
+    path: '/v1/credit-notes/%s',
+    id: (s) => s.allocatableCreditNoteId,
+  },
+  {
+    operationId: 'updateCreditNote',
+    method: 'PATCH',
+    path: '/v1/credit-notes/%s',
+    id: (s) => s.draftCreditNoteId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  {
+    operationId: 'approveCreditNote',
+    method: 'POST',
+    path: '/v1/credit-notes/%s/approve',
+    id: (s) => s.approvableCreditNoteId,
+  },
+  {
+    operationId: 'voidCreditNote',
+    method: 'POST',
+    path: '/v1/credit-notes/%s/void',
+    id: (s) => s.voidableCreditNoteId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  /**
+   * The first of the three allocation rows, and the shape they share: the id under
+   * test is the *source* in the path, and the target in the body is the owner's
+   * invoice in every pass. So a `404` here is a statement about the credit note,
+   * which is the id an outsider would be probing.
+   */
+  {
+    operationId: 'allocateCreditNote',
+    method: 'POST',
+    path: '/v1/credit-notes/%s/allocations',
+    id: (s) => s.allocatableCreditNoteId,
+    payload: (_id, s) => ({
+      allocations: [{ targetType: 'invoice', targetId: s.targetInvoiceId, amount: '10000' }],
+    }),
+  },
+  {
+    operationId: 'discardCreditNote',
+    method: 'DELETE',
+    path: '/v1/credit-notes/%s',
+    id: (s) => s.discardableCreditNoteId,
+  },
+  {
+    operationId: 'getBill',
+    method: 'GET',
+    path: '/v1/bills/%s',
+    id: (s) => s.targetBillId,
+  },
+  {
+    operationId: 'updateBill',
+    method: 'PATCH',
+    path: '/v1/bills/%s',
+    id: (s) => s.draftBillId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  {
+    operationId: 'approveBill',
+    method: 'POST',
+    path: '/v1/bills/%s/approve',
+    id: (s) => s.approvableBillId,
+  },
+  {
+    operationId: 'voidBill',
+    method: 'POST',
+    path: '/v1/bills/%s/void',
+    id: (s) => s.voidableBillId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  {
+    operationId: 'discardBill',
+    method: 'DELETE',
+    path: '/v1/bills/%s',
+    id: (s) => s.discardableBillId,
+  },
+  {
+    operationId: 'getVendorCredit',
+    method: 'GET',
+    path: '/v1/vendor-credits/%s',
+    id: (s) => s.allocatableVendorCreditId,
+  },
+  {
+    operationId: 'updateVendorCredit',
+    method: 'PATCH',
+    path: '/v1/vendor-credits/%s',
+    id: (s) => s.draftVendorCreditId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  {
+    operationId: 'approveVendorCredit',
+    method: 'POST',
+    path: '/v1/vendor-credits/%s/approve',
+    id: (s) => s.approvableVendorCreditId,
+  },
+  {
+    operationId: 'voidVendorCredit',
+    method: 'POST',
+    path: '/v1/vendor-credits/%s/void',
+    id: (s) => s.voidableVendorCreditId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  {
+    operationId: 'allocateVendorCredit',
+    method: 'POST',
+    path: '/v1/vendor-credits/%s/allocations',
+    id: (s) => s.allocatableVendorCreditId,
+    payload: (_id, s) => ({
+      allocations: [{ targetType: 'bill', targetId: s.targetBillId, amount: '10000' }],
+    }),
+  },
+  {
+    operationId: 'discardVendorCredit',
+    method: 'DELETE',
+    path: '/v1/vendor-credits/%s',
+    id: (s) => s.discardableVendorCreditId,
+  },
+  {
+    operationId: 'getPayment',
+    method: 'GET',
+    path: '/v1/payments/%s',
+    id: (s) => s.paymentId,
+  },
+  {
+    operationId: 'updatePayment',
+    method: 'PATCH',
+    path: '/v1/payments/%s',
+    id: (s) => s.paymentId,
+    payload: () => ({ memo: 'Edited' }),
+  },
+  {
+    operationId: 'allocatePayment',
+    method: 'POST',
+    path: '/v1/payments/%s/allocations',
+    id: (s) => s.paymentId,
+    payload: (_id, s) => ({
+      allocations: [{ targetType: 'invoice', targetId: s.targetInvoiceId, amount: '10000' }],
+    }),
+  },
+  /**
+   * Its own payment, because voiding one deletes the allocations it made — and the
+   * row above and the fixture allocation `deleteAllocation` names are both on
+   * `paymentId`.
+   */
+  {
+    operationId: 'voidPayment',
+    method: 'POST',
+    path: '/v1/payments/%s/void',
+    id: (s) => s.voidablePaymentId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+  {
+    operationId: 'deleteAllocation',
+    method: 'DELETE',
+    path: '/v1/allocations/%s',
+    id: (s) => s.allocationId,
+  },
+  {
+    operationId: 'getTaxRate',
+    method: 'GET',
+    path: '/v1/tax-rates/%s',
+    id: (s) => s.taxRateId,
+  },
+  {
+    operationId: 'updateTaxRate',
+    method: 'PATCH',
+    path: '/v1/tax-rates/%s',
+    id: (s) => s.taxRateId,
+    payload: () => ({ name: 'VAT (standard)' }),
+  },
+  {
+    operationId: 'archiveTaxRate',
+    method: 'POST',
+    path: '/v1/tax-rates/%s/archive',
+    id: (s) => s.taxRateId,
+  },
+  {
+    operationId: 'unarchiveTaxRate',
+    method: 'POST',
+    path: '/v1/tax-rates/%s/unarchive',
+    id: (s) => s.taxRateId,
+  },
+  // Last row in the table: the control pass deletes the rate, which is only
+  // possible because no document cites it.
+  {
+    operationId: 'deleteTaxRate',
+    method: 'DELETE',
+    path: '/v1/tax-rates/%s',
+    id: (s) => s.taxRateId,
+  },
 ];
 
 /** What every row must report. Deviations are the leak. */
@@ -488,6 +1003,7 @@ async function ask(
   surface: Surface,
   id: string,
   key: string,
+  built: Scene,
 ): Promise<LightMyRequestResponse> {
   return app.inject({
     method: surface.method,
@@ -496,7 +1012,7 @@ async function ask(
     // required: the same key with a different body is an `idempotency_key_conflict`,
     // which would replace the answer under test with a different one.
     headers: authorizedWrite(session, key),
-    ...(surface.payload === undefined ? {} : { payload: surface.payload(id) }),
+    ...(surface.payload === undefined ? {} : { payload: surface.payload(id, built) }),
   });
 }
 
@@ -514,6 +1030,7 @@ describe('A7 across every surface that takes a resource id', () => {
         surface,
         real,
         `a7-cross-${surface.operationId}`,
+        built,
       );
       const nonexistent = await ask(
         app,
@@ -521,6 +1038,7 @@ describe('A7 across every surface that takes a resource id', () => {
         surface,
         NOWHERE,
         `a7-none-${surface.operationId}`,
+        built,
       );
 
       leaks.set(surface.operationId, {
@@ -543,6 +1061,7 @@ describe('A7 across every surface that takes a resource id', () => {
         surface,
         surface.id(built),
         `a7-owner-${surface.operationId}`,
+        built,
       );
       verdicts[surface.operationId] = {
         ...(leaks.get(surface.operationId) as Omit<Verdict, 'ownerGetsNotFound'>),

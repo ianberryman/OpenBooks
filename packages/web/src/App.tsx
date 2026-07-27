@@ -10,7 +10,10 @@ import { AccountsScreen } from './screens/accounts';
 import { AuthScreen } from './screens/auth';
 import { ContactsScreen } from './screens/contacts';
 import { JournalEntryScreen } from './screens/journal-entry';
+import { MoneyInScreen } from './screens/money-in';
+import { PurchasesScreen } from './screens/purchases';
 import { ReportsScreen } from './screens/reports';
+import { SalesScreen } from './screens/sales';
 import { SettingsScreen } from './screens/settings';
 import { AppShell } from './shell/app-shell';
 import { landingPath, visibleNav } from './shell/nav';
@@ -138,6 +141,9 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/accounts" element={<AccountsScreen />} />
         <Route path="/journal-entry" element={<JournalEntryScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
+        <Route path="/sales" element={<SalesScreen />} />
+        <Route path="/purchases" element={<PurchasesScreen />} />
+        <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />

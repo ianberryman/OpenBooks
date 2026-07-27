@@ -2,19 +2,24 @@ import type { Config } from '../../config';
 import type { App } from '../types';
 import { registerAccountRoutes } from './accounts';
 import { registerAuthRoutes } from './auth';
+import { registerBillRoutes } from './bills';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
+import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
 import { registerJournalRoutes } from './journals';
 import { registerMemberRoutes } from './members';
 import { registerOrgRoutes } from './orgs';
+import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
 import { registerReportRoutes } from './reports';
+import { registerSettingsRoutes } from './settings';
+import { registerTaxRateRoutes } from './tax-rates';
 
 /**
- * The `/v1` route surface (OB-023, extended by OB-045).
+ * The `/v1` route surface (OB-023, extended by OB-045 and OB-067).
  *
  * | Method   | Path                                            | operationId                 | Idempotency-Key | Claim scope    |
  * | -------- | ----------------------------------------------- | --------------------------- | --------------- | -------------- |
@@ -25,6 +30,8 @@ import { registerReportRoutes } from './reports';
  * | `POST`   | `/v1/orgs`                                      | `createOrg`                 | required        | global         |
  * | `GET`    | `/v1/orgs`                                      | `listOrgMemberships`        | —               | —              |
  * | `POST`   | `/v1/orgs/active`                               | `switchActiveOrg`           | required        | global         |
+ * | `GET`    | `/v1/accounting-settings`                       | `getControlAccounts`        | —               | —              |
+ * | `PATCH`  | `/v1/accounting-settings`                       | `updateControlAccounts`     | required        | org            |
  * | `POST`   | `/v1/accounts`                                  | `createAccount`             | required        | org            |
  * | `GET`    | `/v1/accounts`                                  | `listAccounts`              | —               | —              |
  * | `GET`    | `/v1/accounts/:accountId`                       | `getAccount`                | —               | —              |
@@ -32,6 +39,14 @@ import { registerReportRoutes } from './reports';
  * | `POST`   | `/v1/accounts/:accountId/deactivate`            | `deactivateAccount`         | required        | org            |
  * | `POST`   | `/v1/accounts/:accountId/reactivate`            | `reactivateAccount`         | required        | org            |
  * | `DELETE` | `/v1/accounts/:accountId`                       | `deleteAccount`             | required        | org            |
+ * | `DELETE` | `/v1/allocations/:allocationId`                 | `deleteAllocation`          | required        | org            |
+ * | `POST`   | `/v1/bills`                                     | `createBill`                | required        | org            |
+ * | `GET`    | `/v1/bills`                                     | `listBills`                 | —               | —              |
+ * | `GET`    | `/v1/bills/:billId`                             | `getBill`                   | —               | —              |
+ * | `PATCH`  | `/v1/bills/:billId`                             | `updateBill`                | required        | org            |
+ * | `DELETE` | `/v1/bills/:billId`                             | `discardBill`               | required        | org            |
+ * | `POST`   | `/v1/bills/:billId/approve`                     | `approveBill`               | required        | org            |
+ * | `POST`   | `/v1/bills/:billId/void`                        | `voidBill`                  | required        | org            |
  * | `GET`    | `/v1/chart-templates`                           | `listChartTemplates`        | —               | —              |
  * | `POST`   | `/v1/chart-templates/apply`                     | `applyChartTemplate`        | required        | org            |
  * | `POST`   | `/v1/contacts`                                  | `createContact`             | required        | org            |
@@ -41,6 +56,14 @@ import { registerReportRoutes } from './reports';
  * | `POST`   | `/v1/contacts/:contactId/deactivate`            | `deactivateContact`         | required        | org            |
  * | `POST`   | `/v1/contacts/:contactId/reactivate`            | `reactivateContact`         | required        | org            |
  * | `DELETE` | `/v1/contacts/:contactId`                       | `deleteContact`             | required        | org            |
+ * | `POST`   | `/v1/credit-notes`                              | `createCreditNote`          | required        | org            |
+ * | `GET`    | `/v1/credit-notes`                              | `listCreditNotes`           | —               | —              |
+ * | `GET`    | `/v1/credit-notes/:creditNoteId`                | `getCreditNote`             | —               | —              |
+ * | `PATCH`  | `/v1/credit-notes/:creditNoteId`                | `updateCreditNote`          | required        | org            |
+ * | `DELETE` | `/v1/credit-notes/:creditNoteId`                | `discardCreditNote`         | required        | org            |
+ * | `POST`   | `/v1/credit-notes/:creditNoteId/allocations`    | `allocateCreditNote`        | required        | org            |
+ * | `POST`   | `/v1/credit-notes/:creditNoteId/approve`        | `approveCreditNote`         | required        | org            |
+ * | `POST`   | `/v1/credit-notes/:creditNoteId/void`           | `voidCreditNote`            | required        | org            |
  * | `POST`   | `/v1/dimensions`                                | `createDimension`           | required        | org            |
  * | `GET`    | `/v1/dimensions`                                | `listDimensions`            | —               | —              |
  * | `GET`    | `/v1/dimensions/:dimensionId`                   | `getDimension`              | —               | —              |
@@ -64,6 +87,13 @@ import { registerReportRoutes } from './reports';
  * | `GET`    | `/v1/invites`                                   | `listInvites`               | —               | —              |
  * | `POST`   | `/v1/invites/accept`                            | `acceptInvite`              | required        | **global**     |
  * | `POST`   | `/v1/invites/:inviteId/revoke`                  | `revokeInvite`              | required        | org            |
+ * | `POST`   | `/v1/invoices`                                  | `createInvoice`             | required        | org            |
+ * | `GET`    | `/v1/invoices`                                  | `listInvoices`              | —               | —              |
+ * | `GET`    | `/v1/invoices/:invoiceId`                       | `getInvoice`                | —               | —              |
+ * | `PATCH`  | `/v1/invoices/:invoiceId`                       | `updateInvoice`             | required        | org            |
+ * | `DELETE` | `/v1/invoices/:invoiceId`                       | `discardInvoice`            | required        | org            |
+ * | `POST`   | `/v1/invoices/:invoiceId/approve`               | `approveInvoice`            | required        | org            |
+ * | `POST`   | `/v1/invoices/:invoiceId/void`                  | `voidInvoice`               | required        | org            |
  * | `GET`    | `/v1/journal-lines/:lineId/dimensions`          | `getJournalLineDimensions`  | —               | —              |
  * | `PUT`    | `/v1/journal-lines/:lineId/dimensions`          | `setJournalLineDimensions`  | required        | org            |
  * | `POST`   | `/v1/journal-drafts`                            | `createDraft`               | required        | org            |
@@ -78,11 +108,33 @@ import { registerReportRoutes } from './reports';
  * | `GET`    | `/v1/members`                                   | `listMembers`               | —               | —              |
  * | `PATCH`  | `/v1/members/:userId`                           | `changeMemberRole`          | required        | org            |
  * | `DELETE` | `/v1/members/:userId`                           | `removeMember`              | required        | org            |
+ * | `POST`   | `/v1/payments`                                  | `recordPayment`             | required        | org            |
+ * | `GET`    | `/v1/payments`                                  | `listPayments`              | —               | —              |
+ * | `GET`    | `/v1/payments/:paymentId`                       | `getPayment`                | —               | —              |
+ * | `PATCH`  | `/v1/payments/:paymentId`                       | `updatePayment`             | required        | org            |
+ * | `POST`   | `/v1/payments/:paymentId/allocations`           | `allocatePayment`           | required        | org            |
+ * | `POST`   | `/v1/payments/:paymentId/void`                  | `voidPayment`               | required        | org            |
+ * | `GET`    | `/v1/reports/aging`                             | `getAging`                  | —               | —              |
  * | `GET`    | `/v1/reports/balance-sheet`                     | `getBalanceSheet`           | —               | —              |
  * | `GET`    | `/v1/reports/general-ledger`                    | `getGeneralLedger`          | —               | —              |
  * | `GET`    | `/v1/reports/profit-and-loss`                   | `getProfitAndLoss`          | —               | —              |
  * | `GET`    | `/v1/reports/trial-balance`                     | `getTrialBalance`           | —               | —              |
  * | `GET`    | `/v1/roles`                                     | `listAssignableRoles`       | —               | —              |
+ * | `POST`   | `/v1/tax-rates`                                 | `createTaxRate`             | required        | org            |
+ * | `GET`    | `/v1/tax-rates`                                 | `listTaxRates`              | —               | —              |
+ * | `GET`    | `/v1/tax-rates/:taxRateId`                      | `getTaxRate`                | —               | —              |
+ * | `PATCH`  | `/v1/tax-rates/:taxRateId`                      | `updateTaxRate`             | required        | org            |
+ * | `POST`   | `/v1/tax-rates/:taxRateId/archive`              | `archiveTaxRate`            | required        | org            |
+ * | `POST`   | `/v1/tax-rates/:taxRateId/unarchive`            | `unarchiveTaxRate`          | required        | org            |
+ * | `DELETE` | `/v1/tax-rates/:taxRateId`                      | `deleteTaxRate`             | required        | org            |
+ * | `POST`   | `/v1/vendor-credits`                            | `createVendorCredit`        | required        | org            |
+ * | `GET`    | `/v1/vendor-credits`                            | `listVendorCredits`         | —               | —              |
+ * | `GET`    | `/v1/vendor-credits/:vendorCreditId`            | `getVendorCredit`           | —               | —              |
+ * | `PATCH`  | `/v1/vendor-credits/:vendorCreditId`            | `updateVendorCredit`        | required        | org            |
+ * | `DELETE` | `/v1/vendor-credits/:vendorCreditId`            | `discardVendorCredit`       | required        | org            |
+ * | `POST`   | `/v1/vendor-credits/:vendorCreditId/allocations`| `allocateVendorCredit`      | required        | org            |
+ * | `POST`   | `/v1/vendor-credits/:vendorCreditId/approve`    | `approveVendorCredit`       | required        | org            |
+ * | `POST`   | `/v1/vendor-credits/:vendorCreditId/void`       | `voidVendorCredit`          | required        | org            |
  *
  * ## What a handler in this directory is allowed to contain
  *
@@ -166,6 +218,20 @@ import { registerReportRoutes } from './reports';
  * deliberately never stored (D-03). That is right for the double-submit this guards
  * against; a caller who genuinely lost the response has to log in again.
  *
+ * **OB-067 adds thirty-three writes and every one of them is org-scoped.** There is
+ * no M3 operation that could sensibly be global: each names a document, a payment, a
+ * rate or a setting that exists only inside one org, so the claim belongs to that
+ * org and the fingerprint always folds in the path id as well as the body — the same
+ * key replayed against a *different* invoice is an `idempotency_key_conflict` rather
+ * than the first invoice's response. Two of them are worth naming because their
+ * fingerprints look like they might be empty and are not: `approveInvoice` and its
+ * three siblings take no body at all, so `{ invoiceId }` *is* the request, and a
+ * double-clicked Approve replays the first approval rather than posting a second
+ * journal. Underneath, the service takes the document's row lock as its first
+ * statement, so two callers who chose different keys still produce one journal and
+ * one refusal — the claim answers a retry, the lock answers a race, and an approved
+ * document cannot be un-approved.
+ *
  * OB-045 added a sixth global claim and it is the only one that is not an identity or
  * org-lifecycle write: **`acceptInvite`**. It belongs there for the same structural
  * reason the other five do — the caller is by definition not yet a member of the org
@@ -183,6 +249,15 @@ import { registerReportRoutes } from './reports';
  * the published document, so a read-only `POST` converts a rule into a rule with an
  * allowlist. `src/transport/routes/reports.ts` carries the full argument and what the
  * chosen alternative costs.
+ *
+ * **A status-shaped `PATCH`.** OB-067's four documents each have `approve` and
+ * `void` as `POST`s on their own paths rather than as `PATCH { status }`, because
+ * D-38 makes `status` *derived* — there is no column to set, and two of its five
+ * values are reachable only by allocating. `src/transport/routes/invoices.ts` carries
+ * the argument in full, and `bills.ts` records the one thing that surprised this
+ * ticket: the AR and AP services spell the same refusals differently
+ * (`document_not_draft` against `document_approved`, a `409 conflict` against
+ * `document_already_approved`). The routes publish what the services actually raise.
  *
  * **`{ items, nextCursor }` on the general ledger.** D-21 gives every list one
  * envelope and six endpoints use it; `GET /v1/reports/general-ledger` does not,
@@ -207,4 +282,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerDraftRoutes(app);
   registerMemberRoutes(app);
   registerReportRoutes(app);
+  registerSettingsRoutes(app);
+  registerTaxRateRoutes(app);
+  registerInvoiceRoutes(app);
+  registerBillRoutes(app);
+  registerPaymentRoutes(app);
 }

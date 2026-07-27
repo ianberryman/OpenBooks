@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
 
 import { allocationSchema } from './allocations';
 import {
@@ -17,7 +17,6 @@ import {
   documentTotalsSchema,
   isOrderedRange,
   taxModeSchema,
-  unpublishedPageSchema,
 } from './documents';
 
 /**
@@ -48,60 +47,70 @@ import {
  * No balance, no stored status, no period — `invoiceSchema` states why for all
  * three, and the reasons are the same document-shaped ones (D-34, D-38, D-17).
  */
-export const billSchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z
-    .string()
-    .nullable()
-    .meta({
+export const billSchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The vendor’s own invoice number (D-36). Distinct from `documentNumber`, which is our ' +
+          'internal handle: this is the number the vendor prints, quotes when chasing, and expects ' +
+          'on a remittance.',
+      }),
+    contactId: z.uuid().meta({ description: 'The vendor who billed us.' }),
+    issueDate: calendarDateSchema.meta({
       description:
-        'The vendor’s own invoice number (D-36). Distinct from `documentNumber`, which is our ' +
-        'internal handle: this is the number the vendor prints, quotes when chasing, and expects ' +
-        'on a remittance.',
+        'The date the vendor issued the bill, and the entry date of the journal it posts. It must ' +
+        'fall inside an open fiscal period at approval (D-17).',
     }),
-  contactId: z.uuid().meta({ description: 'The vendor who billed us.' }),
-  issueDate: calendarDateSchema.meta({
+    dueDate: calendarDateSchema.meta({
+      description: 'When payment is due. Aging measures from here, not from `issueDate` (D-40).',
+    }),
+    taxMode: taxModeSchema,
+    status: documentStatusSchema,
+    memo: z.string().nullable(),
+    lines: z.array(documentLineSchema),
+    totals: documentTotalsSchema,
+    taxSummary: z.array(documentTaxSummaryRowSchema),
+    settlement: documentSettlementSchema,
+    allocations: z.array(allocationSchema).meta({
+      description:
+        'What has been applied against this bill — payments made and vendor credits alike, through ' +
+        'the same mechanism (D-39).',
+    }),
+    journalId: z.uuid().nullable(),
+    voidJournalId: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Bill',
     description:
-      'The date the vendor issued the bill, and the entry date of the journal it posts. It must ' +
-      'fall inside an open fiscal period at approval (D-17).',
-  }),
-  dueDate: calendarDateSchema.meta({
-    description: 'When payment is due. Aging measures from here, not from `issueDate` (D-40).',
-  }),
-  taxMode: taxModeSchema,
-  status: documentStatusSchema,
-  memo: z.string().nullable(),
-  lines: z.array(documentLineSchema),
-  totals: documentTotalsSchema,
-  taxSummary: z.array(documentTaxSummaryRowSchema),
-  settlement: documentSettlementSchema,
-  allocations: z.array(allocationSchema).meta({
-    description:
-      'What has been applied against this bill — payments made and vendor credits alike, through ' +
-      'the same mechanism (D-39).',
-  }),
-  journalId: z.uuid().nullable(),
-  voidJournalId: z.uuid().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'A bill from a vendor, with its lines. `reference` is the vendor’s own invoice number (D-36) ' +
+      'and a duplicate is refused at approval. `status` and `settlement` are computed on read ' +
+      '(D-34, D-38).',
+  });
 
 export type Bill = z.infer<typeof billSchema>;
 
-export const billSummarySchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable(),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema,
-  status: documentStatusSchema,
-  totals: documentTotalsSchema,
-  settlement: documentSettlementSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const billSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable(),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema,
+    status: documentStatusSchema,
+    totals: documentTotalsSchema,
+    settlement: documentSettlementSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({ id: 'BillSummary', description: 'A bill in a list, without its lines.' });
 
 export type BillSummary = z.infer<typeof billSummarySchema>;
 
@@ -111,15 +120,22 @@ export type BillSummary = z.infer<typeof billSummarySchema>;
  * vendor's date and is routinely in the past, which is what makes the open-period
  * check at approval the interesting one rather than a formality.
  */
-export const createBillRequestSchema = z.strictObject({
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema.optional(),
-  taxMode: taxModeSchema,
-  reference: documentReferenceSchema.nullish(),
-  memo: documentMemoSchema.nullish(),
-  lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
-});
+export const createBillRequestSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema.optional(),
+    taxMode: taxModeSchema,
+    reference: documentReferenceSchema.nullish(),
+    memo: documentMemoSchema.nullish(),
+    lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
+  })
+  .meta({
+    id: 'CreateBillRequest',
+    description:
+      'Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the ' +
+      'past, which is what makes the open-period check at approval the interesting one.',
+  });
 
 export type CreateBillRequest = z.infer<typeof createBillRequestSchema>;
 
@@ -137,6 +153,7 @@ export const updateBillRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateBillRequest',
     description:
       'Partial update of a draft. `lines` replaces the whole set. An approved bill accepts none ' +
       'of this — the correction is a vendor credit or a void, never an edit (D-38).',
@@ -164,7 +181,10 @@ export const listBillsQuerySchema = z
 export type ListBillsQuery = z.input<typeof listBillsQuerySchema>;
 
 /** Ordered by `(created_at, id)`, for `invoicePageSchema`'s reasons exactly. */
-export const billPageSchema = unpublishedPageSchema(billSummarySchema);
+export const billPageSchema = pageSchema(billSummarySchema, {
+  id: 'BillPage',
+  description: 'One page of bills, oldest first by creation.',
+});
 
 export type BillPage = z.infer<typeof billPageSchema>;
 
@@ -175,55 +195,73 @@ export type BillPage = z.infer<typeof billPageSchema>;
  * It reduces what we owe a vendor by allocating against bills. No `dueDate`, for
  * the same reason a credit note has none: nothing about it falls due.
  */
-export const vendorCreditSchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable().meta({
-    description: 'The vendor’s own credit-note number, where they issued one (D-36).',
-  }),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  taxMode: taxModeSchema,
-  status: documentStatusSchema,
-  memo: z.string().nullable(),
-  lines: z.array(documentLineSchema),
-  totals: documentTotalsSchema,
-  taxSummary: z.array(documentTaxSummaryRowSchema),
-  settlement: documentSettlementSchema,
-  allocations: z.array(allocationSchema).meta({
-    description: 'The bills this credit has been applied to, and for how much.',
-  }),
-  journalId: z.uuid().nullable(),
-  voidJournalId: z.uuid().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const vendorCreditSchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable().meta({
+      description: 'The vendor’s own credit-note number, where they issued one (D-36).',
+    }),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    taxMode: taxModeSchema,
+    status: documentStatusSchema,
+    memo: z.string().nullable(),
+    lines: z.array(documentLineSchema),
+    totals: documentTotalsSchema,
+    taxSummary: z.array(documentTaxSummaryRowSchema),
+    settlement: documentSettlementSchema,
+    allocations: z.array(allocationSchema).meta({
+      description: 'The bills this credit has been applied to, and for how much.',
+    }),
+    journalId: z.uuid().nullable(),
+    voidJournalId: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'VendorCredit',
+    description:
+      'A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It ' +
+      'reduces what we owe by allocating against bills, and has no `dueDate` because nothing about ' +
+      'it falls due.',
+  });
 
 export type VendorCredit = z.infer<typeof vendorCreditSchema>;
 
-export const vendorCreditSummarySchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable(),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  status: documentStatusSchema,
-  totals: documentTotalsSchema,
-  settlement: documentSettlementSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const vendorCreditSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable(),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    status: documentStatusSchema,
+    totals: documentTotalsSchema,
+    settlement: documentSettlementSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'VendorCreditSummary',
+    description: 'A vendor credit in a list, without its lines.',
+  });
 
 export type VendorCreditSummary = z.infer<typeof vendorCreditSummarySchema>;
 
-export const createVendorCreditRequestSchema = z.strictObject({
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  taxMode: taxModeSchema,
-  reference: documentReferenceSchema.nullish(),
-  memo: documentMemoSchema.nullish(),
-  lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
-});
+export const createVendorCreditRequestSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    taxMode: taxModeSchema,
+    reference: documentReferenceSchema.nullish(),
+    memo: documentMemoSchema.nullish(),
+    lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
+  })
+  .meta({
+    id: 'CreateVendorCreditRequest',
+    description: 'Creates a **draft** vendor credit. No `dueDate`: nothing about one falls due.',
+  });
 
 export type CreateVendorCreditRequest = z.infer<typeof createVendorCreditRequestSchema>;
 
@@ -238,6 +276,12 @@ export const updateVendorCreditRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateVendorCreditRequest',
+    description:
+      'Partial update of a draft. `lines` replaces the whole set. An approved vendor credit ' +
+      'accepts none of this — the correction is a void, never an edit (D-38).',
   });
 
 export type UpdateVendorCreditRequest = z.infer<typeof updateVendorCreditRequestSchema>;
@@ -254,6 +298,9 @@ export const listVendorCreditsQuerySchema = z
 
 export type ListVendorCreditsQuery = z.input<typeof listVendorCreditsQuerySchema>;
 
-export const vendorCreditPageSchema = unpublishedPageSchema(vendorCreditSummarySchema);
+export const vendorCreditPageSchema = pageSchema(vendorCreditSummarySchema, {
+  id: 'VendorCreditPage',
+  description: 'One page of vendor credits, oldest first by creation.',
+});
 
 export type VendorCreditPage = z.infer<typeof vendorCreditPageSchema>;

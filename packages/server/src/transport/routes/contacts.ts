@@ -1,6 +1,4 @@
 import {
-  PAGE_SIZE_DEFAULT,
-  PAGE_SIZE_MAX,
   contactPageSchema,
   contactSchema,
   createContactRequestSchema,
@@ -28,6 +26,7 @@ import {
   idempotencyKeyHeaderSchema,
   idempotentBody,
   noContentSchema,
+  pageLimitQuery,
   requireOrgScope,
 } from './support';
 
@@ -71,17 +70,7 @@ const listContactsWireQuerySchema = z.strictObject({
   isActive: z.stringbool().optional().meta({
     description: 'Omitted matches active and inactive contacts alike.',
   }),
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .default(PAGE_SIZE_DEFAULT)
-    .meta({
-      description:
-        'How many contacts to return, at most. Over the maximum is refused rather than clamped, ' +
-        'so a short page always means the list is short.',
-    }),
+  limit: pageLimitQuery('contacts'),
   cursor: pageCursorSchema.optional(),
 });
 

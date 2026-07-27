@@ -91,11 +91,20 @@ const allocationAmountSchema = minorUnitsSchema.meta({
  * allocates *from* a payment or a credit note, so the source is the resource in the
  * path and naming it in the body would make the two disagreeable.
  */
-export const allocationInputSchema = z.strictObject({
-  targetType: allocationTargetTypeSchema,
-  targetId: z.uuid(),
-  amount: allocationAmountSchema,
-});
+export const allocationInputSchema = z
+  .strictObject({
+    targetType: allocationTargetTypeSchema,
+    targetId: z.uuid(),
+    amount: allocationAmountSchema,
+  })
+  .meta({
+    // Not `AllocationInput`: the transform emits an `XInput` component beside every
+    // `X`, so that name is already `Allocation`'s. `…Request` is the register.
+    id: 'AllocationRequest',
+    description:
+      'One application, as a client sends it: which document, and how much. The source is not ' +
+      'named here because it is the resource in the path.',
+  });
 
 export type AllocationInput = z.infer<typeof allocationInputSchema>;
 
@@ -107,10 +116,19 @@ export type AllocationInput = z.infer<typeof allocationInputSchema>;
  * applying two of the three and refusing the fourth for over-allocation would leave
  * the user to work out which half happened.
  */
-export const createAllocationsRequestSchema = z.strictObject({
-  date: allocationDateSchema.optional(),
-  allocations: z.array(allocationInputSchema).min(1),
-});
+export const createAllocationsRequestSchema = z
+  .strictObject({
+    date: allocationDateSchema.optional(),
+    allocations: z.array(allocationInputSchema).min(1),
+  })
+  .meta({
+    id: 'CreateAllocationsRequest',
+    description:
+      'Applies one source to several targets in one call. A batch rather than a call per target, ' +
+      'because “this transfer paid three invoices” is one decision and has to succeed or fail as ' +
+      'one — applying two and refusing the third would leave the user to work out which half ' +
+      'happened.',
+  });
 
 export type CreateAllocationsRequest = z.infer<typeof createAllocationsRequestSchema>;
 
@@ -121,24 +139,55 @@ export type CreateAllocationsRequest = z.infer<typeof createAllocationsRequestSc
  * payment (where the client knows the source) and on an invoice (where it knows the
  * target), and a shape that dropped the known end would be two shapes.
  */
-export const allocationSchema = z.strictObject({
-  id: z.uuid(),
-  sourceType: allocationSourceTypeSchema,
-  sourceId: z.uuid(),
-  sourceNumber: z
-    .string()
-    .nullable()
-    .meta({
-      description:
-        'The source document’s own number, or null for a payment — a payment is money moving, not ' +
-        'a numbered document (D-36 numbers the four document types and nothing else).',
-    }),
-  targetType: allocationTargetTypeSchema,
-  targetId: z.uuid(),
-  targetNumber: z.string().nullable(),
-  amount: allocationAmountSchema,
-  date: allocationDateSchema,
-  createdAt: z.iso.datetime(),
-});
+export const allocationSchema = z
+  .strictObject({
+    id: z.uuid(),
+    sourceType: allocationSourceTypeSchema,
+    sourceId: z.uuid(),
+    sourceNumber: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The source document’s own number, or null for a payment — a payment is money moving, not ' +
+          'a numbered document (D-36 numbers the four document types and nothing else).',
+      }),
+    targetType: allocationTargetTypeSchema,
+    targetId: z.uuid(),
+    targetNumber: z.string().nullable(),
+    amount: allocationAmountSchema,
+    date: allocationDateSchema,
+    createdAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Allocation',
+    description:
+      'One allocation as the API returns it, naming both ends — the same shape is embedded on a ' +
+      'payment, where the client knows the source, and on an invoice, where it knows the target.',
+  });
 
 export type Allocation = z.infer<typeof allocationSchema>;
+
+/**
+ * The response envelope for a batch of allocations (OB-067).
+ *
+ * An envelope rather than a bare array, for `orgMemberListSchema`'s reason: a
+ * top-level object has somewhere to put a later addition, and a top-level JSON array
+ * has nowhere at all. Unpaginated deliberately — the array is exactly the
+ * `allocations` the request named, bounded by the request itself rather than by the
+ * org's data, so there is nothing here for a cursor to page.
+ *
+ * Not `pageSchema`: this is not a list of what exists, it is the result of one
+ * write, and giving it a `nextCursor` that is always `null` would invite a client to
+ * page it.
+ */
+export const allocationListSchema = z
+  .strictObject({
+    allocations: z.array(allocationSchema),
+  })
+  .meta({
+    id: 'AllocationList',
+    description: 'The allocations this call wrote, in the order they were applied.',
+  });
+
+export type AllocationList = z.infer<typeof allocationListSchema>;

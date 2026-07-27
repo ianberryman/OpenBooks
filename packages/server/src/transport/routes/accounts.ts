@@ -1,7 +1,5 @@
 import {
   ACCOUNT_TYPES,
-  PAGE_SIZE_DEFAULT,
-  PAGE_SIZE_MAX,
   accountPageSchema,
   accountSchema,
   createAccountRequestSchema,
@@ -29,6 +27,7 @@ import {
   idempotencyKeyHeaderSchema,
   idempotentBody,
   noContentSchema,
+  pageLimitQuery,
   requireOrgScope,
 } from './support';
 
@@ -82,17 +81,7 @@ const listAccountsWireQuerySchema = z.strictObject({
    * parameter carries them; `resolvePageLimit` in the service is what enforces them
    * for callers that never see a route.
    */
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .default(PAGE_SIZE_DEFAULT)
-    .meta({
-      description:
-        'How many accounts to return, at most. Over the maximum is refused rather than clamped, ' +
-        'so a short page always means the list is short.',
-    }),
+  limit: pageLimitQuery('accounts'),
   cursor: pageCursorSchema.optional(),
 });
 

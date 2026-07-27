@@ -1,3 +1,4 @@
+import { PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX } from '@openbooks/shared-types';
 import type { onRequestHookHandler } from 'fastify';
 import { z } from 'zod';
 
@@ -105,6 +106,34 @@ export const idempotencyKeyHeaderSchema = z.looseObject({
         '`idempotency_key_conflict`.',
     }),
 });
+
+/**
+ * The `limit` parameter of a paged list, coerced (OB-067).
+ *
+ * A factory rather than a constant because the description names what is being
+ * listed, and a factory rather than five copies because OB-067 brings the count of
+ * paged lists on this surface from five to thirteen. The bounds are restated from
+ * `pageLimitSchema` so the published parameter carries them; `resolvePageLimit` in
+ * the service is what enforces them for callers that never see a route.
+ *
+ * The coercion is the point and is the same single responsibility every other
+ * querystring value in this directory gets: a querystring is text, and this is the
+ * one layer that knows how the value arrived. `pageQueryShape` takes a real number
+ * because it is also reachable from a JSON body (spec §12).
+ */
+export function pageLimitQuery(noun: string) {
+  return z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(PAGE_SIZE_MAX)
+    .default(PAGE_SIZE_DEFAULT)
+    .meta({
+      description:
+        `How many ${noun} to return, at most. Over the maximum is refused rather than clamped, ` +
+        'so a short page always means the list is short.',
+    });
+}
 
 /**
  * The error entry on every route's `response` map.

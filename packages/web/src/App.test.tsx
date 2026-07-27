@@ -149,7 +149,20 @@ describe('the route guard', () => {
     renderAt('/');
 
     expect(await screen.findByRole('link', { name: 'Reports' })).toBeInTheDocument();
-    expect(screen.getByTestId('path').textContent).toBe('/reports');
+
+    /**
+     * `waitFor`, where the sibling test below asserts the path synchronously — and the
+     * difference is not style. This case renders at `/` and lands on `/reports` through
+     * a `<Navigate>`, so there are two settlements: the nav appears once the identity
+     * query resolves, and the location changes on the render after that. Awaiting the
+     * link only guarantees the first, so a synchronous read of the path observed `/`
+     * under full-suite load and passed in isolation — it flaked for two separate
+     * readers before this comment existed. The test below renders directly at its path
+     * and has no second settlement to wait for.
+     */
+    await waitFor(() => {
+      expect(screen.getByTestId('path').textContent).toBe('/reports');
+    });
   });
 
   it('hides what the caller may not do without making the route refuse them (D-25)', async () => {

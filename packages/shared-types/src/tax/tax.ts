@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MoneyParseError } from '../money';
-import { pageCursorSchema, pageQueryShape } from '../wire';
+import { pageQueryShape, pageSchema } from '../wire';
 
 import { TAX_RATE_PERCENT_DECIMALS, taxRateFromPercentString } from './rate';
 
@@ -12,17 +12,19 @@ import { TAX_RATE_PERCENT_DECIMALS, taxRateFromPercentString } from './rate';
  * holds a list of them, and a document line carries at most one. `rate.ts` next
  * door argues the representation; this file is the API shape.
  *
- * ## No `.meta({ id })` anywhere in M3's contracts, yet
+ * ## The `.meta({ id })` rule, now that the routes exist
  *
  * `jsonSchemaTransformObject` copies *every* schema carrying an `id` out of zod's
  * global registry into `components.schemas` whether or not a route references it,
- * and A10 makes drift in `openapi.json` a build failure. OB-067 builds the `/v1`
- * surface and adds the ids in the same diff as the routes that reference them —
- * the sequence OB-018/OB-023 established and OB-036/OB-045 repeated. Until then an
- * id here would publish a component nothing can reach.
+ * and A10 makes drift in `openapi.json` a build failure. So M3's contracts carried
+ * no ids until OB-067 built `/v1`, and the ids arrived in the same diff as the
+ * routes that reference them — the sequence OB-018/OB-023 established and
+ * OB-036/OB-045 repeated.
  *
- * The list queries must never gain one even after OB-067: a querystring is emitted
- * as individual `parameters`, so a component for one would be referenced by nothing.
+ * `listTaxRatesQuerySchema` still carries none and must not: a querystring is
+ * emitted as individual `parameters`, so a component for one would be referenced by
+ * nothing. `taxRateApplicabilitySchema` carries none either, following
+ * `accountTypeSchema` — an enum reads the same inline in a generated client.
  */
 
 /**
@@ -87,6 +89,7 @@ export const taxPercentageSchema = z
     }
   })
   .meta({
+    id: 'TaxPercentage',
     description:
       'A tax rate as a decimal percentage string: `"20"` is twenty percent. Between 0 and 100, ' +
       `with at most ${String(TAX_RATE_PERCENT_DECIMALS)} fraction digits — enough for every ` +
@@ -121,34 +124,49 @@ const taxRateApplicabilitySchema = z.enum(TAX_RATE_APPLICABILITIES).meta({
  * reach belongs to the context's org, so the field would carry no information and
  * would be one more place a cross-org id could appear in a response.
  */
-export const taxRateSchema = z.strictObject({
-  id: z.uuid(),
-  name: taxRateNameSchema,
-  percentage: taxPercentageSchema,
-  accountId: z.uuid().meta({
+export const taxRateSchema = z
+  .strictObject({
+    id: z.uuid(),
+    name: taxRateNameSchema,
+    percentage: taxPercentageSchema,
+    accountId: z.uuid().meta({
+      description:
+        'The liability account the tax posts to. Nominated per rate (D-35) rather than derived ' +
+        'from a single org-wide tax account, because sales tax collected and purchase tax ' +
+        'reclaimable are different balances that a return reports separately.',
+    }),
+    appliesTo: taxRateApplicabilitySchema,
+    isActive: z.boolean().meta({
+      description:
+        'An archived rate stays on every document that used it and cannot be chosen for a new ' +
+        'line. This is the only form of removal available to a rate a posted document names.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'TaxRate',
     description:
-      'The liability account the tax posts to. Nominated per rate (D-35) rather than derived ' +
-      'from a single org-wide tax account, because sales tax collected and purchase tax ' +
-      'reclaimable are different balances that a return reports separately.',
-  }),
-  appliesTo: taxRateApplicabilitySchema,
-  isActive: z.boolean().meta({
-    description:
-      'An archived rate stays on every document that used it and cannot be chosen for a new ' +
-      'line. This is the only form of removal available to a rate a posted document names.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'One rate in the org’s rate list: a name, a percentage, and the account the tax posts to. ' +
+      '`percentage` is immutable once the rate exists — a new percentage is a new rate.',
+  });
 
 export type TaxRateResponse = z.infer<typeof taxRateSchema>;
 
-export const createTaxRateRequestSchema = z.strictObject({
-  name: taxRateNameSchema,
-  percentage: taxPercentageSchema,
-  accountId: z.uuid(),
-  appliesTo: taxRateApplicabilitySchema.optional(),
-});
+export const createTaxRateRequestSchema = z
+  .strictObject({
+    name: taxRateNameSchema,
+    percentage: taxPercentageSchema,
+    accountId: z.uuid(),
+    appliesTo: taxRateApplicabilitySchema.optional(),
+  })
+  .meta({
+    id: 'CreateTaxRateRequest',
+    description:
+      'Creates a rate. `accountId` must be an active asset or liability account: tax collected ' +
+      'is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet ' +
+      'positions. `appliesTo` defaults to `both`.',
+  });
 
 export type CreateTaxRateRequest = z.infer<typeof createTaxRateRequestSchema>;
 
@@ -185,6 +203,7 @@ export const updateTaxRateRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateTaxRateRequest',
     description:
       'Partial update. `percentage` is immutable — a rate that changed would restate the tax on ' +
       'documents already posted at the old one, so a new percentage is a new rate. `isActive` ' +
@@ -218,9 +237,9 @@ export type ListTaxRatesQuery = z.input<typeof listTaxRatesQuerySchema>;
  * code, and giving it one to make paging convenient would be inventing a reference
  * nothing cites.
  */
-export const taxRatePageSchema = z.strictObject({
-  items: z.array(taxRateSchema),
-  nextCursor: pageCursorSchema.nullable(),
+export const taxRatePageSchema = pageSchema(taxRateSchema, {
+  id: 'TaxRatePage',
+  description: 'One page of tax rates, oldest first by creation.',
 });
 
 export type TaxRatePage = z.infer<typeof taxRatePageSchema>;

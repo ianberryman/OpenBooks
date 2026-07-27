@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 import { allocationInputSchema, allocationSchema } from './allocations';
 import {
@@ -9,7 +9,6 @@ import {
   documentReferenceSchema,
   documentSettlementSchema,
   isOrderedRange,
-  unpublishedPageSchema,
 } from './documents';
 
 /**
@@ -93,67 +92,78 @@ const paymentAmountSchema = minorUnitsSchema.meta({
  * which is the same arithmetic as an invoice's "still owed" (D-34,
  * `documentSettlementSchema`) — one definition, four readings.
  */
-export const paymentSchema = z.strictObject({
-  id: z.uuid(),
-  direction: paymentDirectionSchema,
-  contactId: z.uuid().meta({
-    description:
-      'Whose payment this is. Required even when nothing is allocated, because an unapplied ' +
-      'payment is a credit balance *on a contact* (D-37) — a payment belonging to nobody could ' +
-      'never be found again.',
-  }),
-  date: calendarDateSchema.meta({
-    description:
-      'The date the money moved, and the entry date of the journal it posts. It must fall in an ' +
-      'open fiscal period (D-17).',
-  }),
-  amount: paymentAmountSchema,
-  accountId: z.uuid().meta({
-    description:
-      'The bank or cash account the money moved through. Named per payment rather than taken ' +
-      'from an org default, because a business with two accounts needs to say which one, and a ' +
-      'default that is silently wrong is a reconciliation nobody can close.',
-  }),
-  reference: z
-    .string()
-    .nullable()
-    .meta({
+export const paymentSchema = z
+  .strictObject({
+    id: z.uuid(),
+    direction: paymentDirectionSchema,
+    contactId: z.uuid().meta({
       description:
-        'The bank’s reference, the cheque number, whatever identifies this movement on a ' +
-        'statement. A payment has no gapless sequence of its own (D-36 numbers documents).',
+        'Whose payment this is. Required even when nothing is allocated, because an unapplied ' +
+        'payment is a credit balance *on a contact* (D-37) — a payment belonging to nobody could ' +
+        'never be found again.',
     }),
-  memo: z.string().nullable(),
-  status: paymentStatusSchema,
-  settlement: documentSettlementSchema.meta({
+    date: calendarDateSchema.meta({
+      description:
+        'The date the money moved, and the entry date of the journal it posts. It must fall in an ' +
+        'open fiscal period (D-17).',
+    }),
+    amount: paymentAmountSchema,
+    accountId: z.uuid().meta({
+      description:
+        'The bank or cash account the money moved through. Named per payment rather than taken ' +
+        'from an org default, because a business with two accounts needs to say which one, and a ' +
+        'default that is silently wrong is a reconciliation nobody can close.',
+    }),
+    reference: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The bank’s reference, the cheque number, whatever identifies this movement on a ' +
+          'statement. A payment has no gapless sequence of its own (D-36 numbers documents).',
+      }),
+    memo: z.string().nullable(),
+    status: paymentStatusSchema,
+    settlement: documentSettlementSchema.meta({
+      description:
+        'How much of this payment has been applied, and how much is still available as credit on ' +
+        'the contact. Computed from the allocations, never stored (D-34, D-37).',
+    }),
+    allocations: z.array(allocationSchema),
+    journalId: z.uuid().meta({
+      description:
+        'The journal this payment posted. Unlike a document, a payment has no draft state — money ' +
+        'either moved or it did not — so this is never null.',
+    }),
+    voidJournalId: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Payment',
     description:
-      'How much of this payment has been applied, and how much is still available as credit on ' +
-      'the contact. Computed from the allocations, never stored (D-34, D-37).',
-  }),
-  allocations: z.array(allocationSchema),
-  journalId: z.uuid().meta({
-    description:
-      'The journal this payment posted. Unlike a document, a payment has no draft state — money ' +
-      'either moved or it did not — so this is never null.',
-  }),
-  voidJournalId: z.uuid().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'Money that moved, and the documents it has been applied to. A payment is not a numbered ' +
+      'document (D-36) and it has no draft state — money either moved or it did not — so ' +
+      '`journalId` is never null. `settlement.outstanding` is the credit still available on the ' +
+      'contact (D-37), computed on read.',
+  });
 
 export type Payment = z.infer<typeof paymentSchema>;
 
-export const paymentSummarySchema = z.strictObject({
-  id: z.uuid(),
-  direction: paymentDirectionSchema,
-  contactId: z.uuid(),
-  date: calendarDateSchema,
-  amount: paymentAmountSchema,
-  accountId: z.uuid(),
-  reference: z.string().nullable(),
-  status: paymentStatusSchema,
-  settlement: documentSettlementSchema,
-  createdAt: z.iso.datetime(),
-});
+export const paymentSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    direction: paymentDirectionSchema,
+    contactId: z.uuid(),
+    date: calendarDateSchema,
+    amount: paymentAmountSchema,
+    accountId: z.uuid(),
+    reference: z.string().nullable(),
+    status: paymentStatusSchema,
+    settlement: documentSettlementSchema,
+    createdAt: z.iso.datetime(),
+  })
+  .meta({ id: 'PaymentSummary', description: 'A payment in a list, without its allocations.' });
 
 export type PaymentSummary = z.infer<typeof paymentSummarySchema>;
 
@@ -171,16 +181,24 @@ export type PaymentSummary = z.infer<typeof paymentSummarySchema>;
  * session (`journals.ts` argues why at length), and the journal is the service's to
  * post.
  */
-export const createPaymentRequestSchema = z.strictObject({
-  direction: paymentDirectionSchema,
-  contactId: z.uuid(),
-  date: calendarDateSchema,
-  amount: paymentAmountSchema,
-  accountId: z.uuid(),
-  reference: documentReferenceSchema.nullish(),
-  memo: documentMemoSchema.nullish(),
-  allocations: z.array(allocationInputSchema).optional(),
-});
+export const createPaymentRequestSchema = z
+  .strictObject({
+    direction: paymentDirectionSchema,
+    contactId: z.uuid(),
+    date: calendarDateSchema,
+    amount: paymentAmountSchema,
+    accountId: z.uuid(),
+    reference: documentReferenceSchema.nullish(),
+    memo: documentMemoSchema.nullish(),
+    allocations: z.array(allocationInputSchema).optional(),
+  })
+  .meta({
+    id: 'CreatePaymentRequest',
+    description:
+      'Records a payment, optionally applying it in the same call. `allocations` may be absent or ' +
+      'short of the amount (D-37) — over-*paying* is fine and lands as credit on the contact, ' +
+      'while over-allocating a document is refused (C3).',
+  });
 
 export type CreatePaymentRequest = z.infer<typeof createPaymentRequestSchema>;
 
@@ -202,6 +220,7 @@ export const updatePaymentRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdatePaymentRequest',
     description:
       'Reference and memo only. Amount, date, account and direction are in the posted journal ' +
       'and a journal is never edited — a payment recorded wrongly is voided and recorded again.',
@@ -235,6 +254,9 @@ export type ListPaymentsQuery = z.input<typeof listPaymentsQuerySchema>;
  * surfaces, so back-dated ones land behind a cursor that has already passed their
  * date and appear on no page at all. `created_at` cannot move under a cursor.
  */
-export const paymentPageSchema = unpublishedPageSchema(paymentSummarySchema);
+export const paymentPageSchema = pageSchema(paymentSummarySchema, {
+  id: 'PaymentPage',
+  description: 'One page of payments, oldest first by creation.',
+});
 
 export type PaymentPage = z.infer<typeof paymentPageSchema>;

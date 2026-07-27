@@ -9,6 +9,16 @@ import {
   listChartTemplates,
   updateAccount,
 } from '../../src/modules/accounts';
+import {
+  approveBill,
+  approveVendorCredit,
+  createBill,
+  createVendorCredit,
+  listBills,
+  listVendorCredits,
+  updateBill,
+  updateVendorCredit,
+} from '../../src/modules/bills';
 import { createContact } from '../../src/modules/contacts';
 import {
   createDimension,
@@ -16,10 +26,32 @@ import {
   setJournalLineDimensions,
 } from '../../src/modules/dimensions';
 import { createDraft, listDrafts, updateDraft } from '../../src/modules/drafts';
+import {
+  approveCreditNote,
+  approveInvoice,
+  createCreditNote,
+  createInvoice,
+  listCreditNotes,
+  listInvoices,
+  updateCreditNote,
+  updateInvoice,
+} from '../../src/modules/invoices';
 import { postJournal } from '../../src/modules/ledger';
 import { changeMemberRole, inviteMember } from '../../src/modules/members';
 import { OWNER_ROLE_ID } from '../../src/modules/orgs';
+import {
+  allocateCreditNote,
+  allocatePayment,
+  allocateVendorCredit,
+  listPayments,
+  recordPayment,
+} from '../../src/modules/payments';
 import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/modules/reports';
+// Not through `modules/reports`' index — OB-065 never exported it and OB-067 did
+// not either; `src/transport/routes/reports.ts` reaches for the file the same way.
+import { getAging } from '../../src/modules/reports/aging.service';
+import { updateControlAccounts } from '../../src/modules/settings';
+import { createTaxRate, updateTaxRate } from '../../src/modules/tax';
 import { generateOpenApiDocument } from '../../src/transport';
 import { newUuid } from '../db';
 import { captureEmail } from '../members/support';
@@ -76,6 +108,36 @@ interface Org {
   readonly journalLineId: string;
   /** A custom role in this org, which no other org may assign. */
   readonly customRoleId: string;
+
+  /**
+   * M3's references (OB-062 … OB-066a, on the wire since OB-067).
+   *
+   * Five more accounts than M2 needed, and they are not decoration: a control
+   * account nomination is refused unless the account is of the right *type*
+   * (`control-accounts.ts`), a tax rate posts to a liability, and a payment moves
+   * money through a bank account. A fixture that reused the cash account for all of
+   * them would turn several of the control passes below into `precondition_failed`
+   * — which is not a 404 and would therefore pass, while proving nothing about the
+   * id ever having been resolved.
+   */
+  readonly expenseId: string;
+  readonly bankId: string;
+  readonly receivableId: string;
+  readonly payableId: string;
+  readonly taxAccountId: string;
+  /** Both flags, because the AR services refuse a non-customer and AP a non-vendor. */
+  readonly partyId: string;
+  readonly taxRateId: string;
+  /** Approved, so it can be an allocation target and has room for three. */
+  readonly invoiceId: string;
+  readonly billId: string;
+  readonly creditNoteId: string;
+  readonly vendorCreditId: string;
+  readonly paymentId: string;
+  readonly draftInvoiceId: string;
+  readonly draftCreditNoteId: string;
+  readonly draftBillId: string;
+  readonly draftVendorCreditId: string;
 }
 
 interface Scene {
@@ -101,6 +163,28 @@ async function org(label: string): Promise<Org> {
     type: 'revenue',
     normalBalance: 'credit',
   });
+  const [expense, bank, receivable, payable, taxAccount] = await Promise.all([
+    db.factories.account({
+      orgId: record.id,
+      code: '5000',
+      type: 'expense',
+      normalBalance: 'debit',
+    }),
+    db.factories.account({ orgId: record.id, code: '1010', type: 'asset', normalBalance: 'debit' }),
+    db.factories.account({ orgId: record.id, code: '1150', type: 'asset', normalBalance: 'debit' }),
+    db.factories.account({
+      orgId: record.id,
+      code: '2050',
+      type: 'liability',
+      normalBalance: 'credit',
+    }),
+    db.factories.account({
+      orgId: record.id,
+      code: '2100',
+      type: 'liability',
+      normalBalance: 'credit',
+    }),
+  ]);
 
   const ctx = contextFor(record.uuid, OWNER_ROLE_ID, user.uuid);
 
@@ -151,6 +235,15 @@ async function org(label: string): Promise<Org> {
     })
     .execute();
 
+  const subledger = await subledgerFixtures(record.id, ctx, {
+    revenueId: revenue.uuid,
+    expenseId: expense.uuid,
+    bankId: bank.uuid,
+    receivableId: receivable.uuid,
+    payableId: payable.uuid,
+    taxAccountId: taxAccount.uuid,
+  });
+
   return {
     ctx,
     orgUuid: record.uuid,
@@ -164,6 +257,132 @@ async function org(label: string): Promise<Org> {
     draftId: draft.id,
     journalLineId: line.lineId,
     customRoleId,
+    expenseId: expense.uuid,
+    bankId: bank.uuid,
+    receivableId: receivable.uuid,
+    payableId: payable.uuid,
+    taxAccountId: taxAccount.uuid,
+    ...subledger,
+  };
+}
+
+/** The accounts M3's fixtures post against, resolved before any of them is built. */
+interface SubledgerAccounts {
+  readonly revenueId: string;
+  readonly expenseId: string;
+  readonly bankId: string;
+  readonly receivableId: string;
+  readonly payableId: string;
+  readonly taxAccountId: string;
+}
+
+type SubledgerFixtures = Pick<
+  Org,
+  | 'billId'
+  | 'creditNoteId'
+  | 'draftBillId'
+  | 'draftCreditNoteId'
+  | 'draftInvoiceId'
+  | 'draftVendorCreditId'
+  | 'invoiceId'
+  | 'partyId'
+  | 'paymentId'
+  | 'taxRateId'
+  | 'vendorCreditId'
+>;
+
+/**
+ * One org's AR and AP, through the real services.
+ *
+ * The control accounts are seeded through the factory rather than through
+ * `updateControlAccounts`, which is the one place this file departs from building
+ * fixtures the way production does — and deliberately: `updateControlAccounts` is
+ * itself a row below, and a fixture that called it would be asserting against a
+ * setting the rows under test can move.
+ */
+async function subledgerFixtures(
+  orgId: Buffer,
+  ctx: RequestContext,
+  accounts: SubledgerAccounts,
+): Promise<SubledgerFixtures> {
+  await db.factories.controlAccounts({
+    orgId,
+    receivableId: uuidToBuffer(accounts.receivableId),
+    payableId: uuidToBuffer(accounts.payableId),
+  });
+
+  const asOwner = <T>(body: () => Promise<T>): Promise<T> => runInContext(ctx, body);
+
+  const party = await asOwner(() =>
+    createContact({ displayName: 'Subledger Party', isCustomer: true, isVendor: true }, ctx),
+  );
+  const taxRate = await asOwner(() =>
+    createTaxRate({ name: 'VAT 20%', percentage: '20', accountId: accounts.taxAccountId }, ctx),
+  );
+
+  const arLines = [
+    {
+      description: 'Consulting',
+      quantity: '1',
+      unitAmount: '100000',
+      accountId: accounts.revenueId,
+    },
+  ];
+  const apLines = [
+    { description: 'Paper', quantity: '1', unitAmount: '100000', accountId: accounts.expenseId },
+  ];
+  const arInput = { contactId: party.id, issueDate: DATE, taxMode: 'exclusive' as const };
+
+  const invoice = (): Promise<string> =>
+    asOwner(async () => (await createInvoice({ ...arInput, lines: arLines }, ctx)).id);
+  const creditNote = (): Promise<string> =>
+    asOwner(async () => (await createCreditNote({ ...arInput, lines: arLines }, ctx)).id);
+  const bill = (): Promise<string> =>
+    asOwner(async () => (await createBill({ ...arInput, dueDate: DATE, lines: apLines }, ctx)).id);
+  const vendorCredit = (): Promise<string> =>
+    asOwner(async () => (await createVendorCredit({ ...arInput, lines: apLines }, ctx)).id);
+
+  const approved = async (
+    create: () => Promise<string>,
+    approve: (id: string) => Promise<unknown>,
+  ): Promise<string> => {
+    const id = await create();
+    await asOwner(() => approve(id));
+    return id;
+  };
+
+  const invoiceId = await approved(invoice, (id) => approveInvoice(id, ctx));
+
+  return {
+    partyId: party.id,
+    taxRateId: taxRate.id,
+    invoiceId,
+    billId: await approved(bill, (id) => approveBill(id, ctx)),
+    creditNoteId: await approved(creditNote, (id) => approveCreditNote(id, ctx)),
+    vendorCreditId: await approved(vendorCredit, (id) => approveVendorCredit(id, ctx)),
+    draftInvoiceId: await invoice(),
+    draftCreditNoteId: await creditNote(),
+    draftBillId: await bill(),
+    draftVendorCreditId: await vendorCredit(),
+    // Ten times what any row applies: over-allocating a *document* is refused (C3)
+    // and over-drawing the source with it, and either refusal is a
+    // `precondition_failed` that would pass the control below while meaning the row
+    // never reached a target at all.
+    paymentId: await asOwner(
+      async () =>
+        (
+          await recordPayment(
+            {
+              direction: 'received',
+              contactId: party.id,
+              date: DATE,
+              amount: '1000000',
+              accountId: accounts.bankId,
+            },
+            ctx,
+          )
+        ).id,
+    ),
   };
 }
 
@@ -202,6 +421,19 @@ async function scene(): Promise<Scene> {
 interface Reference {
   readonly operationId: string | null;
   readonly field: string;
+  /**
+   * Which resource of an org the id under test is taken from.
+   *
+   * A function of one `Org` rather than a lookup keyed on `field`, which is what it
+   * was through M2. M3 broke the keyed version outright: `targetId` appears on four
+   * operations and means an invoice on three of them and a bill on the fourth, so a
+   * name-to-resource table would have had to special-case the operation anyway. The
+   * same function serves both directions — `subject(stranger)` is the id under test
+   * and `subject(caller)` is the control — so a row cannot probe one resource and
+   * control against another, which a two-table arrangement permits and nothing
+   * would have caught.
+   */
+  readonly subject: (org: Org) => string;
   /** `id` is the id under test; `nonce` disambiguates rows that create something. */
   readonly reach: (id: string, scene: Scene, nonce: string) => Promise<unknown>;
 }
@@ -210,6 +442,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'createAccount',
     field: 'parentAccountId',
+    subject: (o) => o.accountId,
     reach: (id, s, nonce) =>
       createAccount(
         {
@@ -225,11 +458,13 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'updateAccount',
     field: 'parentAccountId',
+    subject: (o) => o.accountId,
     reach: (id, s) => updateAccount(s.caller.revenueId, { parentAccountId: id }, s.caller.ctx),
   },
   {
     operationId: 'createDraft',
     field: 'accountId',
+    subject: (o) => o.accountId,
     reach: (id, s) =>
       createDraft(
         { entryDate: DATE, lines: [{ accountId: id, side: 'debit', amount: '100' }] },
@@ -239,6 +474,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'createDraft',
     field: 'contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) =>
       createDraft(
         {
@@ -251,6 +487,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'createDraft',
     field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       createDraft(
         {
@@ -270,6 +507,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'updateDraft',
     field: 'accountId',
+    subject: (o) => o.accountId,
     reach: (id, s) =>
       updateDraft(
         s.caller.draftId,
@@ -280,6 +518,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'updateDraft',
     field: 'contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) =>
       updateDraft(
         s.caller.draftId,
@@ -292,6 +531,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'updateDraft',
     field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       updateDraft(
         s.caller.draftId,
@@ -311,12 +551,14 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'setJournalLineDimensions',
     field: 'valueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       setJournalLineDimensions(s.caller.journalLineId, { valueIds: [id] }, s.caller.ctx),
   },
   {
     operationId: 'postJournal',
     field: 'accountId',
+    subject: (o) => o.accountId,
     reach: (id, s) =>
       postJournal(
         {
@@ -334,6 +576,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: null,
     field: 'postJournal.lines.contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) =>
       postJournal(
         {
@@ -351,6 +594,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: null,
     field: 'postJournal.lines.dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       postJournal(
         {
@@ -373,28 +617,33 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'changeMemberRole',
     field: 'roleId',
+    subject: (o) => o.customRoleId,
     reach: (id, s) => changeMemberRole({ userId: s.caller.userUuid, roleId: id }, s.caller.ctx),
   },
   {
     operationId: 'inviteMember',
     field: 'roleId',
+    subject: (o) => o.customRoleId,
     reach: (id, s, nonce) =>
       inviteMember({ email: `x${nonce}@openbooks.test`, roleId: id }, s.caller.ctx),
   },
   {
     operationId: 'getGeneralLedger',
     field: 'accountId',
+    subject: (o) => o.accountId,
     reach: (id, s) => getGeneralLedger({ accountId: id }, s.caller.ctx),
   },
   {
     operationId: 'getGeneralLedger',
     field: 'contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) =>
       getGeneralLedger({ accountId: s.caller.accountId, contactId: id }, s.caller.ctx),
   },
   {
     operationId: 'getGeneralLedger',
     field: 'dimensions.dimensionId',
+    subject: (o) => o.dimensionId,
     reach: (id, s) =>
       getGeneralLedger(
         {
@@ -407,6 +656,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getGeneralLedger',
     field: 'dimensions.valueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       getGeneralLedger(
         {
@@ -419,11 +669,13 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getProfitAndLoss',
     field: 'contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) => getProfitAndLoss({ contactId: id }, s.caller.ctx),
   },
   {
     operationId: 'getProfitAndLoss',
     field: 'dimensions.dimensionId',
+    subject: (o) => o.dimensionId,
     reach: (id, s) =>
       getProfitAndLoss(
         { dimensions: [{ dimensionId: id, includeUnassigned: true }] },
@@ -433,6 +685,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getProfitAndLoss',
     field: 'dimensions.valueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       getProfitAndLoss(
         { dimensions: [{ dimensionId: s.caller.dimensionId, valueIds: [id] }] },
@@ -442,16 +695,19 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getProfitAndLoss',
     field: 'groupBy',
+    subject: (o) => o.dimensionId,
     reach: (id, s) => getProfitAndLoss({ groupBy: id }, s.caller.ctx),
   },
   {
     operationId: 'getBalanceSheet',
     field: 'contactId',
+    subject: (o) => o.contactId,
     reach: (id, s) => getBalanceSheet({ asOf: DATE, contactId: id }, s.caller.ctx),
   },
   {
     operationId: 'getBalanceSheet',
     field: 'dimensions.dimensionId',
+    subject: (o) => o.dimensionId,
     reach: (id, s) =>
       getBalanceSheet(
         { asOf: DATE, dimensions: [{ dimensionId: id, includeUnassigned: true }] },
@@ -461,6 +717,7 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getBalanceSheet',
     field: 'dimensions.valueIds',
+    subject: (o) => o.dimensionValueId,
     reach: (id, s) =>
       getBalanceSheet(
         { asOf: DATE, dimensions: [{ dimensionId: s.caller.dimensionId, valueIds: [id] }] },
@@ -470,35 +727,751 @@ const REFERENCES: readonly Reference[] = [
   {
     operationId: 'getBalanceSheet',
     field: 'groupBy',
+    subject: (o) => o.dimensionId,
     reach: (id, s) => getBalanceSheet({ asOf: DATE, groupBy: id }, s.caller.ctx),
   },
-];
 
-/** The id in the stranger's org that each row is asked about. */
-function crossOrgId(reference: Reference, s: Scene): string {
-  const stranger = s.stranger;
-  switch (reference.field) {
-    case 'parentAccountId':
-    case 'accountId':
-      return stranger.accountId;
-    case 'contactId':
-    case 'postJournal.lines.contactId':
-      return stranger.contactId;
-    case 'dimensionValueIds':
-    case 'valueIds':
-    case 'postJournal.lines.dimensionValueIds':
-      return stranger.dimensionValueId;
-    case 'dimensions.dimensionId':
-    case 'groupBy':
-      return stranger.dimensionId;
-    case 'dimensions.valueIds':
-      return stranger.dimensionValueId;
-    case 'roleId':
-      return stranger.customRoleId;
-    default:
-      throw new Error(`no cross-org id defined for ${reference.field}`);
-  }
-}
+  // ---------------------------------------------------------------------------
+  // M3 (OB-062 … OB-066a, published by OB-067). Forty-three rows.
+  //
+  // This is the half of A7 that M3 made expensive to get wrong. A path id names a
+  // document; the ids below name the *customer* the document is addressed to, the
+  // account it posts to, the rate it is priced with, and the invoice a payment
+  // settles — and every one of them is accepted in a body, where no `{brace}` in a
+  // route makes it visible. `createInvoice` alone accepts four.
+  //
+  // Each row varies exactly one field and holds the rest at the caller's own, so a
+  // 404 can only be about the field named. Written out rather than generated from
+  // the four document kinds: a loop would have made the AR and AP shapes look
+  // interchangeable, and they are not — a bill takes a `dueDate` and a vendor
+  // credit does not, and its lines post to expense rather than revenue.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'createInvoice',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createInvoice',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            { description: 'Consulting', quantity: '1', unitAmount: '100000', accountId: id },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createInvoice',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createInvoice',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateInvoice',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => updateInvoice(s.caller.draftInvoiceId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateInvoice',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      updateInvoice(
+        s.caller.draftInvoiceId,
+        {
+          lines: [
+            { description: 'Consulting', quantity: '1', unitAmount: '100000', accountId: id },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateInvoice',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateInvoice(
+        s.caller.draftInvoiceId,
+        {
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateInvoice',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateInvoice(
+        s.caller.draftInvoiceId,
+        {
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCreditNote',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createCreditNote(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCreditNote',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      createCreditNote(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Credit', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCreditNote',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createCreditNote(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCreditNote',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      createCreditNote(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateCreditNote',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => updateCreditNote(s.caller.draftCreditNoteId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateCreditNote',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      updateCreditNote(
+        s.caller.draftCreditNoteId,
+        {
+          lines: [{ description: 'Credit', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateCreditNote',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateCreditNote(
+        s.caller.draftCreditNoteId,
+        {
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateCreditNote',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateCreditNote(
+        s.caller.draftCreditNoteId,
+        {
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBill',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: id,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBill',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBill',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBill',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBill',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => updateBill(s.caller.draftBillId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateBill',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updateBill(
+        s.caller.draftBillId,
+        { lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBill',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateBill(
+        s.caller.draftBillId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBill',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateBill(
+        s.caller.draftBillId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createVendorCredit',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createVendorCredit(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createVendorCredit',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      createVendorCredit(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Returned', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createVendorCredit',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createVendorCredit(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createVendorCredit',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      createVendorCredit(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateVendorCredit',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      updateVendorCredit(s.caller.draftVendorCreditId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateVendorCredit',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updateVendorCredit(
+        s.caller.draftVendorCreditId,
+        {
+          lines: [{ description: 'Returned', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateVendorCredit',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateVendorCredit(
+        s.caller.draftVendorCreditId,
+        {
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateVendorCredit',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateVendorCredit(
+        s.caller.draftVendorCreditId,
+        {
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  /**
+   * The four `targetId` rows, and the reason `subject` is a function rather than a
+   * table keyed on the field name: three of these mean an invoice and the fourth
+   * means a bill, under one field name, because `createAllocationsRequestSchema`
+   * carries `targetType` alongside it (D-39 — one mechanism for every source).
+   */
+  {
+    operationId: 'allocatePayment',
+    field: 'targetId',
+    subject: (o) => o.invoiceId,
+    reach: (id, s) =>
+      allocatePayment(
+        s.caller.paymentId,
+        { allocations: [{ targetType: 'invoice', targetId: id, amount: '10000' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'allocateCreditNote',
+    field: 'targetId',
+    subject: (o) => o.invoiceId,
+    reach: (id, s) =>
+      allocateCreditNote(
+        s.caller.creditNoteId,
+        { allocations: [{ targetType: 'invoice', targetId: id, amount: '10000' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'allocateVendorCredit',
+    field: 'targetId',
+    subject: (o) => o.billId,
+    reach: (id, s) =>
+      allocateVendorCredit(
+        s.caller.vendorCreditId,
+        { allocations: [{ targetType: 'bill', targetId: id, amount: '10000' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'recordPayment',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: id,
+          date: DATE,
+          amount: '10000',
+          accountId: s.caller.bankId,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'recordPayment',
+    field: 'accountId',
+    subject: (o) => o.bankId,
+    reach: (id, s) =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: s.caller.partyId,
+          date: DATE,
+          amount: '10000',
+          accountId: id,
+        },
+        s.caller.ctx,
+      ),
+  },
+  /**
+   * Recording and applying in one call, which is the shape `payments.ts` argues for
+   * — and it is the one row where a leak would be worth the most to an outsider,
+   * because a payment that recorded and *then* failed on an unresolvable target
+   * would have distinguished a real invoice from an absent one by whether money
+   * moved. The batch is all-or-nothing, and the equal wire errors below are what
+   * says so from the caller's side.
+   */
+  {
+    operationId: 'recordPayment',
+    field: 'targetId',
+    subject: (o) => o.invoiceId,
+    reach: (id, s) =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: s.caller.partyId,
+          date: DATE,
+          amount: '10000',
+          accountId: s.caller.bankId,
+          allocations: [{ targetType: 'invoice', targetId: id, amount: '10000' }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createTaxRate',
+    field: 'accountId',
+    subject: (o) => o.taxAccountId,
+    reach: (id, s, nonce) =>
+      createTaxRate({ name: `Rate ${nonce}`, percentage: '5', accountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateTaxRate',
+    field: 'accountId',
+    subject: (o) => o.taxAccountId,
+    reach: (id, s) => updateTaxRate(s.caller.taxRateId, { accountId: id }, s.caller.ctx),
+  },
+  /**
+   * The two nominations, and they are the only rows here whose control pass writes
+   * a setting the other rows depend on. It re-nominates what the org already holds,
+   * so it exercises the resolution and moves nothing — a row that repointed the
+   * receivable account would change where every `recordPayment` row above posts.
+   */
+  {
+    operationId: 'updateControlAccounts',
+    field: 'receivableControlAccountId',
+    subject: (o) => o.receivableId,
+    reach: (id, s) => updateControlAccounts({ receivableControlAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateControlAccounts',
+    field: 'payableControlAccountId',
+    subject: (o) => o.payableId,
+    reach: (id, s) => updateControlAccounts({ payableControlAccountId: id }, s.caller.ctx),
+  },
+  /**
+   * Aging's one id, and the row that says a *report* is not a way around the rule.
+   * `aging.service.ts` resolves the contact through `assertFound` rather than
+   * filtering on it, so an unknown contact and another org's are one 404 — the
+   * alternative, an empty report, would have been the answer a filter gives and
+   * would have said "this contact exists but owes you nothing" about a stranger's
+   * customer.
+   */
+  {
+    operationId: 'getAging',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => getAging({ asOf: DATE, ledger: 'receivable', contactId: id }, s.caller.ctx),
+  },
+];
 
 /**
  * Query parameters that carry ids under a name no `…Id` pattern can see.
@@ -539,8 +1512,28 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'acceptInvite.orgId': 'reached by token, before any membership exists',
   // Already a row in `cross-org.test.ts` — the one there whose id travels in the body.
   'switchActiveOrg.orgId': 'covered by cross-org.test.ts',
-  // A filter, not a lookup: see `a cross-org filter value is not an oracle` below.
+  // A filter, not a lookup: see `answers a cross-org filter value exactly as it
+  // answers an unknown one` below.
   'listDrafts.createdByUserId': 'a filter over the caller’s own org, asserted separately',
+  /**
+   * M3's five list filters, exempt for `listDrafts.createdByUserId`'s reason and
+   * asserted with it.
+   *
+   * These are the rows where the right answer is the *opposite* of every other row
+   * in this file, which is why they are named individually rather than matched by a
+   * `list*` pattern. A `contactId` on a document collection narrows an org-scoped
+   * query; a 404 would say the id names nobody, and that is the existence statement
+   * A7 forbids — so the safe answer is the empty page an unknown id already gets.
+   * `payments.service.ts` writes this out for the one case where it is not
+   * automatic: a malformed contact filter returns `{ items: [], nextCursor: null }`
+   * rather than a `validation_failed`, so the shape of an id is not an oracle
+   * either.
+   */
+  'listInvoices.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listCreditNotes.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listBills.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listVendorCredits.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listPayments.contactId': 'a filter over the caller’s own org, asserted separately',
 };
 
 /** What every row must report. Anything else is the leak. */
@@ -561,9 +1554,14 @@ const SEALED = {
   ownIdIsNotFound: false,
 } as const satisfies Verdict;
 
-/** The id in the caller's own org, for the control pass. */
+/** The id in the stranger's org that each row is asked about. */
+function crossOrgId(reference: Reference, s: Scene): string {
+  return reference.subject(s.stranger);
+}
+
+/** The same resource in the caller's own org, for the control pass. */
 function ownId(reference: Reference, s: Scene): string {
-  return crossOrgId(reference, { caller: s.caller, stranger: s.caller });
+  return reference.subject(s.caller);
 }
 
 async function attempt(
@@ -651,15 +1649,70 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
   it('answers a cross-org filter value exactly as it answers an unknown one', async () => {
     const s = await scene();
     try {
-      const forStranger = await runInContext(s.caller.ctx, () =>
-        listDrafts({ createdByUserId: s.stranger.userUuid }, s.caller.ctx),
-      );
-      const forNobody = await runInContext(s.caller.ctx, () =>
-        listDrafts({ createdByUserId: NOWHERE }, s.caller.ctx),
+      /**
+       * Every filter in `EXEMPT`, run twice: once with an id that is real in the
+       * stranger's org and once with an id that is real nowhere.
+       *
+       * Both results are compared as JSON *and* asserted empty, and the second half
+       * is what stops the first from being vacuous — two identical pages would also
+       * be identical if the filter were ignored entirely and both returned the
+       * caller's whole collection, which is a different bug and a worse one.
+       */
+      const filters: readonly {
+        readonly field: string;
+        readonly list: (id: string) => Promise<{ readonly items: readonly unknown[] }>;
+      }[] = [
+        {
+          field: 'listDrafts.createdByUserId',
+          list: (id) => listDrafts({ createdByUserId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listInvoices.contactId',
+          list: (id) => listInvoices({ contactId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listCreditNotes.contactId',
+          list: (id) => listCreditNotes({ contactId: id }, s.caller.ctx),
+        },
+        { field: 'listBills.contactId', list: (id) => listBills({ contactId: id }, s.caller.ctx) },
+        {
+          field: 'listVendorCredits.contactId',
+          list: (id) => listVendorCredits({ contactId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listPayments.contactId',
+          list: (id) => listPayments({ contactId: id }, s.caller.ctx),
+        },
+      ];
+
+      // The user-shaped filter is the one exception to "ask about the stranger's
+      // contact": `listDrafts` filters on who composed a draft, so the cross-org
+      // value has to be a user.
+      const strangerValue = (field: string): string =>
+        field === 'listDrafts.createdByUserId' ? s.stranger.userUuid : s.stranger.partyId;
+
+      const verdicts: Record<string, unknown> = {};
+      for (const { field, list } of filters) {
+        const forStranger = await runInContext(s.caller.ctx, () => list(strangerValue(field)));
+        const forNobody = await runInContext(s.caller.ctx, () => list(NOWHERE));
+
+        verdicts[field] = {
+          matchesUnknown: JSON.stringify(forStranger) === JSON.stringify(forNobody),
+          items: forStranger.items.length,
+        };
+      }
+
+      expect(verdicts).toEqual(
+        Object.fromEntries(filters.map(({ field }) => [field, { matchesUnknown: true, items: 0 }])),
       );
 
-      expect(JSON.stringify(forStranger)).toBe(JSON.stringify(forNobody));
-      expect(forStranger.items).toHaveLength(0);
+      // And the caller's *own* contact does return rows, which is what makes the
+      // empty pages above a statement about ownership rather than about a filter
+      // that matches nothing at all.
+      const mine = await runInContext(s.caller.ctx, () =>
+        listInvoices({ contactId: s.caller.partyId }, s.caller.ctx),
+      );
+      expect(mine.items.length).toBeGreaterThan(0);
     } finally {
       await dropCustomRoles(s);
     }

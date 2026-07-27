@@ -31,6 +31,21 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   { to: '/accounts', label: 'Accounts', permission: 'accounts.read' },
   { to: '/journal-entry', label: 'Journal entry', permission: 'journals.read' },
   { to: '/contacts', label: 'Contacts', permission: 'contacts.read' },
+  { to: '/sales', label: 'Sales', permission: 'invoices.read' },
+  { to: '/purchases', label: 'Purchases', permission: 'bills.read' },
+  /**
+   * `payments_received.read`, and the choice is not arbitrary: the screen opens on the
+   * payments list, and an *unfiltered* list spans both subledgers, so the service asks for
+   * `payments_made.read` as well. Naming the stricter pair here would hide the link from an
+   * AR clerk who can legitimately use most of the screen, and naming neither would offer it
+   * to someone holding no payment permission at all.
+   *
+   * That the link can therefore appear for a caller who will be refused the unfiltered list
+   * is exactly what D-25 says this filter is for and not for: it removes links that always
+   * fail, it does not promise that every action behind one succeeds. The service refuses,
+   * and the screen surfaces that refusal.
+   */
+  { to: '/money', label: 'Money', permission: 'payments_received.read' },
   { to: '/reports', label: 'Reports', permission: 'reports.read' },
   // `orgs.read` and not the union of dimensions/members/periods: the settings screen is the
   // organization's own administration, and the seeded roles that hold any of its parts hold

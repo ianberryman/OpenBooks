@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { MAX_DIMENSIONS_PER_ORG } from '../dimensions';
 import { MoneyParseError } from '../money';
 import { QUANTITY_DECIMALS, TAX_MODES, quantityFromString } from '../tax';
-import { calendarDateSchema, minorUnitsSchema, pageCursorSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema } from '../wire';
 
 /**
  * The vocabulary every M3 document shares (OB-061; ROADMAP D-34, D-35, D-36, D-38).
@@ -15,13 +15,30 @@ import { calendarDateSchema, minorUnitsSchema, pageCursorSchema } from '../wire'
  * subtly different things per document would give the generated client four
  * unrelated types for one idea and give a screen four ways to be wrong.
  *
- * ## Nothing here carries `.meta({ id })`
+ * ## Which of these carry `.meta({ id })`, and which never may
  *
  * The transform lifts every schema carrying an `id` out of zod's global registry
- * into `components.schemas` whether or not a route references it, and A10 makes
- * drift in `openapi.json` a build failure. OB-067 builds `/v1` and adds the ids in
- * the same diff as the routes — the sequence OB-018/OB-023 established. The list
- * queries must never gain one: a querystring is emitted as individual `parameters`.
+ * into `components.schemas` whether or not a route references it, so until OB-067
+ * built `/v1` nothing here carried one — an id with no route publishes a component
+ * nothing can reach. The routes exist now, and the ids arrived with them in the same
+ * diff, which is the sequence OB-018/OB-023 established and OB-036/OB-045 repeated.
+ *
+ * Two rules survive that ticket and are the ones to keep:
+ *
+ *  - **A list query never gets an id.** A querystring is emitted as individual
+ *    `parameters`, so a component for one would be referenced by nothing. The route
+ *    files restate these shapes anyway, because a querystring is text and the
+ *    coercion belongs in the layer that knows how the value arrived.
+ *  - **An enum never gets one either**, following `accountTypeSchema`: an inline
+ *    `enum` reads the same in a generated client and costs no component. Only the
+ *    objects a request or a response is made of are published.
+ *
+ * One consequence of zod v4 worth knowing before adding a description at a use
+ * site: `.meta()` *replaces* the registered metadata rather than merging it, so
+ * `documentSettlementSchema.meta({ description })` produces an unregistered clone
+ * that is inlined rather than `$ref`ed. That is deliberate where it is done — the
+ * field means something more specific there — and it is why doing it does not
+ * publish a second component under the same id.
  *
  * ## Nothing here is a balance, and nothing here is a stored status
  *
@@ -121,6 +138,7 @@ export const quantitySchema = z
     }
   })
   .meta({
+    id: 'Quantity',
     description:
       `How many units this line is for, with at most ${String(QUANTITY_DECIMALS)} fraction ` +
       'digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s ' +
@@ -233,29 +251,41 @@ const lineDimensionValueIdsSchema = z
  * would make a line that contradicts itself expressible, and then the service would
  * have to decide which of the three numbers the client meant.
  */
-export const documentLineInputSchema = z.strictObject({
-  description: lineDescriptionSchema,
-  quantity: quantitySchema,
-  unitAmount: minorUnitsSchema.meta({
-    description:
-      'The price of one unit, in minor units. Tax-inclusive exactly when the document’s ' +
-      '`taxMode` is `inclusive`; that flag is what gives this field its meaning.',
-  }),
-  accountId: z.uuid().meta({
-    description:
-      'The income account this line credits on an invoice, or the expense or asset account it ' +
-      'debits on a bill. The tax, if any, posts to the rate’s own account instead.',
-  }),
-  taxRateId: z
-    .uuid()
-    .nullish()
-    .meta({
+export const documentLineInputSchema = z
+  .strictObject({
+    description: lineDescriptionSchema,
+    quantity: quantitySchema,
+    unitAmount: minorUnitsSchema.meta({
       description:
-        'The single rate this line is taxed at (D-35). Absent or null means no tax — there is no ' +
-        'default rate, because a rate nobody chose is a rate that ends up on a filing.',
+        'The price of one unit, in minor units. Tax-inclusive exactly when the document’s ' +
+        '`taxMode` is `inclusive`; that flag is what gives this field its meaning.',
     }),
-  dimensionValueIds: lineDimensionValueIdsSchema.optional(),
-});
+    accountId: z.uuid().meta({
+      description:
+        'The income account this line credits on an invoice, or the expense or asset account it ' +
+        'debits on a bill. The tax, if any, posts to the rate’s own account instead.',
+    }),
+    taxRateId: z
+      .uuid()
+      .nullish()
+      .meta({
+        description:
+          'The single rate this line is taxed at (D-35). Absent or null means no tax — there is no ' +
+          'default rate, because a rate nobody chose is a rate that ends up on a filing.',
+      }),
+    dimensionValueIds: lineDimensionValueIdsSchema.optional(),
+  })
+  .meta({
+    // `DocumentLineInput` is unavailable as a component name: the transform emits
+    // `X` and `XInput` for every registered schema, so it would collide with
+    // `DocumentLine`'s own input component. `…Request` is the register the journal
+    // and draft line shapes already use (`JournalLineRequest`).
+    id: 'DocumentLineRequest',
+    description:
+      'One line as a client sends it. There is no `amount`: the line’s money is `quantity × ' +
+      'unitAmount`, and accepting a total alongside its factors would make a line that ' +
+      'contradicts itself expressible.',
+  });
 
 export type DocumentLineInput = z.infer<typeof documentLineInputSchema>;
 
@@ -294,33 +324,41 @@ const linePercentageSchema = z
  * a document posted under a different one (see `updateTaxRateRequestSchema` for why
  * a percentage never changes under a document).
  */
-export const documentLineSchema = z.strictObject({
-  lineId: z.string().meta({
+export const documentLineSchema = z
+  .strictObject({
+    lineId: z.string().meta({
+      description:
+        'A `BIGINT` line identifier, stringified for the reason money is: a JSON number cannot ' +
+        'carry one past 2^53 (D-13’s argument applied to an identifier).',
+    }),
+    lineNumber: z.int(),
+    description: z.string(),
+    quantity: quantitySchema,
+    unitAmount: minorUnitsSchema,
+    accountId: z.uuid(),
+    taxRateId: z.uuid().nullable(),
+    taxRatePercentage: linePercentageSchema,
+    netAmount: minorUnitsSchema.meta({
+      description:
+        'What posts to `accountId`. The extended amount, less tax when the mode is inclusive.',
+    }),
+    taxAmount: minorUnitsSchema.meta({
+      description:
+        'What posts to the rate’s liability account. Rounded once, here, at the line — the ' +
+        'document’s tax is the sum of these and never the rate applied to the document total.',
+    }),
+    grossAmount: minorUnitsSchema.meta({
+      description: '`netAmount + taxAmount`, exactly. What this line adds to what is owed.',
+    }),
+    dimensionValueIds: z.array(z.uuid()),
+  })
+  .meta({
+    id: 'DocumentLine',
     description:
-      'A `BIGINT` line identifier, stringified for the reason money is: a JSON number cannot ' +
-      'carry one past 2^53 (D-13’s argument applied to an identifier).',
-  }),
-  lineNumber: z.int(),
-  description: z.string(),
-  quantity: quantitySchema,
-  unitAmount: minorUnitsSchema,
-  accountId: z.uuid(),
-  taxRateId: z.uuid().nullable(),
-  taxRatePercentage: linePercentageSchema,
-  netAmount: minorUnitsSchema.meta({
-    description:
-      'What posts to `accountId`. The extended amount, less tax when the mode is inclusive.',
-  }),
-  taxAmount: minorUnitsSchema.meta({
-    description:
-      'What posts to the rate’s liability account. Rounded once, here, at the line — the ' +
-      'document’s tax is the sum of these and never the rate applied to the document total.',
-  }),
-  grossAmount: minorUnitsSchema.meta({
-    description: '`netAmount + taxAmount`, exactly. What this line adds to what is owed.',
-  }),
-  dimensionValueIds: z.array(z.uuid()),
-});
+      'One line as the API returns it: what was entered, and what the arithmetic made of it. ' +
+      '`netAmount + taxAmount === grossAmount` holds exactly, per line, and the document’s totals ' +
+      'are the sums of these rather than the rate applied to a sum (D-35).',
+  });
 
 export type DocumentLine = z.infer<typeof documentLineSchema>;
 
@@ -330,15 +368,20 @@ export type DocumentLine = z.infer<typeof documentLineSchema>;
  * `net + tax === gross` survives the summation without being re-derived, because
  * summation is exact.
  */
-export const documentTotalsSchema = z.strictObject({
-  net: minorUnitsSchema.meta({ description: 'The sum of every line’s `netAmount`.' }),
-  tax: minorUnitsSchema.meta({
-    description:
-      'The sum of every line’s `taxAmount` — the sum of rounded lines, never the rounded sum. ' +
-      'A customer who adds the tax column must reach this number.',
-  }),
-  gross: minorUnitsSchema.meta({ description: '`net + tax`. What the document is for.' }),
-});
+export const documentTotalsSchema = z
+  .strictObject({
+    net: minorUnitsSchema.meta({ description: 'The sum of every line’s `netAmount`.' }),
+    tax: minorUnitsSchema.meta({
+      description:
+        'The sum of every line’s `taxAmount` — the sum of rounded lines, never the rounded sum. ' +
+        'A customer who adds the tax column must reach this number.',
+    }),
+    gross: minorUnitsSchema.meta({ description: '`net + tax`. What the document is for.' }),
+  })
+  .meta({
+    id: 'DocumentTotals',
+    description: 'The three totals, each the sum of the corresponding rounded line (D-35).',
+  });
 
 export type DocumentTotalsResponse = z.infer<typeof documentTotalsSchema>;
 
@@ -350,15 +393,23 @@ export type DocumentTotalsResponse = z.infer<typeof documentTotalsSchema>;
  * *id* rather than by percentage because two rates can share a percentage and post
  * to different accounts (see `appliesTo` in the tax module).
  */
-export const documentTaxSummaryRowSchema = z.strictObject({
-  taxRateId: z.uuid().nullable().meta({
-    description: 'Null is the untaxed group — lines carrying no rate at all.',
-  }),
-  taxRateName: z.string().nullable(),
-  percentage: z.string().nullable(),
-  net: minorUnitsSchema,
-  tax: minorUnitsSchema,
-});
+export const documentTaxSummaryRowSchema = z
+  .strictObject({
+    taxRateId: z.uuid().nullable().meta({
+      description: 'Null is the untaxed group — lines carrying no rate at all.',
+    }),
+    taxRateName: z.string().nullable(),
+    percentage: z.string().nullable(),
+    net: minorUnitsSchema,
+    tax: minorUnitsSchema,
+  })
+  .meta({
+    id: 'DocumentTaxSummaryRow',
+    description:
+      'One rate’s share of a document, which is what a tax return is filed from. Grouped by rate ' +
+      'id rather than by percentage, because two rates can share a percentage and post to ' +
+      'different accounts.',
+  });
 
 export type DocumentTaxSummaryRow = z.infer<typeof documentTaxSummaryRowSchema>;
 
@@ -372,17 +423,25 @@ export type DocumentTaxSummaryRow = z.infer<typeof documentTaxSummaryRowSchema>;
  * customer owe" and a screen showing "what credit is available" are reading the
  * same arithmetic, and C2 has one thing to check rather than two.
  */
-export const documentSettlementSchema = z.strictObject({
-  allocated: minorUnitsSchema.meta({
-    description: 'The sum of the allocations applied to or from this document, as at now.',
-  }),
-  outstanding: minorUnitsSchema.meta({
+export const documentSettlementSchema = z
+  .strictObject({
+    allocated: minorUnitsSchema.meta({
+      description: 'The sum of the allocations applied to or from this document, as at now.',
+    }),
+    outstanding: minorUnitsSchema.meta({
+      description:
+        'Total minus `allocated`, computed on read and stored nowhere (D-34). On an invoice or a ' +
+        'bill this is what is still owed; on a credit note, a vendor credit or a payment it is ' +
+        'what is still available to apply.',
+    }),
+  })
+  .meta({
+    id: 'DocumentSettlement',
     description:
-      'Total minus `allocated`, computed on read and stored nowhere (D-34). On an invoice or a ' +
-      'bill this is what is still owed; on a credit note, a vendor credit or a payment it is ' +
-      'what is still available to apply.',
-  }),
-});
+      'What is left on a document, **computed on read and stored nowhere** (D-34). The same two ' +
+      'numbers answer four questions: on an invoice or a bill `outstanding` is what is still owed, ' +
+      'and on a credit note, a vendor credit or a payment it is what is still available to apply.',
+  });
 
 export type DocumentSettlement = z.infer<typeof documentSettlementSchema>;
 
@@ -398,12 +457,21 @@ export type DocumentSettlement = z.infer<typeof documentSettlementSchema>;
  * Shared by all four document types and by payments, because voiding is the same
  * act everywhere: a reversing journal, never a deletion (D-16, D-38).
  */
-export const voidDocumentRequestSchema = z.strictObject({
-  date: calendarDateSchema.meta({
-    description: 'The reversal’s own entry date, which must itself fall in an open period.',
-  }),
-  memo: documentMemoSchema.nullish(),
-});
+export const voidDocumentRequestSchema = z
+  .strictObject({
+    date: calendarDateSchema.meta({
+      description: 'The reversal’s own entry date, which must itself fall in an open period.',
+    }),
+    memo: documentMemoSchema.nullish(),
+  })
+  .meta({
+    id: 'VoidDocumentRequest',
+    description:
+      'Voiding takes its own entry date, because the document’s own period is usually closed by ' +
+      'the time someone voids it and the reversal has to land somewhere postable. One shape for ' +
+      'all four documents and for a payment, because voiding is the same act everywhere: a ' +
+      'reversing journal, never a deletion (D-16, D-38).',
+  });
 
 export type VoidDocumentRequest = z.infer<typeof voidDocumentRequestSchema>;
 
@@ -423,21 +491,4 @@ export function isOrderedRange(range: {
   to?: string | undefined;
 }): boolean {
   return range.from === undefined || range.to === undefined || range.from <= range.to;
-}
-
-/**
- * A page envelope with no `id`, which is the only reason it is not `pageSchema`.
- *
- * `pageSchema` requires an `id` deliberately — "the only reason to have a response
- * *schema* rather than a response *type* is to publish it" — and M3 has no routes
- * until OB-067, so every page here would publish a component nothing could reach
- * (A10). The keys are the shared envelope's (D-21), so OB-067 replaces these calls
- * with `pageSchema` calls and nothing downstream moves; `contactPageSchema` was
- * written exactly this way at OB-036 and converted at OB-045.
- */
-export function unpublishedPageSchema<Item extends z.ZodType>(item: Item) {
-  return z.strictObject({
-    items: z.array(item),
-    nextCursor: pageCursorSchema.nullable(),
-  });
 }

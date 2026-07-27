@@ -127,9 +127,15 @@ import {
   getGeneralLedger,
   getProfitAndLoss,
 } from '../../src/modules/reports';
-// Not through `modules/reports`' index: OB-065 landed `getAging` without exporting
-// it there, and reaching for the file is what keeps the operation in the matrix
-// rather than out of it until OB-067 notices.
+/**
+ * Not through `modules/reports`' index, and OB-067 did not change that.
+ *
+ * OB-065 landed `getAging` without exporting it from the barrel, and
+ * `src/transport/routes/reports.ts` now imports the service file directly for the
+ * same reason — the only barrel bypass in that directory. Recorded here rather than
+ * fixed: the export is a one-line change in `src/modules/reports/index.ts`, and
+ * OB-072 may not touch `src/`.
+ */
 import { getAging } from '../../src/modules/reports/aging.service';
 import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
 import {
@@ -218,6 +224,16 @@ import { contextFor } from './support';
  * (M5), `workflows.*` (M6), and `api_keys.*`, which have no milestone scoped at
  * all. Thirteen codes across six roles, and the same table will lose the banking
  * five at M4.
+ *
+ * ## And what OB-072 added to it
+ *
+ * The rows above were written against the services while the routes were still
+ * OB-067's job, so `operationId` was `null` on fifty-one of them and the coverage
+ * check below could not see any of it. Filling those in is what closes C11's second
+ * half: the matrix is now compared against every gated operation the API publishes,
+ * and a route added without a row fails here rather than shipping unasserted. Two
+ * rows still carry `null` — `getPeriod` and `getAccountBalances`, which have no
+ * route at all — and the source scan is what covers those.
  *
  * ## Two things this milestone made visible, and neither is fixed here
  *
@@ -478,11 +494,15 @@ interface Scene {
  * check below can compare this table against the generated OpenAPI document — the
  * same mechanism `cross-org.test.ts` uses, and for the same reason: a hand-kept
  * list of operations is only as complete as whoever last added a route remembered
- * to make it. Most rows now carry `null`: transport for everything M3 added is
- * OB-067, so its services are in the matrix before they are on the wire — the same
- * position `getPeriod` and `getAccountBalances` have held since M2, and for the
- * same reason. A row with a `null` `operationId` is invisible to the coverage check
- * below, which is exactly why the source scan exists as a second axis.
+ * to make it.
+ *
+ * OB-067 landed transport for all of M3, so every row that carried `null` for "the
+ * service is here before the wire is" now names its route. **Two rows still carry
+ * `null`, and they are the same two that did at M2**: `getPeriod` and
+ * `getAccountBalances` are reachable from no route at all. A row with a `null`
+ * `operationId` is invisible to the coverage check below, which is exactly why the
+ * source scan exists as a second axis — it is the one that would notice a service
+ * with a gate and neither a route nor a row.
  */
 interface Operation {
   readonly name: string;
@@ -913,21 +933,25 @@ const OPERATIONS: readonly Operation[] = [
    */
   {
     name: 'getAging',
-    operationId: null,
+    operationId: 'getAging',
     permission: 'reports.read',
     call: (s) => getAging({ asOf: s.date, ledger: 'receivable' }, s.ctx),
   },
 
   // ---------------------------------------------------------------------------
-  // M3 — AR documents (OB-062). No `operationId` on any of them: transport is
-  // OB-067, so these are in the matrix before they are on the wire, for
-  // `getPeriod`'s reason — the alternative is that their first authorization check
-  // is written by whoever adds the route.
+  // M3 — AR documents (OB-062), on the wire since OB-067.
+  //
+  // Every row here carried `null` for one milestone-quarter, and the ids it carries
+  // now were filled in by reading `src/transport/routes/`, not by assuming the
+  // route was named after the service. Two of the four AR transitions are the
+  // reason to check rather than assume: `approveInvoice` is `POST …/approve` and
+  // `discardInvoice` is `DELETE …`, so neither operation id could have been
+  // guessed from the HTTP method.
   // ---------------------------------------------------------------------------
 
   {
     name: 'createInvoice',
-    operationId: null,
+    operationId: 'createInvoice',
     permission: 'invoices.write',
     call: (s) =>
       createInvoice(
@@ -937,45 +961,45 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getInvoice',
-    operationId: null,
+    operationId: 'getInvoice',
     permission: 'invoices.read',
     call: (s) => getInvoice(s.targetInvoiceId, s.ctx),
   },
   {
     name: 'listInvoices',
-    operationId: null,
+    operationId: 'listInvoices',
     permission: 'invoices.read',
     call: (s) => listInvoices({}, s.ctx),
   },
   {
     name: 'updateInvoice',
-    operationId: null,
+    operationId: 'updateInvoice',
     permission: 'invoices.write',
     call: (s) => updateInvoice(s.draftInvoiceId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'discardInvoice',
-    operationId: null,
+    operationId: 'discardInvoice',
     permission: 'invoices.write',
     call: (s) => discardInvoice(s.discardableInvoiceId, s.ctx),
   },
   {
     name: 'approveInvoice',
-    operationId: null,
+    operationId: 'approveInvoice',
     permission: 'invoices.write',
     thenRequires: ['journals.post'],
     call: (s) => approveInvoice(s.approvableInvoiceId, s.ctx),
   },
   {
     name: 'voidInvoice',
-    operationId: null,
+    operationId: 'voidInvoice',
     permission: 'invoices.void',
     thenRequires: ['journals.reverse'],
     call: (s) => voidInvoice(s.voidableInvoiceId, { date: s.date }, s.ctx),
   },
   {
     name: 'createCreditNote',
-    operationId: null,
+    operationId: 'createCreditNote',
     permission: 'credit_notes.write',
     call: (s) =>
       createCreditNote(
@@ -985,31 +1009,31 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getCreditNote',
-    operationId: null,
+    operationId: 'getCreditNote',
     permission: 'credit_notes.read',
     call: (s) => getCreditNote(s.allocatableCreditNoteId, s.ctx),
   },
   {
     name: 'listCreditNotes',
-    operationId: null,
+    operationId: 'listCreditNotes',
     permission: 'credit_notes.read',
     call: (s) => listCreditNotes({}, s.ctx),
   },
   {
     name: 'updateCreditNote',
-    operationId: null,
+    operationId: 'updateCreditNote',
     permission: 'credit_notes.write',
     call: (s) => updateCreditNote(s.draftCreditNoteId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'discardCreditNote',
-    operationId: null,
+    operationId: 'discardCreditNote',
     permission: 'credit_notes.write',
     call: (s) => discardCreditNote(s.discardableCreditNoteId, s.ctx),
   },
   {
     name: 'approveCreditNote',
-    operationId: null,
+    operationId: 'approveCreditNote',
     permission: 'credit_notes.write',
     thenRequires: ['journals.post'],
     call: (s) => approveCreditNote(s.approvableCreditNoteId, s.ctx),
@@ -1021,7 +1045,7 @@ const OPERATIONS: readonly Operation[] = [
    */
   {
     name: 'voidCreditNote',
-    operationId: null,
+    operationId: 'voidCreditNote',
     permission: 'credit_notes.write',
     thenRequires: ['journals.reverse'],
     call: (s) => voidCreditNote(s.voidableCreditNoteId, { date: s.date }, s.ctx),
@@ -1033,7 +1057,7 @@ const OPERATIONS: readonly Operation[] = [
 
   {
     name: 'createBill',
-    operationId: null,
+    operationId: 'createBill',
     permission: 'bills.write',
     call: (s) =>
       createBill(
@@ -1049,25 +1073,25 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getBill',
-    operationId: null,
+    operationId: 'getBill',
     permission: 'bills.read',
     call: (s) => getBill(s.targetBillId, s.ctx),
   },
   {
     name: 'listBills',
-    operationId: null,
+    operationId: 'listBills',
     permission: 'bills.read',
     call: (s) => listBills({}, s.ctx),
   },
   {
     name: 'updateBill',
-    operationId: null,
+    operationId: 'updateBill',
     permission: 'bills.write',
     call: (s) => updateBill(s.draftBillId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'discardBill',
-    operationId: null,
+    operationId: 'discardBill',
     permission: 'bills.write',
     call: (s) => discardBill(s.discardableBillId, s.ctx),
   },
@@ -1080,21 +1104,21 @@ const OPERATIONS: readonly Operation[] = [
    */
   {
     name: 'approveBill',
-    operationId: null,
+    operationId: 'approveBill',
     permission: 'bills.write',
     thenRequires: ['journals.post'],
     call: (s) => approveBill(s.approvableBillId, s.ctx),
   },
   {
     name: 'voidBill',
-    operationId: null,
+    operationId: 'voidBill',
     permission: 'bills.void',
     thenRequires: ['journals.reverse'],
     call: (s) => voidBill(s.voidableBillId, { date: s.date }, s.ctx),
   },
   {
     name: 'createVendorCredit',
-    operationId: null,
+    operationId: 'createVendorCredit',
     permission: 'vendor_credits.write',
     call: (s) =>
       createVendorCredit(
@@ -1104,38 +1128,38 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getVendorCredit',
-    operationId: null,
+    operationId: 'getVendorCredit',
     permission: 'vendor_credits.read',
     call: (s) => getVendorCredit(s.allocatableVendorCreditId, s.ctx),
   },
   {
     name: 'listVendorCredits',
-    operationId: null,
+    operationId: 'listVendorCredits',
     permission: 'vendor_credits.read',
     call: (s) => listVendorCredits({}, s.ctx),
   },
   {
     name: 'updateVendorCredit',
-    operationId: null,
+    operationId: 'updateVendorCredit',
     permission: 'vendor_credits.write',
     call: (s) => updateVendorCredit(s.draftVendorCreditId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'discardVendorCredit',
-    operationId: null,
+    operationId: 'discardVendorCredit',
     permission: 'vendor_credits.write',
     call: (s) => discardVendorCredit(s.discardableVendorCreditId, s.ctx),
   },
   {
     name: 'approveVendorCredit',
-    operationId: null,
+    operationId: 'approveVendorCredit',
     permission: 'vendor_credits.write',
     thenRequires: ['journals.post'],
     call: (s) => approveVendorCredit(s.approvableVendorCreditId, s.ctx),
   },
   {
     name: 'voidVendorCredit',
-    operationId: null,
+    operationId: 'voidVendorCredit',
     permission: 'vendor_credits.write',
     thenRequires: ['journals.reverse'],
     call: (s) => voidVendorCredit(s.voidableVendorCreditId, { date: s.date }, s.ctx),
@@ -1149,11 +1173,16 @@ const OPERATIONS: readonly Operation[] = [
   // checks one of two codes. A matrix carrying only the received side would leave
   // `payments_made.*` declared and never exercised, which is exactly the vacuity
   // the `nobody` pass exists to prevent.
+  //
+  // OB-067 published one route per operation rather than one per direction, so the
+  // eight rows below name four operation ids between them. See
+  // `DIRECTION_SPLIT_OPERATIONS`, which is what keeps that from being a silent
+  // deduplication.
   // ---------------------------------------------------------------------------
 
   {
     name: 'recordPaymentReceived',
-    operationId: null,
+    operationId: 'recordPayment',
     permission: 'payments_received.write',
     thenRequires: ['journals.post'],
     call: (s) =>
@@ -1170,26 +1199,26 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getPaymentReceived',
-    operationId: null,
+    operationId: 'getPayment',
     permission: 'payments_received.read',
     call: (s) => getPayment(s.receivedPaymentId, s.ctx),
   },
   {
     name: 'updatePaymentReceived',
-    operationId: null,
+    operationId: 'updatePayment',
     permission: 'payments_received.write',
     call: (s) => updatePayment(s.receivedPaymentId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'voidPaymentReceived',
-    operationId: null,
+    operationId: 'voidPayment',
     permission: 'payments_received.write',
     thenRequires: ['journals.reverse'],
     call: (s) => voidPayment(s.voidableReceivedPaymentId, { date: s.date }, s.ctx),
   },
   {
     name: 'recordPaymentMade',
-    operationId: null,
+    operationId: 'recordPayment',
     permission: 'payments_made.write',
     thenRequires: ['journals.post'],
     call: (s) =>
@@ -1206,19 +1235,19 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getPaymentMade',
-    operationId: null,
+    operationId: 'getPayment',
     permission: 'payments_made.read',
     call: (s) => getPayment(s.madePaymentId, s.ctx),
   },
   {
     name: 'updatePaymentMade',
-    operationId: null,
+    operationId: 'updatePayment',
     permission: 'payments_made.write',
     call: (s) => updatePayment(s.madePaymentId, { memo: 'Edited' }, s.ctx),
   },
   {
     name: 'voidPaymentMade',
-    operationId: null,
+    operationId: 'voidPayment',
     permission: 'payments_made.write',
     thenRequires: ['journals.reverse'],
     call: (s) => voidPayment(s.voidableMadePaymentId, { date: s.date }, s.ctx),
@@ -1235,14 +1264,14 @@ const OPERATIONS: readonly Operation[] = [
    */
   {
     name: 'listPayments',
-    operationId: null,
+    operationId: 'listPayments',
     permission: 'payments_received.read',
     thenRequires: ['payments_made.read'],
     call: (s) => listPayments({}, s.ctx),
   },
   {
     name: 'allocatePayment',
-    operationId: null,
+    operationId: 'allocatePayment',
     permission: 'payments_received.write',
     call: (s) =>
       allocatePayment(
@@ -1253,7 +1282,7 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'allocateCreditNote',
-    operationId: null,
+    operationId: 'allocateCreditNote',
     permission: 'credit_notes.write',
     call: (s) =>
       allocateCreditNote(
@@ -1264,7 +1293,7 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'allocateVendorCredit',
-    operationId: null,
+    operationId: 'allocateVendorCredit',
     permission: 'vendor_credits.write',
     call: (s) =>
       allocateVendorCredit(
@@ -1282,7 +1311,7 @@ const OPERATIONS: readonly Operation[] = [
    */
   {
     name: 'deleteAllocation',
-    operationId: null,
+    operationId: 'deleteAllocation',
     permission: 'payments_received.write',
     call: (s) => deleteAllocation(s.allocationId, s.ctx),
   },
@@ -1294,38 +1323,38 @@ const OPERATIONS: readonly Operation[] = [
 
   {
     name: 'createTaxRate',
-    operationId: null,
+    operationId: 'createTaxRate',
     permission: 'tax_rates.write',
     call: (s) =>
       createTaxRate({ name: 'Sales tax 5%', percentage: '5', accountId: s.taxAccountId }, s.ctx),
   },
   {
     name: 'getTaxRate',
-    operationId: null,
+    operationId: 'getTaxRate',
     permission: 'tax_rates.read',
     call: (s) => getTaxRate(s.taxRateId, s.ctx),
   },
   {
     name: 'listTaxRates',
-    operationId: null,
+    operationId: 'listTaxRates',
     permission: 'tax_rates.read',
     call: (s) => listTaxRates({}, s.ctx),
   },
   {
     name: 'updateTaxRate',
-    operationId: null,
+    operationId: 'updateTaxRate',
     permission: 'tax_rates.write',
     call: (s) => updateTaxRate(s.taxRateId, { name: 'VAT (standard)' }, s.ctx),
   },
   {
     name: 'archiveTaxRate',
-    operationId: null,
+    operationId: 'archiveTaxRate',
     permission: 'tax_rates.write',
     call: (s) => archiveTaxRate(s.taxRateId, s.ctx),
   },
   {
     name: 'unarchiveTaxRate',
-    operationId: null,
+    operationId: 'unarchiveTaxRate',
     permission: 'tax_rates.write',
     call: (s) => unarchiveTaxRate(s.taxRateId, s.ctx),
   },
@@ -1333,7 +1362,7 @@ const OPERATIONS: readonly Operation[] = [
   // one that is cited, and a refusal on those grounds would read `allowed`.
   {
     name: 'deleteTaxRate',
-    operationId: null,
+    operationId: 'deleteTaxRate',
     permission: 'tax_rates.write',
     call: (s) => deleteTaxRate(s.deletableTaxRateId, s.ctx),
   },
@@ -1349,13 +1378,13 @@ const OPERATIONS: readonly Operation[] = [
 
   {
     name: 'getControlAccounts',
-    operationId: null,
+    operationId: 'getControlAccounts',
     permission: 'orgs.read',
     call: (s) => getControlAccounts(s.ctx),
   },
   {
     name: 'updateControlAccounts',
-    operationId: null,
+    operationId: 'updateControlAccounts',
     permission: 'orgs.write',
     call: (s) =>
       updateControlAccounts(
@@ -1425,6 +1454,28 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   'listOrgMemberships',
   'switchActiveOrg',
 ]);
+
+/**
+ * The four published operations that two rows above each exercise.
+ *
+ * A payment's direction is a property of the payment and not of the route:
+ * `POST /v1/payments` carries `direction` in its body, and the other three resolve
+ * it from the payment they name. `payments.service.ts` then checks
+ * `payments_received.*` or `payments_made.*` — so one operation id has two
+ * authorization outcomes, and one row could only ever assert one of them.
+ *
+ * Enumerated rather than deduplicated silently, which is the whole point of the
+ * constant: the coverage check below compares the *set* of ids it covers against
+ * the published document, and without this a second row accidentally carrying an
+ * id another row already had — a copy-paste in a block of near-identical rows — is
+ * invisible. A duplicate not on this list fails.
+ */
+const DIRECTION_SPLIT_OPERATIONS: readonly string[] = [
+  'getPayment',
+  'recordPayment',
+  'updatePayment',
+  'voidPayment',
+];
 
 async function scene(role: SystemRoleName): Promise<Scene> {
   const org = await db.factories.org();
@@ -1864,11 +1915,17 @@ describe('B10 — the permission matrix, at the service layer', () => {
         .filter((operationId) => !UNGATED_OPERATIONS.has(operationId))
         .sort();
 
-      const covered = OPERATIONS.map((operation) => operation.operationId)
-        .filter((operationId): operationId is string => operationId !== null)
-        .sort();
+      const covered = OPERATIONS.map((operation) => operation.operationId).filter(
+        (operationId): operationId is string => operationId !== null,
+      );
 
-      expect(covered).toEqual(published);
+      // Asserted before the set comparison, so a duplicate is reported as a
+      // duplicate rather than disappearing into the `Set` below and leaving the
+      // operation it displaced to be named as uncovered.
+      const duplicated = covered.filter((id, index) => covered.indexOf(id) !== index).sort();
+      expect(duplicated).toEqual([...DIRECTION_SPLIT_OPERATIONS].sort());
+
+      expect([...new Set(covered)].sort()).toEqual(published);
     } finally {
       await built.app.close();
     }
@@ -2084,6 +2141,24 @@ describe('gap 6 — the grants that nothing checks yet', () => {
  * which is where OB-063 found it. It is repeated here because this is the file that
  * claims to describe every role's whole authority, and a gap of this size stated
  * only in one module's suite is a gap stated nowhere a reviewer of C11 will look.
+ *
+ * ## What changed at OB-072: the gap is now published
+ *
+ * Nothing about the gap moved — the same three refusals, from the same two codes.
+ * What moved is that every operation involved has a route now, so the rows in the
+ * matrix above name them: `approveInvoice`, `voidInvoice`, `approveBill`,
+ * `voidBill`, `approveCreditNote`, `voidCreditNote`, `approveVendorCredit`,
+ * `voidVendorCredit`, `recordPayment` and `voidPayment` are ten published
+ * operations an `ar_only` or `ap_only` caller is refused, and the operation ids
+ * those rows carry are the ones a client is holding.
+ *
+ * The rows agree with these tests rather than contradicting them, and it is worth
+ * saying how: a row's verdict is computed by `expectedVerdict` from `gatesOf`,
+ * which walks `permission` and then `thenRequires` — so `approveInvoice` predicts
+ * `refused journals.post` for both clerks from the declared gates alone. If someone
+ * removed `thenRequires: ['journals.post']` to make the matrix "pass", the row would
+ * predict `allowed`, the pass for that role would fail, and these tests would still
+ * be here. Two independent statements of the same fact is the point.
  */
 describe('known gap — an AR or AP clerk cannot finish what they started', () => {
   it('lets an AR clerk write an invoice and refuses to let them issue it', async () => {

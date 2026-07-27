@@ -29,7 +29,6 @@ export {
   quantitySchema,
   subledgerDocumentTypeSchema,
   taxModeSchema,
-  unpublishedPageSchema,
   voidDocumentRequestSchema,
 } from './documents';
 export type {
@@ -47,12 +46,14 @@ export { ALLOCATION_SOURCE_TYPES, ALLOCATION_TARGET_TYPES } from './allocations'
 export type {
   Allocation,
   AllocationInput,
+  AllocationList,
   AllocationSourceType,
   AllocationTargetType,
   CreateAllocationsRequest,
 } from './allocations';
 export {
   allocationInputSchema,
+  allocationListSchema,
   allocationSchema,
   allocationSourceTypeSchema,
   allocationTargetTypeSchema,

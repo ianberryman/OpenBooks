@@ -77,16 +77,23 @@ export const agingBucketSchema = z.enum(AGING_BUCKETS).meta({
  * report's own totals — one component, for `glAmountsSchema`'s reason: three
  * windows of the same shape are one type, not three.
  */
-export const agingAmountsSchema = z.strictObject({
-  current: minorUnitsSchema,
-  days1To30: minorUnitsSchema,
-  days31To60: minorUnitsSchema,
-  days61To90: minorUnitsSchema,
-  days90Plus: minorUnitsSchema,
-  total: minorUnitsSchema.meta({
-    description: 'The five buckets summed. This is what must tie to the control account (C8).',
-  }),
-});
+export const agingAmountsSchema = z
+  .strictObject({
+    current: minorUnitsSchema,
+    days1To30: minorUnitsSchema,
+    days31To60: minorUnitsSchema,
+    days61To90: minorUnitsSchema,
+    days90Plus: minorUnitsSchema,
+    total: minorUnitsSchema.meta({
+      description: 'The five buckets summed. This is what must tie to the control account (C8).',
+    }),
+  })
+  .meta({
+    id: 'AgingAmounts',
+    description:
+      'The five buckets and their total — one component for a contact’s row and for the report’s ' +
+      'own totals, because three windows of the same shape are one type.',
+  });
 
 export type AgingAmounts = z.infer<typeof agingAmountsSchema>;
 
@@ -139,29 +146,37 @@ export const agingDetailTypeSchema = z.enum(AGING_DETAIL_TYPES).meta({
  * NULL on a credit note for that reason, and a payment has no due date to have. A
  * zero would read as "due today", which is a different and false statement.
  */
-export const agingDocumentSchema = z.strictObject({
-  documentType: agingDetailTypeSchema,
-  documentId: z.uuid(),
-  documentNumber: z.string(),
-  reference: z.string().nullable(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema.nullable(),
-  total: minorUnitsSchema,
-  outstanding: minorUnitsSchema.meta({
-    description:
-      'Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). ' +
-      'Negative on a credit row.',
-  }),
-  daysPastDue: z
-    .int()
-    .nullable()
-    .meta({
+export const agingDocumentSchema = z
+  .strictObject({
+    documentType: agingDetailTypeSchema,
+    documentId: z.uuid(),
+    documentNumber: z.string(),
+    reference: z.string().nullable(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema.nullable(),
+    total: minorUnitsSchema,
+    outstanding: minorUnitsSchema.meta({
       description:
-        'Negative when the document is not yet due. Measured from `dueDate` to `asOf`, and null ' +
-        'wherever `dueDate` is — a credit is allocated rather than chased.',
+        'Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). ' +
+        'Negative on a credit row.',
     }),
-  bucket: agingBucketSchema,
-});
+    daysPastDue: z
+      .int()
+      .nullable()
+      .meta({
+        description:
+          'Negative when the document is not yet due. Measured from `dueDate` to `asOf`, and null ' +
+          'wherever `dueDate` is — a credit is allocated rather than chased.',
+      }),
+    bucket: agingBucketSchema,
+  })
+  .meta({
+    id: 'AgingDocument',
+    description:
+      'One open item, for the drill-through. `outstanding` is as at the report’s date, not as at ' +
+      'now (D-40). On a credit row `total` and `outstanding` are negative, and `dueDate` and ' +
+      '`daysPastDue` are both null — a credit is allocated, not chased.',
+  });
 
 export type AgingDocument = z.infer<typeof agingDocumentSchema>;
 
@@ -182,12 +197,19 @@ export type AgingDocument = z.infer<typeof agingDocumentSchema>;
  * A row is present only while something is outstanding on it, so a settled invoice
  * and a fully applied payment are both absent and both contribute zero.
  */
-export const agingRowSchema = z.strictObject({
-  contactId: z.uuid(),
-  contactName: z.string(),
-  amounts: agingAmountsSchema,
-  documents: z.array(agingDocumentSchema).nullable(),
-});
+export const agingRowSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    contactName: z.string(),
+    amounts: agingAmountsSchema,
+    documents: z.array(agingDocumentSchema).nullable(),
+  })
+  .meta({
+    id: 'AgingRow',
+    description:
+      'One contact’s aging. `documents` is null rather than absent when `detail` was not asked ' +
+      'for; when it is present its `outstanding` values sum to `amounts.total`.',
+  });
 
 export type AgingRow = z.infer<typeof agingRowSchema>;
 
@@ -245,11 +267,21 @@ export type AgingQueryParams = z.infer<typeof agingQuerySchema>;
  * operator needs to see, and turning it into an error here would hide it behind a
  * 500 exactly when someone is looking for it.
  */
-export const agingSchema = z.strictObject({
-  asOf: calendarDateSchema,
-  ledger: agingLedgerSchema,
-  rows: z.array(agingRowSchema),
-  totals: agingAmountsSchema,
-});
+export const agingSchema = z
+  .strictObject({
+    asOf: calendarDateSchema,
+    ledger: agingLedgerSchema,
+    rows: z.array(agingRowSchema),
+    totals: agingAmountsSchema,
+  })
+  .meta({
+    id: 'Aging',
+    description:
+      'What is owed, bucketed by how late it is, as at `asOf`. `totals` is the sum of the rows ' +
+      'bucket by bucket and is what must tie to the control account at that date (C8). The report ' +
+      'deliberately does not state that balance itself — an org that has nominated no control ' +
+      'account has none to state, and a reconciliation that is sometimes reported is one nobody ' +
+      'trusts.',
+  });
 
 export type Aging = z.infer<typeof agingSchema>;

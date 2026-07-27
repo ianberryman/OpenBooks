@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
 
 import { allocationSchema } from './allocations';
 import {
@@ -17,7 +17,6 @@ import {
   documentTotalsSchema,
   isOrderedRange,
   taxModeSchema,
-  unpublishedPageSchema,
 } from './documents';
 
 /**
@@ -29,10 +28,12 @@ import {
  * reference, and a credit note that is a document in its own right rather than an
  * invoice with a minus sign.
  *
- * ## No `.meta({ id })`, and no route yet
+ * ## The ids arrived with OB-067's routes
  *
- * The ids arrive with OB-067's routes, for the reason stated at the top of
- * `documents.ts` and argued in full in `accounts/accounts.ts`.
+ * For the reason stated at the top of `documents.ts` and argued in full in
+ * `accounts/accounts.ts`. The two list queries still carry none and must not: a
+ * querystring is emitted as individual `parameters`, so a component for one would be
+ * referenced by nothing.
  *
  * ## There is no "approve" request schema, and that is deliberate
  *
@@ -56,60 +57,68 @@ import {
  *    `issueDate` at approval, so a draft written in an open period and approved
  *    after it closed cannot carry a stale answer (`journalDraftSchema`'s reason).
  */
-export const invoiceSchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z
-    .string()
-    .nullable()
-    .meta({
+export const invoiceSchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The customer’s own reference for this invoice — their purchase-order number, in practice. ' +
+          'Free text we do not issue and do not check (D-36).',
+      }),
+    contactId: z.uuid().meta({ description: 'The customer being invoiced.' }),
+    issueDate: calendarDateSchema.meta({
       description:
-        'The customer’s own reference for this invoice — their purchase-order number, in practice. ' +
-        'Free text we do not issue and do not check (D-36).',
+        'The date the invoice is issued, and the entry date of the journal it posts. It must fall ' +
+        'inside an open fiscal period at approval — periods are never created as a side effect ' +
+        '(D-17).',
     }),
-  contactId: z.uuid().meta({ description: 'The customer being invoiced.' }),
-  issueDate: calendarDateSchema.meta({
-    description:
-      'The date the invoice is issued, and the entry date of the journal it posts. It must fall ' +
-      'inside an open fiscal period at approval — periods are never created as a side effect ' +
-      '(D-17).',
-  }),
-  dueDate: calendarDateSchema.meta({
-    description:
-      'When payment is due. Aging measures from here rather than from `issueDate`, because that ' +
-      'is what "overdue" means to the person chasing it (D-40).',
-  }),
-  taxMode: taxModeSchema,
-  status: documentStatusSchema,
-  memo: z.string().nullable(),
-  lines: z.array(documentLineSchema),
-  totals: documentTotalsSchema,
-  taxSummary: z.array(documentTaxSummaryRowSchema),
-  settlement: documentSettlementSchema,
-  allocations: z.array(allocationSchema).meta({
-    description:
-      'What has been applied against this invoice — payments and credit notes alike, through ' +
-      'one mechanism (D-39). These are what `settlement` is computed from.',
-  }),
-  journalId: z
-    .uuid()
-    .nullable()
-    .meta({
+    dueDate: calendarDateSchema.meta({
       description:
-        'The journal this invoice posted at approval, or null while it is a draft. Approval is the ' +
-        'only thing that writes to the ledger (C1).',
+        'When payment is due. Aging measures from here rather than from `issueDate`, because that ' +
+        'is what "overdue" means to the person chasing it (D-40).',
     }),
-  voidJournalId: z
-    .uuid()
-    .nullable()
-    .meta({
+    taxMode: taxModeSchema,
+    status: documentStatusSchema,
+    memo: z.string().nullable(),
+    lines: z.array(documentLineSchema),
+    totals: documentTotalsSchema,
+    taxSummary: z.array(documentTaxSummaryRowSchema),
+    settlement: documentSettlementSchema,
+    allocations: z.array(allocationSchema).meta({
       description:
-        'The reversing journal, once voided (D-38). The invoice, its number and its original ' +
-        'journal all remain visible — nothing is deleted (D-16, C7).',
+        'What has been applied against this invoice — payments and credit notes alike, through ' +
+        'one mechanism (D-39). These are what `settlement` is computed from.',
     }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+    journalId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The journal this invoice posted at approval, or null while it is a draft. Approval is the ' +
+          'only thing that writes to the ledger (C1).',
+      }),
+    voidJournalId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The reversing journal, once voided (D-38). The invoice, its number and its original ' +
+          'journal all remain visible — nothing is deleted (D-16, C7).',
+      }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'Invoice',
+    description:
+      'A customer invoice, with its lines. `status` and `settlement` are computed on read and ' +
+      'stored nowhere (D-34, D-38) — a client that wrote either back would be writing a field the ' +
+      'server derives.',
+  });
 
 export type Invoice = z.infer<typeof invoiceSchema>;
 
@@ -122,19 +131,26 @@ export type Invoice = z.infer<typeof invoiceSchema>;
  * because an invoice list that could not show what is outstanding would be a list
  * nobody could use for the one job it has.
  */
-export const invoiceSummarySchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable(),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema,
-  status: documentStatusSchema,
-  totals: documentTotalsSchema,
-  settlement: documentSettlementSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const invoiceSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable(),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema,
+    status: documentStatusSchema,
+    totals: documentTotalsSchema,
+    settlement: documentSettlementSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'InvoiceSummary',
+    description:
+      'An invoice in a list: the header, the totals and the settlement, and no lines — embedding ' +
+      'them would make one page’s size depend on how many lines an org’s invoices happen to carry.',
+  });
 
 export type InvoiceSummary = z.infer<typeof invoiceSummarySchema>;
 
@@ -156,15 +172,23 @@ export type InvoiceSummary = z.infer<typeof invoiceSummarySchema>;
  * rather than nullable because aging measures from the due date (D-40), and a null
  * due date would make a document that ages from nothing.
  */
-export const createInvoiceRequestSchema = z.strictObject({
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema.optional(),
-  taxMode: taxModeSchema,
-  reference: documentReferenceSchema.nullish(),
-  memo: documentMemoSchema.nullish(),
-  lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
-});
+export const createInvoiceRequestSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema.optional(),
+    taxMode: taxModeSchema,
+    reference: documentReferenceSchema.nullish(),
+    memo: documentMemoSchema.nullish(),
+    lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
+  })
+  .meta({
+    id: 'CreateInvoiceRequest',
+    description:
+      'Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and ' +
+      '`lines` is optional, because “New invoice” produces an empty one and the arity and account ' +
+      'checks belong at approval.',
+  });
 
 export type CreateInvoiceRequest = z.infer<typeof createInvoiceRequestSchema>;
 
@@ -196,6 +220,7 @@ export const updateInvoiceRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateInvoiceRequest',
     description:
       'Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, ' +
       'and `lines` replaces the whole set — send every line the invoice should have, including ' +
@@ -242,7 +267,10 @@ export type ListInvoicesQuery = z.input<typeof listInvoicesQuerySchema>;
  * chose keyset to eliminate, reached through a mutable sort key instead of through
  * `OFFSET`. `created_at` is neither null nor editable, and `id` makes it total.
  */
-export const invoicePageSchema = unpublishedPageSchema(invoiceSummarySchema);
+export const invoicePageSchema = pageSchema(invoiceSummarySchema, {
+  id: 'InvoicePage',
+  description: 'One page of invoices, oldest first by creation.',
+});
 
 export type InvoicePage = z.infer<typeof invoicePageSchema>;
 
@@ -266,55 +294,72 @@ export type InvoicePage = z.infer<typeof invoicePageSchema>;
  * There is no `dueDate`: nothing about a credit note falls due, and aging never
  * ages one. It reduces the invoices it is applied to, on the date of the allocation.
  */
-export const creditNoteSchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable().meta({
-    description: 'Free text — commonly the customer’s claim or return reference (D-36).',
-  }),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  taxMode: taxModeSchema,
-  status: documentStatusSchema,
-  memo: z.string().nullable(),
-  lines: z.array(documentLineSchema),
-  totals: documentTotalsSchema,
-  taxSummary: z.array(documentTaxSummaryRowSchema),
-  settlement: documentSettlementSchema,
-  allocations: z.array(allocationSchema).meta({
-    description: 'The invoices this credit note has been applied to, and for how much.',
-  }),
-  journalId: z.uuid().nullable(),
-  voidJournalId: z.uuid().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const creditNoteSchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable().meta({
+      description: 'Free text — commonly the customer’s claim or return reference (D-36).',
+    }),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    taxMode: taxModeSchema,
+    status: documentStatusSchema,
+    memo: z.string().nullable(),
+    lines: z.array(documentLineSchema),
+    totals: documentTotalsSchema,
+    taxSummary: z.array(documentTaxSummaryRowSchema),
+    settlement: documentSettlementSchema,
+    allocations: z.array(allocationSchema).meta({
+      description: 'The invoices this credit note has been applied to, and for how much.',
+    }),
+    journalId: z.uuid().nullable(),
+    voidJournalId: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'CreditNote',
+    description:
+      'A credit note: a document, not a negative invoice (D-39). Its lines are positive and the ' +
+      'direction is what the document type carries, so `settlement.outstanding` reads as “credit ' +
+      'still available to apply”. There is no `dueDate` — nothing about a credit note falls due.',
+  });
 
 export type CreditNote = z.infer<typeof creditNoteSchema>;
 
-export const creditNoteSummarySchema = z.strictObject({
-  id: z.uuid(),
-  documentNumber: documentNumberSchema.nullable(),
-  reference: z.string().nullable(),
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  status: documentStatusSchema,
-  totals: documentTotalsSchema,
-  settlement: documentSettlementSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const creditNoteSummarySchema = z
+  .strictObject({
+    id: z.uuid(),
+    documentNumber: documentNumberSchema.nullable(),
+    reference: z.string().nullable(),
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    status: documentStatusSchema,
+    totals: documentTotalsSchema,
+    settlement: documentSettlementSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({ id: 'CreditNoteSummary', description: 'A credit note in a list, without its lines.' });
 
 export type CreditNoteSummary = z.infer<typeof creditNoteSummarySchema>;
 
-export const createCreditNoteRequestSchema = z.strictObject({
-  contactId: z.uuid(),
-  issueDate: calendarDateSchema,
-  taxMode: taxModeSchema,
-  reference: documentReferenceSchema.nullish(),
-  memo: documentMemoSchema.nullish(),
-  lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
-});
+export const createCreditNoteRequestSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    issueDate: calendarDateSchema,
+    taxMode: taxModeSchema,
+    reference: documentReferenceSchema.nullish(),
+    memo: documentMemoSchema.nullish(),
+    lines: z.array(documentLineInputSchema).max(DOCUMENT_MAX_LINES).optional(),
+  })
+  .meta({
+    id: 'CreateCreditNoteRequest',
+    description:
+      'Creates a **draft** credit note. No `dueDate`, for the reason `CreditNote` gives: nothing ' +
+      'about a credit note falls due.',
+  });
 
 export type CreateCreditNoteRequest = z.infer<typeof createCreditNoteRequestSchema>;
 
@@ -329,6 +374,12 @@ export const updateCreditNoteRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateCreditNoteRequest',
+    description:
+      'Partial update of a draft. `lines` replaces the whole set. An approved credit note ' +
+      'accepts none of this — the correction is a void, never an edit (D-38).',
   });
 
 export type UpdateCreditNoteRequest = z.infer<typeof updateCreditNoteRequestSchema>;
@@ -350,6 +401,9 @@ export const listCreditNotesQuerySchema = z
 
 export type ListCreditNotesQuery = z.input<typeof listCreditNotesQuerySchema>;
 
-export const creditNotePageSchema = unpublishedPageSchema(creditNoteSummarySchema);
+export const creditNotePageSchema = pageSchema(creditNoteSummarySchema, {
+  id: 'CreditNotePage',
+  description: 'One page of credit notes, oldest first by creation.',
+});
 
 export type CreditNotePage = z.infer<typeof creditNotePageSchema>;

@@ -1,7 +1,7 @@
 import {
+  AGING_LEDGERS,
   MAX_DIMENSIONS_PER_ORG,
-  PAGE_SIZE_DEFAULT,
-  PAGE_SIZE_MAX,
+  agingSchema,
   balanceSheetSchema,
   calendarDateSchema,
   generalLedgerSchema,
@@ -11,15 +11,25 @@ import {
   trialBalanceQuerySchema,
   trialBalanceSchema,
 } from '@openbooks/shared-types';
-import type { GeneralLedger } from '@openbooks/shared-types';
+import type { Aging, GeneralLedger } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import { getTrialBalance } from '../../modules/ledger';
 import type { TrialBalance } from '../../modules/ledger';
 import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../modules/reports';
+/**
+ * Imported from the service file rather than from `modules/reports/index.ts`, which
+ * is the one deviation in this directory and is deliberate rather than an oversight:
+ * `getAging` is not re-exported by that barrel, and adding it there would be a change
+ * to `src/modules/`, which this ticket may not make. The import is legal —
+ * `transport-holds-no-business-logic` forbids reaching a `*.repository.ts` or `src/db`,
+ * and this is neither — and the signature is the ordinary `(query, ctx)` every other
+ * service has. Fold it into the barrel next time the module is open.
+ */
+import { getAging } from '../../modules/reports/aging.service';
 import type { App } from '../types';
-import { ERROR_RESPONSES, requireOrgScope, wireList, wireValue } from './support';
+import { ERROR_RESPONSES, pageLimitQuery, requireOrgScope, wireList, wireValue } from './support';
 
 /**
  * `/v1/reports` — the trial balance (A2) and M2's three statements (OB-042,
@@ -70,6 +80,29 @@ import { ERROR_RESPONSES, requireOrgScope, wireList, wireValue } from './support
  * carries the full argument. The paging *protocol* is unchanged — `nextCursor` is
  * the same opaque `PageCursor`, meaning the same thing — so only the key the entries
  * sit under differs.
+ *
+ * ## Aging is a `GET` too, and it needed no new convention
+ *
+ * OB-067 adds `GET /v1/reports/aging`, and the thing worth recording is what it did
+ * *not* need. Every filter it takes is a scalar — a date, an enum, a contact id, two
+ * booleans — so there is nothing here that a querystring cannot express and no reason
+ * to reach for the JSON-in-one-parameter shape the three M2 reports use. Inventing a
+ * second structured-filter convention for a report that has no structured filter
+ * would have been the worst of both: `dimensions` is url-encoded JSON because it is
+ * an array of objects and Node's parser produces flat strings, and that argument
+ * simply does not apply to `asOf` and `detail`. The booleans are `z.stringbool()`,
+ * which is the same single responsibility every other list query in this directory
+ * has.
+ *
+ * `asOf` is required, unlike every other report's bound, and the reason is D-40's:
+ * an aging report that defaulted to today would answer differently tomorrow, and the
+ * request that produced a figure someone filed would no longer reproduce it.
+ *
+ * There is no pagination and no `groupBy`. The buckets must sum to a control account
+ * (C8) and a page of them sums to nothing in particular, which is the same reason
+ * `detail` is opt-in rather than a second endpoint: "what does this customer owe and
+ * since when" is this report with `contactId` and `detail` set, and a second endpoint
+ * would be a second definition of outstanding (D-34).
  *
  * ## Nothing here re-checks a permission
  *
@@ -156,22 +189,52 @@ const balanceSheetWireQuerySchema = z.strictObject({
   groupBy: groupByWireSchema,
 });
 
+/**
+ * Aging's filters, all of them scalar. Local and carrying no `id`, like every other
+ * query schema in this directory: a querystring is emitted as individual
+ * `parameters`.
+ */
+const agingWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.meta({
+    description:
+      'The date the report is computed as at. Required, unlike every other report’s bound: an ' +
+      'aging report that defaulted to today would answer differently tomorrow, and D-40 makes ' +
+      'reproducibility its point.',
+  }),
+  ledger: z.enum(AGING_LEDGERS).meta({
+    description:
+      '`receivable` ages invoices against what customers owe; `payable` ages bills against what ' +
+      'is owed to vendors. Each ties to its own control account (C8).',
+  }),
+  contactId: z.uuid().optional().meta({
+    description: 'One contact only. With `detail`, this is the statement for that customer.',
+  }),
+  detail: z
+    .stringbool()
+    .optional()
+    .meta({
+      description:
+        'Include the outstanding documents behind each row. Off by default — the list is bounded ' +
+        'only by how many documents are open. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, ' +
+        '`on`/`off`).',
+    }),
+  includeZero: z
+    .stringbool()
+    .optional()
+    .meta({
+      description:
+        'Include contacts whose total is zero as at the date. Off by default: unlike a trial ' +
+        'balance, where a zero row is how someone notices a posting went astray, a contact with ' +
+        'nothing outstanding is simply a contact who has paid.',
+    }),
+});
+
 const generalLedgerWireQuerySchema = z.strictObject({
   accountId: z.uuid(),
   from: calendarDateSchema.optional(),
   to: calendarDateSchema.optional(),
   ...reportSliceWireShape,
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .default(PAGE_SIZE_DEFAULT)
-    .meta({
-      description:
-        'How many entries to return, at most. Over the maximum is refused rather than clamped, ' +
-        'so a short page always means the list is short.',
-    }),
+  limit: pageLimitQuery('entries'),
   cursor: pageCursorSchema.optional(),
 });
 
@@ -276,6 +339,51 @@ export function registerReportRoutes(app: App): void {
       );
 
       return wireValue(sheet);
+    },
+  );
+
+  app.get(
+    '/v1/reports/aging',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getAging',
+        summary: 'Aging, as at a date',
+        description:
+          'What is owed and how late it is, per contact, split into current / 1–30 / 31–60 / ' +
+          '61–90 / 90+ days past due — measured from the **due** date rather than the issue ' +
+          'date, because that is what "overdue" means to the person chasing it (D-40). ' +
+          'Aggregated over documents and allocations rather than over journal lines, which is ' +
+          'what makes C8 worth asserting: `totals` must equal the control account’s balance at ' +
+          '`asOf`, and an aging report that does not tie to the ledger is a list of hopes. That ' +
+          'is why unapplied credit is in here at all — an unallocated payment or credit note is ' +
+          'money already sitting in the control account, so it appears as a **negative** amount ' +
+          'in `current` on the contact holding it, and a report that omitted it would overstate ' +
+          'what the business is owed by exactly that much. The report deliberately does not ' +
+          'state the control-account balance itself: an org that has nominated nothing has none ' +
+          'to state, and a reconciliation that is sometimes reported is one nobody trusts. ' +
+          'Everything is computed as at `asOf`, including each document’s `outstanding`, so last ' +
+          'month’s aging still prints last month’s figures next year. Not paginated, on purpose: ' +
+          'a page of buckets sums to nothing in particular. Takes `reports.read` and only that.',
+        tags: [TAG],
+        querystring: agingWireQuerySchema,
+        response: { 200: agingSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<Aging> => {
+      const { asOf, ledger, contactId, detail, includeZero } = request.query;
+      const aging = await getAging(
+        {
+          asOf,
+          ledger,
+          ...(contactId === undefined ? {} : { contactId }),
+          ...(detail === undefined ? {} : { detail }),
+          ...(includeZero === undefined ? {} : { includeZero }),
+        },
+        getContext(),
+      );
+
+      return wireValue(aging);
     },
   );
 

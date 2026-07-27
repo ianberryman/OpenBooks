@@ -36,9 +36,10 @@ import { z } from 'zod';
  * a way to reorganize a chart that is already in use, for which the answer is a
  * journal moving the balance.
  *
- * No `.meta({ id })` on the schemas below: OB-061's rule for M3 contracts is that
- * the OpenAPI component id arrives with the route, and there are no routes for
- * these yet (OB-067).
+ * The `.meta({ id })` on the schemas below arrived with OB-067's routes, which is
+ * OB-061's rule for every M3 contract: the OpenAPI component id and the route that
+ * references it land in one diff, because the transform publishes a component
+ * whether or not anything can reach it.
  */
 
 /**
@@ -50,24 +51,32 @@ import { z } from 'zod';
  * which is the state every org is created in — not a defaulted value that happens
  * to be missing.
  */
-export const controlAccountsSchema = z.strictObject({
-  receivableControlAccountId: z
-    .uuid()
-    .nullable()
-    .meta({
-      description:
-        'The account an approved invoice debits and an approved credit note credits. Null until ' +
-        'the org nominates one; approving an AR document without it is a `precondition_failed`.',
-    }),
-  payableControlAccountId: z
-    .uuid()
-    .nullable()
-    .meta({
-      description:
-        'The account an approved bill credits and an approved vendor credit debits. Null until ' +
-        'the org nominates one.',
-    }),
-});
+export const controlAccountsSchema = z
+  .strictObject({
+    receivableControlAccountId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The account an approved invoice debits and an approved credit note credits. Null until ' +
+          'the org nominates one; approving an AR document without it is a `precondition_failed`.',
+      }),
+    payableControlAccountId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The account an approved bill credits and an approved vendor credit debits. Null until ' +
+          'the org nominates one.',
+      }),
+  })
+  .meta({
+    id: 'ControlAccounts',
+    description:
+      'Which of the org’s own accounts its subledger posts through. Either may be null — the two ' +
+      'sides are separately usable, and an org that only invoices never needs a payables control ' +
+      'account.',
+  });
 
 export type ControlAccounts = z.infer<typeof controlAccountsSchema>;
 
@@ -95,6 +104,7 @@ export const updateControlAccountsRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateControlAccountsRequest',
     description:
       'Partial update. An omitted field is left as it is; an explicit `null` clears the ' +
       'nomination. Changing a nomination moves future postings only — journals already posted ' +

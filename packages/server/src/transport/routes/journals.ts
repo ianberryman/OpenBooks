@@ -1,7 +1,5 @@
 import type { PostedJournal } from '@openbooks/plugin-api';
 import {
-  PAGE_SIZE_DEFAULT,
-  PAGE_SIZE_MAX,
   fromMinorString,
   journalPageSchema,
   pageCursorSchema,
@@ -21,6 +19,7 @@ import {
   ORG_SCOPED_WRITE_HOOKS,
   idempotencyKeyHeaderSchema,
   idempotentBody,
+  pageLimitQuery,
   requireOrgScope,
 } from './support';
 
@@ -74,17 +73,7 @@ const journalParamsSchema = z.strictObject({ journalId: z.uuid() });
  * knows the value arrived as text.
  */
 const listJournalsWireQuerySchema = z.strictObject({
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(PAGE_SIZE_MAX)
-    .default(PAGE_SIZE_DEFAULT)
-    .meta({
-      description:
-        'How many journals to return, at most. Over the maximum is refused rather than clamped, ' +
-        'so a short page always means the list is short.',
-    }),
+  limit: pageLimitQuery('journals'),
   cursor: pageCursorSchema.optional(),
 });
 

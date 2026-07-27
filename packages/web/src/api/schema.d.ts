@@ -24,6 +24,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org’s control-account nominations
+         * @description Which of the org’s own accounts an approved invoice debits and an approved bill credits. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. Reading this takes `orgs.read` rather than `accounts.read`: what is being read is a decision the organization made, and it is the field a client needs in order to explain a refused approval.
+         */
+        get: operations["getControlAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Nominate, repoint or clear a control account
+         * @description An omitted side is left as it is; an explicit `null` clears it. A nomination must be an active account of the right kind — an asset for receivables, a liability for payables — refused with `receivable_control_account_wrong_type`, `payable_control_account_wrong_type` or `account_inactive`, because a misnominated control account is invisible until a year end and cannot be undone by editing anything. Both nominations land in one transaction. Changing one moves future postings only: journals already posted name the account they were posted to and are never restated, so while documents on the previous account are outstanding the subledger ties to the two accounts together.
+         */
+        patch: operations["updateControlAccounts"];
+        trace?: never;
+    };
     "/v1/accounts": {
         parameters: {
             query?: never;
@@ -113,6 +137,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/allocations/{allocationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Un-apply an allocation
+         * @description Removes the row outright. This restates no financial statement — an allocation posted no journal — and it needs no reversal, because what it changes is what is outstanding and that is computed on read (D-34). The permission taken is the source’s: un-applying is a change to what that payment or credit note has done.
+         */
+        delete: operations["deleteAllocation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/login": {
         parameters: {
             query?: never;
@@ -187,6 +231,95 @@ export interface paths {
          * @description Creates a user, their first organization, an Owner membership, and a session, atomically. Sets an `HttpOnly` session cookie; the token is never in the body. Reachable without credentials.
          */
         post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List bills
+         * @description One page of headers with totals and settlement, and no lines. Ordered by `(created_at, id)`, for `listInvoices`’ reasons. `reference` filters on the vendor’s own invoice number.
+         */
+        get: operations["listBills"];
+        put?: never;
+        /**
+         * Create a draft bill
+         * @description Creates a draft. `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one rather than a formality. `contactId` must be a vendor — `contact_is_not_a_vendor` otherwise.
+         */
+        post: operations["createBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/{billId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One bill, with its lines and allocations */
+        get: operations["getBill"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a draft bill
+         * @description Deletes a draft and its lines. Nothing reached the ledger and no number was allocated, so nothing is restated and no gap is left.
+         */
+        delete: operations["discardBill"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft bill
+         * @description Drafts only; an approved bill answers `document_approved`. `lines` replaces the whole set. The correction after approval is a vendor credit or a void, never an edit (D-38).
+         */
+        patch: operations["updateBill"];
+        trace?: never;
+    };
+    "/v1/bills/{billId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a bill and post its journal
+         * @description The irreversible step (D-38). In one transaction it allocates the bill’s gapless number, posts a balanced journal debiting what was bought and **crediting** the org’s payables control account, and records both. Refusals worth branching on: `duplicate_vendor_reference` when another approved, un-voided bill from this vendor already quotes this `reference`; `payable_control_account_not_set` and `payable_control_account_unusable` naming the org setting to fix; and `document_already_approved` when it has already happened.
+         */
+        post: operations["approveBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/{billId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void an approved bill
+         * @description Posts a reversing journal and records it on the bill; nothing is deleted (D-16, C7). The reversal takes its own `date`, which must fall in an open period. A bill with allocations against it is refused with `document_has_allocations`.
+         */
+        post: operations["voidBill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -316,6 +449,112 @@ export interface paths {
          * @description The counterpart, so that deactivation is not a one-way door.
          */
         post: operations["reactivateContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List credit notes
+         * @description One page of headers, ordered by `(created_at, id)` for `listInvoices`’ reasons. `settlement.outstanding` here reads as “credit still available to apply” — the same arithmetic as an invoice’s “still owed” (D-34).
+         */
+        get: operations["listCreditNotes"];
+        put?: never;
+        /**
+         * Create a draft credit note
+         * @description A credit note is a document, not a negative invoice (D-39): its lines are positive and the direction is what the type carries. There is no `dueDate` — nothing about a credit note falls due, and aging never ages one.
+         */
+        post: operations["createCreditNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credit-notes/{creditNoteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One credit note, with its lines and allocations */
+        get: operations["getCreditNote"];
+        put?: never;
+        post?: never;
+        /** Discard a draft credit note */
+        delete: operations["discardCreditNote"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft credit note
+         * @description Drafts only, and `lines` replaces the whole set. See `updateInvoice`.
+         */
+        patch: operations["updateCreditNote"];
+        trace?: never;
+    };
+    "/v1/credit-notes/{creditNoteId}/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a credit note to invoices
+         * @description D-39’s whole point: a credit note reduces what is owed through the same rows a payment does, so “what is outstanding” has one definition regardless of what reduced it. Available is the credit note’s total less what has already been applied, read under its row lock. Takes `credit_notes.write`. Targets must be invoices belonging to the same contact; the refusals are `allocatePayment`’s.
+         */
+        post: operations["allocateCreditNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credit-notes/{creditNoteId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a credit note and post its journal
+         * @description Allocates the credit note’s own gapless number — a separate series from invoices, because they are separate series to the people who read them (D-36) — and posts the mirror of an invoice’s journal, crediting receivables. Approving makes the credit available; it does not apply it to anything. That is a separate fact (D-39): see `POST /v1/credit-notes/{creditNoteId}/allocations`.
+         */
+        post: operations["approveCreditNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/credit-notes/{creditNoteId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void an approved credit note
+         * @description A reversing journal, never a deletion. A credit note that has been applied to an invoice is refused with `document_allocated`.
+         */
+        post: operations["voidCreditNote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -648,6 +887,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List invoices
+         * @description One page of headers with totals and settlement, and no lines. Ordered by `(created_at, id)` and not by document number: a draft has none until approval, and `issueDate` is editable while it is a draft — a keyset over a mutable column silently drops the rows that moved behind the cursor.
+         */
+        get: operations["listInvoices"];
+        put?: never;
+        /**
+         * Create a draft invoice
+         * @description Creates a draft. Nothing is posted and no number is allocated — a number reserved by a draft that was then discarded would leave a gap, and a gap in a document series is indistinguishable from a deletion (D-36). `dueDate` defaults to `issueDate`.
+         */
+        post: operations["createInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One invoice, with its lines and allocations
+         * @description `status` and `settlement` are computed from the journals and the allocations on every read (D-34, D-38). Neither is stored, and neither may be written back.
+         */
+        get: operations["getInvoice"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a draft invoice
+         * @description Deletes a draft and its lines. Nothing in the ledger changes, because nothing about this invoice ever reached it, and no number is freed because none was allocated. An approved invoice is refused with `document_not_draft` — void it instead.
+         */
+        delete: operations["discardInvoice"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft invoice
+         * @description Drafts only. An approved invoice answers `precondition_failed` with `document_not_draft`: the ledger has been told, and the correction is a credit note or a void (D-38). `lines` replaces the whole set, and changing `taxMode` reprices them rather than converting them.
+         */
+        patch: operations["updateInvoice"];
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an invoice and post its journal
+         * @description The irreversible step (D-38), and the only thing on this path that writes to the ledger (C1): in one transaction it allocates the gapless document number, posts a balanced journal debiting the org’s receivables control account, and records both. No body — the entry date is the invoice’s own `issueDate` and the actor is the session. Refusals worth branching on: `receivable_control_account_not_set` and `receivable_control_account_unusable` are `precondition_failed` naming the org setting to fix, and an invoice that is already approved is a `409 conflict` — approval posts to the ledger and happens once.
+         */
+        post: operations["approveInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void an approved invoice
+         * @description Posts a reversing journal and records it on the invoice. Nothing is deleted: the invoice, its number and its original journal all stay visible, because a voided document that vanished would make the gapless sequence a lie (D-16, D-38, C7). The reversal takes its own `date`, which must fall in an open period. An invoice with allocations against it is refused with `document_allocated` — un-apply them first, or the payment would read as fully applied while the receivable had been reversed.
+         */
+        post: operations["voidInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journal-drafts": {
         parameters: {
             query?: never;
@@ -873,6 +1204,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List payments
+         * @description One page, ordered by `(created_at, id)` and not by `date`: payments are recorded in whatever order the paperwork surfaces, so a back-dated one would land behind a cursor that had already passed its date and appear on no page at all. Omitting `direction` spans both subledgers and therefore requires both read permissions.
+         */
+        get: operations["listPayments"];
+        put?: never;
+        /**
+         * Record a payment, optionally applying it
+         * @description Posts a journal moving money through `accountId` against the control account the `direction` chooses, and optionally applies it in the same transaction. `allocations` may be absent or short of `amount`: over-**paying** is fine and the remainder is a credit balance on the contact (D-37), while over-allocating a document is refused with `document_over_allocated` and takes the whole request with it. A payment has no draft state and no gapless number — money either moved or it did not.
+         */
+        post: operations["recordPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payments/{paymentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One payment, with its allocations
+         * @description `settlement.outstanding` is the credit still available on the contact — the same arithmetic as an invoice’s “still owed”, computed on read (D-34).
+         */
+        get: operations["getPayment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a payment’s reference and memo
+         * @description The text a human wrote, and nothing else. `amount`, `date`, `accountId` and `direction` are facts the posted journal carries and a journal is never edited (spec §2.2, D-16) — a payment recorded wrongly is voided and recorded again.
+         */
+        patch: operations["updatePayment"];
+        trace?: never;
+    };
+    "/v1/payments/{paymentId}/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a recorded payment to documents
+         * @description Applies up to the payment’s unallocated remainder across one or more invoices or bills. A batch, because “this transfer paid three invoices” is one decision by one person and has to succeed or fail as one. Posts no journal: the money entered the ledger when the payment was recorded, and a second posting would double-count. Refusals: `document_over_allocated` when a target would be settled past its total (C3), `source_over_allocated` when the payment has less left than the batch asks for, `allocation_target_mismatch` when a target is on the other subledger, `allocation_contact_mismatch` when it belongs to a different contact, `document_not_approved` for a draft target, `document_void`, and `payment_void`.
+         */
+        post: operations["allocatePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payments/{paymentId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a payment
+         * @description Posts a reversing journal and **deletes the allocations this payment made** — the money did not move, so nothing it settled is settled, and outstanding is a sum over those rows rather than a column anyone could correct. The payment itself stays visible with both journals (D-16). The reversal takes its own `date`, which must fall in an open period.
+         */
+        post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/aging": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aging, as at a date
+         * @description What is owed and how late it is, per contact, split into current / 1–30 / 31–60 / 61–90 / 90+ days past due — measured from the **due** date rather than the issue date, because that is what "overdue" means to the person chasing it (D-40). Aggregated over documents and allocations rather than over journal lines, which is what makes C8 worth asserting: `totals` must equal the control account’s balance at `asOf`, and an aging report that does not tie to the ledger is a list of hopes. That is why unapplied credit is in here at all — an unallocated payment or credit note is money already sitting in the control account, so it appears as a **negative** amount in `current` on the contact holding it, and a report that omitted it would overstate what the business is owed by exactly that much. The report deliberately does not state the control-account balance itself: an org that has nominated nothing has none to state, and a reconciliation that is sometimes reported is one nobody trusts. Everything is computed as at `asOf`, including each document’s `outstanding`, so last month’s aging still prints last month’s figures next year. Not paginated, on purpose: a page of buckets sums to nothing in particular. Takes `reports.read` and only that.
+         */
+        get: operations["getAging"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/balance-sheet": {
         parameters: {
             query?: never;
@@ -967,6 +1406,201 @@ export interface paths {
         get: operations["listAssignableRoles"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tax-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List tax rates
+         * @description One page, ordered by `(created_at, id)` and not by name: `name` is mutable, and a keyset over a mutable column silently drops the rows that moved behind the cursor. A rate has no immutable code to sort on the way the chart of accounts does (D-27).
+         */
+        get: operations["listTaxRates"];
+        put?: never;
+        /**
+         * Create a tax rate
+         * @description Rates are created active. `accountId` must name an active **asset or liability** account: tax collected on a sale is owed to the authority and tax paid on a purchase is reclaimable from it, and both are balance-sheet positions. Revenue, expense and equity are refused with `tax_account_not_a_balance_sheet_account` — tax posted to profit overstates turnover by exactly the amount owed and nothing in the trial balance would show it. A percentage of `"0"` is accepted and means zero-rated, which is not the same as a line carrying no rate at all.
+         */
+        post: operations["createTaxRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tax-rates/{taxRateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One tax rate */
+        get: operations["getTaxRate"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a tax rate no document has used
+         * @description A rate cited by any document line answers `precondition_failed` with `tax_rate_in_use`, naming whether it is a receivable or a payable that cites it; archive it instead. The guarantee is the database’s `ON DELETE RESTRICT` rather than the pre-check, so losing a race is the same refusal and not a 500.
+         */
+        delete: operations["deleteTaxRate"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a tax rate
+         * @description `name`, `accountId` and `appliesTo` only. Neither of the latter two restates a posted journal — repointing a rate changes where future tax posts and leaves every past posting where it was — which is the test the immutable `percentage` fails.
+         */
+        patch: operations["updateTaxRate"];
+        trace?: never;
+    };
+    "/v1/tax-rates/{taxRateId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a tax rate
+         * @description Takes the rate out of circulation without removing it from the documents that used it, which is the only form of removal available to a rate a posted document names. Idempotent: an already-archived rate is returned unchanged rather than refused.
+         */
+        post: operations["archiveTaxRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/tax-rates/{taxRateId}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unarchive a tax rate
+         * @description The counterpart, so that archiving is not a one-way door.
+         */
+        post: operations["unarchiveTaxRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List vendor credits
+         * @description One page of headers, ordered by `(created_at, id)`. `settlement.outstanding` reads as “credit still available to apply against bills”.
+         */
+        get: operations["listVendorCredits"];
+        put?: never;
+        /**
+         * Create a draft vendor credit
+         * @description The AP mirror of a credit note, and a document in its own right (D-39). No `dueDate`: nothing about it falls due, and aging never ages one.
+         */
+        post: operations["createVendorCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-credits/{vendorCreditId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One vendor credit, with its lines and allocations */
+        get: operations["getVendorCredit"];
+        put?: never;
+        post?: never;
+        /** Discard a draft vendor credit */
+        delete: operations["discardVendorCredit"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft vendor credit
+         * @description Drafts only, and `lines` replaces the whole set. See `updateBill`.
+         */
+        patch: operations["updateVendorCredit"];
+        trace?: never;
+    };
+    "/v1/vendor-credits/{vendorCreditId}/allocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a vendor credit to bills
+         * @description The payables mirror of `allocateCreditNote`, taking `vendor_credits.write`. Targets must be bills belonging to the same contact.
+         */
+        post: operations["allocateVendorCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-credits/{vendorCreditId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a vendor credit and post its journal
+         * @description Allocates the vendor credit’s own gapless number — a separate series from bills — and posts the mirror of a bill’s journal, debiting payables. Approving makes the credit available; applying it to a bill is a separate fact (D-39): see `POST /v1/vendor-credits/{vendorCreditId}/allocations`.
+         */
+        post: operations["approveVendorCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-credits/{vendorCreditId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void an approved vendor credit
+         * @description A reversing journal, never a deletion. A vendor credit that has been applied to a bill is refused with `document_has_allocations`.
+         */
+        post: operations["voidVendorCredit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1076,6 +1710,182 @@ export interface components {
             items: components["schemas"]["AccountInput"][];
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description What is owed, bucketed by how late it is, as at `asOf`. `totals` is the sum of the rows bucket by bucket and is what must tie to the control account at that date (C8). The report deliberately does not state that balance itself — an org that has nominated no control account has none to state, and a reconciliation that is sometimes reported is one nobody trusts. */
+        Aging: {
+            asOf: components["schemas"]["CalendarDate"];
+            /**
+             * @description `receivable` ages invoices against what customers owe; `payable` ages bills against what is owed to vendors. Each ties to its own control account (C8).
+             * @enum {string}
+             */
+            ledger: "receivable" | "payable";
+            rows: components["schemas"]["AgingRow"][];
+            totals: components["schemas"]["AgingAmounts"];
+        };
+        /** @description The five buckets and their total — one component for a contact’s row and for the report’s own totals, because three windows of the same shape are one type. */
+        AgingAmounts: {
+            current: components["schemas"]["MinorUnits"];
+            days1To30: components["schemas"]["MinorUnits"];
+            days31To60: components["schemas"]["MinorUnits"];
+            days61To90: components["schemas"]["MinorUnits"];
+            days90Plus: components["schemas"]["MinorUnits"];
+            /** @description The five buckets summed. This is what must tie to the control account (C8). */
+            total: components["schemas"]["MinorUnits"];
+        };
+        /** @description The five buckets and their total — one component for a contact’s row and for the report’s own totals, because three windows of the same shape are one type. */
+        AgingAmountsInput: {
+            current: components["schemas"]["MinorUnitsInput"];
+            days1To30: components["schemas"]["MinorUnitsInput"];
+            days31To60: components["schemas"]["MinorUnitsInput"];
+            days61To90: components["schemas"]["MinorUnitsInput"];
+            days90Plus: components["schemas"]["MinorUnitsInput"];
+            /** @description The five buckets summed. This is what must tie to the control account (C8). */
+            total: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One open item, for the drill-through. `outstanding` is as at the report’s date, not as at now (D-40). On a credit row `total` and `outstanding` are negative, and `dueDate` and `daysPastDue` are both null — a credit is allocated, not chased. */
+        AgingDocument: {
+            /**
+             * @description How far past its due date a document is, as at the report’s `asOf`. `current` is not yet due, including due exactly today.
+             * @enum {string}
+             */
+            bucket: "current" | "days1To30" | "days31To60" | "days61To90" | "days90Plus";
+            /** @description Negative when the document is not yet due. Measured from `dueDate` to `asOf`, and null wherever `dueDate` is — a credit is allocated rather than chased. */
+            daysPastDue: number | null;
+            /** Format: uuid */
+            documentId: string;
+            documentNumber: string;
+            /**
+             * @description What the row is. `invoice` and `bill` carry an amount owed and are positive; `payment`, `credit_note` and `vendor_credit` carry unapplied credit and are negative.
+             * @enum {string}
+             */
+            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit";
+            dueDate: components["schemas"]["CalendarDate"] | null;
+            issueDate: components["schemas"]["CalendarDate"];
+            /** @description Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). Negative on a credit row. */
+            outstanding: components["schemas"]["MinorUnits"];
+            reference: string | null;
+            total: components["schemas"]["MinorUnits"];
+        };
+        /** @description One open item, for the drill-through. `outstanding` is as at the report’s date, not as at now (D-40). On a credit row `total` and `outstanding` are negative, and `dueDate` and `daysPastDue` are both null — a credit is allocated, not chased. */
+        AgingDocumentInput: {
+            /**
+             * @description How far past its due date a document is, as at the report’s `asOf`. `current` is not yet due, including due exactly today.
+             * @enum {string}
+             */
+            bucket: "current" | "days1To30" | "days31To60" | "days61To90" | "days90Plus";
+            /** @description Negative when the document is not yet due. Measured from `dueDate` to `asOf`, and null wherever `dueDate` is — a credit is allocated rather than chased. */
+            daysPastDue: number | null;
+            /** Format: uuid */
+            documentId: string;
+            documentNumber: string;
+            /**
+             * @description What the row is. `invoice` and `bill` carry an amount owed and are positive; `payment`, `credit_note` and `vendor_credit` carry unapplied credit and are negative.
+             * @enum {string}
+             */
+            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit";
+            dueDate: components["schemas"]["CalendarDateInput"] | null;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            /** @description Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). Negative on a credit row. */
+            outstanding: components["schemas"]["MinorUnitsInput"];
+            reference: string | null;
+            total: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description What is owed, bucketed by how late it is, as at `asOf`. `totals` is the sum of the rows bucket by bucket and is what must tie to the control account at that date (C8). The report deliberately does not state that balance itself — an org that has nominated no control account has none to state, and a reconciliation that is sometimes reported is one nobody trusts. */
+        AgingInput: {
+            asOf: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description `receivable` ages invoices against what customers owe; `payable` ages bills against what is owed to vendors. Each ties to its own control account (C8).
+             * @enum {string}
+             */
+            ledger: "receivable" | "payable";
+            rows: components["schemas"]["AgingRowInput"][];
+            totals: components["schemas"]["AgingAmountsInput"];
+        };
+        /** @description One contact’s aging. `documents` is null rather than absent when `detail` was not asked for; when it is present its `outstanding` values sum to `amounts.total`. */
+        AgingRow: {
+            amounts: components["schemas"]["AgingAmounts"];
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            documents: components["schemas"]["AgingDocument"][] | null;
+        };
+        /** @description One contact’s aging. `documents` is null rather than absent when `detail` was not asked for; when it is present its `outstanding` values sum to `amounts.total`. */
+        AgingRowInput: {
+            amounts: components["schemas"]["AgingAmountsInput"];
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            documents: components["schemas"]["AgingDocumentInput"][] | null;
+        };
+        /** @description One allocation as the API returns it, naming both ends — the same shape is embedded on a payment, where the client knows the source, and on an invoice, where it knows the target. */
+        Allocation: {
+            /** @description How much of the source is applied to this target, in minor units. Always positive. Allocations against one document may not exceed it (C3) — over-allocating is refused, while over-*paying* is fine and lands as a credit on the contact (D-37). */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
+            date: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceId: string;
+            /** @description The source document’s own number, or null for a payment — a payment is money moving, not a numbered document (D-36 numbers the four document types and nothing else). */
+            sourceNumber: string | null;
+            /** @enum {string} */
+            sourceType: "payment" | "credit_note" | "vendor_credit";
+            /** Format: uuid */
+            targetId: string;
+            targetNumber: string | null;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
+        };
+        /** @description One allocation as the API returns it, naming both ends — the same shape is embedded on a payment, where the client knows the source, and on an invoice, where it knows the target. */
+        AllocationInput: {
+            /** @description How much of the source is applied to this target, in minor units. Always positive. Allocations against one document may not exceed it (C3) — over-allocating is refused, while over-*paying* is fine and lands as a credit on the contact (D-37). */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
+            date: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sourceId: string;
+            /** @description The source document’s own number, or null for a payment — a payment is money moving, not a numbered document (D-36 numbers the four document types and nothing else). */
+            sourceNumber: string | null;
+            /** @enum {string} */
+            sourceType: "payment" | "credit_note" | "vendor_credit";
+            /** Format: uuid */
+            targetId: string;
+            targetNumber: string | null;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
+        };
+        /** @description The allocations this call wrote, in the order they were applied. */
+        AllocationList: {
+            allocations: components["schemas"]["Allocation"][];
+        };
+        /** @description The allocations this call wrote, in the order they were applied. */
+        AllocationListInput: {
+            allocations: components["schemas"]["AllocationInput"][];
+        };
+        /** @description One application, as a client sends it: which document, and how much. The source is not named here because it is the resource in the path. */
+        AllocationRequest: {
+            /** @description How much of the source is applied to this target, in minor units. Always positive. Allocations against one document may not exceed it (C3) — over-allocating is refused, while over-*paying* is fine and lands as a credit on the contact (D-37). */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
+        };
+        /** @description One application, as a client sends it: which document, and how much. The source is not named here because it is the resource in the path. */
+        AllocationRequestInput: {
+            /** @description How much of the source is applied to this target, in minor units. Always positive. Allocations against one document may not exceed it (C3) — over-allocating is refused, while over-*paying* is fine and lands as a credit on the contact (D-37). */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            targetId: string;
+            /** @enum {string} */
+            targetType: "invoice" | "bill";
         };
         /** @description Every account the application created, in the order it created them — the one moment a caller learns their ids without paging the chart back. */
         AppliedChartTemplate: {
@@ -1273,6 +2083,142 @@ export interface components {
             /** @description Revenue less expenses for every fiscal year before the one containing `asOf`. Derived, never an account (D-20) — it is what a closing journal would have moved into equity. */
             priorYearEarnings: components["schemas"]["MinorUnitsInput"];
         };
+        /** @description A bill from a vendor, with its lines. `reference` is the vendor’s own invoice number (D-36) and a duplicate is refused at approval. `status` and `settlement` are computed on read (D-34, D-38). */
+        Bill: {
+            /** @description What has been applied against this bill — payments made and vendor credits alike, through the same mechanism (D-39). */
+            allocations: components["schemas"]["Allocation"][];
+            /**
+             * Format: uuid
+             * @description The vendor who billed us.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When payment is due. Aging measures from here, not from `issueDate` (D-40). */
+            dueDate: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            id: string;
+            /** @description The date the vendor issued the bill, and the entry date of the journal it posts. It must fall inside an open fiscal period at approval (D-17). */
+            issueDate: components["schemas"]["CalendarDate"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            /** @description The vendor’s own invoice number (D-36). Distinct from `documentNumber`, which is our internal handle: this is the number the vendor prints, quotes when chasing, and expects on a remittance. */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRow"][];
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description A bill from a vendor, with its lines. `reference` is the vendor’s own invoice number (D-36) and a duplicate is refused at approval. `status` and `settlement` are computed on read (D-34, D-38). */
+        BillInput: {
+            /** @description What has been applied against this bill — payments made and vendor credits alike, through the same mechanism (D-39). */
+            allocations: components["schemas"]["AllocationInput"][];
+            /**
+             * Format: uuid
+             * @description The vendor who billed us.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When payment is due. Aging measures from here, not from `issueDate` (D-40). */
+            dueDate: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            id: string;
+            /** @description The date the vendor issued the bill, and the entry date of the journal it posts. It must fall inside an open fiscal period at approval (D-17). */
+            issueDate: components["schemas"]["CalendarDateInput"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            /** @description The vendor’s own invoice number (D-36). Distinct from `documentNumber`, which is our internal handle: this is the number the vendor prints, quotes when chasing, and expects on a remittance. */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRowInput"][];
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description One page of bills, oldest first by creation. */
+        BillPage: {
+            items: components["schemas"]["BillSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of bills, oldest first by creation. */
+        BillPageInput: {
+            items: components["schemas"]["BillSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A bill in a list, without its lines. */
+        BillSummary: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            dueDate: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A bill in a list, without its lines. */
+        BillSummaryInput: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            dueDate: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
         /**
          * Format: date
          * @description A calendar date, `YYYY-MM-DD`. Not an instant: an accounting date carries no time and no timezone, because which fiscal period an entry lands in must not depend on the reader’s.
@@ -1395,6 +2341,20 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. */
+        ControlAccounts: {
+            /** @description The account an approved bill credits and an approved vendor credit debits. Null until the org nominates one. */
+            payableControlAccountId: string | null;
+            /** @description The account an approved invoice debits and an approved credit note credits. Null until the org nominates one; approving an AR document without it is a `precondition_failed`. */
+            receivableControlAccountId: string | null;
+        };
+        /** @description Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. */
+        ControlAccountsInput: {
+            /** @description The account an approved bill credits and an approved vendor credit debits. Null until the org nominates one. */
+            payableControlAccountId: string | null;
+            /** @description The account an approved invoice debits and an approved credit note credits. Null until the org nominates one; approving an AR document without it is a `precondition_failed`. */
+            receivableControlAccountId: string | null;
+        };
         /** @description Creates one account. Accounts are created active, and top-level unless a `parentAccountId` is given. */
         CreateAccountRequest: {
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
@@ -1433,6 +2393,48 @@ export interface components {
              */
             type: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
+        /** @description Applies one source to several targets in one call. A batch rather than a call per target, because “this transfer paid three invoices” is one decision and has to succeed or fail as one — applying two and refusing the third would leave the user to work out which half happened. */
+        CreateAllocationsRequest: {
+            allocations: components["schemas"]["AllocationRequest"][];
+            /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
+            date?: components["schemas"]["CalendarDate"];
+        };
+        /** @description Applies one source to several targets in one call. A batch rather than a call per target, because “this transfer paid three invoices” is one decision and has to succeed or fail as one — applying two and refusing the third would leave the user to work out which half happened. */
+        CreateAllocationsRequestInput: {
+            allocations: components["schemas"]["AllocationRequestInput"][];
+            /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
+            date?: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. */
+        CreateBillRequest: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. */
+        CreateBillRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
         /** @description Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequest: {
             code?: string | null;
@@ -1460,6 +2462,34 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+        };
+        /** @description Creates a **draft** credit note. No `dueDate`, for the reason `CreditNote` gives: nothing about a credit note falls due. */
+        CreateCreditNoteRequest: {
+            /** Format: uuid */
+            contactId: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** credit note. No `dueDate`, for the reason `CreditNote` gives: nothing about a credit note falls due. */
+        CreateCreditNoteRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
         };
         /** @description Creates one axis. An org may hold at most `MAX_DIMENSIONS_PER_ORG` of them, archived ones included; over that is a `precondition_failed`. */
         CreateDimensionRequest: {
@@ -1519,6 +2549,36 @@ export interface components {
             /** @description The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026. */
             year: number;
         };
+        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. */
+        CreateInvoiceRequest: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. */
+        CreateInvoiceRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
         /** @description Creates an organization with the calling user as its Owner. No slug — it is derived from the name. */
         CreateOrgRequest: {
             /**
@@ -1542,6 +2602,218 @@ export interface components {
             fiscalYearStartMonth?: number;
             /** @description Length is bounded by the server (`orgs.name` is `VARCHAR(255)`) and reported as a `validation_failed` naming `name`. */
             name: string;
+        };
+        /** @description Records a payment, optionally applying it in the same call. `allocations` may be absent or short of the amount (D-37) — over-*paying* is fine and lands as credit on the contact, while over-allocating a document is refused (C3). */
+        CreatePaymentRequest: {
+            /** Format: uuid */
+            accountId: string;
+            allocations?: components["schemas"]["AllocationRequest"][];
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            contactId: string;
+            date: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Records a payment, optionally applying it in the same call. `allocations` may be absent or short of the amount (D-37) — over-*paying* is fine and lands as credit on the contact, while over-allocating a document is refused (C3). */
+        CreatePaymentRequestInput: {
+            /** Format: uuid */
+            accountId: string;
+            allocations?: components["schemas"]["AllocationRequestInput"][];
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            contactId: string;
+            date: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
+        CreateTaxRateRequest: {
+            /** Format: uuid */
+            accountId: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo?: "sales" | "purchases" | "both";
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name: string;
+            percentage: components["schemas"]["TaxPercentage"];
+        };
+        /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
+        CreateTaxRateRequestInput: {
+            /** Format: uuid */
+            accountId: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo?: "sales" | "purchases" | "both";
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name: string;
+            percentage: components["schemas"]["TaxPercentageInput"];
+        };
+        /** @description Creates a **draft** vendor credit. No `dueDate`: nothing about one falls due. */
+        CreateVendorCreditRequest: {
+            /** Format: uuid */
+            contactId: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** vendor credit. No `dueDate`: nothing about one falls due. */
+        CreateVendorCreditRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description A credit note: a document, not a negative invoice (D-39). Its lines are positive and the direction is what the document type carries, so `settlement.outstanding` reads as “credit still available to apply”. There is no `dueDate` — nothing about a credit note falls due. */
+        CreditNote: {
+            /** @description The invoices this credit note has been applied to, and for how much. */
+            allocations: components["schemas"]["Allocation"][];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            /** @description Free text — commonly the customer’s claim or return reference (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRow"][];
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description A credit note: a document, not a negative invoice (D-39). Its lines are positive and the direction is what the document type carries, so `settlement.outstanding` reads as “credit still available to apply”. There is no `dueDate` — nothing about a credit note falls due. */
+        CreditNoteInput: {
+            /** @description The invoices this credit note has been applied to, and for how much. */
+            allocations: components["schemas"]["AllocationInput"][];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            /** @description Free text — commonly the customer’s claim or return reference (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRowInput"][];
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description One page of credit notes, oldest first by creation. */
+        CreditNotePage: {
+            items: components["schemas"]["CreditNoteSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of credit notes, oldest first by creation. */
+        CreditNotePageInput: {
+            items: components["schemas"]["CreditNoteSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A credit note in a list, without its lines. */
+        CreditNoteSummary: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A credit note in a list, without its lines. */
+        CreditNoteSummaryInput: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @description One reporting axis: a way of dividing the business that the chart should not carry. */
         Dimension: {
@@ -1632,6 +2904,132 @@ export interface components {
             items: components["schemas"]["DimensionValueInput"][];
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description One line as the API returns it: what was entered, and what the arithmetic made of it. `netAmount + taxAmount === grossAmount` holds exactly, per line, and the document’s totals are the sums of these rather than the rate applied to a sum (D-35). */
+        DocumentLine: {
+            /** Format: uuid */
+            accountId: string;
+            description: string;
+            dimensionValueIds: string[];
+            /** @description `netAmount + taxAmount`, exactly. What this line adds to what is owed. */
+            grossAmount: components["schemas"]["MinorUnits"];
+            /** @description A `BIGINT` line identifier, stringified for the reason money is: a JSON number cannot carry one past 2^53 (D-13’s argument applied to an identifier). */
+            lineId: string;
+            lineNumber: number;
+            /** @description What posts to `accountId`. The extended amount, less tax when the mode is inclusive. */
+            netAmount: components["schemas"]["MinorUnits"];
+            quantity: components["schemas"]["Quantity"];
+            /** @description What posts to the rate’s liability account. Rounded once, here, at the line — the document’s tax is the sum of these and never the rate applied to the document total. */
+            taxAmount: components["schemas"]["MinorUnits"];
+            taxRateId: string | null;
+            /** @description The percentage the line was taxed at, as it stood when the document was priced. Null when the line carries no rate, which is not the same as a zero-rated one. */
+            taxRatePercentage: string | null;
+            unitAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description One line as the API returns it: what was entered, and what the arithmetic made of it. `netAmount + taxAmount === grossAmount` holds exactly, per line, and the document’s totals are the sums of these rather than the rate applied to a sum (D-35). */
+        DocumentLineInput: {
+            /** Format: uuid */
+            accountId: string;
+            description: string;
+            dimensionValueIds: string[];
+            /** @description `netAmount + taxAmount`, exactly. What this line adds to what is owed. */
+            grossAmount: components["schemas"]["MinorUnitsInput"];
+            /** @description A `BIGINT` line identifier, stringified for the reason money is: a JSON number cannot carry one past 2^53 (D-13’s argument applied to an identifier). */
+            lineId: string;
+            lineNumber: number;
+            /** @description What posts to `accountId`. The extended amount, less tax when the mode is inclusive. */
+            netAmount: components["schemas"]["MinorUnitsInput"];
+            quantity: components["schemas"]["QuantityInput"];
+            /** @description What posts to the rate’s liability account. Rounded once, here, at the line — the document’s tax is the sum of these and never the rate applied to the document total. */
+            taxAmount: components["schemas"]["MinorUnitsInput"];
+            taxRateId: string | null;
+            /** @description The percentage the line was taxed at, as it stood when the document was priced. Null when the line carries no rate, which is not the same as a zero-rated one. */
+            taxRatePercentage: string | null;
+            unitAmount: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One line as a client sends it. There is no `amount`: the line’s money is `quantity × unitAmount`, and accepting a total alongside its factors would make a line that contradicts itself expressible. */
+        DocumentLineRequest: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
+             */
+            accountId: string;
+            /** @description What the line is for. This is what prints on the document. */
+            description: string;
+            /** @description Every dimension value this line carries. A value names its own axis; an omitted axis is untagged. Carried onto the journal line the document posts. */
+            dimensionValueIds?: string[];
+            quantity: components["schemas"]["Quantity"];
+            /** @description The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning. */
+            unitAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description One line as a client sends it. There is no `amount`: the line’s money is `quantity × unitAmount`, and accepting a total alongside its factors would make a line that contradicts itself expressible. */
+        DocumentLineRequestInput: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
+             */
+            accountId: string;
+            /** @description What the line is for. This is what prints on the document. */
+            description: string;
+            /** @description Every dimension value this line carries. A value names its own axis; an omitted axis is untagged. Carried onto the journal line the document posts. */
+            dimensionValueIds?: string[];
+            quantity: components["schemas"]["QuantityInput"];
+            /** @description The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning. */
+            unitAmount: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description What is left on a document, **computed on read and stored nowhere** (D-34). The same two numbers answer four questions: on an invoice or a bill `outstanding` is what is still owed, and on a credit note, a vendor credit or a payment it is what is still available to apply. */
+        DocumentSettlement: {
+            /** @description The sum of the allocations applied to or from this document, as at now. */
+            allocated: components["schemas"]["MinorUnits"];
+            /** @description Total minus `allocated`, computed on read and stored nowhere (D-34). On an invoice or a bill this is what is still owed; on a credit note, a vendor credit or a payment it is what is still available to apply. */
+            outstanding: components["schemas"]["MinorUnits"];
+        };
+        /** @description What is left on a document, **computed on read and stored nowhere** (D-34). The same two numbers answer four questions: on an invoice or a bill `outstanding` is what is still owed, and on a credit note, a vendor credit or a payment it is what is still available to apply. */
+        DocumentSettlementInput: {
+            /** @description The sum of the allocations applied to or from this document, as at now. */
+            allocated: components["schemas"]["MinorUnitsInput"];
+            /** @description Total minus `allocated`, computed on read and stored nowhere (D-34). On an invoice or a bill this is what is still owed; on a credit note, a vendor credit or a payment it is what is still available to apply. */
+            outstanding: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One rate’s share of a document, which is what a tax return is filed from. Grouped by rate id rather than by percentage, because two rates can share a percentage and post to different accounts. */
+        DocumentTaxSummaryRow: {
+            net: components["schemas"]["MinorUnits"];
+            percentage: string | null;
+            tax: components["schemas"]["MinorUnits"];
+            /** @description Null is the untaxed group — lines carrying no rate at all. */
+            taxRateId: string | null;
+            taxRateName: string | null;
+        };
+        /** @description One rate’s share of a document, which is what a tax return is filed from. Grouped by rate id rather than by percentage, because two rates can share a percentage and post to different accounts. */
+        DocumentTaxSummaryRowInput: {
+            net: components["schemas"]["MinorUnitsInput"];
+            percentage: string | null;
+            tax: components["schemas"]["MinorUnitsInput"];
+            /** @description Null is the untaxed group — lines carrying no rate at all. */
+            taxRateId: string | null;
+            taxRateName: string | null;
+        };
+        /** @description The three totals, each the sum of the corresponding rounded line (D-35). */
+        DocumentTotals: {
+            /** @description `net + tax`. What the document is for. */
+            gross: components["schemas"]["MinorUnits"];
+            /** @description The sum of every line’s `netAmount`. */
+            net: components["schemas"]["MinorUnits"];
+            /** @description The sum of every line’s `taxAmount` — the sum of rounded lines, never the rounded sum. A customer who adds the tax column must reach this number. */
+            tax: components["schemas"]["MinorUnits"];
+        };
+        /** @description The three totals, each the sum of the corresponding rounded line (D-35). */
+        DocumentTotalsInput: {
+            /** @description `net + tax`. What the document is for. */
+            gross: components["schemas"]["MinorUnitsInput"];
+            /** @description The sum of every line’s `netAmount`. */
+            net: components["schemas"]["MinorUnitsInput"];
+            /** @description The sum of every line’s `taxAmount` — the sum of rounded lines, never the rounded sum. A customer who adds the tax column must reach this number. */
+            tax: components["schemas"]["MinorUnitsInput"];
         };
         /** @description The body of every non-2xx response. */
         ErrorResponse: {
@@ -1954,6 +3352,146 @@ export interface components {
             email: string;
             /** Format: uuid */
             roleId: string;
+        };
+        /** @description A customer invoice, with its lines. `status` and `settlement` are computed on read and stored nowhere (D-34, D-38) — a client that wrote either back would be writing a field the server derives. */
+        Invoice: {
+            /** @description What has been applied against this invoice — payments and credit notes alike, through one mechanism (D-39). These are what `settlement` is computed from. */
+            allocations: components["schemas"]["Allocation"][];
+            /**
+             * Format: uuid
+             * @description The customer being invoiced.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When payment is due. Aging measures from here rather than from `issueDate`, because that is what "overdue" means to the person chasing it (D-40). */
+            dueDate: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            id: string;
+            /** @description The date the invoice is issued, and the entry date of the journal it posts. It must fall inside an open fiscal period at approval — periods are never created as a side effect (D-17). */
+            issueDate: components["schemas"]["CalendarDate"];
+            /** @description The journal this invoice posted at approval, or null while it is a draft. Approval is the only thing that writes to the ledger (C1). */
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            /** @description The customer’s own reference for this invoice — their purchase-order number, in practice. Free text we do not issue and do not check (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRow"][];
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The reversing journal, once voided (D-38). The invoice, its number and its original journal all remain visible — nothing is deleted (D-16, C7). */
+            voidJournalId: string | null;
+        };
+        /** @description A customer invoice, with its lines. `status` and `settlement` are computed on read and stored nowhere (D-34, D-38) — a client that wrote either back would be writing a field the server derives. */
+        InvoiceInput: {
+            /** @description What has been applied against this invoice — payments and credit notes alike, through one mechanism (D-39). These are what `settlement` is computed from. */
+            allocations: components["schemas"]["AllocationInput"][];
+            /**
+             * Format: uuid
+             * @description The customer being invoiced.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When payment is due. Aging measures from here rather than from `issueDate`, because that is what "overdue" means to the person chasing it (D-40). */
+            dueDate: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            id: string;
+            /** @description The date the invoice is issued, and the entry date of the journal it posts. It must fall inside an open fiscal period at approval — periods are never created as a side effect (D-17). */
+            issueDate: components["schemas"]["CalendarDateInput"];
+            /** @description The journal this invoice posted at approval, or null while it is a draft. Approval is the only thing that writes to the ledger (C1). */
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            /** @description The customer’s own reference for this invoice — their purchase-order number, in practice. Free text we do not issue and do not check (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRowInput"][];
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The reversing journal, once voided (D-38). The invoice, its number and its original journal all remain visible — nothing is deleted (D-16, C7). */
+            voidJournalId: string | null;
+        };
+        /** @description One page of invoices, oldest first by creation. */
+        InvoicePage: {
+            items: components["schemas"]["InvoiceSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of invoices, oldest first by creation. */
+        InvoicePageInput: {
+            items: components["schemas"]["InvoiceSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description An invoice in a list: the header, the totals and the settlement, and no lines — embedding them would make one page’s size depend on how many lines an org’s invoices happen to carry. */
+        InvoiceSummary: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            dueDate: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description An invoice in a list: the header, the totals and the settlement, and no lines — embedding them would make one page’s size depend on how many lines an org’s invoices happen to carry. */
+        InvoiceSummaryInput: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            dueDate: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @description A newly created invitation and its send outcome. */
         IssuedInvitation: {
@@ -2307,6 +3845,160 @@ export interface components {
         PageCursor: string;
         /** @description An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change. */
         PageCursorInput: string;
+        /** @description Money that moved, and the documents it has been applied to. A payment is not a numbered document (D-36) and it has no draft state — money either moved or it did not — so `journalId` is never null. `settlement.outstanding` is the credit still available on the contact (D-37), computed on read. */
+        Payment: {
+            /**
+             * Format: uuid
+             * @description The bank or cash account the money moved through. Named per payment rather than taken from an org default, because a business with two accounts needs to say which one, and a default that is silently wrong is a reconciliation nobody can close.
+             */
+            accountId: string;
+            allocations: components["schemas"]["Allocation"][];
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnits"];
+            /**
+             * Format: uuid
+             * @description Whose payment this is. Required even when nothing is allocated, because an unapplied payment is a credit balance *on a contact* (D-37) — a payment belonging to nobody could never be found again.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the money moved, and the entry date of the journal it posts. It must fall in an open fiscal period (D-17). */
+            date: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The journal this payment posted. Unlike a document, a payment has no draft state — money either moved or it did not — so this is never null.
+             */
+            journalId: string;
+            memo: string | null;
+            /** @description The bank’s reference, the cheque number, whatever identifies this movement on a statement. A payment has no gapless sequence of its own (D-36 numbers documents). */
+            reference: string | null;
+            /** @description How much of this payment has been applied, and how much is still available as credit on the contact. Computed from the allocations, never stored (D-34, D-37). */
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored: `void` once a reversing journal exists, `recorded` otherwise. How much has been applied is `settlement`, not a status.
+             * @enum {string}
+             */
+            status: "recorded" | "void";
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description Money that moved, and the documents it has been applied to. A payment is not a numbered document (D-36) and it has no draft state — money either moved or it did not — so `journalId` is never null. `settlement.outstanding` is the credit still available on the contact (D-37), computed on read. */
+        PaymentInput: {
+            /**
+             * Format: uuid
+             * @description The bank or cash account the money moved through. Named per payment rather than taken from an org default, because a business with two accounts needs to say which one, and a default that is silently wrong is a reconciliation nobody can close.
+             */
+            accountId: string;
+            allocations: components["schemas"]["AllocationInput"][];
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /**
+             * Format: uuid
+             * @description Whose payment this is. Required even when nothing is allocated, because an unapplied payment is a credit balance *on a contact* (D-37) — a payment belonging to nobody could never be found again.
+             */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The date the money moved, and the entry date of the journal it posts. It must fall in an open fiscal period (D-17). */
+            date: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The journal this payment posted. Unlike a document, a payment has no draft state — money either moved or it did not — so this is never null.
+             */
+            journalId: string;
+            memo: string | null;
+            /** @description The bank’s reference, the cheque number, whatever identifies this movement on a statement. A payment has no gapless sequence of its own (D-36 numbers documents). */
+            reference: string | null;
+            /** @description How much of this payment has been applied, and how much is still available as credit on the contact. Computed from the allocations, never stored (D-34, D-37). */
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored: `void` once a reversing journal exists, `recorded` otherwise. How much has been applied is `settlement`, not a status.
+             * @enum {string}
+             */
+            status: "recorded" | "void";
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description One page of payments, oldest first by creation. */
+        PaymentPage: {
+            items: components["schemas"]["PaymentSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of payments, oldest first by creation. */
+        PaymentPageInput: {
+            items: components["schemas"]["PaymentSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A payment in a list, without its allocations. */
+        PaymentSummary: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            date: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            /** Format: uuid */
+            id: string;
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored: `void` once a reversing journal exists, `recorded` otherwise. How much has been applied is `settlement`, not a status.
+             * @enum {string}
+             */
+            status: "recorded" | "void";
+        };
+        /** @description A payment in a list, without its allocations. */
+        PaymentSummaryInput: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description How much money moved, in minor units. Positive — the direction carries the sign, exactly as a journal line’s side does. Refunding a payment is a payment in the other direction, not a negative one. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            date: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether the money came in or went out. `received` settles invoices and credits the receivables control account; `made` settles bills.
+             * @enum {string}
+             */
+            direction: "received" | "made";
+            /** Format: uuid */
+            id: string;
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored: `void` once a reversing journal exists, `recorded` otherwise. How much has been applied is `settlement`, not a status.
+             * @enum {string}
+             */
+            status: "recorded" | "void";
+        };
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
@@ -2503,6 +4195,20 @@ export interface components {
             netIncome: components["schemas"]["MinorUnitsInput"];
             revenue: components["schemas"]["MinorUnitsInput"];
         };
+        /**
+         * @description How many units this line is for, with at most 4 fraction digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s rounding error arrives scaled. Negative is allowed — that is a discount or a return line.
+         * @example 1
+         * @example 0.25
+         * @example -2
+         */
+        Quantity: string;
+        /**
+         * @description How many units this line is for, with at most 4 fraction digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s rounding error arrives scaled. Negative is allowed — that is a discount or a return line.
+         * @example 1
+         * @example 0.25
+         * @example -2
+         */
+        QuantityInput: string;
         /** @description Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials. */
         RegisterRequest: {
             displayName: string;
@@ -2562,6 +4268,80 @@ export interface components {
         SwitchActiveOrgRequestInput: {
             /** Format: uuid */
             orgId: string;
+        };
+        /**
+         * @description A tax rate as a decimal percentage string: `"20"` is twenty percent. Between 0 and 100, with at most 4 fraction digits — enough for every combined rate we know of, including `"8.875"`, which basis points cannot express. Never a JSON number, and never a fraction: `"0.2"` is a fifth of one percent.
+         * @example 20
+         * @example 8.875
+         * @example 0
+         */
+        TaxPercentage: string;
+        /**
+         * @description A tax rate as a decimal percentage string: `"20"` is twenty percent. Between 0 and 100, with at most 4 fraction digits — enough for every combined rate we know of, including `"8.875"`, which basis points cannot express. Never a JSON number, and never a fraction: `"0.2"` is a fifth of one percent.
+         * @example 20
+         * @example 8.875
+         * @example 0
+         */
+        TaxPercentageInput: string;
+        /** @description One rate in the org’s rate list: a name, a percentage, and the account the tax posts to. `percentage` is immutable once the rate exists — a new percentage is a new rate. */
+        TaxRate: {
+            /**
+             * Format: uuid
+             * @description The liability account the tax posts to. Nominated per rate (D-35) rather than derived from a single org-wide tax account, because sales tax collected and purchase tax reclaimable are different balances that a return reports separately.
+             */
+            accountId: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo: "sales" | "purchases" | "both";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived rate stays on every document that used it and cannot be chosen for a new line. This is the only form of removal available to a rate a posted document names. */
+            isActive: boolean;
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name: string;
+            percentage: components["schemas"]["TaxPercentage"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One rate in the org’s rate list: a name, a percentage, and the account the tax posts to. `percentage` is immutable once the rate exists — a new percentage is a new rate. */
+        TaxRateInput: {
+            /**
+             * Format: uuid
+             * @description The liability account the tax posts to. Nominated per rate (D-35) rather than derived from a single org-wide tax account, because sales tax collected and purchase tax reclaimable are different balances that a return reports separately.
+             */
+            accountId: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo: "sales" | "purchases" | "both";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived rate stays on every document that used it and cannot be chosen for a new line. This is the only form of removal available to a rate a posted document names. */
+            isActive: boolean;
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name: string;
+            percentage: components["schemas"]["TaxPercentageInput"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of tax rates, oldest first by creation. */
+        TaxRatePage: {
+            items: components["schemas"]["TaxRate"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of tax rates, oldest first by creation. */
+        TaxRatePageInput: {
+            items: components["schemas"]["TaxRateInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
         /** @description Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache anywhere in M1. */
         TrialBalance: {
@@ -2647,6 +4427,36 @@ export interface components {
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved bill accepts none of this — the correction is a vendor credit or a void, never an edit (D-38). */
+        UpdateBillRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved bill accepts none of this — the correction is a vendor credit or a void, never an edit (D-38). */
+        UpdateBillRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
         /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
         UpdateContactRequest: {
             code?: string | null;
@@ -2674,6 +4484,44 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+        };
+        /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated. */
+        UpdateControlAccountsRequest: {
+            payableControlAccountId?: string | null;
+            receivableControlAccountId?: string | null;
+        };
+        /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated. */
+        UpdateControlAccountsRequestInput: {
+            payableControlAccountId?: string | null;
+            receivableControlAccountId?: string | null;
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved credit note accepts none of this — the correction is a void, never an edit (D-38). */
+        UpdateCreditNoteRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved credit note accepts none of this — the correction is a void, never an edit (D-38). */
+        UpdateCreditNoteRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
         };
         /** @description Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending either is a `validation_failed` naming the field. */
         UpdateDimensionRequest: {
@@ -2711,6 +4559,232 @@ export interface components {
             memo?: string | null;
             reference?: string | null;
         };
+        /** @description Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set — send every line the invoice should have, including the unchanged ones. Changing `taxMode` reprices the lines rather than converting them. */
+        UpdateInvoiceRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set — send every line the invoice should have, including the unchanged ones. Changing `taxMode` reprices the lines rather than converting them. */
+        UpdateInvoiceRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Reference and memo only. Amount, date, account and direction are in the posted journal and a journal is never edited — a payment recorded wrongly is voided and recorded again. */
+        UpdatePaymentRequest: {
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Reference and memo only. Amount, date, account and direction are in the posted journal and a journal is never edited — a payment recorded wrongly is voided and recorded again. */
+        UpdatePaymentRequestInput: {
+            memo?: string | null;
+            reference?: string | null;
+        };
+        /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
+        UpdateTaxRateRequest: {
+            /** Format: uuid */
+            accountId?: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo?: "sales" | "purchases" | "both";
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name?: string;
+        };
+        /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
+        UpdateTaxRateRequestInput: {
+            /** Format: uuid */
+            accountId?: string;
+            /**
+             * @description Which documents may use this rate. A rate posts to one account, so an org reclaiming input tax holds a sales rate and a purchases rate rather than one rate with two accounts.
+             * @enum {string}
+             */
+            appliesTo?: "sales" | "purchases" | "both";
+            /** @description What this rate is called on a document and in the rate picker, e.g. `VAT 20%` or `NY Sales Tax`. Unique within the org, compared case- and accent-insensitively, so an org cannot hold two rates a user reads as the same one. */
+            name?: string;
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved vendor credit accepts none of this — the correction is a void, never an edit (D-38). */
+        UpdateVendorCreditRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved vendor credit accepts none of this — the correction is a void, never an edit (D-38). */
+        UpdateVendorCreditRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due. */
+        VendorCredit: {
+            /** @description The bills this credit has been applied to, and for how much. */
+            allocations: components["schemas"]["Allocation"][];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            /** @description The vendor’s own credit-note number, where they issued one (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRow"][];
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due. */
+        VendorCreditInput: {
+            /** @description The bills this credit has been applied to, and for how much. */
+            allocations: components["schemas"]["AllocationInput"][];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            journalId: string | null;
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            /** @description The vendor’s own credit-note number, where they issued one (D-36). */
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            taxSummary: components["schemas"]["DocumentTaxSummaryRowInput"][];
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+            voidJournalId: string | null;
+        };
+        /** @description One page of vendor credits, oldest first by creation. */
+        VendorCreditPage: {
+            items: components["schemas"]["VendorCreditSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of vendor credits, oldest first by creation. */
+        VendorCreditPageInput: {
+            items: components["schemas"]["VendorCreditSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A vendor credit in a list, without its lines. */
+        VendorCreditSummary: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlement"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A vendor credit in a list, without its lines. */
+        VendorCreditSummaryInput: {
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            reference: string | null;
+            settlement: components["schemas"]["DocumentSettlementInput"];
+            /**
+             * @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "part_paid" | "paid" | "void";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Voiding takes its own entry date, because the document’s own period is usually closed by the time someone voids it and the reversal has to land somewhere postable. One shape for all four documents and for a payment, because voiding is the same act everywhere: a reversing journal, never a deletion (D-16, D-38). */
+        VoidDocumentRequest: {
+            /** @description The reversal’s own entry date, which must itself fall in an open period. */
+            date: components["schemas"]["CalendarDate"];
+            memo?: string | null;
+        };
+        /** @description Voiding takes its own entry date, because the document’s own period is usually closed by the time someone voids it and the reversal has to land somewhere postable. One shape for all four documents and for a payment, because voiding is the same act everywhere: a reversing journal, never a deletion (D-16, D-38). */
+        VoidDocumentRequestInput: {
+            /** @description The reversal’s own entry date, which must itself fall in an open period. */
+            date: components["schemas"]["CalendarDateInput"];
+            memo?: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -2739,6 +4813,71 @@ export interface operations {
                         /** @enum {string} */
                         status: "ok";
                     };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getControlAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlAccounts"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateControlAccounts: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateControlAccountsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlAccounts"];
                 };
             };
             /** @description Default Response */
@@ -2993,6 +5132,38 @@ export interface operations {
             };
         };
     };
+    deleteAllocation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                allocationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -3111,6 +5282,256 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Identity"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBills: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                /** @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write. */
+                status?: "draft" | "approved" | "part_paid" | "paid" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                dueBefore?: components["schemas"]["CalendarDateInput"];
+                /** @description The vendor’s own invoice number (D-36). This filter exists on bills and not on invoices because it is how someone checks whether a bill has already been entered. */
+                reference?: string;
+                /** @description How many bills to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBillRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                billId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                billId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                billId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBillRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                billId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voidBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                billId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidDocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
                 };
             };
             /** @description Default Response */
@@ -3420,6 +5841,293 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Contact"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCreditNotes: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                /** @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write. */
+                status?: "draft" | "approved" | "part_paid" | "paid" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description Only credit notes with something left on them — `settlement.outstanding` non-zero. This is what an “apply a credit” screen lists. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                unappliedOnly?: string;
+                /** @description How many credit notes to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCreditNoteRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNote"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getCreditNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNote"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCreditNoteRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNote"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    allocateCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAllocationsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNote"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voidCreditNote: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                creditNoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidDocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNote"];
                 };
             };
             /** @description Default Response */
@@ -4224,6 +6932,254 @@ export interface operations {
             };
         };
     };
+    listInvoices: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                /** @description Filters on a value that is computed rather than stored (D-38), so this is a join against allocations rather than an index lookup. That is D-34’s accepted cost. */
+                status?: "draft" | "approved" | "part_paid" | "paid" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                dueBefore?: components["schemas"]["CalendarDateInput"];
+                /** @description How many invoices to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInvoiceRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voidInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidDocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listDrafts: {
         parameters: {
             query?: {
@@ -4808,6 +7764,268 @@ export interface operations {
             };
         };
     };
+    listPayments: {
+        parameters: {
+            query?: {
+                /** @description Omitting this lists both subledgers, which requires `payments_received.read` **and** `payments_made.read`. A caller holding one side filters by it and gets their side — the list is never silently narrowed to what the caller may see. */
+                direction?: "received" | "made";
+                contactId?: string;
+                /** @description Computed, never stored: `void` once a reversing journal exists, `recorded` otherwise. How much has been applied is `settlement`, not a status. */
+                status?: "recorded" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description Only payments with credit still available on them (D-37). Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                unallocatedOnly?: string;
+                /** @description How many payments to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    recordPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePaymentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                paymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePaymentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    allocatePayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                paymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAllocationsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voidPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                paymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidDocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getAging: {
+        parameters: {
+            query: {
+                asOf: components["schemas"]["CalendarDateInput"];
+                /** @description `receivable` ages invoices against what customers owe; `payable` ages bills against what is owed to vendors. Each ties to its own control account (C8). */
+                ledger: "receivable" | "payable";
+                /** @description One contact only. With `detail`, this is the statement for that customer. */
+                contactId?: string;
+                /** @description Include the outstanding documents behind each row. Off by default — the list is bounded only by how many documents are open. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                detail?: string;
+                /** @description Include contacts whose total is zero as at the date. Off by default: unlike a trial balance, where a zero row is how someone notices a posting went astray, a contact with nothing outstanding is simply a contact who has paid. */
+                includeZero?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Aging"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getBalanceSheet: {
         parameters: {
             query: {
@@ -4970,6 +8188,535 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssignableRoleList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listTaxRates: {
+        parameters: {
+            query?: {
+                /** @description Omitted matches active and archived rates alike. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                isActive?: string;
+                /** @description Which documents the rate may be used on. A usability predicate rather than an equality: `sales` returns the unrestricted `both` rates as well, because a sales document may cite one. */
+                appliesTo?: "sales" | "purchases" | "both";
+                /** @description How many tax rates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRatePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createTaxRate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTaxRateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTaxRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taxRateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteTaxRate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                taxRateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateTaxRate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                taxRateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaxRateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    archiveTaxRate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                taxRateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unarchiveTaxRate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                taxRateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listVendorCredits: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                /** @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write. */
+                status?: "draft" | "approved" | "part_paid" | "paid" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description Only vendor credits with something left on them. Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). */
+                unappliedOnly?: string;
+                /** @description How many vendor credits to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCreditPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVendorCreditRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getVendorCredit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVendorCreditRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    allocateVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAllocationsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voidVendorCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                vendorCreditId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoidDocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorCredit"];
                 };
             };
             /** @description Default Response */

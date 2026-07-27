@@ -12,7 +12,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
 | **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
 | M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Scoped — see below**       |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Scoped — see below**       |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
 | M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Scoped — see below**       |
 | M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
 | M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
@@ -635,6 +635,42 @@ the milestone's hardest guarantees.
 If a shorter cycle is wanted, the natural cut is **M2a = waves 0–4** (the API is complete
 and drift-gated, screens still absent) and **M2b = waves 5–6**. The cut is clean because
 OB-045 is a real boundary; nothing in wave 5 changes anything below it.
+
+### M3 status
+
+All fourteen M3 tickets are built on `develop`, plus two follow-ups the wave forced
+(OB-066a, and the enforcement scan repair). `yarn check` passes: 1,745 tests across 146
+files.
+
+**C2 found a real defect on its first run**, which is what spec §11 named the invariant
+for. `aging.repository.ts` bounded an allocation by `allocated_on <= asOf` and never asked
+whether the document at its _other_ end had posted by then. An allocation's date defaults
+to its source's date and a source routinely predates its target, so a deposit taken on
+5 January and applied to an invoice approved on 23 February carried 5 January: at 22
+February the subledger said the customer owed nothing while the control account still held
+their credit. A back-dated credit note reads the same way from the other side. Nothing
+threw, the report was internally consistent, and only comparison with the ledger noticed —
+which is the entire argument for [D-34](#d-34) and for making subledger agreement a test
+rather than a review item. Fixed by a fourth as-at predicate; reproduced by reverting it
+(`expected 0n to be -10000n`) before the fix was accepted.
+
+Two follow-ups are recorded rather than folded in:
+
+1. **`PostJournalInput` has no `source`**, so every document journal posts as `'manual'`
+   rather than `'invoice'`/`'bill'`/`'payment_received'`. Reported by three agents. It
+   touches the ledger kernel — `plugin-api` plus `posting.service.ts` — and deserves its
+   own ticket.
+2. **AR and AP spell the same refusals differently**, and AR raises `ConflictError` for
+   double-approve and double-void, which carries no `details` bag at all — so a client gets
+   `409` with prose and nothing machine-readable, where AP gives `412` plus
+   `document_already_approved`. That is a functional gap, not a naming preference. The AP
+   vocabulary should win. Reconciling it is a wire-contract change, since
+   `document_not_draft` is already published in the `updateInvoice` description.
+
+Also known and unchanged: `ar_only` and `ap_only` hold `invoices.*`/`bills.*` but not
+`journals.post`, so the roles that exist to enter AR and AP documents cannot approve, void,
+or record a payment — ten published operations, pinned as a known gap rather than fixed,
+because seeding those codes is a migration and a product decision.
 
 ### M2 status
 

@@ -24,20 +24,95 @@ const zodTypes = (module: Record<string, unknown>): [string, z.ZodType][] =>
     return value instanceof z.ZodType;
   });
 
-describe('nothing published by M3 carries an `id` yet', () => {
-  /**
-   * `jsonSchemaTransformObject` copies every schema carrying an `id` out of zod's
-   * global registry into `components.schemas` whether or not a route references it,
-   * so an `id` added before OB-067's routes publishes an unreachable component and
-   * fails A10. Every M2 module hit this; asserting it is cheaper than rediscovering
-   * it, and the test is what OB-067 will delete in the same diff as it adds them.
-   */
-  it('leaves the zod registry empty for every subledger and tax schema', () => {
-    const withIds = [...zodTypes(subledger), ...zodTypes(tax)]
-      .filter(([, schema]) => z.globalRegistry.get(schema)?.id !== undefined)
-      .map(([name]) => name);
+/**
+ * `jsonSchemaTransformObject` copies every schema carrying an `id` out of zod's
+ * global registry into `components.schemas` whether or not a route references it,
+ * so an `id` publishes a component whether or not anything can reach it. Until
+ * OB-067 that meant *no* M3 schema could carry one, and this file asserted the empty
+ * set. The routes exist now, so the assertion inverts: the exact set below, and
+ * nothing else.
+ *
+ * An exact list rather than a "has an id" spot check, because both directions of
+ * drift matter and neither shows up anywhere else. An id added to a list query is
+ * a component no operation references — a querystring is emitted as individual
+ * `parameters` — and an id dropped from a response silently inlines a shape the
+ * generated client had a name for, which is a breaking change to every consumer
+ * that reads `openapi.json` and no change at all to any test of behaviour.
+ */
+const PUBLISHED_COMPONENT_IDS = [
+  'Aging',
+  'AgingAmounts',
+  'AgingDocument',
+  'AgingRow',
+  'Allocation',
+  'AllocationList',
+  'AllocationRequest',
+  'Bill',
+  'BillPage',
+  'BillSummary',
+  'CreateAllocationsRequest',
+  'CreateBillRequest',
+  'CreateCreditNoteRequest',
+  'CreateInvoiceRequest',
+  'CreatePaymentRequest',
+  'CreateTaxRateRequest',
+  'CreateVendorCreditRequest',
+  'CreditNote',
+  'CreditNotePage',
+  'CreditNoteSummary',
+  'DocumentLine',
+  'DocumentLineRequest',
+  'DocumentSettlement',
+  'DocumentTaxSummaryRow',
+  'DocumentTotals',
+  'Invoice',
+  'InvoicePage',
+  'InvoiceSummary',
+  'Payment',
+  'PaymentPage',
+  'PaymentSummary',
+  'Quantity',
+  'TaxPercentage',
+  'TaxRate',
+  'TaxRatePage',
+  'UpdateBillRequest',
+  'UpdateCreditNoteRequest',
+  'UpdateInvoiceRequest',
+  'UpdatePaymentRequest',
+  'UpdateTaxRateRequest',
+  'UpdateVendorCreditRequest',
+  'VendorCredit',
+  'VendorCreditPage',
+  'VendorCreditSummary',
+  'VoidDocumentRequest',
+];
 
-    expect(withIds).toEqual([]);
+describe('what M3 publishes as an OpenAPI component', () => {
+  it('is exactly the set OB-067’s routes reference', () => {
+    const ids = [...zodTypes(subledger), ...zodTypes(tax)]
+      .map(([, schema]) => z.globalRegistry.get(schema)?.id)
+      .filter((id): id is string => id !== undefined)
+      .sort();
+
+    expect(ids).toEqual(PUBLISHED_COMPONENT_IDS);
+  });
+
+  /**
+   * The rule that outlives the ticket. `listAccountsQuerySchema` states the other
+   * half of it — the shared query schema takes real booleans and the route coerces,
+   * because `'false'` is truthy in every language an integrator might use — and the
+   * consequence for this file is that the shape a route actually publishes is the
+   * route's own, so an id here would name a component nothing references.
+   */
+  it('never gives a list query one', () => {
+    const queries = [...zodTypes(subledger), ...zodTypes(tax)].filter(([name]) =>
+      /^(list.*Query|agingQuery)Schema$/.test(name),
+    );
+
+    expect(queries.length).toBeGreaterThan(0);
+    for (const [name, schema] of queries) {
+      expect(z.globalRegistry.get(schema)?.id, `${name} must not be published`).toBeUndefined();
+    }
   });
 });
 
