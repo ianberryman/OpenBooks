@@ -23,6 +23,20 @@ export interface JournalLineInput {
   /** Strictly positive. Sign is carried by `side` — a negative credit is not a debit. */
   readonly amount: MinorUnits;
   readonly memo?: string;
+  /**
+   * Who the line is with. `journal_lines.contact_id` is a column of the line, so
+   * naming it is part of posting the entry rather than a later annotation — the
+   * table is append-only and there is no operation that could add it afterwards
+   * (OB-059).
+   */
+  readonly contactId?: string;
+  /**
+   * The dimension values this line is tagged with, named by value and never by
+   * axis (D-18). Written with the line, in the posting's own transaction, so an
+   * entry and everything entered with it commit together; *changing* a tag on a
+   * line that already exists stays `dimensions.setJournalLineDimensions` (D-32).
+   */
+  readonly dimensionValueIds?: readonly string[];
 }
 
 /**
@@ -69,6 +83,12 @@ export interface PostedJournalLine {
   readonly side: JournalSide;
   readonly amount: MinorUnits;
   readonly memo: string | null;
+  readonly contactId: string | null;
+  /**
+   * Read back from `journal_line_dimensions` rather than echoed, so a caller that
+   * posted a tagged entry sees the tags the database holds. Unordered.
+   */
+  readonly dimensionValueIds: readonly string[];
 }
 
 export interface PostedJournal {

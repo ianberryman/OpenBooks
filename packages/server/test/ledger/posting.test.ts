@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { uuidToBuffer } from '../../src/db';
+import { bufferToUuid, uuidToBuffer } from '../../src/db';
 import { toWireError } from '../../src/errors';
 import { getTrialBalance, postJournal, reverseJournal } from '../../src/modules/ledger';
 import { OWNER_ROLE_ID } from '../../src/modules/orgs';
-import { contextFor, useLedgerDatabase, withContext } from './support';
+import { contactIn, contextFor, dimensionIn, useLedgerDatabase, withContext } from './support';
 
 /**
  * The ledger kernel: acceptance A2, A3, A4, and the reversal model (D-02).
@@ -255,6 +255,234 @@ describe('accounts must be postable', () => {
       code: 'precondition_failed',
       status: 412,
     });
+  });
+});
+
+/**
+ * OB-059. A line's contact and its dimension tags are part of the posting: the
+ * contact is a column of `journal_lines`, and the tags are written by the posting
+ * repository in the same transaction, so an entry and everything entered on it
+ * commit together. What is *not* here is retagging a line that already exists —
+ * that stays `dimensions.setJournalLineDimensions` (D-32) and has its own suite.
+ */
+describe('a line’s contact and its dimension tags', () => {
+  it('stores both, and reads them back from the tables', async () => {
+    const orgId = uuidToBuffer(s.orgUuid);
+    const contact = await contactIn(harness, orgId);
+    const department = await dimensionIn(harness, orgId, 'DEPT', ['SALES']);
+    const [sales] = department.valueIds;
+    if (sales === undefined) throw new Error('a value was created');
+
+    const posted = await withContext(s.ctx, () =>
+      postJournal({
+        ...balanced(s),
+        lines: [
+          {
+            accountId: s.cash,
+            side: 'debit',
+            amount: 150000n,
+            contactId: bufferToUuid(contact),
+            dimensionValueIds: [bufferToUuid(sales)],
+          },
+          { accountId: s.revenue, side: 'credit', amount: 150000n },
+        ],
+      }),
+    );
+
+    // The read-back reports what the database accepted rather than what was sent,
+    // which is the only claim worth making about a ledger.
+    expect(posted.lines[0]).toMatchObject({
+      contactId: bufferToUuid(contact),
+      dimensionValueIds: [bufferToUuid(sales)],
+    });
+    expect(posted.lines[1]).toMatchObject({ contactId: null, dimensionValueIds: [] });
+
+    const stored = await harness.app
+      .selectFrom('journal_lines')
+      .select(['id', 'line_number', 'contact_id'])
+      .where('org_id', '=', orgId)
+      .orderBy('line_number')
+      .execute();
+    const tags = await harness.app
+      .selectFrom('journal_line_dimensions')
+      .select(['journal_line_id', 'dimension_id', 'dimension_value_id'])
+      .where('org_id', '=', orgId)
+      .execute();
+
+    expect(stored.map((line) => line.contact_id?.toString('hex') ?? null)).toEqual([
+      contact.toString('hex'),
+      null,
+    ]);
+    expect(tags).toHaveLength(1);
+    expect(tags[0]?.journal_line_id).toBe(stored[0]?.id);
+    expect(tags[0]?.dimension_id.toString('hex')).toBe(department.dimensionId.toString('hex'));
+    expect(tags[0]?.dimension_value_id.toString('hex')).toBe(sales.toString('hex'));
+  });
+
+  it('makes another org’s contact indistinguishable from a nonexistent one (A7)', async () => {
+    const other = await scene();
+    const foreignContact = await contactIn(harness, uuidToBuffer(other.orgUuid));
+
+    const answerFor = async (contactId: string): Promise<string> =>
+      withContext(s.ctx, () =>
+        postJournal({
+          ...balanced(s),
+          lines: [
+            { accountId: s.cash, side: 'debit', amount: 1n, contactId },
+            { accountId: s.revenue, side: 'credit', amount: 1n },
+          ],
+        }),
+      ).then(
+        () => 'posted',
+        (error: unknown) => JSON.stringify(toWireError(error)),
+      );
+
+    const foreign = await answerFor(bufferToUuid(foreignContact));
+    const unknown = await answerFor('33333333-3333-4333-8333-333333333333');
+
+    expect(foreign).toBe(unknown);
+    expect(foreign).toContain('not_found');
+    expect(foreign).not.toContain(bufferToUuid(foreignContact));
+  });
+
+  /**
+   * The rule OB-059 chose, mirroring the account beside it: deactivation takes a
+   * contact out of circulation, and naming it on a new entry would put it back.
+   */
+  it('refuses a deactivated contact', async () => {
+    const orgId = uuidToBuffer(s.orgUuid);
+    const contact = await contactIn(harness, orgId);
+    await harness.app
+      .updateTable('contacts')
+      .set({ is_active: 0 })
+      .where('id', '=', contact)
+      .execute();
+
+    await expect(
+      withContext(s.ctx, () =>
+        postJournal({
+          ...balanced(s),
+          lines: [
+            { accountId: s.cash, side: 'debit', amount: 1n, contactId: bufferToUuid(contact) },
+            { accountId: s.revenue, side: 'credit', amount: 1n },
+          ],
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: 'precondition_failed',
+      details: { precondition: 'contact_inactive' },
+    });
+  });
+
+  /**
+   * The tag refusals are the dimensions module's, reached through the posting path
+   * rather than reimplemented in it — so a value that could not be applied to a
+   * posted line cannot be applied by posting one.
+   */
+  it('refuses an archived value, two values on one axis, and an unknown value', async () => {
+    const orgId = uuidToBuffer(s.orgUuid);
+    const department = await dimensionIn(harness, orgId, 'DEPT', ['SALES', 'OPS']);
+    const [sales, ops] = department.valueIds;
+    if (sales === undefined || ops === undefined) throw new Error('two values were created');
+
+    const postTagged = async (valueIds: readonly Buffer[]): Promise<unknown> =>
+      withContext(s.ctx, () =>
+        postJournal({
+          ...balanced(s),
+          lines: [
+            {
+              accountId: s.cash,
+              side: 'debit',
+              amount: 1n,
+              dimensionValueIds: valueIds.map((id) => bufferToUuid(id)),
+            },
+            { accountId: s.revenue, side: 'credit', amount: 1n },
+          ],
+        }),
+      ).catch((error: unknown) => error);
+
+    await expect(postTagged([sales, ops])).resolves.toMatchObject({
+      details: { precondition: 'dimension_axis_conflict' },
+    });
+
+    await harness.app
+      .updateTable('dimension_values')
+      .set({ is_active: 0 })
+      .where('id', '=', sales)
+      .execute();
+
+    await expect(postTagged([sales])).resolves.toMatchObject({
+      details: { precondition: 'dimension_value_archived' },
+    });
+
+    await expect(
+      postTagged([uuidToBuffer('44444444-4444-4444-8444-444444444444')]),
+    ).resolves.toMatchObject({ code: 'not_found' });
+
+    // Nothing was written by any of the three: the refusals happen before the
+    // sequence is allocated, so a refused tag cannot leave a gap either (D-14).
+    const journals = await harness.app
+      .selectFrom('journals')
+      .select('id')
+      .where('org_id', '=', orgId)
+      .execute();
+    expect(journals).toHaveLength(0);
+  });
+
+  /**
+   * A reversal copies the contact and not the tags, and both halves are decisions.
+   *
+   * The contact is a column of the line being reversed — dropping it would answer
+   * "what is still outstanding with this customer" with the debit and not the
+   * credit. The tags are mutable analysis (D-32) applied to a line that exists, and
+   * the reversal's line is a different one: copying would freeze whatever the
+   * original happened to carry at that moment, and a correction is frequently the
+   * reason the tagging is about to change. Tagging a reversal is a retag.
+   */
+  it('copies the contact into a reversal and leaves the reversal untagged', async () => {
+    const orgId = uuidToBuffer(s.orgUuid);
+    const contact = await contactIn(harness, orgId);
+    const department = await dimensionIn(harness, orgId, 'DEPT', ['SALES']);
+    const [sales] = department.valueIds;
+    if (sales === undefined) throw new Error('a value was created');
+
+    const original = await withContext(s.ctx, () =>
+      postJournal({
+        ...balanced(s),
+        lines: [
+          {
+            accountId: s.cash,
+            side: 'debit',
+            amount: 1n,
+            contactId: bufferToUuid(contact),
+            dimensionValueIds: [bufferToUuid(sales)],
+          },
+          { accountId: s.revenue, side: 'credit', amount: 1n },
+        ],
+      }),
+    );
+
+    // Deactivated *before* the reversal, deliberately: the copy is not subject to
+    // the active check a new posting applies, or tidying the contact list would
+    // make a correct entry uncorrectable.
+    await harness.app
+      .updateTable('contacts')
+      .set({ is_active: 0 })
+      .where('id', '=', contact)
+      .execute();
+
+    const reversal = await withContext(s.ctx, () =>
+      reverseJournal({
+        journalId: original.journalId,
+        date: s.date,
+        actorType: 'user',
+        actorId: s.ctx.actorId,
+      }),
+    );
+
+    const reversed = reversal.lines.find((line) => line.side === 'credit');
+    expect(reversed?.contactId).toBe(bufferToUuid(contact));
+    expect(reversal.lines.flatMap((line) => line.dimensionValueIds)).toEqual([]);
   });
 });
 

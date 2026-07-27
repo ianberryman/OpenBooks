@@ -272,17 +272,20 @@ export async function discardDraft(
  * released, and the user sees the entry they were editing plus the reason it was
  * refused.
  *
- * ## Known gap: the line's contact and its tags do not reach the journal yet
+ * ## The line's contact and its tags travel with it (OB-059)
  *
- * A draft line can carry a `contactId` and dimension tags — the journal-entry form
- * collects both (OB-051) — and neither is carried into the posting here.
- * `journal_lines.contact_id` is only writable through `posting.repository.ts`, and
- * `journal_line_dimensions` belongs to the dimensions service (OB-037), so wiring
- * either one from this module would be a second write path into somebody else's
- * invariant. Both are preserved on the draft and both are dropped at post until
- * OB-045 connects them. Written down rather than left to be discovered, because a
- * silent drop of a tag is exactly the failure D-18's "tagging never moves money"
- * property is checked against.
+ * A draft line carries a `contactId` and dimension tags — the journal-entry form
+ * collects both (OB-051) — and both are handed to `postJournal` as part of the line.
+ * Nothing here writes either one: `journal_lines.contact_id` is a column of the
+ * line, and `journal_line_dimensions` is written by `posting.repository.ts` in the
+ * posting's own transaction, so this module gains no write path into anybody else's
+ * invariant and the entry commits with everything entered on it or not at all.
+ *
+ * They were dropped before, pinned by a test, and the drop was invisible in exactly
+ * the way that matters: B6's "slices plus unassigned equals the whole" still held,
+ * because an untagged line lands in the unassigned bucket. What was missing was the
+ * slice — the sliced report was short by exactly the entries somebody had tagged by
+ * hand.
  */
 export async function postDraft(
   draftId: string,
@@ -294,6 +297,10 @@ export async function postDraft(
     const id = assertFound(draftIdBytes(draftId), RESOURCE);
     const draft = assertFound(await selectDraftByIdForUpdate(trx, id), RESOURCE);
     const lines = await selectDraftLines(trx, id);
+    const tags = await selectDraftLineDimensions(
+      trx,
+      lines.map((line) => line.id),
+    );
 
     // `postJournal` joins this transaction ambiently (`transaction-scope.ts`), so
     // the posting, the sequence allocation, and the delete below are one unit of
@@ -304,7 +311,7 @@ export async function postDraft(
     // records who posted, which is the fact an auditor asks about; who drafted
     // stays on the draft, and the draft is about to stop existing.
     const posted = await postJournal(
-      toPostJournalInput(draft.entry_date, draft.memo, lines, ctx),
+      toPostJournalInput(draft.entry_date, draft.memo, lines, tags, ctx),
       ctx,
     );
 
@@ -458,7 +465,9 @@ function resolveTags(
 // ---------------------------------------------------------------------------
 
 interface PostableLine {
+  readonly id: bigint;
   readonly account_id: Buffer | null;
+  readonly contact_id: Buffer | null;
   readonly debit_minor: bigint;
   readonly credit_minor: bigint;
   readonly memo: string | null;
@@ -470,13 +479,17 @@ interface PostableLine {
  *
  * Every issue is collected before any is thrown, so a user completing a draft
  * fixes it in one pass rather than one field per attempt. What is *not* checked
- * here is everything `postJournal` checks better: arity, balance, positivity, and
- * whether the accounts exist and are active.
+ * here is everything `postJournal` checks better: arity, balance, positivity,
+ * whether the accounts and contacts exist and are active, and whether the tags
+ * name live values of this org. The contact and the tags are passed through
+ * unexamined for that reason — checking them here would be a second, drifting copy
+ * of rules that belong to the ledger and to the dimensions module (OB-059).
  */
 function toPostJournalInput(
   entryDate: string | null,
   memo: string | null,
   lines: readonly PostableLine[],
+  tags: ReadonlyMap<string, readonly string[]>,
   ctx: RequestContext,
 ): PostJournalInput {
   const issues: ValidationIssue[] = [];
@@ -515,11 +528,15 @@ function toPostJournalInput(
         message: 'This line has an amount on both sides; a journal line moves one side only.',
       });
     } else if (line.account_id !== null) {
+      const lineTags = tags.get(line.id.toString()) ?? [];
+
       postingLines.push({
         accountId: bufferToUuid(line.account_id),
         side: isDebit ? 'debit' : 'credit',
         amount: isDebit ? line.debit_minor : line.credit_minor,
         ...(line.memo === null ? {} : { memo: line.memo }),
+        ...(line.contact_id === null ? {} : { contactId: bufferToUuid(line.contact_id) }),
+        ...(lineTags.length === 0 ? {} : { dimensionValueIds: lineTags }),
       });
     }
   });

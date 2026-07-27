@@ -29,6 +29,13 @@
  * | `deleteDimensionValue(valueId, ctx)`              | `dimensions.write` |
  * | `getJournalLineDimensions(lineId, ctx)`           | `dimensions.read`  |
  * | `setJournalLineDimensions(lineId, input, ctx)`    | `dimensions.write` |
+ * | `resolveTagsForNewLine(valueIds, db)`             | the caller's       |
+ *
+ * `resolveTagsForNewLine` is the one entry here that checks no permission of its
+ * own and takes a handle rather than a context: it belongs to the posting path,
+ * runs inside the posting's transaction, and resolves and refuses without writing.
+ * Why posting a tagged entry takes `journals.post` and not `dimensions.write` is
+ * argued on the function itself (OB-059; D-30 for the role it turns on).
  *
  * Both lists return one bounded page and an opaque cursor (D-21), keyed on
  * `(code, id)` — which is only safe because both codes are immutable, the same
@@ -108,4 +115,9 @@ export {
   updateDimension,
   updateDimensionValue,
 } from './dimensions.service';
-export { getJournalLineDimensions, setJournalLineDimensions } from './tagging.service';
+export {
+  getJournalLineDimensions,
+  resolveTagsForNewLine,
+  setJournalLineDimensions,
+} from './tagging.service';
+export type { ResolvedLineTag } from './tagging.service';

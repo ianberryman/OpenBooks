@@ -38,9 +38,17 @@ export interface JournalLineRow {
   readonly journalId: Buffer;
   readonly lineNumber: number;
   readonly accountId: Buffer;
+  readonly contactId: Buffer | null;
   readonly debitMinor: bigint;
   readonly creditMinor: bigint;
   readonly memo: string | null;
+}
+
+/** A tag as `journal_line_dimensions` holds it, the axis already resolved. */
+export interface JournalLineTagRow {
+  readonly lineId: bigint;
+  readonly dimensionId: Buffer;
+  readonly dimensionValueId: Buffer;
 }
 
 /**
@@ -106,6 +114,29 @@ export async function selectPostableAccounts(
   return new Map(rows.map((row) => [row.id.toString('hex'), { isActive: row.is_active === 1 }]));
 }
 
+/**
+ * Contacts that may be named on a posting, keyed by id.
+ *
+ * `selectPostableAccounts`'s twin, and read through the tenant wrapper for the same
+ * reason: another org's contact does not appear in the result, so the caller reports
+ * it as unknown rather than letting `fk_journal_lines_contact` answer with errno
+ * 1452 and a 500 (A7).
+ */
+export async function selectPostableContacts(
+  db: TenantDatabase,
+  contactIds: readonly Buffer[],
+): Promise<Map<string, { readonly isActive: boolean }>> {
+  if (contactIds.length === 0) return new Map();
+
+  const rows = await db
+    .selectFrom('contacts')
+    .select(['id', 'is_active'])
+    .where('contacts.id', 'in', contactIds)
+    .execute();
+
+  return new Map(rows.map((row) => [row.id.toString('hex'), { isActive: row.is_active === 1 }]));
+}
+
 /** The original of a reversal, and whether it has already been reversed. */
 export async function selectJournalToReverse(
   db: TenantDatabase,
@@ -118,6 +149,7 @@ export async function selectJournalToReverse(
       readonly reversesJournalId: Buffer | null;
       readonly lines: readonly {
         readonly accountId: Buffer;
+        readonly contactId: Buffer | null;
         readonly lineNumber: number;
         readonly debitMinor: bigint;
         readonly creditMinor: bigint;
@@ -136,7 +168,7 @@ export async function selectJournalToReverse(
 
   const lines = await db
     .selectFrom('journal_lines')
-    .select(['account_id', 'line_number', 'debit_minor', 'credit_minor', 'memo'])
+    .select(['account_id', 'contact_id', 'line_number', 'debit_minor', 'credit_minor', 'memo'])
     .where('journal_lines.journal_id', '=', journalId)
     .orderBy('line_number')
     .execute();
@@ -148,6 +180,7 @@ export async function selectJournalToReverse(
     reversesJournalId: journal.reverses_journal_id,
     lines: lines.map((line) => ({
       accountId: line.account_id,
+      contactId: line.contact_id,
       lineNumber: line.line_number,
       debitMinor: line.debit_minor,
       creditMinor: line.credit_minor,
@@ -209,12 +242,89 @@ export async function insertJournalLines(
         journal_id: row.journalId,
         line_number: row.lineNumber,
         account_id: row.accountId,
+        contact_id: row.contactId,
         debit_minor: row.debitMinor,
         credit_minor: row.creditMinor,
         memo: row.memo,
       })),
     )
     .execute();
+}
+
+/**
+ * The stored id of each line of one journal, keyed by its line number.
+ *
+ * Read back rather than derived from the insert's `insertId`: mysql2 returns the id
+ * of the *first* row of a multi-row insert, and adding one for the rest assumes a
+ * contiguous auto-increment block — true today and not true under
+ * `innodb_autoinc_lock_mode = 2` with concurrent inserts, which is MySQL 8's
+ * default. `uq_journal_lines_journal_line` makes the number unique within the
+ * journal, so the key is exact.
+ */
+export async function selectJournalLineIds(
+  db: TenantDatabase,
+  journalId: Buffer,
+): Promise<ReadonlyMap<number, bigint>> {
+  const rows = await db
+    .selectFrom('journal_lines')
+    .select(['id', 'line_number'])
+    .where('journal_lines.journal_id', '=', journalId)
+    .execute();
+
+  return new Map(rows.map((row) => [row.line_number, row.id]));
+}
+
+/**
+ * Tags the lines just written, in the posting's own transaction (OB-059).
+ *
+ * This table is not one `openbooks/no-journal-writes` restricts — the rule's subject
+ * is `journals` and `journal_lines`, and `tags.repository.ts` explains at length why
+ * a tag is analysis laid over the ledger rather than a term of the entry. What it is
+ * doing *here* is a narrower claim: a tag entered as part of an entry commits with
+ * it, so there is no window in which a journal exists carrying none of the tagging
+ * its author gave it. Changing a tag afterwards remains the dimensions module's, and
+ * this file holds no statement that could (D-32).
+ */
+export async function insertJournalLineDimensions(
+  db: TenantDatabase,
+  rows: readonly JournalLineTagRow[],
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  await db
+    .insertInto('journal_line_dimensions')
+    .values(
+      rows.map((row) => ({
+        journal_line_id: row.lineId,
+        dimension_id: row.dimensionId,
+        dimension_value_id: row.dimensionValueId,
+      })),
+    )
+    .execute();
+}
+
+/** Every tag on one journal's lines, for the read-back. */
+export async function selectJournalTags(
+  db: TenantDatabase,
+  lineIds: readonly bigint[],
+): Promise<ReadonlyMap<string, readonly Buffer[]>> {
+  const tags = new Map<string, Buffer[]>();
+  if (lineIds.length === 0) return tags;
+
+  const rows = await db
+    .selectFrom('journal_line_dimensions')
+    .select(['journal_line_id', 'dimension_value_id'])
+    .where('journal_line_dimensions.journal_line_id', 'in', lineIds)
+    .execute();
+
+  for (const row of rows) {
+    const key = row.journal_line_id.toString();
+    const held = tags.get(key);
+    if (held === undefined) tags.set(key, [row.dimension_value_id]);
+    else held.push(row.dimension_value_id);
+  }
+
+  return tags;
 }
 
 export function newJournalId(): Buffer {

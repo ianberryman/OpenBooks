@@ -887,6 +887,9 @@ export interface components {
             /** Format: uuid */
             accountId: string;
             amount: components["schemas"]["MinorUnits"];
+            contactId: string | null;
+            /** @description The dimension values this line carries, named by value — a value belongs to exactly one axis, so the pair is never sent. Written with the line and read back from the tag table; changing them afterwards is the dimensions surface (ROADMAP D-32). */
+            dimensionValueIds: string[];
             lineId: string;
             memo: string | null;
             /**
@@ -900,6 +903,9 @@ export interface components {
             /** Format: uuid */
             accountId: string;
             amount: components["schemas"]["MinorUnitsInput"];
+            contactId: string | null;
+            /** @description The dimension values this line carries, named by value — a value belongs to exactly one axis, so the pair is never sent. Written with the line and read back from the tag table; changing them afterwards is the dimensions surface (ROADMAP D-32). */
+            dimensionValueIds: string[];
             lineId: string;
             memo: string | null;
             /**

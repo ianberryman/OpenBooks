@@ -151,6 +151,84 @@ export async function setJournalLineDimensions(
   });
 }
 
+/** A tag the posting path may write: the value, and the axis it was resolved to. */
+export interface ResolvedLineTag {
+  readonly dimensionId: Buffer;
+  readonly dimensionValueId: Buffer;
+}
+
+/**
+ * Resolves the tags a line is being *created* with, for the posting path (OB-059).
+ *
+ * ## Why the posting path calls this instead of `setJournalLineDimensions`
+ *
+ * A draft holds a contact and tags per line, and a post that dropped them left
+ * sliced reports missing exactly the entries somebody tagged by hand — B6's
+ * property still held, because everything untagged lands in the unassigned bucket,
+ * which is what made the drop invisible. The tags therefore belong to the posting,
+ * written in its transaction: a journal and everything entered with it commit
+ * together or not at all. What stays here is what this module owns — *changing*
+ * the tags on a line that already exists (D-32), which is a different operation
+ * on a different subject.
+ *
+ * This function resolves and refuses; it does not write. The insert is
+ * `posting.repository.ts`'s, which is where `journal_line_dimensions` is written
+ * alongside the line it tags. `openbooks/no-journal-writes` names `journals` and
+ * `journal_lines` and deliberately not that table, for the reason
+ * `tags.repository.ts` gives.
+ *
+ * ## No permission check, deliberately
+ *
+ * Posting a tagged entry takes `journals.post` and **not** `dimensions.write`, and
+ * that is a decision rather than an omission.
+ *
+ * `dimensions.write` governs the analysis laid over the ledger: which department
+ * an amount that already exists is reported under, and who maintains the axis
+ * list. At post there is no such subject — the line does not exist until this
+ * transaction creates it, so nothing is being reclassified. The caller is not
+ * tagging; they are posting an entry that was composed, tagged and all, by someone
+ * who did hold the permission to compose it.
+ *
+ * Requiring it would also break the role it matters most to. D-30 records that
+ * **Approver**'s bundle is `%.read` plus a named few including `journals.post`,
+ * precisely so it can turn a proposal into a posting — so requiring
+ * `dimensions.write` here would leave an Approver able to post a Bookkeeper's
+ * plain draft and refused on the same draft with a department on it, which is the
+ * one an approval workflow exists for. Nothing in M2 exercises that (there is no
+ * approval flow until M5), which is exactly why the rule has to be chosen now
+ * rather than discovered then.
+ *
+ * The residual: a caller holding `journals.post` alone creates tag rows. They are
+ * confined to lines that same call is authorized to bring into existence, they
+ * must name live values in the caller's own org, and no tag on any pre-existing
+ * line can be touched. Reclassifying anything already posted is still
+ * `dimensions.write`.
+ *
+ * The refusals are the same ones a retag gets — unknown, cross-org, archived,
+ * two values on one axis — because they are resolved by the same code. A tag that
+ * would be refused on a posted line is refused as the line is posted, rather than
+ * becoming a state only the posting path can reach.
+ */
+export async function resolveTagsForNewLine(
+  valueIds: readonly string[],
+  db: TenantDatabase,
+): Promise<readonly ResolvedLineTag[]> {
+  if (valueIds.length === 0) return [];
+
+  const desired = await resolveDesiredTags(db, valueIds);
+  const resolved: ResolvedLineTag[] = [];
+
+  for (const value of desired.values()) {
+    // Every tag on a new line is a new tag, so the archived checks apply to all of
+    // them — unlike a retag, where a value already present passes whatever its
+    // state, because refusing it would make the line untaggable on every other axis.
+    await assertApplicable(db, value);
+    resolved.push({ dimensionId: value.dimension_id, dimensionValueId: value.id });
+  }
+
+  return resolved;
+}
+
 /**
  * The values a line carries.
  *

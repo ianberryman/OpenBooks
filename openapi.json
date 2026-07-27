@@ -1757,6 +1757,27 @@
           "amount": {
             "$ref": "#/components/schemas/MinorUnits"
           },
+          "contactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimensionValueIds": {
+            "description": "The dimension values this line carries, named by value — a value belongs to exactly one axis, so the pair is never sent. Written with the line and read back from the tag table; changing them afterwards is the dimensions surface (ROADMAP D-32).",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "lineId": {
             "type": "string"
           },
@@ -1784,7 +1805,9 @@
           "accountId",
           "side",
           "amount",
-          "memo"
+          "memo",
+          "contactId",
+          "dimensionValueIds"
         ],
         "type": "object"
       },
@@ -1800,6 +1823,27 @@
           "amount": {
             "$ref": "#/components/schemas/MinorUnitsInput"
           },
+          "contactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimensionValueIds": {
+            "description": "The dimension values this line carries, named by value — a value belongs to exactly one axis, so the pair is never sent. Written with the line and read back from the tag table; changing them afterwards is the dimensions surface (ROADMAP D-32).",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "lineId": {
             "type": "string"
           },
@@ -1827,7 +1871,9 @@
           "accountId",
           "side",
           "amount",
-          "memo"
+          "memo",
+          "contactId",
+          "dimensionValueIds"
         ],
         "type": "object"
       },

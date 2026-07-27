@@ -3,7 +3,7 @@ import { afterAll, beforeAll } from 'vitest';
 import { createRequestContext, type RequestContext } from '../../src/context';
 import { destroyDatabase, initializeDatabase, isDatabaseInitialized } from '../../src/db';
 import { runInContext } from '../../src/context';
-import { useTestDatabase, type TestDatabase } from '../db';
+import { newUuidBuffer, useTestDatabase, type TestDatabase } from '../db';
 
 /**
  * The ledger suites drive the real posting service, so the process database handle
@@ -48,4 +48,61 @@ export function contextFor(orgUuid: string, roleUuid: string, userUuid: string):
  */
 export function withContext<T>(ctx: RequestContext, body: () => Promise<T>): Promise<T> {
   return runInContext(ctx, body);
+}
+
+/**
+ * A contact, and an axis with values, for the lines OB-059 lets a posting carry.
+ *
+ * Deliberate duplicates of `test/drafts/support.ts`, following the convention that
+ * file states: contacts and dimensions belong to OB-036 and OB-037, and reaching
+ * sideways into another suite's fixtures means this suite breaks when that one is
+ * edited. They insert as the **app** user, which is the stronger position — a
+ * missing grant surfaces here rather than in production.
+ */
+export async function contactIn(
+  db: TestDatabase,
+  orgId: Buffer,
+  name = 'Acme Ltd',
+): Promise<Buffer> {
+  const id = newUuidBuffer();
+  await db.app
+    .insertInto('contacts')
+    .values({ id, org_id: orgId, display_name: name, is_customer: 1 })
+    .execute();
+  return id;
+}
+
+export interface DimensionFixture {
+  readonly dimensionId: Buffer;
+  readonly valueIds: readonly Buffer[];
+}
+
+export async function dimensionIn(
+  db: TestDatabase,
+  orgId: Buffer,
+  code: string,
+  valueCodes: readonly string[],
+): Promise<DimensionFixture> {
+  const dimensionId = newUuidBuffer();
+  await db.app
+    .insertInto('dimensions')
+    .values({ id: dimensionId, org_id: orgId, code, name: code })
+    .execute();
+
+  const valueIds = valueCodes.map(() => newUuidBuffer());
+  await db.app
+    .insertInto('dimension_values')
+    .values(
+      valueCodes.map((valueCode, index) => ({
+        // Present by construction: the ids are generated from the same list.
+        id: valueIds[index] ?? newUuidBuffer(),
+        org_id: orgId,
+        dimension_id: dimensionId,
+        code: valueCode,
+        name: valueCode,
+      })),
+    )
+    .execute();
+
+  return { dimensionId, valueIds };
 }

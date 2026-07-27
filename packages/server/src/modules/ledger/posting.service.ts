@@ -22,23 +22,31 @@ import {
 import type { OrgId, TenantDatabase } from '../../db';
 import {
   ConflictError,
+  InternalError,
   NotFoundError,
   PreconditionFailedError,
   ValidationError,
   assertFound,
 } from '../../errors';
+import { resolveTagsForNewLine } from '../dimensions';
+import type { ResolvedLineTag } from '../dimensions';
 import { assertPostable } from '../periods';
 import { requirePermission } from '../permissions';
 
 import {
   allocateSequenceNumber,
   insertJournal,
+  insertJournalLineDimensions,
   insertJournalLines,
   newJournalId,
   selectExistingReversal,
+  selectJournalLineIds,
+  selectJournalTags,
   selectJournalToReverse,
   selectPostableAccounts,
+  selectPostableContacts,
   type JournalLineRow,
+  type JournalLineTagRow,
 } from './posting.repository';
 
 /**
@@ -56,15 +64,25 @@ import {
  *   1. permission — before the payload is examined, so an unauthorized caller
  *      learns nothing about the shape of the API they cannot use
  *   2. shape and balance — pure computation, no I/O, no locks
- *   3. accounts exist, are active, and are in this org — a plain read
+ *   3. accounts and contacts exist, are active, and are in this org — plain reads;
+ *      and each line's dimension values resolved, which takes a **row lock on
+ *      `dimension_values`** (OB-059)
  *   4. **period lock** (`assertPostable`, `FOR UPDATE`)
  *   5. **sequence lock** (`journal_sequences`, `FOR UPDATE`)
- *   6. insert header, insert lines
+ *   6. insert header, insert lines, insert the lines' tags
  *
  * Steps 4 and 5 are always taken in that order. Two locks acquired in a consistent
  * order across every caller cannot deadlock against each other; the reverse order
  * in one path would be a deadlock that appears only under concurrency, which is the
  * worst kind to find.
+ *
+ * The `dimension_values` lock step 3 takes is the same one a retag takes, and it is
+ * deliberately taken *before* the period and the sequence: it serializes this
+ * posting against `deleteDimensionValue` (without it, the losing order is errno 1452
+ * on the tag insert — a 500 for what is plainly a client's situation), and nothing
+ * anywhere takes the period or the sequence and then reaches for a dimension row, so
+ * the global order stays total. It also means the two rows every poster in the org
+ * contends on are held for as little of the call as possible.
  *
  * Step 4 is what makes acceptance A9 hold — "posting racing a period lock leaves no
  * half-written journal." If `closePeriod` commits first, the locking read sees
@@ -106,6 +124,8 @@ export async function postJournal(
 
   return tenantDb(orgId).transaction(async (trx) => {
     await assertAccountsPostable(trx, lines);
+    await assertContactsPostable(trx, lines);
+    const tags = await resolveTags(trx, lines);
 
     // Locks the period. Must precede the sequence lock — see the ordering note above.
     const period = await assertPostable(input.date);
@@ -126,6 +146,7 @@ export async function postJournal(
       reversesJournalId: null,
     });
     await insertJournalLines(trx, toLineRows(journalId, lines));
+    await insertJournalLineDimensions(trx, await toTagRows(trx, journalId, tags));
 
     return readBack(trx, journalId, orgId);
   });
@@ -205,12 +226,28 @@ export async function reverseJournal(
 
     // Sides swap; amounts are untouched. Line numbers are re-derived rather than
     // copied so the reversal is a well-formed journal in its own right.
+    //
+    // The contact is copied, and it is copied for the same reason the account and
+    // the memo are: it is a column of the line being reversed, and a reversal that
+    // dropped it would answer "what is still outstanding with this customer" with
+    // the debit and not the credit. It is copied *without* the active check
+    // `postJournal` applies, matching the account: a reversal must be able to undo
+    // an entry naming something since deactivated, or a mistake becomes permanent
+    // by the act of tidying the contact list.
+    //
+    // The tags are deliberately not copied. A tag is mutable analysis (D-32) and
+    // the reversal happens later, so copying would freeze whatever the original
+    // happened to carry at that moment into a second, independent line — and the
+    // correction a reversal makes is frequently *why* the tagging is about to
+    // change. Tagging the reversal is `setJournalLineDimensions`, which is the
+    // operation for saying which slice an amount that already exists belongs to.
     await insertJournalLines(
       trx,
       original.lines.map((line, index) => ({
         journalId,
         lineNumber: index + 1,
         accountId: line.accountId,
+        contactId: line.contactId,
         debitMinor: line.creditMinor,
         creditMinor: line.debitMinor,
         memo: line.memo,
@@ -236,9 +273,11 @@ export const postingService: PostingService = { postJournal, reverseJournal };
 
 interface ValidatedLine {
   readonly accountId: Buffer;
+  readonly contactId: Buffer | null;
   readonly side: 'debit' | 'credit';
   readonly amount: Money;
   readonly memo: string | null;
+  readonly dimensionValueIds: readonly string[];
 }
 
 /**
@@ -285,6 +324,17 @@ function validateLines(lines: readonly JournalLineInput[]): readonly ValidatedLi
       issues.push({ path: `${path}.accountId`, message: 'Not a valid account id.' });
     }
 
+    // Mirrors the account beside it: a malformed id is a validation failure naming
+    // the field, while an unknown or another org's is the single 404
+    // `assertContactsPostable` produces. A7 is satisfied either way — it requires a
+    // cross-org id to be indistinguishable from a nonexistent one, and both are —
+    // and one convention for the two reference fields on a line is worth more than
+    // matching what the drafts service does with the same id.
+    const contactId = line.contactId === undefined ? null : tryUuidToBuffer(line.contactId);
+    if (contactId === undefined) {
+      issues.push({ path: `${path}.contactId`, message: 'Not a valid contact id.' });
+    }
+
     // Strictly positive. The side carries the sign, so a negative amount is not an
     // alternative spelling of the other side — it is a caller that has confused the
     // two models, and guessing which they meant is how a debit becomes a credit.
@@ -295,12 +345,14 @@ function validateLines(lines: readonly JournalLineInput[]): readonly ValidatedLi
       });
     }
 
-    if (accountId && line.amount > 0n) {
+    if (accountId && contactId !== undefined && line.amount > 0n) {
       validated.push({
         accountId,
+        contactId,
         side: line.side,
         amount: fromMinorUnits(line.amount),
         memo: line.memo ?? null,
+        dimensionValueIds: line.dimensionValueIds ?? [],
       });
     }
   });
@@ -371,6 +423,119 @@ async function assertAccountsPostable(
 }
 
 /**
+ * Contacts must exist, be in this org, and be active (OB-059).
+ *
+ * `assertAccountsPostable`'s twin, and it exists for the same error surface:
+ * `fk_journal_lines_contact` also guarantees existence and org membership, but
+ * another org's contact id arrives as MySQL errno 1452 and becomes a 500, where A7
+ * requires the same 404 a nonexistent id gets.
+ *
+ * **An inactive contact may not be named on a new posting.** `modules/contacts`
+ * left this open deliberately — "it belongs with whichever ticket tags a posted
+ * line" — and this is that ticket. Deactivation is what an org does to take a
+ * contact out of circulation while keeping its history, so an entry naming it anew
+ * puts it straight back in, and the picker's active filter and the ledger's answer
+ * would disagree. The same rule as the account, refused the same way, so a user
+ * cannot learn one convention for one field and a different one for the field
+ * beside it.
+ *
+ * The cost is real and is the account's cost too: a draft composed while a contact
+ * was active and posted after it was deactivated is refused, and the fix is to
+ * reactivate the contact (`reactivateContact` exists precisely so deactivation is
+ * not a one-way door) or clear the line's contact. A reversal is *not* subject to
+ * this, for the reason given at the copy in `reverseJournal`.
+ */
+async function assertContactsPostable(
+  db: TenantDatabase,
+  lines: readonly ValidatedLine[],
+): Promise<void> {
+  const ids = [
+    ...new Map(
+      lines
+        .map((line) => line.contactId)
+        .filter((id): id is Buffer => id !== null)
+        .map((id) => [id.toString('hex'), id]),
+    ).values(),
+  ];
+  if (ids.length === 0) return;
+
+  const contacts = await selectPostableContacts(db, ids);
+
+  if (ids.some((id) => !contacts.has(id.toString('hex')))) {
+    throw new NotFoundError('contact');
+  }
+
+  const inactive = ids.filter((id) => contacts.get(id.toString('hex'))?.isActive === false);
+  if (inactive.length > 0) {
+    throw new PreconditionFailedError(
+      'contact_inactive',
+      `Cannot post a line naming a deactivated contact (${inactive
+        .map((id) => bufferToUuid(id))
+        .join(', ')}). Reactivate it, or clear the contact from the line.`,
+    );
+  }
+}
+
+/**
+ * Each line's tags, resolved through the module that owns them (OB-059).
+ *
+ * Resolved before the period and the sequence are locked, and resolved by the
+ * dimensions service rather than here: the refusals a tag can earn — unknown,
+ * cross-org, archived, two values on one axis — are that module's rules, and a
+ * second implementation of them would be a second answer to the same question.
+ * Why this needs no permission beyond `journals.post` is argued on
+ * `resolveTagsForNewLine`.
+ */
+async function resolveTags(
+  db: TenantDatabase,
+  lines: readonly ValidatedLine[],
+): Promise<readonly (readonly ResolvedLineTag[])[]> {
+  const resolved: (readonly ResolvedLineTag[])[] = [];
+  for (const line of lines) {
+    resolved.push(await resolveTagsForNewLine(line.dimensionValueIds, db));
+  }
+  return resolved;
+}
+
+/**
+ * The tags as rows, against the ids the lines were actually stored under.
+ *
+ * The line ids are read back rather than assumed, for the reason
+ * `selectJournalLineIds` gives. A line number with no id is impossible — the lines
+ * were inserted under this journal in this transaction — and it throws rather than
+ * defaulting, because the only available default would attach a tag to some other
+ * line.
+ */
+async function toTagRows(
+  db: TenantDatabase,
+  journalId: Buffer,
+  tags: readonly (readonly ResolvedLineTag[])[],
+): Promise<readonly JournalLineTagRow[]> {
+  if (tags.every((line) => line.length === 0)) return [];
+
+  const idsByLineNumber = await selectJournalLineIds(db, journalId);
+
+  return tags.flatMap((lineTags, index) => {
+    if (lineTags.length === 0) return [];
+
+    const lineNumber = index + 1;
+    const lineId = idsByLineNumber.get(lineNumber);
+    if (lineId === undefined) {
+      throw new InternalError(
+        `Journal line ${String(lineNumber)} was inserted and could not be read back; its tags ` +
+          'cannot be attached to a line that is not there.',
+      );
+    }
+
+    return lineTags.map((tag) => ({
+      lineId,
+      dimensionId: tag.dimensionId,
+      dimensionValueId: tag.dimensionValueId,
+    }));
+  });
+}
+
+/**
  * Actor provenance is not optional (spec §6): every posting records who or what made
  * it. A missing actor is a wiring fault in the caller, not a client error — the
  * transport populates it from the resolved session.
@@ -407,6 +572,7 @@ function toLineRows(journalId: Buffer, lines: readonly ValidatedLine[]): readonl
     journalId,
     lineNumber: index + 1,
     accountId: line.accountId,
+    contactId: line.contactId,
     debitMinor: line.side === 'debit' ? toMinorUnits(line.amount) : 0n,
     creditMinor: line.side === 'credit' ? toMinorUnits(line.amount) : 0n,
     memo: line.memo,
@@ -434,10 +600,23 @@ async function readBack(
 
   const lines = await db
     .selectFrom('journal_lines')
-    .select(['id', 'line_number', 'account_id', 'debit_minor', 'credit_minor', 'memo'])
+    .select([
+      'id',
+      'line_number',
+      'account_id',
+      'contact_id',
+      'debit_minor',
+      'credit_minor',
+      'memo',
+    ])
     .where('journal_lines.journal_id', '=', journalId)
     .orderBy('line_number')
     .execute();
+
+  const tags = await selectJournalTags(
+    db,
+    lines.map((line) => line.id),
+  );
 
   const postedLines: PostedJournalLine[] = lines.map((line) => ({
     // `journal_lines.id` is a BIGINT and internal (spec §4), stringified here rather
@@ -451,6 +630,8 @@ async function readBack(
     side: line.debit_minor > 0n ? 'debit' : 'credit',
     amount: line.debit_minor > 0n ? line.debit_minor : line.credit_minor,
     memo: line.memo,
+    contactId: line.contact_id === null ? null : bufferToUuid(line.contact_id),
+    dimensionValueIds: (tags.get(line.id.toString()) ?? []).map((value) => bufferToUuid(value)),
   }));
 
   return {

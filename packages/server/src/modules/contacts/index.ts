@@ -64,12 +64,15 @@
  * progress — `deleteContactRow`'s errno 1451 backstop cannot tell them apart,
  * which is why the checks are taken under a row lock that makes it unreachable.
  *
- * One question is deliberately left open, as `modules/accounts` leaves its own:
- * **nothing prevents posting to an inactive contact.** The flag is a picker
- * affordance until there is a posting path that takes a contact at all — the
- * ledger has no `contactId` on its wire contract yet — and inventing the rule
- * before the thing it governs exists is the mistake `parent_account_id` avoided
- * through M1. It belongs with whichever ticket tags a posted line.
+ * The question this file left open — whether an inactive contact may be posted
+ * to — is **settled by OB-059, and the answer is no.** `postJournal`'s line input
+ * now carries a `contactId`, so the thing the rule governs exists, and
+ * `assertContactsPostable` refuses a deactivated contact with `contact_inactive`
+ * exactly as an inactive account is refused. Deactivation takes a contact out of
+ * circulation while keeping its history, and naming it on a new entry would put it
+ * back. A *reversal* is not subject to the check, for the reason given where the
+ * copy is made: correcting an old entry must not depend on the contact list having
+ * stayed still.
  */
 
 export type {

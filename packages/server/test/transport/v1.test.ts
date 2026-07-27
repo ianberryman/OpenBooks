@@ -141,14 +141,29 @@ describe('A1 — post a manual balanced journal via REST', () => {
       invocationMode: null,
       reversesJournalId: null,
     });
+    // `contactId` and `dimensionValueIds` are read back from the tables rather than
+    // echoed (OB-059), so their absence here would mean the posting path silently
+    // dropped what a draft carried — the defect that shipped in wave 2. Asserted as an
+    // exact shape, so a field added to a posted line has to be looked at rather than
+    // absorbed.
     expect(journal.lines).toEqual([
-      { lineId: expect.any(String), accountId: cash, side: 'debit', amount: AMOUNT, memo: null },
+      {
+        lineId: expect.any(String),
+        accountId: cash,
+        side: 'debit',
+        amount: AMOUNT,
+        memo: null,
+        contactId: null,
+        dimensionValueIds: [],
+      },
       {
         lineId: expect.any(String),
         accountId: revenue,
         side: 'credit',
         amount: AMOUNT,
         memo: 'Invoice 1',
+        contactId: null,
+        dimensionValueIds: [],
       },
     ]);
     // D-13 on the way *out*, which is the half a schema alone would not catch: a JSON

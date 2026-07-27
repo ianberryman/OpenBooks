@@ -56,8 +56,8 @@
  *
  * `postDraft` runs `postJournal` and deletes the draft in one transaction, keyed
  * on the draft id. Read its commentary in `drafts.service.ts` for the lock order,
- * for what the loser of a concurrent post sees, and for the one thing this module
- * knowingly does not carry into the ledger yet.
+ * for what the loser of a concurrent post sees, and for how the line's contact and
+ * its tags reach the ledger without this module writing either table (OB-059).
  */
 
 export {

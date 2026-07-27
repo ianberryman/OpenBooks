@@ -639,8 +639,8 @@ OB-045 is a real boundary; nothing in wave 5 changes anything below it.
 
 ### M2 status
 
-Waves 0, 1 and 2 plus OB-046 are built on `develop`. `yarn check` passes: 1,042 tests
-across 82 files, ~46s.
+Waves 0, 1 and 2 plus OB-046 and the start of wave 3 are built on `develop`. `yarn check`
+passes: 1,081 tests across 86 files, ~59s.
 
 | Ticket     | State | Note                                                                             |
 | ---------- | ----- | -------------------------------------------------------------------------------- |
@@ -659,6 +659,8 @@ across 82 files, ~46s.
 | **OB-040** | Built | Members, invites, SES + log adapters; `smtp` removed ([D-31](#d-31))             |
 | **OB-046** | Built | Token layer, `openbooks/no-raw-color`, Radix wrappers, shell                     |
 | **OB-058** | Built | jsdom harness; 87 web tests. New ticket — see below                              |
+| **OB-059** | Built | A posted draft carries its contacts and tags. New ticket — the wave-2 defect     |
+| **OB-041** | Built | Report core: `getAccountBalances`, differential-tested against the trial balance |
 | Waves 3–6  | —     | Not started                                                                      |
 
 **OB-058, web component test harness**, was not in the original board. It exists because
@@ -713,21 +715,11 @@ the chain, since `done(failure)` only skips what comes after. That guarantee now
 registration order in `app.ts` rather than on a hook choice, which is a more fragile place
 to hold it — worth knowing before anyone reorders that file.
 
-Wave 2 left two things that are work rather than notes, and they belong to nobody's
-ticket yet (a third, retagging in a closed period, is settled as [D-32](#d-32)):
+Wave 2 left one thing that is work rather than a note (a second, retagging in a closed
+period, is settled as [D-32](#d-32); a third, drafts dropping what they held, is fixed as
+OB-059 below):
 
-1. **A draft's `contactId` and dimension tags are dropped at post.** They are held on the
-   draft and absent from the journal it produces, pinned by a test that fails the day it is
-   fixed. OB-038 was right not to write them — `journal_lines.contact_id` is writable only
-   through `posting.repository.ts` and the tag table belongs to the dimensions service, so
-   either would have been a second write path into another module's invariant — but the
-   report hands the job to OB-045, and OB-045 is transport, which holds no business logic.
-   The fix is `postJournal`'s line input carrying `contactId`, and `postDraft` calling the
-   dimensions service inside the transaction it already opens. **This blocks B6**: a form
-   that collects per-line tagging, feeding a draft that discards it, means sliced reports
-   are missing exactly the entries somebody tagged by hand.
-
-2. **The starter chart is not applied at org creation.** OB-039's service is complete and
+1. **The starter chart is not applied at org creation.** OB-039's service is complete and
    callable; `createOrg` lives in `modules/orgs/`, which another agent held during the wave.
    It is more than a call site: `applyChartTemplate` takes a `RequestContext` and at
    org-creation time the caller's context is not yet scoped to the org being created. It

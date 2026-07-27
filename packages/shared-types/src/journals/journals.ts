@@ -131,6 +131,13 @@ export const postedJournalLineSchema = z
     side: journalSideSchema,
     amount: minorUnitsSchema,
     memo: z.string().nullable(),
+    contactId: z.uuid().nullable(),
+    dimensionValueIds: z.array(z.uuid()).meta({
+      description:
+        'The dimension values this line carries, named by value — a value belongs to exactly ' +
+        'one axis, so the pair is never sent. Written with the line and read back from the ' +
+        'tag table; changing them afterwards is the dimensions surface (ROADMAP D-32).',
+    }),
   })
   .meta({
     id: 'PostedJournalLine',
