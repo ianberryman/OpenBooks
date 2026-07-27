@@ -202,3 +202,14 @@ export type {
   ReopenReconciliationSessionRequest,
   UpdateReconciliationSessionRequest,
 } from './reconciliation';
+
+export {
+  reconcilingItemSchema,
+  reconciliationReportSchema,
+  unclearedStatementLineSchema,
+} from './reconciliation-report';
+export type {
+  ReconcilingItem,
+  ReconciliationReport,
+  UnclearedStatementLine,
+} from './reconciliation-report';

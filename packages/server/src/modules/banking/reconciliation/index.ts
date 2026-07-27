@@ -32,6 +32,14 @@
  *
  * There are no routes: `/v1` for M4 is OB-084, and the wire contracts in
  * `shared-types/src/banking/reconciliation.ts` carry no `.meta({ id })` until then.
+ *
+ * ## The reconciliation report (OB-083)
+ *
+ * `getReconciliationReport` reads a session and enumerates the entries that make up its
+ * `unclearedAmount` — the reconciling ledger movements, which sum to that figure exactly
+ * (`clearedBalance + Σ items === bookBalance`, D-50), and the statement-side backlog
+ * alongside. A pure read over what OB-081 and OB-082 wrote, gated on `banking.read`
+ * (reading is not reconciling). See `report.service.ts`.
  */
 export {
   createReconciliationSession,
@@ -41,3 +49,5 @@ export {
   reopenReconciliationSession,
   updateReconciliationSession,
 } from './reconciliation.service';
+
+export { getReconciliationReport } from './report.service';

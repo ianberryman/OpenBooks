@@ -465,6 +465,201 @@ export async function unclearedLineCount(
 }
 
 // ---------------------------------------------------------------------------
+// The reconciliation report's items (OB-083)
+// ---------------------------------------------------------------------------
+
+/**
+ * The clearings this session counts into `clearedBalance` — the opening set plus the
+ * members — expressed once so the report and the balances agree about which they are.
+ *
+ * The predicates are `openingBalance`'s and (`clearedStamped` | `clearedInWindow`)'s,
+ * verbatim: opening is a prior finalised session's stamped clearing dated before this
+ * window; a member is this session's stamp once finalised, or an unclaimed clearing in
+ * the window while open (D-51). Selecting the same rows both places is what makes the
+ * tie-out structural rather than a coincidence two queries have to keep agreeing on.
+ */
+export interface CountedClearings {
+  readonly bankAccountId: Buffer;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly sessionId: Buffer;
+  readonly finalised: boolean;
+}
+
+export interface LedgerEntryRow {
+  readonly journalId: Buffer;
+  readonly entryDate: string;
+  readonly movement: bigint;
+  readonly memo: string | null;
+  readonly reference: string | null;
+}
+
+/**
+ * The bank-account ledger movements this session did not clear — the report's
+ * reconciling items (OB-083; D-50).
+ *
+ * Every journal line on the bank ledger account dated at or before `endDate`, netted
+ * per journal, **minus the journals the counted clearings cleared**. The subtraction is
+ * what makes the sum equal `unclearedAmount`:
+ *
+ * ```
+ *   bookBalance            = Σ movement over every bank-account journal ≤ endDate
+ *   clearedBalance         = Σ cleared_amount over counted clearings
+ *                          = Σ movement over their cleared journals
+ *   Σ these items          = bookBalance − Σ movement over counted cleared journals
+ *                          = bookBalance − clearedBalance = unclearedAmount
+ * ```
+ *
+ * The middle equality is `clearing.repository.ts`'s `journalBankMovement`: a clearing's
+ * `cleared_amount_minor` *is* the net movement of `cleared_journal_id` on the bank
+ * account, so subtracting the counted journals removes exactly what `clearedBalance`
+ * counted. What remains is the reconciling gap, entry by entry: an unpresented cheque, a
+ * deposit in transit, a difference journal (a bank charge posted by a clearing — it
+ * moves the account but is not a `cleared_journal_id`, so it is correctly a reconciling
+ * item), and a straggler cleared into an already-finalised window (unstamped, so not
+ * counted). A journal that nets to zero on the account is dropped: it moves no balance
+ * and is not a reconciling item, and dropping a zero changes no sum.
+ *
+ * The residual limit, stated rather than found: this equals `unclearedAmount` when every
+ * counted cleared journal is itself dated at or before `endDate`, which a `post_entry`
+ * and an `allocate_document` always are (the journal is dated the line's own date, D-45)
+ * and a `link_entry` to a future-dated journal need not be. That is the same shape of
+ * as-at residual `aging.repository.ts` records for a removed allocation — an unusual data
+ * shape the ledger itself would have to carry, not a defect this read introduces — and
+ * `bookBalance` inherits it identically, so the report never disagrees with the session.
+ */
+export async function selectUnclearedLedgerEntries(
+  db: TenantDatabase,
+  bankLedgerAccountId: Buffer,
+  counted: CountedClearings,
+): Promise<readonly LedgerEntryRow[]> {
+  const countedJournals = db
+    .selectFrom('bank_line_clearings')
+    .innerJoin('bank_statement_lines', (join) =>
+      join
+        .onRef('bank_statement_lines.id', '=', 'bank_line_clearings.statement_line_id')
+        .onRef('bank_statement_lines.org_id', '=', 'bank_line_clearings.org_id'),
+    )
+    .where('bank_statement_lines.bank_account_id', '=', counted.bankAccountId)
+    .where((eb) =>
+      eb.or([
+        // Opening: claimed by a prior finalised session, dated before this window.
+        eb.and([
+          eb('bank_statement_lines.posted_date', '<', counted.startDate),
+          eb('bank_line_clearings.reconciliation_session_id', 'is not', null),
+        ]),
+        // Members: this session's stamp once finalised (D-51), else an unclaimed
+        // clearing in the window while open.
+        counted.finalised
+          ? eb('bank_line_clearings.reconciliation_session_id', '=', counted.sessionId)
+          : eb.and([
+              eb('bank_statement_lines.posted_date', '>=', counted.startDate),
+              eb('bank_statement_lines.posted_date', '<=', counted.endDate),
+              eb('bank_line_clearings.reconciliation_session_id', 'is', null),
+            ]),
+      ]),
+    )
+    .select('bank_line_clearings.cleared_journal_id as journal_id');
+
+  const rows = await db
+    .selectFrom('journal_lines')
+    .innerJoin('journals', (join) =>
+      join
+        .onRef('journals.id', '=', 'journal_lines.journal_id')
+        .onRef('journals.org_id', '=', 'journal_lines.org_id'),
+    )
+    .where('journal_lines.account_id', '=', bankLedgerAccountId)
+    .where('journals.entry_date', '<=', counted.endDate)
+    .where('journal_lines.journal_id', 'not in', countedJournals)
+    .groupBy([
+      'journal_lines.journal_id',
+      'journals.entry_date',
+      'journals.memo',
+      'journals.reference',
+    ])
+    .orderBy('journals.entry_date')
+    .orderBy('journal_lines.journal_id')
+    .select((eb) => [
+      'journal_lines.journal_id as journal_id',
+      'journals.entry_date as entry_date',
+      'journals.memo as memo',
+      'journals.reference as reference',
+      eb.fn.coalesce(eb.fn.sum<bigint>('journal_lines.debit_minor'), eb.lit(0)).as('debits'),
+      eb.fn.coalesce(eb.fn.sum<bigint>('journal_lines.credit_minor'), eb.lit(0)).as('credits'),
+    ])
+    .execute();
+
+  const entries: LedgerEntryRow[] = [];
+  for (const row of rows) {
+    const movement = BigInt(row.debits) - BigInt(row.credits);
+    // A journal that nets to zero on the bank account moved no balance — not a
+    // reconciling item, and a zero it would only pad the list with.
+    if (movement === 0n) continue;
+    entries.push({
+      journalId: row.journal_id,
+      entryDate: row.entry_date,
+      movement,
+      memo: row.memo,
+      reference: row.reference,
+    });
+  }
+  return entries;
+}
+
+export interface UnclearedLineRow {
+  readonly lineId: Buffer;
+  readonly postedDate: string;
+  readonly amount: bigint;
+  readonly description: string;
+  readonly bankReference: string | null;
+}
+
+/**
+ * The statement lines in the window carrying no clearing — the report's statement-side
+ * backlog (OB-083).
+ *
+ * The predicates are `unclearedLineCount`'s exactly — a left join to clearings and a
+ * NULL test — so the list this returns and the count that summary reports can never
+ * disagree about which lines they are. Oldest first, the order a statement is read in.
+ */
+export async function selectUnclearedStatementLines(
+  db: TenantDatabase,
+  bankAccountId: Buffer,
+  startDate: string,
+  endDate: string,
+): Promise<readonly UnclearedLineRow[]> {
+  const rows = await db
+    .selectFrom('bank_statement_lines')
+    .leftJoin('bank_line_clearings', (join) =>
+      join
+        .onRef('bank_line_clearings.statement_line_id', '=', 'bank_statement_lines.id')
+        .onRef('bank_line_clearings.org_id', '=', 'bank_statement_lines.org_id'),
+    )
+    .where('bank_statement_lines.bank_account_id', '=', bankAccountId)
+    .where('bank_statement_lines.posted_date', '>=', startDate)
+    .where('bank_statement_lines.posted_date', '<=', endDate)
+    .where('bank_line_clearings.id', 'is', null)
+    .orderBy('bank_statement_lines.posted_date')
+    .orderBy('bank_statement_lines.id')
+    .select([
+      'bank_statement_lines.id as line_id',
+      'bank_statement_lines.posted_date as posted_date',
+      'bank_statement_lines.amount_minor as amount_minor',
+      'bank_statement_lines.description as description',
+      'bank_statement_lines.bank_reference as bank_reference',
+    ])
+    .execute();
+
+  return rows.map((row) => ({
+    lineId: row.line_id,
+    postedDate: row.posted_date,
+    amount: row.amount_minor,
+    description: row.description,
+    bankReference: row.bank_reference,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // The membership stamp (D-51)
 // ---------------------------------------------------------------------------
 

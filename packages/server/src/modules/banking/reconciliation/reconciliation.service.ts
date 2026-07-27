@@ -467,7 +467,13 @@ function toBalances(figures: SessionFigures): ReconciliationBalances {
   };
 }
 
-async function toSummary(
+/**
+ * Exported for `report.service.ts` (OB-083): the reconciliation report reuses this
+ * whole assembly rather than recomputing the balances, so it and the session can never
+ * disagree about the figure the report exists to explain (D-46). An additive report
+ * addition — the session service's own behaviour is unchanged.
+ */
+export async function toSummary(
   db: TenantDatabase,
   session: SessionRow,
 ): Promise<ReconciliationSessionSummary> {

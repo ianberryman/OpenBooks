@@ -105,6 +105,7 @@ export {
 export {
   createReconciliationSession,
   finaliseReconciliationSession,
+  getReconciliationReport,
   getReconciliationSession,
   listReconciliationSessions,
   reopenReconciliationSession,

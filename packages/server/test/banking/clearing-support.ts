@@ -327,19 +327,25 @@ async function documentIn(
   return { id, uuid, contactId: scene.contact.id, amountMinor };
 }
 
-/** A plain balanced journal moving the bank ledger account by `signed`. */
+/**
+ * A plain balanced journal moving the bank ledger account by `signed`.
+ *
+ * `entryDate` defaults to the scene's date; OB-083's report tests pass one to place a
+ * movement outside a session's window and prove it does not reach the as-at report.
+ */
 export async function bankJournalIn(
   db: TestDatabase,
   scene: Scene,
   signed: bigint,
   counterAccount: AccountFixture,
+  entryDate: string = scene.date,
 ): Promise<{ readonly id: Buffer; readonly uuid: string }> {
   const magnitude = signed < 0n ? -signed : signed;
   const bankDebit = signed > 0n;
   const journal = await db.factories.journal({
     orgId: scene.orgId,
     periodId: scene.periodId,
-    entryDate: scene.date,
+    entryDate,
     actorId: scene.userId,
     lines: bankDebit
       ? [

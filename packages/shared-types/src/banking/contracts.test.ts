@@ -193,6 +193,33 @@ const SESSION_SUMMARY = {
 
 const SESSION = { ...SESSION_SUMMARY, events: [SESSION_EVENT] };
 
+const RECONCILING_ITEM = {
+  journalId: UUID(6),
+  date: DATE,
+  amount: '-1500',
+  description: 'Cheque 1042',
+  reference: null,
+};
+
+const UNCLEARED_STATEMENT_LINE = {
+  lineId: UUID(7),
+  date: '2026-03-20',
+  amount: '2000',
+  description: 'BANK CHARGES',
+  reference: null,
+};
+
+const REPORT = {
+  sessionId: UUID(2),
+  bankAccountId: UUID(5),
+  startDate: '2026-03-01',
+  endDate: DATE,
+  state: 'finalised',
+  balances: BALANCES,
+  reconcilingItems: [RECONCILING_ITEM],
+  unclearedStatementLines: [UNCLEARED_STATEMENT_LINE],
+};
+
 const page = (item: unknown): unknown => ({ items: [item], nextCursor: null });
 
 /**
@@ -294,6 +321,10 @@ const SAMPLES: Readonly<Record<string, unknown>> = {
   updateReconciliationSessionRequestSchema: { statementClosingBalance: '150100' },
   reopenReconciliationSessionRequestSchema: { reason: 'The bank restated a fee.' },
   listReconciliationSessionsQuerySchema: { bankAccountId: UUID(5), state: 'open' },
+
+  reconcilingItemSchema: RECONCILING_ITEM,
+  unclearedStatementLineSchema: UNCLEARED_STATEMENT_LINE,
+  reconciliationReportSchema: REPORT,
 };
 
 describe('what M4 publishes as an OpenAPI component', () => {
