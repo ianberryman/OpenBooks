@@ -36,9 +36,10 @@ section first; the per-milestone Status sections below carry the detail.
 
 Wave 2 built the matching pipeline: the read-only proposal engine (OB-079), bank rules and
 their evaluator (OB-080), and clearing — the one write path (OB-081) — and took `banking.match`
-live in the permission matrix. **Wave 3 turns on one open decision: E5 vs D-45, whether an
-unpresented cheque blocks finalisation** — recorded in
-[Status — Milestone 4](#status--milestone-4) and not yet settled.
+live in the permission matrix. Wave 3's two open questions are now settled:
+[D-50](#d-50) (finalisation asserts the _cleared_ balance, so an unpresented cheque is a
+reconciling difference and not a blocker) and [D-51](#d-51) (membership frozen at
+finalisation). See [Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1157,18 +1158,18 @@ Two things wave 0 decided against its own brief, both worth knowing before wave 
   proprietary tags and one parser; a second token would be a second name for one thing.
   OB-077's title still says "OFX/QFX" and means this.
 
-#### Carried forward (wave 3)
+#### Wave 3 — both open decisions now settled
 
-| What                                                            | Owner  |
-| --------------------------------------------------------------- | ------ |
-| Session membership is by date and is not frozen at finalisation | OB-082 |
-| **E5 vs D-45: does an unpresented cheque block finalisation?**  | OB-082 |
+The two questions the contracts left for wave 3 are answered, so OB-082 builds against a
+fixed target:
 
-Done and recorded above: `bank_statement_imports` gaining a `status` (OB-078), and
-`bank_match_proposals` carrying `rank` and no `score` ([D-48](#d-48), OB-079).
+- **E5 vs D-45 → [D-50](#d-50):** finalisation asserts the _cleared_ balance equals the
+  statement; an unpresented cheque is a reconciling difference, not a blocker.
+- **Session membership → [D-51](#d-51):** frozen at finalisation by stamping the session id
+  onto the clearings it counted, so the assertion cannot be falsified afterward.
 
-The last row is a genuine ambiguity in this roadmap, not an implementation question, and it
-is the decision wave 3 opens on.
+Done and recorded above from earlier waves: `bank_statement_imports` gaining a `status`
+(OB-078), and `bank_match_proposals` carrying `rank` and no `score` ([D-48](#d-48), OB-079).
 E5 says "book balance = statement balance at the date"; read literally, an uncleared item —
 a written cheque not yet presented — would block finalisation, which is wrong for a bank
 reconciliation. The contracts model `clearedBalance` alongside `bookBalance` with
@@ -1931,6 +1932,39 @@ still reads `on-failure`, and its comment is still correct: while the worker reg
 jobs and returns immediately, `unless-stopped` restarts a _successful_ exit in a tight loop
 that reads as a broken stack. It becomes `unless-stopped` in the same ticket that makes the
 worker block. Changing it earlier trades a cosmetic problem for a real one.
+
+<a id="d-50"></a>
+
+**D-50 — Finalisation asserts the _cleared_ balance equals the statement, not the book
+balance.** This settles the E5-vs-D-45 ambiguity the contracts left open. A reconciliation
+compares what the bank has actually processed against what the bank says it processed, so
+finalising asserts `clearedBalance === statementClosingBalance` and refuses otherwise (E5).
+Uncleared items — a cheque written but not yet presented, a deposit in transit — are
+**reconciling differences shown alongside, never blockers**: `unclearedAmount = bookBalance − clearedBalance`
+is displayed and explains the gap between the ledger and the bank, which is the whole point
+of a reconciliation rather than a failure of one.
+
+Read literally, E5's "book balance = statement balance" would freeze a reconciliation
+whenever a payment is in flight, which is not how bank reconciliation works and would make
+month-end impossible in the ordinary case. The contracts already modelled `clearedBalance`
+beside `bookBalance` in anticipation; D-50 says which one finalisation refuses on. This is
+also standard practice — it is what a bookkeeper does by hand and what QuickBooks does.
+
+<a id="d-51"></a>
+
+**D-51 — A session freezes its membership at finalisation.** When a session finalises, the
+clearings it counted are stamped with its id (`bank_line_clearings.reconciliation_session_id`,
+already nullable for exactly this), snapshotting what the assertion covered. The alternative
+— recomputing membership by date range on every read — leaves a finalised assertion
+falsifiable: a clearing entered afterward with an in-range date would silently change what
+the session claimed, and OB-075 flagged this as a real risk.
+
+The reasoning is [D-42](#d-42)'s applied to an assertion rather than a line: a record whose
+meaning can be rewritten after the fact records nothing. Reopening a session (E6) is the
+sanctioned way to change what it covers, and it is permission-gated and logged in
+`reconciliation_session_events` — an unstamp-and-restamp with a name and a timestamp on it,
+not a silent drift. Freezing costs one membership write at finalisation and buys an
+assertion that stays true.
 
 ## Status — Milestone 1
 
