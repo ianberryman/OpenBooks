@@ -3,6 +3,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+/**
+ * Where the dev proxy sends `/v1` and `/health`.
+ *
+ * Read from the environment with the same default `docker-compose.yml` publishes for
+ * `API_HOST_PORT`, so the two cannot drift: the compose stack and `yarn dev` are the
+ * two ways this API gets served, and a proxy pointing at a port neither uses fails as
+ * an HTML `index.html` reaching the client's JSON parse — an error that names neither
+ * the port nor the cause.
+ *
+ * 3100 rather than 3000 because 3000 is the most contended port on a machine running
+ * more than one Node project; see the comment in `docker-compose.yml`.
+ */
+const API_TARGET = process.env['OPENBOOKS_API_TARGET'] ?? 'http://localhost:3100';
+
 export default defineConfig({
   // Tailwind as a Vite plugin rather than through PostCSS: the token layer is scanned and
   // compiled in the same pass that resolves `@import './tokens.css'`, so there is no
@@ -24,7 +38,7 @@ export default defineConfig({
     // refused the credentialed request outright. See src/env.ts.
     proxy: {
       '/v1': {
-        target: 'http://localhost:3000',
+        target: API_TARGET,
         changeOrigin: true,
       },
       // `/health` as well as `/v1`, because the shell calls it (src/App.tsx) and an
@@ -32,7 +46,7 @@ export default defineConfig({
       // index.html and a 200, so what fails is the client's JSON parse, and that error
       // names neither the path nor the missing rule.
       '/health': {
-        target: 'http://localhost:3000',
+        target: API_TARGET,
         changeOrigin: true,
       },
     },

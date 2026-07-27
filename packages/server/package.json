@@ -8,7 +8,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dev": "tsx watch src/entrypoints/api.ts",
+    "dev": "tsx watch src/entrypoints/main.ts",
     "build": "node ../../scripts/build-server.mjs",
     "start": "node ../../dist/server/main.js",
     "migrate": "tsx src/entrypoints/migrate-cli.ts up",

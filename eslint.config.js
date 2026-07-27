@@ -98,6 +98,13 @@ export default tseslint.config(
       'scripts/**/*.mjs',
       'packages/server/test/**/*.ts',
       'vitest.config.ts',
+      // Build tooling, like the two entries above it. A Vite config runs in Node
+      // before any application exists and cannot consume the server's validated
+      // config — that module lives in another package and importing it would pull
+      // the server into the web build. What it reads is the dev proxy's target,
+      // which is a fact about the developer's machine rather than about the
+      // running system.
+      'packages/web/vite.config.ts',
     ],
     rules: {
       'openbooks/no-process-env': 'off',

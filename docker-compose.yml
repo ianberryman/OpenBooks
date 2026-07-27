@@ -77,7 +77,22 @@ services:
     ports:
       # Exposed so `yarn migrate` and `yarn codegen` can run from the host
       # against the same database the stack uses.
-      - '${DATABASE_PORT:-3306}:3306'
+      #
+      # `DATABASE_HOST_PORT`, deliberately not `DATABASE_PORT`. The two are
+      # different facts and sharing one variable was a latent trap: `DATABASE_PORT`
+      # is how api/worker/migrate reach `mysql` *inside* the compose network, where
+      # it is always 3306, while this is the port on the developer's machine. Anyone
+      # who set `DATABASE_PORT` to dodge a host clash — the obvious move — would have
+      # silently repointed the application at a port MySQL does not listen on.
+      #
+      # The default is 13307 rather than 3306 because 3306 is the one port a
+      # developer machine most often already has: a Homebrew or system `mysqld`
+      # binds `127.0.0.1:3306`, Docker's publish then falls back to IPv6 only, and a
+      # host-side `yarn migrate` reaches the *wrong database* and reports it as
+      # `Access denied for user 'openbooks_migrator'@'localhost'` — which reads like
+      # a credentials problem and is not. Costing everyone a non-standard port is
+      # cheaper than costing one person that afternoon.
+      - '${DATABASE_HOST_PORT:-13307}:3306'
     volumes:
       - mysql-data:/var/lib/mysql
       # Runs once, against an empty data directory, in filename order. Creates
@@ -135,7 +150,11 @@ services:
       HTTP_HOST: ${HTTP_HOST:-0.0.0.0}
       HTTP_PORT: 3000
     ports:
-      - '${HTTP_PORT:-3000}:3000'
+      # `API_HOST_PORT` for the same reason `DATABASE_HOST_PORT` exists: `HTTP_PORT`
+      # is the port the server binds inside its container and is fixed at 3000 above.
+      # 3100 by default because 3000 is the most contended port on any machine that
+      # runs more than one Node project.
+      - '${API_HOST_PORT:-3100}:3000'
     depends_on:
       mysql:
         condition: service_healthy
