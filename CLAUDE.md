@@ -36,7 +36,7 @@ counter is its own table (D-14).
 **Two database users.** `openbooks_migrator` has DDL and `GRANT OPTION`;
 `openbooks_app` has read/append plus `UPDATE`/`DELETE` on an explicit allowlist. MySQL
 cannot revoke a table privilege granted at schema level, so the privilege that must not
-exist is never granted — see `0004_app_grants`, which explains it at length. The same
+exist is never granted — see `0999_app_grants`, which explains it at length. The same
 split is provisioned in Compose, testcontainers, and the RDS bootstrap, and
 `infra/scripts/check-db-bootstrap-parity.sh` fails if they diverge.
 
@@ -94,11 +94,16 @@ that exist because the generator maps `BIGINT` to `number` and `DATE` to `Date`.
 - Prettier: 100 col, single quotes, semicolons, trailing commas.
 - Pre-release, **migrations are edited in place** rather than appended to (D-15). This
   inverts permanently at first release.
+- Migration prefixes are four digits, and `0999_app_grants` is the ceiling on purpose:
+  MySQL refuses a `GRANT` on a table that does not exist, so the grants migration has
+  to sort last, and nothing following the convention can sort after `0999`. A new
+  subsystem gets its own file (`0005_subledger`); a new mutable table also gets a line
+  in `MUTABLE_TABLES`.
 
 ## Comments
 
 Comments explain _why_, citing the spec section or roadmap decision — not _what_. The
-register to match: `src/db/migrations/0004_app_grants.ts`, `src/db/transaction-scope.ts`,
+register to match: `src/db/migrations/0999_app_grants.ts`, `src/db/transaction-scope.ts`,
 `src/modules/ledger/posting.service.ts`. Ordinary code gets no commentary. A decision
 that took measuring to reach gets the measurement written down, so the next person does
 not have to repeat it.

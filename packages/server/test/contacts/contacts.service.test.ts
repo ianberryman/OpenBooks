@@ -44,7 +44,7 @@ const db = useServiceDatabase();
  *
  * Raw SQL on the migrator connection, deliberately, and it is the only way this
  * assertion can be made today: the app user holds no `UPDATE` on `journal_lines`
- * by design (`0004_app_grants`), `openbooks/no-journal-writes` keeps inserts
+ * by design (`0999_app_grants`), `openbooks/no-journal-writes` keeps inserts
  * inside the posting repository and the factories, and no posting path accepts a
  * `contactId` yet — the ledger's wire contract has no such field until the ticket
  * that tags a posted line. `test/contacts/schema.test.ts` establishes the same

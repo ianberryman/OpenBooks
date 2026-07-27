@@ -101,6 +101,48 @@ const OVERRIDES = {
     'journal_drafts.entry_date': 'string | null',
     'fiscal_periods.start_date': 'string',
     'fiscal_periods.end_date': 'string',
+
+    // ── The M3 subledger (0005_subledger) ───────────────────────────────────
+    //
+    // Same two defaults, same two corrections, one more column kind. Money stays
+    // `bigint`; `quantity_micros` is a BIGINT that is deliberately *not* money — a
+    // count scaled by 1e6 — and gets the same treatment for the same reason, since
+    // the driver returns it as a bigint whatever it means. `rate_ppm` is an
+    // `INT UNSIGNED` and needs no override: it is well inside 2^53 and the generator
+    // maps it to `number` correctly.
+    'document_sequences.next_value': 'Generated<bigint>',
+
+    'ar_documents.sequence_number': 'bigint | null',
+    'ar_documents.issue_date': 'string',
+    'ar_documents.due_date': 'string | null',
+    'ar_document_lines.id': 'Generated<bigint>',
+    'ar_document_lines.quantity_micros': 'bigint',
+    'ar_document_lines.unit_amount_minor': 'bigint',
+    'ar_document_lines.line_amount_minor': 'bigint',
+    // Plain bigint despite the DEFAULT 0, exactly as `journal_lines.debit_minor` is:
+    // an amount that silently defaults because a caller forgot it is the bug no
+    // CHECK constraint here can catch.
+    'ar_document_lines.tax_amount_minor': 'bigint',
+    'ar_document_line_dimensions.document_line_id': 'bigint',
+
+    'ap_documents.sequence_number': 'bigint | null',
+    'ap_documents.issue_date': 'string',
+    'ap_documents.due_date': 'string | null',
+    'ap_document_lines.id': 'Generated<bigint>',
+    'ap_document_lines.quantity_micros': 'bigint',
+    'ap_document_lines.unit_amount_minor': 'bigint',
+    'ap_document_lines.line_amount_minor': 'bigint',
+    'ap_document_lines.tax_amount_minor': 'bigint',
+    'ap_document_line_dimensions.document_line_id': 'bigint',
+
+    'payments.sequence_number': 'bigint',
+    'payments.amount_minor': 'bigint',
+    'payments.payment_date': 'string',
+
+    'ar_allocations.amount_minor': 'bigint',
+    'ar_allocations.allocated_on': 'string',
+    'ap_allocations.amount_minor': 'bigint',
+    'ap_allocations.allocated_on': 'string',
   },
 };
 

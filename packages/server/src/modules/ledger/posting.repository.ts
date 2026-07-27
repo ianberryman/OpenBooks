@@ -63,7 +63,7 @@ export interface JournalLineTagRow {
  * is where it bites: `MAX(sequence_number) + 1` would need a locking read on
  * `journals`, and the app user cannot take one — MySQL requires
  * `UPDATE`/`DELETE`/`LOCK TABLES` alongside `SELECT` for `FOR UPDATE`, and
- * withholding exactly those is how immutability is enforced (0004_app_grants).
+ * withholding exactly those is how immutability is enforced (0999_app_grants).
  * `journal_sequences` is in the mutable allowlist precisely so this lock is
  * available.
  *

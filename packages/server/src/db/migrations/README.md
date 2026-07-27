@@ -51,24 +51,36 @@ check.
 
 ## Ordering
 
-| File               | Contents                                                  |
-| ------------------ | --------------------------------------------------------- |
-| `0001_tenancy`     | Orgs, users, membership, roles, permissions, keys         |
-| `0002_ledger`      | Accounts, contacts, dimensions, periods, journals, drafts |
-| `0003_idempotency` | Idempotency keys for every write endpoint                 |
-| `0004_app_grants`  | Narrows the app user so journals are append-only          |
+| File               | Contents                                                     |
+| ------------------ | ------------------------------------------------------------ |
+| `0001_tenancy`     | Orgs, users, membership, roles, permissions, keys            |
+| `0002_ledger`      | Accounts, contacts, dimensions, periods, journals, drafts    |
+| `0003_idempotency` | Idempotency keys for every write endpoint                    |
+| `0005_subledger`   | Tax rates, AR/AP documents, payments, allocations, sequences |
+| `0999_app_grants`  | Narrows the app user so journals are append-only             |
 
-The grants migration must run last. `0004_app_grants` issues a table-level `GRANT`
+The grants migration must run last. `0999_app_grants` issues a table-level `GRANT`
 per mutable table and MySQL resolves the table name as it runs — it refuses a grant
 on a table that does not exist (`ERROR 1146`, measured on 8.4) — so a table created
 after it can never be granted.
 
-Pre-release that ordering holds by construction rather than by convention: every
-table is declared in one of the three migrations above, so there is nothing to
-number around (ROADMAP D-15). Adding a mutable table is therefore two edits in two
-files — the table in `0002_ledger`, and its name in `MUTABLE_TABLES`. At first
-release, when a new table does mean a new migration, the grants migration has to be
-renumbered to stay last.
+**That is why the number is `0999`.** Kysely applies migrations in lexicographic
+order, so "last" is a fact about the name and nothing else. `0999` is the largest
+prefix the four-digit convention can express, so a migration that follows the
+convention cannot sort after it; a merely large gap (`0099`) postpones the same
+collision rather than removing it. Sorting last is now a property of the numbering
+scheme instead of something each wave has to remember, which is what makes
+`0005_subledger` possible at all — M2 had to dissolve three numbered migrations back
+into `0002_ledger` to get around it.
+
+`0004` is skipped and stays skipped. It is the number the grants migration used to
+hold, and giving it to something else would make a single prefix mean two different
+migrations in the project's history for no gain.
+
+Adding a mutable table is still two edits: the table in whichever migration owns its
+subsystem, and its name in `MUTABLE_TABLES` (or `APPEND_ONLY_TABLES`). A table in
+neither list is caught by `test/enforcement/grants.test.ts`, which asserts the two
+lists partition the live schema.
 
 Registration is static, in `index.ts` — not `FileMigrationProvider`. The server is
 bundled into a single file (ROADMAP D-12), so there is no migrations directory in
@@ -80,8 +92,15 @@ development and test convenience.
 
 ## Reset your local database after a migration is edited in place
 
+**If you have a database migrated before OB-060, reset it now.** Kysely keys
+`kysely_migration` by name, so renaming `0999_app_grants` to `0999_app_grants` leaves
+that database holding a row for a migration this registry no longer contains, and the
+migrator refuses to run rather than guessing. `yarn migrate:down` will not help — it
+walks the same registry. Drop and recreate, per the SQL below, then `yarn migrate`.
+Nothing is deployed (D-15), so this is the whole of the cost, and it is paid once.
+
 Pre-release, migrations are edited rather than appended to (ROADMAP D-15), and the
-cost lands here: a database migrated _before_ an edit is inconsistent with the code
+same cost lands here in the ordinary case: a database migrated _before_ an edit is inconsistent with the code
 _after_ it, and `down` is what discovers this. Adding a table to `MUTABLE_TABLES`
 and running `yarn migrate:down` against a database migrated before the edit fails
 with

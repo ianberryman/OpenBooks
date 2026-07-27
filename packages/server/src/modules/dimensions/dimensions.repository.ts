@@ -157,7 +157,7 @@ export async function selectDimensionById(
  *
  * Used wherever a check has to survive a concurrent writer: the delete path's
  * has-values check, and the archived-axis check in the tagging path. `dimensions`
- * is in `0004_app_grants`'s mutable allowlist, so the app user may take a locking
+ * is in `0999_app_grants`'s mutable allowlist, so the app user may take a locking
  * read on it — unlike the journal tables, which is why nothing in this codebase
  * locks a journal row.
  */

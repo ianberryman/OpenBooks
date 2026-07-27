@@ -160,10 +160,19 @@ describe('the tenant table set is derived from the schema', () => {
   it('includes every table that carries a non-nullable org_id', () => {
     expect([...TENANT_TABLES].sort()).toEqual([
       'accounts',
+      'ap_allocations',
+      'ap_document_line_dimensions',
+      'ap_document_lines',
+      'ap_documents',
       'api_keys',
+      'ar_allocations',
+      'ar_document_line_dimensions',
+      'ar_document_lines',
+      'ar_documents',
       'contacts',
       'dimension_values',
       'dimensions',
+      'document_sequences',
       'fiscal_periods',
       'idempotency_keys',
       'journal_draft_line_dimensions',
@@ -175,6 +184,8 @@ describe('the tenant table set is derived from the schema', () => {
       'journals',
       'org_invites',
       'org_members',
+      'payments',
+      'tax_rates',
     ]);
   });
 });

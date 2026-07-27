@@ -7,7 +7,7 @@ import { newUuidBuffer, useTestDatabase } from '../db';
  * The journal-draft schema (OB-034, ROADMAP D-19).
  *
  * Two claims are being proved, and they pull in opposite directions, which is why
- * the allowlist in `0004_app_grants` is the milestone's most load-bearing edit:
+ * the allowlist in `0999_app_grants` is the milestone's most load-bearing edit:
  *
  *  - the app user *can* update and delete drafts, or the state D-16 promised —
  *    an entry that has not reached the ledger and may be edited or discarded —

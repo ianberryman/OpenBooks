@@ -252,7 +252,7 @@ export async function reactivateContact(contactId: string, ctx: RequestContext):
  * append-only and the app user holds no `DELETE` on `journal_lines`: a reference,
  * once made, is permanent, and one arriving mid-flight is answered by the foreign
  * key with the message the pre-check would have given. Draft lines are not like
- * that. They are inserted and deleted freely (`0004_app_grants`, D-19), so a draft
+ * that. They are inserted and deleted freely (`0999_app_grants`, D-19), so a draft
  * reference can appear between the check and the delete — and if it did, errno
  * 1451 would answer with the *postings* message, telling someone their contact is
  * on a posted entry when it is on a draft they could edit.

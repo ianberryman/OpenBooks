@@ -46,7 +46,7 @@ async function contactsIn(count: number, ctx: RequestContext): Promise<readonly 
       ctx,
     );
 
-    // `contacts` is in `0004_app_grants`'s mutable allowlist, so this runs as the
+    // `contacts` is in `0999_app_grants`'s mutable allowlist, so this runs as the
     // application rather than the migrator — the same identity the service uses.
     await db.app
       .updateTable('contacts')

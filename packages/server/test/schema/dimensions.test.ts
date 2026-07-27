@@ -234,7 +234,7 @@ describe('the app user, on the dimension tables', () => {
 
   /**
    * A tag is mutable even though the line it tags is not, which is the one asymmetry
-   * in the grant split (see `0004_app_grants`). It holds because retagging moves no
+   * in the grant split (see `0999_app_grants`). It holds because retagging moves no
    * money: the trial balance, the P&L and the balance sheet are identical before and
    * after, and only a sliced report divides the same total differently. The
    * alternative — reversing and reposting a financially correct journal to fix a

@@ -158,7 +158,7 @@ export async function selectContactById(
  * needs a shared lock on this row to validate a `journal_lines` or
  * `journal_draft_lines` insert that names the contact, so holding an exclusive one
  * means no new reference can appear between the checks and the delete. `contacts`
- * is in `0004_app_grants`'s mutable allowlist, so the app user may take a locking
+ * is in `0999_app_grants`'s mutable allowlist, so the app user may take a locking
  * read on it — the journal tables are not, which is why nothing in this codebase
  * locks a journal row.
  */

@@ -27,7 +27,7 @@ import {
  * `journals.ts` states that a posted journal is never edited and that the app user
  * holds no `UPDATE` or `DELETE` to do it with. A tag is not part of the entry: it
  * is an analysis dimension laid over the ledger, which is why
- * `journal_line_dimensions` is in `0004_app_grants`'s allowlist and why
+ * `journal_line_dimensions` is in `0999_app_grants`'s allowlist and why
  * `openbooks/no-journal-writes` names `journals` and `journal_lines` and
  * deliberately not that table. Retagging cannot move an amount — nothing in the
  * dimensions module writes one — so the append-only guarantee is untouched. A

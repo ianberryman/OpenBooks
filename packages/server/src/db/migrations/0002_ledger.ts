@@ -14,17 +14,23 @@ import type { MigrationDb } from './types';
  * Contacts, dimensions, and drafts arrived with M2 and were briefly three separate
  * migrations. They are here because pre-release a schema change belongs in the
  * migration that created the table rather than in a new one (ROADMAP D-15) — and
- * because of a constraint that makes the alternative actively fragile: **MySQL
- * refuses a table-level `GRANT` on a table that does not exist** (`ERROR 1146`,
- * measured on 8.4). `0004_app_grants` names every mutable table one at a time, so
- * every migration creating a table it grants must sort ahead of it. Adding tables in
- * new files means either renumbering the grants migration on every wave or numbering
- * around it (`0003a`, `0003b`, `0003c`, …), and the second accumulates forever.
+ * because of a constraint that made the alternative actively fragile at the time:
+ * **MySQL refuses a table-level `GRANT` on a table that does not exist**
+ * (`ERROR 1146`, measured on 8.4). The grants migration names every mutable table one
+ * at a time, so every migration creating a table it grants must sort ahead of it, and
+ * while the grants file was numbered `0004` the only ways to add a table in a new file
+ * were to renumber it on every wave or to number around it (`0003a`, `0003b`,
+ * `0003c`, …) — and the second accumulates forever.
  *
- * With every table declared here, the ordering constraint is satisfied by
- * construction and there is no numbering convention for anyone to remember. This
- * inverts at first release along with the rest of D-15: once any environment holds
- * data, a new table means a new migration and the grants file gets renumbered last.
+ * OB-060 removed that constraint at the root rather than working around it again: the
+ * grants migration is now `0999_app_grants`, the ceiling of the four-digit numbering
+ * convention, so nothing following the convention can sort after it. A new subsystem
+ * is therefore a new migration — see `0005_subledger`, which is where M3's AR/AP
+ * tables live and where M2's would have gone had the number been fixed sooner.
+ *
+ * These tables stay here because they *are* the ledger. Moving them now would be
+ * churn for its own sake, and D-15 says a change to one of them belongs in this file
+ * until first release.
  *
  * ## Two structural guarantees worth reading the DDL for
  *
@@ -38,7 +44,7 @@ import type { MigrationDb } from './types';
  *    on `journals` or `journal_lines` whose value changes after insert — a
  *    reversal is a new journal carrying `reverses_journal_id`, never a mutation
  *    of the original (spec §2.2, ROADMAP D-02). The app user's grants are
- *    narrowed to match in `0004_app_grants`.
+ *    narrowed to match in `0999_app_grants`.
  *
  * Table order below is dictated by foreign keys: InnoDB resolves a referenced table
  * at `CREATE TABLE` time, so a parent is declared before its children. That is why
@@ -436,7 +442,7 @@ export async function up(db: MigrationDb): Promise<void> {
   //
   // ## Mutable, unlike the line it tags
   //
-  // This table is in `0004_app_grants`'s mutable list even though `journal_lines`
+  // This table is in `0999_app_grants`'s mutable list even though `journal_lines`
   // is append-only, and the asymmetry is deliberate. A tag names which slice of the
   // business an amount belongs to; it is an analysis dimension laid over the
   // ledger, not a term of the entry. Nothing in the trial balance, the P&L, or the
@@ -490,7 +496,7 @@ export async function up(db: MigrationDb): Promise<void> {
   //   concurrency, and the application user *cannot* take one on `journals`.
   //   MySQL requires SELECT plus one of UPDATE/DELETE/LOCK TABLES for
   //   `FOR UPDATE`, and withholding exactly those is how journal immutability is
-  //   enforced (see 0004_app_grants). So the lock has to live on a table the app
+  //   enforced (see 0999_app_grants). So the lock has to live on a table the app
   //   may write, which is this one.
   //
   //   AUTO_INCREMENT leaves gaps on rollback, and a gap in a journal sequence is

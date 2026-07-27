@@ -21,7 +21,7 @@ import { createScene, postPlan, useLedgerDatabase, withContext, type JournalPlan
  * ## Two orgs rather than one ledger posted twice
  *
  * Order can only be varied by replaying the same journals, and journals cannot be
- * removed — the app user holds no `DELETE` on `journals` (`0004_app_grants`), which is
+ * removed — the app user holds no `DELETE` on `journals` (`0999_app_grants`), which is
  * the point. So each order is posted into its own freshly built org and the two trial
  * balances are compared. Accounts are matched by `code`, since account UUIDs
  * necessarily differ between the two orgs; `accountCode` derives codes from position in

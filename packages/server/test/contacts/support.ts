@@ -17,7 +17,7 @@ import { SYSTEM_ROLE_UUIDS, systemRoleId, useTestDatabase } from '../db';
  *
  * The app user, not the migrator — the identity the application runs as (spec
  * §12). If any contact operation needed a privilege the app user lacks, that is a
- * finding and it surfaces here. `contacts` joined `0004_app_grants`'s
+ * finding and it surfaces here. `contacts` joined `0999_app_grants`'s
  * `MUTABLE_TABLES` with OB-032, which is what lets the delete and deactivate paths
  * run as the application at all; `test/contacts/schema.test.ts` predates that and
  * says so.

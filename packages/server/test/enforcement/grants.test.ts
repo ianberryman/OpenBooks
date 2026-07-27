@@ -27,11 +27,11 @@ import { APP_DB_USER, useTestDatabase } from '../db';
  *
  * ## Why the expectation is parsed out of the migration
  *
- * `0004_app_grants` does not export its lists, and restating them here would create a
+ * `0999_app_grants` does not export its lists, and restating them here would create a
  * second copy of the thing under test: the two would agree by construction and the
  * test would assert nothing. So the migration's source is read and its two arrays are
  * parsed, which makes this a comparison between the migration and the live server.
- * `parses the two grant lists out of 0004_app_grants` fails loudly if the parse ever
+ * `parses the two grant lists out of 0999_app_grants` fails loudly if the parse ever
  * stops finding them, because an empty list would make every other test here vacuous.
  */
 const db = useTestDatabase();
@@ -60,7 +60,7 @@ const MIGRATION_TABLES = ['kysely_migration', 'kysely_migration_lock'] as const;
 const APPEND_ONLY_BY_OMISSION: readonly string[] = [];
 
 const GRANTS_MIGRATION = fileURLToPath(
-  new URL('../../src/db/migrations/0004_app_grants.ts', import.meta.url),
+  new URL('../../src/db/migrations/0999_app_grants.ts', import.meta.url),
 );
 
 /**
@@ -304,14 +304,14 @@ describe('DDL and privilege escalation, as openbooks_app', () => {
  * The converse, which is the half a matrix of known tables cannot cover: that a table
  * *missing* from the allowlist is caught.
  *
- * `0004_app_grants` says the maintenance consequence is a feature — "every future
+ * `0999_app_grants` says the maintenance consequence is a feature — "every future
  * migration that adds a mutable table must add it to a grants migration. Forgetting
  * means the new table is append-only, which surfaces as a loud failure the first time
  * something tries to update it." These two tests are where that failure becomes loud
  * *now* rather than at the first update in production.
  */
 describe('the grant lists and the live server agree', () => {
-  it('parses the two grant lists out of 0004_app_grants', () => {
+  it('parses the two grant lists out of 0999_app_grants', () => {
     // The lists are the input to every other assertion in this file, so their shape is
     // checked rather than trusted: a parser that silently matched nothing would make
     // the matrix above pass with zero rows.
@@ -321,7 +321,7 @@ describe('the grant lists and the live server agree', () => {
     // `journal_line_dimensions` is deliberately NOT here, and it is the one table
     // whose absence is a decision rather than an oversight: a tag names which slice of
     // the business an amount belongs to, not a term of the entry, so editing one moves
-    // no total on any report — see the block in `0004_app_grants`. A table moving
+    // no total on any report — see the block in `0999_app_grants`. A table moving
     // *into* this list is a widening of immutability and fine; `journals` or
     // `journal_lines` moving *out* is the regression this literal exists to catch.
     expect(APPEND_ONLY_TABLES).toEqual(['journals', 'journal_lines', 'permissions']);
@@ -357,7 +357,7 @@ describe('the grant lists and the live server agree', () => {
     const connection = await db.openAppConnection();
     try {
       // Read from the app connection because a user may always read its own grants;
-      // `0004_app_grants` explains at length why the migrator cannot, and why the
+      // `0999_app_grants` explains at length why the migrator cannot, and why the
       // migration therefore does not verify its own outcome. This is that
       // verification, and the reason the migration is allowed not to do it.
       const { rows } = await sql<Record<string, string>>`SHOW GRANTS FOR CURRENT_USER()`.execute(

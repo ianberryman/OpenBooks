@@ -55,7 +55,7 @@ import { normalizeResponseBody, readStoredResponseBody, serializeResponseBody } 
  * `UPDATE`/`DELETE` on `journals`, and MySQL requires one of those alongside
  * `SELECT` for a locking read, so `SELECT ... FOR UPDATE` on a journal fails with
  * errno 1142 (pinned by `test/db/harness.test.ts`). The only rows locked are this
- * table's own, which is in `0004_app_grants`'s mutable allowlist.
+ * table's own, which is in `0999_app_grants`'s mutable allowlist.
  */
 
 /**

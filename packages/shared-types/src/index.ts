@@ -21,4 +21,6 @@ export * from './money';
 export * from './orgs';
 export * from './periods';
 export * from './reports';
+export * from './subledger';
+export * from './tax';
 export * from './wire';

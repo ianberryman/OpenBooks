@@ -303,7 +303,7 @@ export async function reactivateAccount(accountId: string, ctx: RequestContext):
  * naming deactivation, and its answer can be stale the moment it returns: a
  * posting can arrive between the check and the delete. It cannot be stale in the
  * other direction, because journals are append-only and the app user holds no
- * `DELETE` on `journal_lines` (`0004_app_grants`) — an account that is referenced
+ * `DELETE` on `journal_lines` (`0999_app_grants`) — an account that is referenced
  * stays referenced, permanently.
  *
  * What closes the window is `ON DELETE RESTRICT` on `journal_lines.account_id`.

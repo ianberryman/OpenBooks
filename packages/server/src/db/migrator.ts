@@ -29,7 +29,7 @@ export interface MigrationReport {
  * one.
  *
  * Connects as the migrator user, which is the only user in the system with DDL
- * rights. `0004_app_grants` additionally needs GRANT OPTION on the schema so it
+ * rights. `0999_app_grants` additionally needs GRANT OPTION on the schema so it
  * can narrow the application user's privileges.
  */
 export async function migrate(

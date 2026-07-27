@@ -70,7 +70,7 @@
  * values, via `fk_dimension_values_dimension`.
  *
  * **Retagging a posted line lives here, not in the posting path.** The argument is
- * on `tagging.service.ts` and in `0004_app_grants`: a tag is an analysis dimension
+ * on `tagging.service.ts` and in `0999_app_grants`: a tag is an analysis dimension
  * laid over the ledger rather than a term of the entry, which is why the tag table
  * is mutable while the line it tags is not, and why `openbooks/no-journal-writes`
  * names `journals` and `journal_lines` and deliberately not this table. Retagging

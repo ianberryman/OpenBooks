@@ -43,7 +43,7 @@ interface Tenant {
  *
  * The start month is written here rather than through the factory because
  * `test/db/factories.ts` belongs to OB-014 and takes no such override; `orgs` is in
- * `0004_app_grants`'s mutable allowlist, so the app user may set it.
+ * `0999_app_grants`'s mutable allowlist, so the app user may set it.
  */
 async function tenantWithFiscalYearStart(db: TestDatabase, startMonth: number): Promise<Tenant> {
   const org = await db.factories.org();

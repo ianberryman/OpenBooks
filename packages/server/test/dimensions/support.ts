@@ -17,7 +17,7 @@ import { SYSTEM_ROLE_UUIDS, systemRoleId, useTestDatabase } from '../db';
  *
  * The app user, not the migrator — the identity the application runs as (spec
  * §12). The tagging path is where that matters most: `journal_line_dimensions` is
- * in `0004_app_grants`'s mutable list and `journal_lines` is not, so a retag that
+ * in `0999_app_grants`'s mutable list and `journal_lines` is not, so a retag that
  * needed a privilege the app user lacks would fail here rather than in production.
  *
  * `useServiceDatabase`, `contextFor`, and `actorIn` duplicate

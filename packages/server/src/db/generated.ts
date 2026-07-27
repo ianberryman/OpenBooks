@@ -35,6 +35,62 @@ export interface Accounts {
   updated_at: Generated<Date>;
 }
 
+export interface ApAllocations {
+  allocated_on: string;
+  amount_minor: bigint;
+  bill_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  id: Buffer;
+  org_id: Buffer;
+  payment_id: Buffer | null;
+  updated_at: Generated<Date>;
+  vendor_credit_id: Buffer | null;
+}
+
+export interface ApDocumentLineDimensions {
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  dimension_value_id: Buffer;
+  document_line_id: bigint;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface ApDocumentLines {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  description: string | null;
+  document_id: Buffer;
+  id: Generated<bigint>;
+  line_amount_minor: bigint;
+  line_number: number;
+  org_id: Buffer;
+  quantity_micros: bigint;
+  tax_amount_minor: bigint;
+  tax_rate_id: Buffer | null;
+  unit_amount_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface ApDocuments {
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  document_type: "bill" | "vendor_credit";
+  due_date: string | null;
+  id: Buffer;
+  issue_date: string;
+  journal_id: Buffer | null;
+  memo: string | null;
+  org_id: Buffer;
+  reference: string | null;
+  sequence_number: bigint | null;
+  tax_mode: "exclusive" | "inclusive";
+  updated_at: Generated<Date>;
+  void_journal_id: Buffer | null;
+}
+
 export interface ApiKeys {
   created_at: Generated<Date>;
   created_by_user_id: Buffer | null;
@@ -46,6 +102,62 @@ export interface ApiKeys {
   org_id: Buffer;
   revoked_at: Date | null;
   role_id: Buffer;
+}
+
+export interface ArAllocations {
+  allocated_on: string;
+  amount_minor: bigint;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  credit_note_id: Buffer | null;
+  id: Buffer;
+  invoice_id: Buffer;
+  org_id: Buffer;
+  payment_id: Buffer | null;
+  updated_at: Generated<Date>;
+}
+
+export interface ArDocumentLineDimensions {
+  created_at: Generated<Date>;
+  dimension_id: Buffer;
+  dimension_value_id: Buffer;
+  document_line_id: bigint;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface ArDocumentLines {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  description: string | null;
+  document_id: Buffer;
+  id: Generated<bigint>;
+  line_amount_minor: bigint;
+  line_number: number;
+  org_id: Buffer;
+  quantity_micros: bigint;
+  tax_amount_minor: bigint;
+  tax_rate_id: Buffer | null;
+  unit_amount_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface ArDocuments {
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  document_type: "credit_note" | "invoice";
+  due_date: string | null;
+  id: Buffer;
+  issue_date: string;
+  journal_id: Buffer | null;
+  memo: string | null;
+  org_id: Buffer;
+  reference: string | null;
+  sequence_number: bigint | null;
+  tax_mode: "exclusive" | "inclusive";
+  updated_at: Generated<Date>;
+  void_journal_id: Buffer | null;
 }
 
 export interface Contacts {
@@ -82,6 +194,13 @@ export interface DimensionValues {
   id: Buffer;
   is_active: Generated<number>;
   name: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface DocumentSequences {
+  document_type: "bill" | "credit_note" | "invoice" | "payment_paid" | "payment_received" | "vendor_credit";
+  next_value: Generated<bigint>;
   org_id: Buffer;
   updated_at: Generated<Date>;
 }
@@ -223,6 +342,24 @@ export interface Orgs {
   updated_at: Generated<Date>;
 }
 
+export interface Payments {
+  amount_minor: bigint;
+  bank_account_id: Buffer;
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  direction: "paid" | "received";
+  id: Buffer;
+  journal_id: Buffer;
+  memo: string | null;
+  org_id: Buffer;
+  payment_date: string;
+  reference: string | null;
+  sequence_number: bigint;
+  updated_at: Generated<Date>;
+  void_journal_id: Buffer | null;
+}
+
 export interface Permissions {
   code: string;
   description: string;
@@ -256,6 +393,17 @@ export interface Sessions {
   user_id: Buffer;
 }
 
+export interface TaxRates {
+  created_at: Generated<Date>;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  rate_ppm: number;
+  tax_account_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface Users {
   created_at: Generated<Date>;
   display_name: string;
@@ -269,10 +417,19 @@ export interface Users {
 
 export interface DB {
   accounts: Accounts;
+  ap_allocations: ApAllocations;
+  ap_document_line_dimensions: ApDocumentLineDimensions;
+  ap_document_lines: ApDocumentLines;
+  ap_documents: ApDocuments;
   api_keys: ApiKeys;
+  ar_allocations: ArAllocations;
+  ar_document_line_dimensions: ArDocumentLineDimensions;
+  ar_document_lines: ArDocumentLines;
+  ar_documents: ArDocuments;
   contacts: Contacts;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
+  document_sequences: DocumentSequences;
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
   journal_draft_line_dimensions: JournalDraftLineDimensions;
@@ -285,9 +442,11 @@ export interface DB {
   org_invites: OrgInvites;
   org_members: OrgMembers;
   orgs: Orgs;
+  payments: Payments;
   permissions: Permissions;
   role_permissions: RolePermissions;
   roles: Roles;
   sessions: Sessions;
+  tax_rates: TaxRates;
   users: Users;
 }

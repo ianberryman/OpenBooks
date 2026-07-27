@@ -107,7 +107,7 @@ describe('contacts', () => {
    *
    * Raw SQL and the migrator connection, deliberately: this is a statement about
    * the schema, and the application holds no `UPDATE` on `journal_lines` by design
-   * (`0004_app_grants`), so there is no application path that could make it.
+   * (`0999_app_grants`), so there is no application path that could make it.
    */
   it('makes a cross-org contact on a journal line unrepresentable', async () => {
     const journal = await db.factories.journal();
@@ -142,7 +142,7 @@ describe('contacts', () => {
    *
    * Attempted as the migrator, and that is temporary rather than principled: the
    * app user holds no `DELETE` on `contacts` until `'contacts'` joins
-   * `0004_app_grants`'s `MUTABLE_TABLES` (OB-034), so as the app user this would
+   * `0999_app_grants`'s `MUTABLE_TABLES` (OB-034), so as the app user this would
    * be refused for the wrong reason — 1142 rather than 1451 — and would keep
    * passing after the grant landed while proving something else. When the grant
    * arrives this should move to `db.app`.

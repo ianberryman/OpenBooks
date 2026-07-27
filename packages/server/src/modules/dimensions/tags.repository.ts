@@ -10,7 +10,7 @@ import { bufferToUuid } from '../../db';
  *
  * `openbooks/no-journal-writes` restricts `journals` and `journal_lines` to
  * `posting.repository.ts`, and this table is deliberately not one of them. The
- * reason is the one `0004_app_grants` gives at length: a tag names which slice of
+ * reason is the one `0999_app_grants` gives at length: a tag names which slice of
  * the business an amount belongs to, and it is an analysis dimension laid over the
  * ledger rather than a term of the entry. Nothing in the trial balance, the P&L,
  * or the balance sheet moves when one changes — only how a sliced report divides a
@@ -52,7 +52,7 @@ export function journalLineIdOrUndefined(lineId: string): bigint | undefined {
  * Whether this line exists in the caller's org.
  *
  * A plain read, not a locking one. The app user holds no `UPDATE`/`DELETE` on
- * `journal_lines` (`0004_app_grants`), so it also cannot take a locking read
+ * `journal_lines` (`0999_app_grants`), so it also cannot take a locking read
  * there — MySQL requires one of those privileges for `FOR UPDATE`. Nothing is
  * lost: journals are append-only, so a line that exists keeps existing, and the
  * check cannot go stale in the direction that would matter. `fk_jld_line` is the

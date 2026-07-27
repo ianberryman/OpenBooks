@@ -216,7 +216,7 @@ export async function selectMembershipForUpdate(
  * one transaction demotes the last Owner while another is halfway through
  * promoting a replacement.
  *
- * `org_members` may be locked at all only because it is in `0004_app_grants`'
+ * `org_members` may be locked at all only because it is in `0999_app_grants`'
  * mutable allowlist — MySQL requires UPDATE/DELETE rights for a locking read, which
  * is exactly why no journal row in this codebase is ever locked (D-14).
  */

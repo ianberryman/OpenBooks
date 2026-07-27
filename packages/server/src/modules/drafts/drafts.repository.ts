@@ -23,7 +23,7 @@ import {
  * allowed to produce (A7).
  *
  * These are the first tables since M1 the app user may `UPDATE` and `DELETE`
- * (`0004_app_grants`, D-19), which is what makes `selectDraftByIdForUpdate`
+ * (`0999_app_grants`, D-19), which is what makes `selectDraftByIdForUpdate`
  * possible at all — the journal tables cannot be locked, because MySQL requires
  * `UPDATE`/`DELETE` alongside `SELECT` for a locking read and withholding exactly
  * those is how immutability is enforced. That lock is the whole of the
@@ -153,7 +153,7 @@ export async function selectDraftById(
  * Two callers posting one draft both reach this statement; the second blocks
  * until the first commits, and then finds the row gone — which is what turns "two
  * posts of one draft" into one journal and one 404 rather than two journals. It
- * only works because `journal_drafts` is in `0004_app_grants`'s mutable allowlist.
+ * only works because `journal_drafts` is in `0999_app_grants`'s mutable allowlist.
  */
 export async function selectDraftByIdForUpdate(
   db: TenantDatabase,

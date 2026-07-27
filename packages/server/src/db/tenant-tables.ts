@@ -41,10 +41,19 @@ export type TenantTableName = Exclude<TablesWithOrgId, SharedScopeTable>;
  */
 export const TENANT_TABLES = [
   'accounts',
+  'ap_allocations',
+  'ap_document_line_dimensions',
+  'ap_document_lines',
+  'ap_documents',
   'api_keys',
+  'ar_allocations',
+  'ar_document_line_dimensions',
+  'ar_document_lines',
+  'ar_documents',
   'contacts',
   'dimension_values',
   'dimensions',
+  'document_sequences',
   'fiscal_periods',
   'idempotency_keys',
   'journal_draft_line_dimensions',
@@ -56,6 +65,8 @@ export const TENANT_TABLES = [
   'journals',
   'org_invites',
   'org_members',
+  'payments',
+  'tax_rates',
 ] as const satisfies readonly TenantTableName[];
 
 /**

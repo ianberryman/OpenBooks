@@ -161,7 +161,7 @@ export async function selectAccountById(
  *
  * Used wherever a check has to survive a concurrent writer: the has-postings rule
  * in `updateAccount`, the ancestor walk in `hierarchy.ts`, and the delete path's
- * children check. `accounts` is in `0004_app_grants`'s mutable allowlist, so the
+ * children check. `accounts` is in `0999_app_grants`'s mutable allowlist, so the
  * app user may take a locking read on it; the journal tables are not, which is
  * why nothing in this codebase locks a journal row.
  */

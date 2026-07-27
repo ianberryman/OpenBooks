@@ -27,6 +27,22 @@ import type { MigrationDb } from './types';
  * — new tables mutable unless someone remembers to lock them down — is how the
  * guarantee erodes silently.
  *
+ * ## Why this file is numbered 0999
+ *
+ * MySQL resolves a table name in a `GRANT` as the statement runs and refuses one on
+ * a table that does not exist (`ERROR 1146`, measured on 8.4), so every table named
+ * below must be created by a migration that sorts ahead of this one — Kysely applies
+ * them in lexicographic order.
+ *
+ * While this file was `0999_app_grants` that constraint was satisfied by convention,
+ * and M2 paid for it twice: first with `0003a`/`0003b`/`0003c` suffixes, then by
+ * dissolving those back into `0002_ledger`. OB-060 moved the constraint into the
+ * name instead. `0999` is the largest prefix the four-digit convention can express,
+ * so a migration that follows the convention cannot sort after this one — sorting
+ * last is now a property of the numbering scheme rather than something each wave has
+ * to remember. A merely large gap (`0099`) would postpone the same collision instead
+ * of removing it.
+ *
  * ## Failing loudly on a missing user
  *
  * If the app user does not exist this migration fails and takes the deploy with
@@ -109,6 +125,43 @@ const MUTABLE_TABLES = [
   // in progress — and separately from `journal_line_dimensions` because the two
   // reference different parents with different delete semantics.
   'journal_draft_line_dimensions',
+  // ── The M3 subledger (0005_subledger) ──────────────────────────────────────
+  //
+  // Every one of these, and none in APPEND_ONLY_TABLES. That looks like the largest
+  // widening this file has ever taken and is the opposite: it is what ROADMAP D-34
+  // means expressed as grants. A subledger holds no balance and no status — an
+  // invoice's outstanding amount is its total minus its allocations, computed on
+  // read, and paid/part-paid is derived the same way. So none of these tables holds
+  // a financial fact that immutability would be protecting. Every such fact is a row
+  // in `journals`, which stays append-only, and a void is a reversing journal rather
+  // than an edit (D-38, D-16).
+  //
+  // The direction the guarantee could actually erode is a column: an
+  // `outstanding_minor` or a `status` here would be financial state living outside
+  // the ledger, and no grant could make it safe. `0005_subledger`'s header is where
+  // that is argued; this list only follows from it.
+  //
+  // Two of these need UPDATE for a reason worth naming, because it is the reason
+  // journals cannot have one. `document_sequences` is the counter row taken
+  // `FOR UPDATE` when a document number is issued (D-36) — the same trick
+  // `journal_sequences` exists for. And the document tables are lockable at all only
+  // because they are here, which is what lets the allocation service refuse an
+  // over-allocation (C3) by taking the document row before summing against it.
+  'tax_rates',
+  'document_sequences',
+  'ar_documents',
+  'ar_document_lines',
+  'ar_document_line_dimensions',
+  'ap_documents',
+  'ap_document_lines',
+  'ap_document_line_dimensions',
+  'payments',
+  // Allocations are deleted, not reversed, and that is deliberate. An allocation
+  // posts no journal — the payment's and the credit note's journals already moved
+  // the money — so unallocating restates no financial statement. Reversing rows
+  // would make every outstanding calculation sum signed amounts.
+  'ar_allocations',
+  'ap_allocations',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

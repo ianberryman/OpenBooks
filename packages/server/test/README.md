@@ -64,7 +64,7 @@ specifically testing the database's own constraints.
 Two database users, exactly as in Compose (spec §12, gate A6):
 
 - `openbooks_migrator` — all privileges on the schema **with `GRANT OPTION`**, which
-  `0004_app_grants` needs in order to narrow the app user's privileges.
+  `0999_app_grants` needs in order to narrow the app user's privileges.
 - `openbooks_app` — `SELECT` and `INSERT` schema-wide; `UPDATE` and `DELETE` per
   table, never on `journals` or `journal_lines`.
 

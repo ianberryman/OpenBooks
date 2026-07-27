@@ -782,7 +782,7 @@ deferred test arriving.
 | C2  | **Subledger agrees with the ledger**: outstanding AR = the AR control account, at any date | OB-070         |
 | C3  | An allocation reduces what is outstanding; over-allocating an invoice is refused           | OB-064, OB-070 |
 | C4  | An unapplied payment is a credit on the contact, and applying it later reconciles          | OB-064, OB-070 |
-| C5  | Tax-inclusive and tax-exclusive entry of the same economic invoice post identical journals | OB-061, OB-070 |
+| C5  | Inclusive and exclusive entry of the same invoice post identical journals — [D-35](#d-35)  | OB-061, OB-071 |
 | C6  | A credit note nets its invoice to zero on every report and in the subledger                | OB-062, OB-070 |
 | C7  | Voiding leaves the document and its reversal visible; nothing is deleted                   | OB-062, OB-063 |
 | C8  | Aging as at a date sums, per bucket and in total, to the control account at that date      | OB-065, OB-070 |
@@ -1473,6 +1473,22 @@ Rounding is where tax models go wrong, so it has one documented application poin
 money already does (D-13): tax is computed per line, rounded once per line, and the
 invoice total is the sum of rounded lines — never the rounded sum, which disagrees with
 what the customer can verify by adding up the page.
+
+**C5's precondition, found by building the arithmetic rather than by reasoning about it.**
+The criterion is true, but not unconditionally, and the boundary belongs here because a
+test written without it would either fail or be quietly weakened until it passed.
+
+Extraction and addition are exact in one direction only. Gross 7 at 50% extracts to net 5
+and tax 2; adding 50% to a net of 5 gives tax 3. Both are correct roundings of different
+rationals — the pair does not commute at that granularity, and no rounding rule fixes it,
+because an inclusive unit price is itself whole cents (D-13).
+
+With a fractional quantity the two modes therefore round different rationals. Divergence is
+bounded at 2 cents when the inclusive unit price is exactly representable, and **grows with
+the quantity** — roughly q/2 — when it is not. So C5 is asserted over entries whose line
+extension is exact, which is every invoice a person actually types. The general case is not
+a defect to be fixed but a fact about representing tax-inclusive prices in whole cents, and
+it is written down so nobody spends a day proving it again.
 
 Compound rates, multi-component rates (GST+PST), and jurisdiction rules are out. They are
 correct for Canada and much of the US, and they are a subsystem rather than a feature —

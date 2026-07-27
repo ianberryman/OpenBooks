@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 const COMPOSE_INIT_DIR = fileURLToPath(new URL('../../../../docker/mysql-init/', import.meta.url));
 
-/** Spec §12: DDL only. Needs GRANT OPTION so `0004_app_grants` can run. */
+/** Spec §12: DDL only. Needs GRANT OPTION so `0999_app_grants` can run. */
 export const MIGRATOR_DB_USER = 'openbooks_migrator';
 
 /** Spec §12: the application identity. No UPDATE/DELETE on the journal tables. */

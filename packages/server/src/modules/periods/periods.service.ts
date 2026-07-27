@@ -296,7 +296,7 @@ export async function reopenPeriod(input: PeriodRef): Promise<FiscalPeriod> {
  *
  * Either way there is no interleaving that admits a journal into a closed period, and
  * no partial write, because the check and the insert are one transaction. This is
- * also why `fiscal_periods` is in `0004_app_grants`'s mutable allowlist: the app user
+ * also why `fiscal_periods` is in `0999_app_grants`'s mutable allowlist: the app user
  * cannot take a locking read on `journals` — MySQL requires `UPDATE`/`DELETE`
  * alongside `SELECT` for one, and withholding those is how journal immutability is
  * enforced — so the lock has to live on a table it may write.

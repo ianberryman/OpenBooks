@@ -63,7 +63,7 @@ export type PeriodClosure =
  * Whether the read should take a row lock.
  *
  * `true` means `SELECT … FOR UPDATE`, which is legal for the application user on
- * this table specifically: `0004_app_grants` lists `fiscal_periods` as mutable, and
+ * this table specifically: `0999_app_grants` lists `fiscal_periods` as mutable, and
  * MySQL requires `SELECT` plus one of `UPDATE`/`DELETE`/`LOCK TABLES` for a locking
  * read — which is exactly why the same statement against `journals` is refused
  * (pinned by `test/db/harness.test.ts`).

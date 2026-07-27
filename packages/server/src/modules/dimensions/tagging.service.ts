@@ -35,7 +35,7 @@ import {
  *
  * ## Why this operation exists, and why it lives here
  *
- * `journal_line_dimensions` is in `0004_app_grants`'s *mutable* list while the line
+ * `journal_line_dimensions` is in `0999_app_grants`'s *mutable* list while the line
  * it tags is append-only, and that asymmetry is the whole argument: a tag names
  * which slice of the business an amount belongs to, not a term of the entry.
  * Nothing in the trial balance, the P&L, or the balance sheet moves when one

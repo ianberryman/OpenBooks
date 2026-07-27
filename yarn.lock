@@ -1316,6 +1316,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@openbooks/shared-types@workspace:packages/shared-types"
   dependencies:
+    fast-check: "npm:^4.9.0"
     zod: "npm:^4.4.3"
   languageName: unknown
   linkType: soft

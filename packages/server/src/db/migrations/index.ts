@@ -4,7 +4,8 @@ import type { Migration, MigrationProvider } from 'kysely/migration';
 import * as m0001 from './0001_tenancy';
 import * as m0002 from './0002_ledger';
 import * as m0003 from './0003_idempotency';
-import * as m0004 from './0004_app_grants';
+import * as m0005 from './0005_subledger';
+import * as m0999 from './0999_app_grants';
 
 /**
  * The migration set, registered statically.
@@ -19,20 +20,35 @@ import * as m0004 from './0004_app_grants';
  * applied in lexicographic order, so the numeric prefix is load-bearing —
  * renaming an already-applied migration makes Kysely think it is new.
  *
- * That order is also a hard constraint on where a new table may be created:
- * `0004_app_grants` issues a table-level `GRANT` per mutable table, and MySQL
+ * ## Why the grants migration is numbered 0999
+ *
+ * `0999_app_grants` issues a table-level `GRANT` per mutable table, and MySQL
  * refuses one on a table that does not exist yet (ERROR 1146, measured on 8.4), so
- * anything the grants migration names must be created before it runs. Pre-release
- * that is satisfied by construction rather than by convention — every table is
- * declared in one of the three migrations above and none is added after the grants
- * (ROADMAP D-15, and the head of `0002_ledger`). At first release, when a new table
- * does mean a new migration, the grants migration has to be renumbered last.
+ * every table it names must be created by a migration that sorts ahead of it.
+ *
+ * M2 satisfied that by construction — every table lived in `0002_ledger`, so there
+ * was nothing to number around. M3 cannot: the subledger is its own subsystem
+ * rather than a change to the ledger, and folding eleven more tables into
+ * `0002_ledger` would make one file the whole schema. So the constraint is moved
+ * into the *name*: `0999` is the largest four-digit prefix, and the convention here
+ * is four digits, so nothing that follows the convention can sort after it. A gap
+ * chosen for its size (`0099`, say) would only postpone the collision; a gap that is
+ * the ceiling of the numbering scheme cannot be reached without abandoning the
+ * scheme, which is a visible edit rather than a silent one.
+ *
+ * The rename cost is paid once and only pre-release: Kysely keys `kysely_migration`
+ * by name, so a database migrated as `0999_app_grants` now holds a row naming a
+ * migration this registry no longer has, and the migrator refuses to run. There is
+ * nothing to repair — drop and recreate the schema, exactly as `README.md`'s reset
+ * section already describes for any in-place edit (ROADMAP D-15). Nothing is
+ * deployed, so no environment holds data this costs.
  */
 export const MIGRATIONS: Record<string, Migration> = {
   '0001_tenancy': m0001,
   '0002_ledger': m0002,
   '0003_idempotency': m0003,
-  '0004_app_grants': m0004,
+  '0005_subledger': m0005,
+  '0999_app_grants': m0999,
 };
 
 export class StaticMigrationProvider implements MigrationProvider {

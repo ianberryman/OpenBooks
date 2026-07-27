@@ -1,6 +1,7 @@
 import { sql } from 'kysely';
 import { describe, expect, it } from 'vitest';
 
+import { MIGRATIONS } from '../../src/db/migrations';
 import { APP_DB_USER, MIGRATOR_DB_USER } from './bootstrap';
 import { SYSTEM_ROLE_UUIDS } from './factories';
 import { useTestDatabase } from './harness';
@@ -23,15 +24,35 @@ describe('test database harness', () => {
         SELECT name FROM kysely_migration ORDER BY name
       `.execute(db.migrator);
 
-      // Ordered by name, which is also the order they ran in. `0004_app_grants` is
+      // Ordered by name, which is also the order they ran in. `0999_app_grants` is
       // last on purpose: MySQL refuses a table-level GRANT on a table that does not
-      // exist yet, so every table it names is created in one of the three above it.
+      // exist yet, so every table it names is created in one of the four above it.
+      // `0004` is skipped and stays skipped — it is the number the grants migration
+      // held before OB-060 renumbered it, and reusing it would make one prefix mean
+      // two migrations in this project's history.
       expect(rows.map((row) => row.name)).toEqual([
         '0001_tenancy',
         '0002_ledger',
         '0003_idempotency',
-        '0004_app_grants',
+        '0005_subledger',
+        '0999_app_grants',
       ]);
+    });
+
+    /**
+     * The structural half of OB-060, which the list above only demonstrates.
+     *
+     * Asserting that the applied names happen to end in `0999_app_grants` says
+     * nothing about the next migration somebody adds. This says what the rename
+     * bought: the grants migration sorts last against the whole registry, so a table
+     * created by any other migration is created before the GRANT that names it.
+     * Reading `MIGRATIONS` rather than the database is deliberate — the failure
+     * should arrive when the registry gains a badly-numbered entry, not after
+     * someone has migrated with it.
+     */
+    it('keeps the grants migration sorting last in the registry', () => {
+      const names = Object.keys(MIGRATIONS).sort();
+      expect(names.at(-1)).toBe('0999_app_grants');
     });
 
     it('created the ledger tables with their CHECK constraints', async () => {
@@ -259,7 +280,7 @@ describe('test database harness', () => {
       const connection = await db.openAppConnection();
       try {
         // A user may always read its own grants, which is why this is asserted from
-        // the app connection. 0004_app_grants deliberately does not self-check:
+        // the app connection. 0999_app_grants deliberately does not self-check:
         // information_schema privilege views are filtered by the querying user, so
         // the migrator cannot see the app user's grants at all.
         // The single column is named after the user ("Grants for openbooks_app@%"),
