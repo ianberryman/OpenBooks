@@ -8,15 +8,15 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                | Status                          |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below**    |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below**    |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below**    |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Waves 0–3 built — see below** |
-| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                      |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                      |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                      |
+| Milestone | Spec phase | Outcome                                                                                                | Status                       |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Built — see Status below** |
+| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | Not scoped                   |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import.
 
@@ -24,24 +24,21 @@ Minimum credible public launch is M1–M4 plus QuickBooks import.
 
 ## Where things stand
 
-**M1, M2 and M3 are built. M4's waves 0–4 are built; wave 5 (verification) remains.** Read
-this section first; the per-milestone Status sections below carry the detail.
+**M1–M4 are built. Minimum credible public launch (M1–M4 + QuickBooks import) is one import
+away.** Read this section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                             |
-| ------ | ----------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                               |
-| Gate   | `yarn check` passes — 2,041 tests across 168 files, ~2.5 min                                                |
-| Push   | **52 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold           |
-| Next   | M4 wave 5: **OB-088** (banking property suite), **OB-090** (E2E). OB-089's coverage core landed with OB-084 |
+|        |                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| Branch | `develop`, working tree clean                                                                          |
+| Gate   | `yarn check` passes — 2,047 tests across 171 files, ~2.5 min; the E2E passes against a real stack      |
+| Push   | **55 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold      |
+| Next   | M5 (platform surface) is not scoped. Five follow-up tickets are outstanding, none blocking — see below |
 
-Wave 4 built the `/v1` banking surface (OB-084 — 27 operations) and the three screens: import
-with a column-mapping editor (OB-085), the keyboard-driven matching screen (OB-086), and the
-reconciliation screen (OB-087), wired into a tabbed **Banking** section. Publishing the routes
-forced all three enforcement coverage matrices (permission-matrix, cross-org A7,
-cross-org-references B11), so **OB-089's coverage core landed with OB-084** — every banking
-operationId is covered. One known deviation is flagged, not faked: a **split** (one line coded
-across several accounts) is not expressible, because a line clears once (`uq_blc_line`). See
-[Status — Milestone 4](#status--milestone-4).
+M4 is complete. Wave 5 verified it and earned its keep: OB-088's cross-cutting property suite
+computes the cleared balance four independent ways over four tables and asserts them equal (spec
+§11's subledger agreement, one level down), and OB-090's browser narrative caught **two real
+defects** that only exist at the seam between the screens, a real Fastify, and a real MySQL —
+both now fixed ([D-52](#d-52)). See [Status — Milestone 4](#status--milestone-4).
 
 ### Outstanding tickets, none blocking M4
 
@@ -1086,8 +1083,30 @@ decision, both of which M4 is the first milestone to actually need. Both are now
 
 ### Status — Milestone 4
 
-**Waves 0–4 are built.** Only wave 5 (verification: OB-088 property suite, OB-090 E2E)
-remains — OB-089's coverage core landed early, forced by OB-084's routes.
+**M4 is built and verified.** All of OB-074 … OB-090 (bar the two deferred follow-ups OB-094
+and OB-095); the gate is green and the E2E passes against a real stack.
+
+#### Wave 5 — verification, and the two defects it caught (OB-088, OB-090)
+
+- **OB-088 — the property suite.** The centre is the cross-cutting invariant no single-ticket
+  test sees: after a generated import → clear → reconcile, the cleared balance is computed
+  **four independent ways over four tables and asserted equal** — the session's own figure, Σ
+  of the clearings, the bank ledger account recomputed straight from `journal_lines`, and the
+  report's enumeration (`bookBalance − Σ items`). That is spec §11's subledger agreement one
+  level down. Plus reproducibility (D-51), exact finalisation (E5), the cents round-trip, and
+  **E10 measured** — a 5,000-line file imports in ~130 ms, a shuffled re-import (all duplicate)
+  in ~40 ms, and proposals per page are O(1) in page size (6 queries at 50 and at 200 lines).
+  Three mutations introduced by hand, all caught. No defect surfaced here.
+- **OB-090 — the browser narrative.** Import a statement, match it, reconcile, and the figures
+  tie (cleared 850 = statement 850; the unpresented cheque a reconciling −100 that does not
+  block). It runs green against a real host-run API and Compose MySQL — and it did its job by
+  catching two defects the unit tests structurally could not:
+  1. **The banking tabs looped to an OOM.** Relative `NavLink`s under the `/banking/*` splat
+     resolved by appending (`/banking/match/import`), then the catch-all redirected again
+     without bound. The jsdom tests mount the sub-screens directly and never clicked a tab.
+     Fixed with absolute paths; a routing test now clicks a tab and asserts the path is
+     replaced, not appended.
+  2. **The async import never drained in the shipped topology** — see [D-52](#d-52).
 
 #### Wave 4 — the `/v1` surface and the three screens (OB-084–OB-087)
 
@@ -2050,6 +2069,37 @@ sanctioned way to change what it covers, and it is permission-gated and logged i
 `reconciliation_session_events` — an unstamp-and-restamp with a name and a timestamp on it,
 not a silent drift. Freezing costs one membership write at finalisation and buys an
 assertion that stays true.
+
+<a id="d-52"></a>
+
+**D-52 — With the in-process queue, the API consumes the jobs it enqueues.** OB-090's E2E
+found the async import did not drain in the shipped api/worker topology, and the fix settles a
+topology [D-49] left implicit. The in-process adapter does not cross a process boundary — a job
+`startImport` enqueues runs in the process that enqueued it, which is the API. But the API
+registered no handler and the `worker` role is a separate process with its own empty in-memory
+queue, so a request enqueued to a queue nobody consumed. **The API now registers the import
+handler when the queue is `in-process`** — the single-container self-host D-49 describes, where
+one process does everything and needs no broker. The `worker` role exists for the `sqs` adapter,
+where it long-polls the broker and the API registers nothing; exactly one process consumes,
+chosen by the provider.
+
+Two consequences the E2E also forced, both fixed in infrastructure rather than in the import:
+
+- **A detached job must not inherit the enqueuer's transaction.** `startImport` enqueues inside
+  `withIdempotency`'s transaction, and `AsyncLocalStorage` propagates through the queue's
+  `setTimeout`, so the job ran with a transaction that had since committed and every write threw
+  "Transaction is already committed". The in-process queue now runs every handler through
+  `runDetached`, which clears the ambient transaction — the "re-scope outside any transaction"
+  `transaction-scope.ts`'s header already prescribed for a background job, now enforced by the
+  queue for all jobs rather than trusted to each.
+- **A detached job can outrun the commit that created its row.** Running on a fresh connection,
+  the handler can read before the request's `COMMIT` lands and miss a row that is about to
+  exist. It now waits for the row, bounded (~250 ms), so a genuinely absent import still resolves
+  to a skip promptly. Under `sqs` the message is sent after the commit, so the wait is a no-op
+  there and correct here.
+
+The lesson is the one D-26 states: these are seam defects, invisible to every layer's own tests,
+and the browser narrative is what a milestone builds to catch them.
 
 ## Status — Milestone 1
 
