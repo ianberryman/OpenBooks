@@ -1184,6 +1184,22 @@ const SURFACES: readonly Surface[] = [
     id: (s) => s.bankAccountId,
     payload: () => ({ name: 'Renamed' }),
   },
+  // Deactivate before reactivate, and both judged only on not being a `404`: the owner's
+  // own `bankAccountId` carries an open session (the scene inserts one), so the control
+  // pass's deactivate is a `412` rather than a state change, which leaves the account in
+  // place for reactivate and the rows after it — exactly what the ordering note requires.
+  {
+    operationId: 'deactivateBankAccount',
+    method: 'POST',
+    path: '/v1/bank-accounts/%s/deactivate',
+    id: (s) => s.bankAccountId,
+  },
+  {
+    operationId: 'reactivateBankAccount',
+    method: 'POST',
+    path: '/v1/bank-accounts/%s/reactivate',
+    id: (s) => s.bankAccountId,
+  },
   {
     operationId: 'saveBankImportMapping',
     method: 'POST',

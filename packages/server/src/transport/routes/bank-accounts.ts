@@ -11,8 +11,10 @@ import { z } from 'zod';
 import { getContext } from '../../context';
 import {
   createBankAccount,
+  deactivateBankAccount,
   getBankAccount,
   listBankAccounts,
+  reactivateBankAccount,
   updateBankAccount,
 } from '../../modules/banking';
 import { withIdempotency } from '../../modules/idempotency';
@@ -38,9 +40,11 @@ import {
  * The writes take `banking.import` and the reads `banking.read`, which the service
  * enforces and this file only documents (spec §5): there is no `banking.manage`, and
  * setting up the account a statement imports into is the import surface's own concern.
- * There is no deactivate route yet — flipping `isActive` has to refuse an account with
- * an open reconciliation session, which is business logic beyond this transport ticket
- * (`bank-accounts.service.ts` records it).
+ *
+ * `isActive` is not a field on the patch; deactivate and reactivate are their own routes
+ * (OB-095), because deactivation refuses an account with an open reconciliation session
+ * and a state change every future import depends on should not ride in as a side effect
+ * of a rename — the same shape `accounts.ts` argues for the chart.
  */
 
 const TAG = 'bank-accounts';
@@ -170,4 +174,60 @@ export function registerBankAccountRoutes(app: App): void {
       return reply.status(result.status).send(idempotentBody<BankAccount>(result));
     },
   );
+
+  /**
+   * Deactivate and reactivate, registered from a table because they differ in one word —
+   * the same construction `accounts.ts` uses and for the same reason: written out twice
+   * they are two near-identical handlers that drift apart when one is edited. Deactivation
+   * is refused with `bank_account_has_open_session` (a `412`) when the account has an open
+   * reconciliation session; reactivation has no such guard (`bank-accounts.service.ts`).
+   */
+  for (const route of [
+    {
+      path: '/v1/bank-accounts/:bankAccountId/deactivate',
+      operationId: 'deactivateBankAccount',
+      summary: 'Deactivate a bank account',
+      description:
+        'Takes the account out of circulation: it keeps every line, import and reconciliation it ' +
+        'has and accepts no new ones. Refused with `bank_account_has_open_session` while a ' +
+        'reconciliation session on it is still open — a deactivated account can settle no ' +
+        'clearing, so an open session would be stranded. Idempotent otherwise.',
+      run: deactivateBankAccount,
+    },
+    {
+      path: '/v1/bank-accounts/:bankAccountId/reactivate',
+      operationId: 'reactivateBankAccount',
+      summary: 'Reactivate a bank account',
+      description:
+        'The counterpart to deactivation, so deactivating the wrong account is not a trap: the ' +
+        'account is referenced by its ledger and cannot be deleted.',
+      run: reactivateBankAccount,
+    },
+  ] as const) {
+    app.post(
+      route.path,
+      {
+        onRequest: ORG_SCOPED_WRITE_HOOKS,
+        schema: {
+          operationId: route.operationId,
+          summary: route.summary,
+          description: route.description,
+          tags: [TAG],
+          headers: idempotencyKeyHeaderSchema,
+          params: bankAccountParamsSchema,
+          response: { 200: bankAccountSchema, ...ERROR_RESPONSES },
+        },
+      },
+      async (request, reply) => {
+        const ctx = getContext();
+        const { bankAccountId } = request.params;
+        const result = await withIdempotency(
+          { endpoint: route.operationId, request: { bankAccountId }, successStatus: 200 },
+          () => route.run(bankAccountId, ctx),
+        );
+
+        return reply.status(result.status).send(idempotentBody<BankAccount>(result));
+      },
+    );
+  }
 }

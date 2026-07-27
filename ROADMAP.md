@@ -30,9 +30,9 @@ away.** Read this section first; the per-milestone Status sections below carry t
 |        |                                                                                                                                                                       |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Branch | `develop`, working tree clean                                                                                                                                         |
-| Gate   | `yarn check` passes — 2,047 tests across 171 files, ~2.5 min; the E2E passes against a real stack                                                                     |
-| Push   | **55 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                     |
-| Next   | M5 (platform surface) is scoped — start at wave 0 (OB-096 schema/grants, OB-097 wire contracts). Five follow-up tickets remain outstanding, none blocking — see below |
+| Gate   | `yarn check` passes — 2,060 tests across 173 files, ~2.5 min; the E2E passes against a real stack                                                                     |
+| Push   | **59 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                     |
+| Next   | M5 (platform surface) is scoped — start at wave 0 (OB-096 schema/grants, OB-097 wire contracts). Four follow-up tickets remain outstanding, none blocking — see below |
 
 M4 is complete. Wave 5 verified it and earned its keep: OB-088's cross-cutting property suite
 computes the cleared balance four independent ways over four tables and asserts them equal (spec
@@ -42,9 +42,10 @@ both now fixed ([D-52](#d-52)). See [Status — Milestone 4](#status--milestone-
 
 ### Outstanding tickets, none blocking M4
 
-Five follow-ups, deliberately not folded into other commits because each touches a contract,
-a kernel, a seed, or a decision rather than the module that found it. The first three came
-out of M3; the last two out of M4 wave 4, and both were explicitly deferred by decision.
+Four follow-ups, deliberately not folded into other commits because each touches a contract,
+a kernel, a seed, or a decision rather than the module that found it. The first three came out
+of M3; **OB-094** out of M4 wave 4, explicitly deferred by decision. (**OB-095** — the
+bank-account setup screen — is now built; see below.)
 
 | ID         | What                                                        | Why it was deferred                                                             |
 | ---------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -52,7 +53,6 @@ out of M3; the last two out of M4 wave 4, and both were explicitly deferred by d
 | **OB-092** | Reconcile the AR/AP refusal vocabulary onto the AP spelling | Wire-contract change; tokens are published                                      |
 | **OB-093** | Decide whether `ar_only`/`ap_only` may finish a document    | Migration + product decision, not a test fix                                    |
 | **OB-094** | Split coding: one statement line across several accounts    | Clearing contract + migration + service + screen — a decision taken to defer it |
-| **OB-095** | A bank-account setup screen (create/deactivate/reactivate)  | `createBankAccount` is API-only; no UI creates one yet                          |
 
 **OB-094** — the matching screen (OB-086) does accept/correct/defer/undo, but a **split** is
 not expressible: a line clears once (`uq_blc_line`) and a clearing codes it to one target.
@@ -62,12 +62,13 @@ logic generalised. That is a contract, a migration, a service change and a scree
 ticket, and the decision was taken to defer it rather than widen wave 4. None of E1–E10
 requires it; it is a real bookkeeping convenience (QuickBooks and Xero have it) for later.
 
-**OB-095** — the three banking screens pick a bank account from `GET /v1/bank-accounts`, but
-nothing in the UI _creates_ one: `createBankAccount`/`updateBankAccount` are routes without a
-screen, and `deactivate`/`reactivate` were deferred at OB-084 because the guard (refusing an
-account with an open session) is business logic. A small banking-settings screen closes both.
-Until it exists a bank account is created by API only, which is why OB-090's E2E seeds one
-that way.
+**OB-095 (done)** — the banking section gained an **Accounts** tab: a bank-account setup screen
+that registers an account over a ledger asset-account picker (D-46) and deactivates/reactivates
+it. `deactivateBankAccount` refuses an account with an **open reconciliation session**
+(`bank_account_has_open_session`) — the business-logic guard that had it deferred at OB-084 —
+and reactivate is its ungated counterpart. Both enforce `banking.import` and are covered across
+all three enforcement matrices (with the correct B11 non-entry, since the ops carry their id in
+the path, not a body). The E2E's API seeding is no longer the only way to create an account.
 
 **OB-091** — every document journal currently posts with `source = 'manual'`, because
 `PostJournalInput` has no `source` field and `postJournal` hardcodes it. Reported

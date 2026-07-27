@@ -200,6 +200,8 @@ describe('the /v1 route table', () => {
         'listBankAccounts',
         'getBankAccount',
         'updateBankAccount',
+        'deactivateBankAccount',
+        'reactivateBankAccount',
         'previewBankStatementImport',
         'startBankStatementImport',
         'listBankStatementImports',

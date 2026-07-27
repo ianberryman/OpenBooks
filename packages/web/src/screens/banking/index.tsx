@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 
 import { cx } from '../../lib/cx';
+import { BankAccountsScreen } from '../bank-accounts';
 import { BankImportScreen } from '../bank-import';
 import { MatchingScreen } from '../banking-match';
 import { ReconciliationScreen } from '../reconciliation';
@@ -12,10 +13,11 @@ import { ReconciliationScreen } from '../reconciliation';
  *
  * Import, matching and reconciliation are one workflow read left to right — a statement is
  * imported, its lines are matched, and a session reconciles them against the bank — so they
- * belong under one heading a user returns to, not three siblings of Sales and Reports. The
- * sub-tabs are the workflow in order; matching is the landing because it is the recurring
- * daily work once an account is set up, where importing is periodic and reconciling is
- * monthly.
+ * belong under one heading a user returns to, not siblings of Sales and Reports. The sub-tabs
+ * are the workflow in order — accounts are set up, statements imported, lines matched, sessions
+ * reconciled. Matching stays the landing because it is the recurring daily work once an account
+ * exists, where setting up an account is once, importing is periodic, and reconciling is
+ * monthly; a first-run org with no account reaches the Accounts tab from the same bar.
  *
  * This wrapper is transport only: it owns the tab bar and the nested route table and holds
  * no banking logic or data of its own. Each sub-screen keeps its own bank-account picker, so
@@ -30,6 +32,7 @@ import { ReconciliationScreen } from '../reconciliation';
 // and the jsdom tests could not, because they mount the sub-screens directly). Absolute `to`
 // resolves the same from every sub-route.
 const TABS: readonly { readonly to: string; readonly label: string }[] = [
+  { to: '/banking/accounts', label: 'Accounts' },
   { to: '/banking/import', label: 'Import' },
   { to: '/banking/match', label: 'Match' },
   { to: '/banking/reconcile', label: 'Reconcile' },
@@ -59,6 +62,7 @@ export function BankingScreen(): ReactElement {
 
       <Routes>
         <Route index element={<Navigate to="/banking/match" replace />} />
+        <Route path="accounts" element={<BankAccountsScreen />} />
         <Route path="import" element={<BankImportScreen />} />
         <Route path="match" element={<MatchingScreen />} />
         <Route path="reconcile" element={<ReconciliationScreen />} />

@@ -153,6 +153,49 @@ export async function updateBankAccountRow(
 }
 
 /**
+ * Flips `is_active` (OB-095). Its own function rather than a member of `BankAccountPatch`,
+ * because the patch a human edit builds deliberately has no way to reach `is_active`
+ * (its comment argues why) — deactivation is a distinct operation carrying a guard the
+ * rename does not, so the two do not share a write path.
+ */
+export async function setBankAccountActiveRow(
+  db: TenantDatabase,
+  id: Buffer,
+  isActive: boolean,
+): Promise<void> {
+  await db
+    .updateTable('bank_accounts')
+    .set({ is_active: isActive ? 1 : 0 })
+    .where('id', '=', id)
+    .execute();
+}
+
+/**
+ * Whether this bank account carries an *open* reconciliation session (OB-095, deferred
+ * from OB-084; E6, D-45). A session is open exactly when `state = 'in_progress'` — the
+ * same condition the `open_marker` unique key generates from, so at most one such row can
+ * exist per account (`reconciliation.repository.ts`).
+ *
+ * Read straight off `reconciliation_sessions` rather than reaching through the
+ * reconciliation service: the guard is the bank-account deactivation's, so it lives with
+ * the operation that makes it. `tenantDb` scopes the row to the caller's org before this
+ * predicate is added, so a session in another org's account is invisible here — which is
+ * correct, because a cross-org id has already resolved to no bank account and 404'd.
+ */
+export async function hasOpenReconciliationSession(
+  db: TenantDatabase,
+  bankAccountId: Buffer,
+): Promise<boolean> {
+  const row = await db
+    .selectFrom('reconciliation_sessions')
+    .select('id')
+    .where('bank_account_id', '=', bankAccountId)
+    .where('state', '=', 'in_progress')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+/**
  * `(created_at, id)` — the default this API's lists use (D-21). `name` is what a user
  * would sort on and is editable, and a keyset over a mutable column silently drops the
  * rows that moved behind the cursor.

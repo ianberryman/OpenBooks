@@ -141,8 +141,10 @@ export {
  */
 export {
   createBankAccount,
+  deactivateBankAccount,
   getBankAccount,
   listBankAccounts,
+  reactivateBankAccount,
   updateBankAccount,
 } from './bank-accounts/bank-accounts.service';
 export { getStatementLine, listStatementLines } from './statement-lines/service';

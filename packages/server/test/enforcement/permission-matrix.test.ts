@@ -117,6 +117,7 @@ import {
   createBankAccount,
   createBankRule,
   createReconciliationSession,
+  deactivateBankAccount,
   finaliseReconciliationSession,
   getBankAccount,
   getBankImportMapping,
@@ -133,6 +134,7 @@ import {
   listStatementLines,
   previewImportWithParsers,
   proposeMatchesWithRules,
+  reactivateBankAccount,
   removeBankLineClearing,
   reopenReconciliationSession,
   saveBankImportMapping,
@@ -1512,6 +1514,23 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'updateBankAccount',
     permission: 'banking.import',
     call: (s) => updateBankAccount(s.bankAccountId, { name: 'Renamed' }, s.ctx),
+  },
+  // `s.bankAccountId` carries no open reconciliation session at this point in the pass —
+  // `createReconciliationSession` opens one later — so a permitted role's deactivation
+  // reaches past the gate and succeeds, and reactivate restores the account before the
+  // rows below touch it. `banking.import` is already enforced (register/update), so no
+  // `GRANTED_TO`/`LATENT_GRANTS` change accompanies these two.
+  {
+    name: 'deactivateBankAccount',
+    operationId: 'deactivateBankAccount',
+    permission: 'banking.import',
+    call: (s) => deactivateBankAccount(s.bankAccountId, s.ctx),
+  },
+  {
+    name: 'reactivateBankAccount',
+    operationId: 'reactivateBankAccount',
+    permission: 'banking.import',
+    call: (s) => reactivateBankAccount(s.bankAccountId, s.ctx),
   },
   {
     name: 'previewBankStatementImport',

@@ -190,6 +190,27 @@ describe('bank accounts', () => {
     expect(response.statusCode).toBe(404);
     expect(errorBody(response.body).error.code).toBe('not_found');
   });
+
+  it('deactivates and reactivates through the two routes', async () => {
+    const app = harness.app();
+    const owner = await setUpBank(app, 'bank-activation');
+
+    const deactivated = await app.inject({
+      method: 'POST',
+      url: `/v1/bank-accounts/${owner.bankAccountId}/deactivate`,
+      headers: authorizedWrite(owner.session, 'bank-deactivate'),
+    });
+    expect(deactivated.statusCode).toBe(200);
+    expect(deactivated.json<BankAccountBody>().isActive).toBe(false);
+
+    const reactivated = await app.inject({
+      method: 'POST',
+      url: `/v1/bank-accounts/${owner.bankAccountId}/reactivate`,
+      headers: authorizedWrite(owner.session, 'bank-reactivate'),
+    });
+    expect(reactivated.statusCode).toBe(200);
+    expect(reactivated.json<BankAccountBody>().isActive).toBe(true);
+  });
 });
 
 describe('statement imports', () => {

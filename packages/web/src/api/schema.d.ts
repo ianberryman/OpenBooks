@@ -282,6 +282,26 @@ export interface paths {
         patch: operations["updateBankAccount"];
         trace?: never;
     };
+    "/v1/bank-accounts/{bankAccountId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate a bank account
+         * @description Takes the account out of circulation: it keeps every line, import and reconciliation it has and accepts no new ones. Refused with `bank_account_has_open_session` while a reconciliation session on it is still open — a deactivated account can settle no clearing, so an open session would be stranded. Idempotent otherwise.
+         */
+        post: operations["deactivateBankAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bank-accounts/{bankAccountId}/import-mappings": {
         parameters: {
             query?: never;
@@ -296,6 +316,26 @@ export interface paths {
          * @description Saves a named CSV column mapping against a bank account, reused across its monthly uploads (D-41). Editing a mapping never touches a line already imported through it — a statement line is what the bank said (D-42), and a file read under the wrong mapping is re-imported under the right one.
          */
         post: operations["saveBankImportMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-accounts/{bankAccountId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a bank account
+         * @description The counterpart to deactivation, so deactivating the wrong account is not a trap: the account is referenced by its ledger and cannot be deleted.
+         */
+        post: operations["reactivateBankAccount"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7223,6 +7263,40 @@ export interface operations {
             };
         };
     };
+    deactivateBankAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     saveBankImportMapping: {
         parameters: {
             query?: never;
@@ -7248,6 +7322,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankImportMapping"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reactivateBankAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankAccountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccount"];
                 };
             };
             /** @description Default Response */
