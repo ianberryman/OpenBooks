@@ -147,6 +147,9 @@ describe('the /v1 route table', () => {
         'getProfitAndLoss',
         'getBalanceSheet',
         'getGeneralLedger',
+        // K (cash-basis reporting): the two cash-flow statements (OB-157, OB-158).
+        'getStatementOfCashFlows',
+        'getCashFlowProjection',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',
         'updateControlAccounts',

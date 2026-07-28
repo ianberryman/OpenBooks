@@ -1,6 +1,7 @@
 import type {
   Account,
   AccountType,
+  CashBasisRole,
   ListAccountsQuery,
   NormalBalance,
 } from '@openbooks/shared-types';
@@ -57,6 +58,7 @@ const ACCOUNT_COLUMNS = [
   'normal_balance',
   'parent_account_id',
   'description',
+  'cash_basis_role',
   'is_active',
   'created_at',
   'updated_at',
@@ -70,6 +72,7 @@ interface AccountRow {
   readonly normal_balance: NormalBalance;
   readonly parent_account_id: Buffer | null;
   readonly description: string | null;
+  readonly cash_basis_role: CashBasisRole | null;
   readonly is_active: number;
   readonly created_at: Date;
   readonly updated_at: Date;
@@ -87,7 +90,8 @@ export interface NewAccountRow {
 /**
  * `code` is absent: an account code is immutable once created (D-27), so there is
  * no shape here through which one could be changed. `null` on `parentAccountId`
- * detaches the account and makes it top-level.
+ * detaches the account and makes it top-level; `null` on `cashBasisRole` returns
+ * the account to unclassified.
  */
 export interface AccountPatch {
   readonly name?: string;
@@ -95,6 +99,7 @@ export interface AccountPatch {
   readonly normalBalance?: NormalBalance;
   readonly parentAccountId?: Buffer | null;
   readonly description?: string | null;
+  readonly cashBasisRole?: CashBasisRole | null;
   readonly isActive?: boolean;
 }
 
@@ -136,6 +141,10 @@ export async function insertAccount(db: TenantDatabase, input: NewAccountRow): P
         normal_balance: input.normalBalance,
         description: input.description,
         parent_account_id: input.parentAccountId,
+        // Accounts are created unclassified (`createAccountRequestSchema` accepts no
+        // such field): the setup nudge asks after the fact, on the account list where
+        // every unclassified row is visible at once.
+        cash_basis_role: null,
       })
       .execute();
   } catch (error) {
@@ -246,6 +255,7 @@ export async function updateAccountRow(
       ...(patch.normalBalance === undefined ? {} : { normal_balance: patch.normalBalance }),
       ...(patch.parentAccountId === undefined ? {} : { parent_account_id: patch.parentAccountId }),
       ...(patch.description === undefined ? {} : { description: patch.description }),
+      ...(patch.cashBasisRole === undefined ? {} : { cash_basis_role: patch.cashBasisRole }),
       ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
     })
     .where('id', '=', id)
@@ -377,6 +387,7 @@ export function toAccount(row: AccountRow): Account {
     normalBalance: row.normal_balance,
     parentAccountId: row.parent_account_id === null ? null : bufferToUuid(row.parent_account_id),
     description: row.description,
+    cashBasisRole: row.cash_basis_role,
     isActive: row.is_active !== 0,
     // `timezone: 'Z'` on the pool and `DATETIME(3)` left as a `Date`
     // (`src/db/connection.ts`), so these are real instants and this is a lossless

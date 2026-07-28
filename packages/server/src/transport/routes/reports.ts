@@ -1,23 +1,34 @@
 import {
   AGING_LEDGERS,
+  CASH_FLOW_BUCKET_GRANULARITIES,
+  CASH_FLOW_PROJECTION_HORIZON_MAX,
   MAX_DIMENSIONS_PER_ORG,
   agingSchema,
   balanceSheetSchema,
   calendarDateSchema,
+  cashFlowProjectionSchema,
   generalLedgerSchema,
   pageCursorSchema,
   profitAndLossSchema,
+  reportBasisSchema,
   reportDimensionFilterSchema,
+  statementOfCashFlowsSchema,
   trialBalanceQuerySchema,
   trialBalanceSchema,
 } from '@openbooks/shared-types';
-import type { Aging, GeneralLedger } from '@openbooks/shared-types';
+import type { Aging, CashFlowProjection, GeneralLedger } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import { getTrialBalance } from '../../modules/ledger';
 import type { TrialBalance } from '../../modules/ledger';
-import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../modules/reports';
+import {
+  getBalanceSheet,
+  getCashFlowProjection,
+  getGeneralLedger,
+  getProfitAndLoss,
+  getStatementOfCashFlows,
+} from '../../modules/reports';
 /**
  * Imported from the service file rather than from `modules/reports/index.ts`, which
  * is the one deviation in this directory and is deliberate rather than an oversight:
@@ -32,10 +43,10 @@ import type { App } from '../types';
 import { ERROR_RESPONSES, pageLimitQuery, requireOrgScope, wireList, wireValue } from './support';
 
 /**
- * `/v1/reports` — the trial balance (A2) and M2's three statements (OB-042,
- * OB-043, OB-044).
+ * `/v1/reports` — the trial balance (A2), M2's three statements (OB-042, OB-043,
+ * OB-044), and the aging and cash-flow statements that followed (OB-067, OB-157).
  *
- * ## All four are `GET`, and the filters are the reason that took deciding
+ * ## All are `GET`, and the filters are the reason that took deciding
  *
  * Reads take no `Idempotency-Key` and run no `withIdempotency`: there is nothing to
  * execute at most once. That also means these responses are typed end to end rather
@@ -238,6 +249,48 @@ const generalLedgerWireQuerySchema = z.strictObject({
   cursor: pageCursorSchema.optional(),
 });
 
+/**
+ * The cash flow's filters: the range, and a `basis` override for `netIncome`. No
+ * `contactId`, `dimensions` or `groupBy` — the statement is whole-org by
+ * construction (`shared-types/reports/cash-flow.ts`).
+ */
+const cashFlowWireQuerySchema = z.strictObject({
+  from: calendarDateSchema.optional(),
+  to: calendarDateSchema.optional(),
+  basis: reportBasisSchema.optional(),
+});
+
+/**
+ * The cash-flow projection's filters (OB-158). `horizon` is the one numeric argument
+ * on this surface's querystring, so it is the one field here that needs `z.coerce` —
+ * every other query in this file is a date, a uuid or an enum, all of which arrive
+ * already correct as text. `cashFlowProjectionQuerySchema` (the service's own, in
+ * `shared-types`) takes a real number for the reason `pageLimitQuery` states: it is
+ * also reachable from a caller that is not a route.
+ */
+const cashFlowProjectionWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the projection starts from. Defaults to today — unlike aging’s `asOf`, this is ' +
+      'not a reproducibility guarantee the endpoint owes a caller, because a forward projection ' +
+      'answers differently on every call regardless of the date it is pinned to.',
+  }),
+  granularity: z.enum(CASH_FLOW_BUCKET_GRANULARITIES).optional().meta({
+    description: 'The width of one bucket, forward from `asOf`. Defaults to `monthly`.',
+  }),
+  horizon: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(CASH_FLOW_PROJECTION_HORIZON_MAX)
+    .optional()
+    .meta({
+      description:
+        `How many buckets to project, at most ${String(CASH_FLOW_PROJECTION_HORIZON_MAX)}. ` +
+        'Defaults to 12. Over the maximum is refused rather than clamped.',
+    }),
+});
+
 export function registerReportRoutes(app: App): void {
   app.get(
     '/v1/reports/trial-balance',
@@ -425,6 +478,80 @@ export function registerReportRoutes(app: App): void {
         },
         getContext(),
       );
+    },
+  );
+
+  app.get(
+    '/v1/reports/cash-flow',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getStatementOfCashFlows',
+        summary: 'Statement of cash flows (indirect method)',
+        description:
+          'Net income for the period, the literal change in the org’s cash accounts, and the ' +
+          'difference between them as a single "adjustments to reconcile net income to net ' +
+          'cash" line (D-88). Cash accounts are every account registered in `bank_accounts` ' +
+          'plus every account flagged `cash_basis_role: cash`. There is no categorized ' +
+          'operating/investing/financing split in this increment — a wrong split would be worse ' +
+          'than the honest reconciliation this reports instead — and no contact, dimension or ' +
+          '`groupBy` filter, since the statement is whole-org by construction. `basis` overrides ' +
+          'the org default for `netIncome` only; the cash movement itself is always accrual, ' +
+          'because which account a payment landed in is not a recognition question.',
+        tags: [TAG],
+        querystring: cashFlowWireQuerySchema,
+        response: { 200: statementOfCashFlowsSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<z.infer<typeof statementOfCashFlowsSchema>> => {
+      const { from, to, basis } = request.query;
+      const statement = await getStatementOfCashFlows(
+        {
+          ...(from === undefined ? {} : { from }),
+          ...(to === undefined ? {} : { to }),
+          ...(basis === undefined ? {} : { basis }),
+        },
+        getContext(),
+      );
+
+      return wireValue(statement);
+    },
+  );
+
+  app.get(
+    '/v1/reports/cash-flow-projection',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getCashFlowProjection',
+        summary: 'Forward cash-flow projection',
+        description:
+          'Forecasts cash forward from `asOf`: opening cash — this org’s cash and bank account ' +
+          'balances at the close of that date — plus outstanding invoices (money in) and bills ' +
+          '(money out) bucketed by **due date** rather than by how overdue they are, projected ' +
+          'across `horizon` buckets of `granularity` width. An amount already overdue lands in ' +
+          'the earliest bucket instead of being excluded — it is money expected now, not money a ' +
+          'stale due date should hide. `includesRecurringCommitments` is always `false`: ' +
+          'recurring journals do not exist yet, so this forecast only knows about money already ' +
+          'sitting in the AR/AP subledgers as an invoice or a bill. Takes `reports.read` and ' +
+          'only that.',
+        tags: [TAG],
+        querystring: cashFlowProjectionWireQuerySchema,
+        response: { 200: cashFlowProjectionSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<CashFlowProjection> => {
+      const { asOf, granularity, horizon } = request.query;
+      const projection = await getCashFlowProjection(
+        {
+          ...(asOf === undefined ? {} : { asOf }),
+          ...(granularity === undefined ? {} : { granularity }),
+          ...(horizon === undefined ? {} : { horizon }),
+        },
+        getContext(),
+      );
+
+      return wireValue(projection);
     },
   );
 }

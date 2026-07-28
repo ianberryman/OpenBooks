@@ -15,6 +15,7 @@ export type Account = components['schemas']['Account'];
 export type AccountPage = components['schemas']['AccountPage'];
 export type AccountType = Account['type'];
 export type NormalBalance = Account['normalBalance'];
+export type CashBasisRole = NonNullable<Account['cashBasisRole']>;
 export type CreateAccountBody = components['schemas']['CreateAccountRequestInput'];
 export type UpdateAccountBody = components['schemas']['UpdateAccountRequestInput'];
 export type ChartTemplateSummary = components['schemas']['ChartTemplateSummary'];

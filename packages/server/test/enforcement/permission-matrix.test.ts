@@ -158,8 +158,10 @@ import {
 import {
   getAccountBalances,
   getBalanceSheet,
+  getCashFlowProjection,
   getGeneralLedger,
   getProfitAndLoss,
+  getStatementOfCashFlows,
 } from '../../src/modules/reports';
 /**
  * Not through `modules/reports`' index, and OB-067 did not change that.
@@ -1004,6 +1006,20 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'getGeneralLedger',
     permission: 'reports.read',
     call: (s) => getGeneralLedger({ accountId: s.cashId }, s.ctx),
+  },
+  // K (cash-basis reporting): the two cash-flow statements (OB-157, OB-158), each a
+  // read gated on `reports.read` like every other report.
+  {
+    name: 'getStatementOfCashFlows',
+    operationId: 'getStatementOfCashFlows',
+    permission: 'reports.read',
+    call: (s) => getStatementOfCashFlows({}, s.ctx),
+  },
+  {
+    name: 'getCashFlowProjection',
+    operationId: 'getCashFlowProjection',
+    permission: 'reports.read',
+    call: (s) => getCashFlowProjection({}, s.ctx),
   },
   /**
    * No route either — the report *core* every projection above is assembled from.

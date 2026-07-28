@@ -92,3 +92,36 @@ export {
   generalLedgerSchema,
   generalLedgerTagSchema,
 } from './general-ledger';
+
+/**
+ * The Statement of Cash Flows, indirect method (OB-157; D-88). Read `cash-flow.ts`
+ * for why it reports one honest reconciling line rather than a fabricated
+ * operating/investing/financing split, and for which accounts count as cash.
+ */
+export type { StatementOfCashFlows, StatementOfCashFlowsQueryParams } from './cash-flow';
+export { statementOfCashFlowsQuerySchema, statementOfCashFlowsSchema } from './cash-flow';
+
+/**
+ * The forward cash-flow projection (OB-158, K6). Read `cash-flow-projection.ts`
+ * for why `asOf` defaults to today rather than being required the way aging's is,
+ * for why overdue amounts land in the earliest bucket instead of being excluded,
+ * and for why `includesRecurringCommitments` is always `false` today.
+ */
+export {
+  CASH_FLOW_BUCKET_GRANULARITIES,
+  CASH_FLOW_PROJECTION_GRANULARITY_DEFAULT,
+  CASH_FLOW_PROJECTION_HORIZON_DEFAULT,
+  CASH_FLOW_PROJECTION_HORIZON_MAX,
+} from './cash-flow-projection';
+export type {
+  CashFlowBucketGranularity,
+  CashFlowProjection,
+  CashFlowProjectionBucket,
+  CashFlowProjectionQueryParams,
+} from './cash-flow-projection';
+export {
+  cashFlowBucketGranularitySchema,
+  cashFlowProjectionBucketSchema,
+  cashFlowProjectionQuerySchema,
+  cashFlowProjectionSchema,
+} from './cash-flow-projection';

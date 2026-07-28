@@ -16,6 +16,7 @@ import type { ComboboxOption, SelectOption } from '../../components';
 import type {
   Account,
   AccountType,
+  CashBasisRole,
   CreateAccountBody,
   NormalBalance,
   UpdateAccountBody,
@@ -25,10 +26,14 @@ import { Refusal, preconditionToken } from './refusal';
 import {
   ACCOUNT_TYPES,
   ACCOUNT_TYPE_LABELS,
+  CASH_BASIS_ROLES,
+  CASH_BASIS_ROLE_LABELS,
   NORMAL_BALANCES,
   NORMAL_BALANCE_LABELS,
+  cashBasisRoleHint,
   contraNote,
   isAccountType,
+  isCashBasisRole,
   isContra,
   isNormalBalance,
 } from './vocabulary';
@@ -72,6 +77,47 @@ const NORMAL_BALANCE_OPTIONS: readonly SelectOption[] = NORMAL_BALANCES.map((bal
   value: balance,
   label: NORMAL_BALANCE_LABELS[balance],
 }));
+
+/**
+ * `cashBasisRole`'s sentinel, the same trick `TOP_LEVEL` plays for `parentAccountId`: the
+ * select needs a real, selectable value for "null", both to show it and to let a user who
+ * classified an account by mistake put it back.
+ */
+const UNCLASSIFIED = 'unclassified';
+
+const CASH_BASIS_ROLE_OPTIONS: readonly SelectOption[] = [
+  { value: UNCLASSIFIED, label: 'Unclassified' },
+  ...CASH_BASIS_ROLES.map((role) => ({ value: role, label: CASH_BASIS_ROLE_LABELS[role] })),
+];
+
+/**
+ * The classification control, shared by the edit form (create has none — see
+ * `createAccountRequestSchema`'s commentary for why accounts are created unclassified).
+ */
+function CashBasisRoleField({
+  value,
+  onChange,
+}: {
+  readonly value: CashBasisRole | null;
+  readonly onChange: (value: CashBasisRole | null) => void;
+}): ReactElement {
+  return (
+    <Field hint={cashBasisRoleHint(value)}>
+      <FieldLabel>Cash-basis treatment</FieldLabel>
+      <Select
+        value={value ?? UNCLASSIFIED}
+        options={CASH_BASIS_ROLE_OPTIONS}
+        onValueChange={(next) => {
+          if (next === UNCLASSIFIED) {
+            onChange(null);
+          } else if (isCashBasisRole(next)) {
+            onChange(next);
+          }
+        }}
+      />
+    </Field>
+  );
+}
 
 function parentOptions(accounts: readonly Account[], excludeId: string | null): ComboboxOption[] {
   return [
@@ -295,6 +341,7 @@ export function EditAccountDialog({
   const [normalBalance, setNormalBalance] = useState<NormalBalance>(account.normalBalance);
   const [parentAccountId, setParentAccountId] = useState<string | null>(account.parentAccountId);
   const [description, setDescription] = useState(account.description ?? '');
+  const [cashBasisRole, setCashBasisRole] = useState<CashBasisRole | null>(account.cashBasisRole);
 
   const nextDescription = toWireDescription(description);
 
@@ -308,6 +355,7 @@ export function EditAccountDialog({
     ...(normalBalance === account.normalBalance ? {} : { normalBalance }),
     ...(parentAccountId === account.parentAccountId ? {} : { parentAccountId }),
     ...(nextDescription === account.description ? {} : { description: nextDescription }),
+    ...(cashBasisRole === account.cashBasisRole ? {} : { cashBasisRole }),
   };
 
   const changed = Object.keys(patch).length > 0;
@@ -443,6 +491,8 @@ export function EditAccountDialog({
               }}
             />
           </Field>
+
+          <CashBasisRoleField value={cashBasisRole} onChange={setCashBasisRole} />
         </form>
       </DialogContent>
     </Dialog>

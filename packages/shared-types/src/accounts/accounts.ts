@@ -103,6 +103,26 @@ const normalBalanceSchema = z.enum(NORMAL_BALANCES).meta({
 });
 
 /**
+ * How the cash-basis transform (D-87, OB-154) treats postings to this account.
+ *
+ * Matches the `ENUM` in `0002_ledger`. A hint the user sets, not derived from `type` —
+ * the same statement-category covers both a bank account and a prepaid-expense holding
+ * account, both `asset`, and only one of them is a cash event.
+ */
+export const CASH_BASIS_ROLES = ['cash', 'accrual'] as const;
+
+export type CashBasisRole = (typeof CASH_BASIS_ROLES)[number];
+
+export const accountCashBasisRoleSchema = z.enum(CASH_BASIS_ROLES).meta({
+  description:
+    '`cash` marks this account as cash or a cash equivalent — a journal that touches it is a ' +
+    'cash event, recognised at the journal’s own date. `accrual` marks a pure-accrual holding ' +
+    'account (prepaid, accrued, deferred, deposits) whose no-cash movement is excluded from a ' +
+    'cash-basis P&L. `null` is unclassified: the account has not been told which it is, and ' +
+    'the setup nudge exists to ask.',
+});
+
+/**
  * `.trim()` before the length checks, so they see the stored value.
  *
  * Trimming is not cosmetic here: `uq_accounts_org_code` would treat `'1000 '` and
@@ -162,6 +182,7 @@ export const accountSchema = z
     normalBalance: normalBalanceSchema,
     parentAccountId: parentAccountIdSchema.nullable(),
     description: accountDescriptionSchema.nullable(),
+    cashBasisRole: accountCashBasisRoleSchema.nullable(),
     isActive: z.boolean().meta({
       description:
         'Inactive accounts keep every posting they carry and cannot be selected for new ones. ' +
@@ -204,6 +225,12 @@ export type Account = z.infer<typeof accountSchema>;
  * normal balance is not visibly broken — it reports with an inverted sign, which
  * reads as a data problem rather than a setup problem. Making the caller state it
  * costs one field and removes the failure mode.
+ *
+ * `cashBasisRole` is deliberately absent. Accounts are created unclassified — the
+ * distinction it names (cash-and-equivalent versus pure-accrual holding account) is
+ * one the setup nudge asks about after the fact, on the account list where every
+ * unclassified row is visible at once, rather than a decision forced mid-creation
+ * before the user may know how the account will be used.
  */
 export const createAccountRequestSchema = z
   .strictObject({
@@ -269,6 +296,7 @@ export const updateAccountRequestSchema = z
     normalBalance: normalBalanceSchema.optional(),
     parentAccountId: parentAccountIdSchema.nullish(),
     description: accountDescriptionSchema.nullish(),
+    cashBasisRole: accountCashBasisRoleSchema.nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
@@ -277,8 +305,9 @@ export const updateAccountRequestSchema = z
     id: 'UpdateAccountRequest',
     description:
       'Partial update. An absent field is unchanged; `description: null` clears it and ' +
-      '`parentAccountId: null` makes the account top-level. `code` is immutable and is not ' +
-      'accepted. `type` and `normalBalance` are refused once the account has postings.',
+      '`parentAccountId: null` makes the account top-level. `cashBasisRole: null` returns the ' +
+      'account to unclassified. `code` is immutable and is not accepted. `type` and ' +
+      '`normalBalance` are refused once the account has postings.',
   });
 
 export type UpdateAccountRequest = z.infer<typeof updateAccountRequestSchema>;

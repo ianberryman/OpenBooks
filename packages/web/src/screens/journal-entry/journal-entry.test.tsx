@@ -73,6 +73,7 @@ function account(id: string, code: string, name: string, isActive = true): Accou
     code,
     name,
     description: null,
+    cashBasisRole: null,
     isActive,
     normalBalance: 'debit',
     parentAccountId: null,

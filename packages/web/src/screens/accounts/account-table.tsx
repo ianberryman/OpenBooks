@@ -4,7 +4,12 @@ import { Button } from '../../components';
 import { cx } from '../../lib/cx';
 import type { Account } from './accounts-api';
 import type { AccountTreeRow } from './tree';
-import { ACCOUNT_TYPE_LABELS, NORMAL_BALANCE_LABELS } from './vocabulary';
+import {
+  ACCOUNT_TYPE_LABELS,
+  CASH_BASIS_ROLE_LABELS,
+  NORMAL_BALANCE_LABELS,
+  needsCashBasisClassification,
+} from './vocabulary';
 
 /**
  * The chart, as a tree, in code order.
@@ -56,6 +61,9 @@ export function AccountTable({
               Normal balance
             </th>
             <th scope="col" className={HEADER_CELL}>
+              Cash basis
+            </th>
+            <th scope="col" className={HEADER_CELL}>
               Status
             </th>
             <th scope="col" className={cx(HEADER_CELL, 'text-right')}>
@@ -93,6 +101,24 @@ export function AccountTable({
 
               <td className={cx(CELL, 'whitespace-nowrap text-text-muted')}>
                 {NORMAL_BALANCE_LABELS[account.normalBalance]}
+              </td>
+
+              <td className={cx(CELL, 'whitespace-nowrap')}>
+                {account.cashBasisRole === null ? (
+                  <span
+                    className={cx(
+                      needsCashBasisClassification(account)
+                        ? 'text-warning-text'
+                        : 'text-text-subtle',
+                    )}
+                  >
+                    Unclassified
+                  </span>
+                ) : (
+                  <span className="text-text-muted">
+                    {CASH_BASIS_ROLE_LABELS[account.cashBasisRole]}
+                  </span>
+                )}
               </td>
 
               <td className={cx(CELL, 'whitespace-nowrap')}>

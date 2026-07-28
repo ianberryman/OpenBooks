@@ -244,6 +244,9 @@ export async function updateAccount(
       // only `undefined` means "absent" — JSON has no way to send `undefined`, so a
       // client wanting to clear the field sends `null` and gets exactly that.
       ...(request.description === undefined ? {} : { description: request.description }),
+      // Same three-valued patch as `description`: absent leaves the classification
+      // alone, `null` returns the account to unclassified, a value sets it.
+      ...(request.cashBasisRole === undefined ? {} : { cashBasisRole: request.cashBasisRole }),
     };
 
     await updateAccountRow(trx, id, patch);

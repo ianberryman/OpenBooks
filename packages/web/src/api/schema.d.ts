@@ -1812,6 +1812,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports/cash-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Statement of cash flows (indirect method)
+         * @description Net income for the period, the literal change in the org’s cash accounts, and the difference between them as a single "adjustments to reconcile net income to net cash" line (D-88). Cash accounts are every account registered in `bank_accounts` plus every account flagged `cash_basis_role: cash`. There is no categorized operating/investing/financing split in this increment — a wrong split would be worse than the honest reconciliation this reports instead — and no contact, dimension or `groupBy` filter, since the statement is whole-org by construction. `basis` overrides the org default for `netIncome` only; the cash movement itself is always accrual, because which account a payment landed in is not a recognition question.
+         */
+        get: operations["getStatementOfCashFlows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/cash-flow-projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forward cash-flow projection
+         * @description Forecasts cash forward from `asOf`: opening cash — this org’s cash and bank account balances at the close of that date — plus outstanding invoices (money in) and bills (money out) bucketed by **due date** rather than by how overdue they are, projected across `horizon` buckets of `granularity` width. An amount already overdue lands in the earliest bucket instead of being excluded — it is money expected now, not money a stale due date should hide. `includesRecurringCommitments` is always `false`: recurring journals do not exist yet, so this forecast only knows about money already sitting in the AR/AP subledgers as an invoice or a bill. Takes `reports.read` and only that.
+         */
+        get: operations["getCashFlowProjection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/general-ledger": {
         parameters: {
             query?: never;
@@ -2191,6 +2231,7 @@ export interface components {
         };
         /** @description One account in the org’s chart of accounts. */
         Account: {
+            cashBasisRole: ("cash" | "accrual") | null;
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
             code: string;
             /** Format: date-time */
@@ -2218,6 +2259,7 @@ export interface components {
         };
         /** @description One account in the org’s chart of accounts. */
         AccountInput: {
+            cashBasisRole: ("cash" | "accrual") | null;
             /** @description Short reference unique within the org, e.g. `1000`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive: `1000a` and `1000A` are the same code. Leading and trailing whitespace is trimmed. */
             code: string;
             /** Format: date-time */
@@ -3612,6 +3654,62 @@ export interface components {
             memberships: components["schemas"]["OrgMembershipInput"][];
             permissions: string[];
             user: components["schemas"]["AuthenticatedUserInput"];
+        };
+        /** @description A forward cash-flow forecast from `asOf`: opening cash plus outstanding AR (money in) and AP (money out) bucketed by due date, projected across `buckets`. Overdue amounts land in the earliest bucket rather than being excluded. Recurring commitments are not yet included — see `includesRecurringCommitments`. There is no reconciliation figure the way aging’s C8 exists: the future has no ledger balance yet to check this against. */
+        CashFlowProjection: {
+            /** @description The date actually used — the request’s, or today when it was omitted. */
+            asOf: components["schemas"]["CalendarDate"];
+            buckets: components["schemas"]["CashFlowProjectionBucket"][];
+            /**
+             * @description The width of one projection bucket, measured forward from `asOf`. `weekly` is seven days; `monthly` is one calendar month (the same day-of-month next month, clamped to that month’s last day where it does not exist — 31 January projects to 28 or 29 February).
+             * @enum {string}
+             */
+            granularity: "weekly" | "monthly";
+            /** @description Always `false` today. Recurring journals (milestone L) do not exist yet, so this forecast is AR/AP due dates only — it does not know about a rent payment or a payroll run that has no invoice or bill behind it. Present unconditionally, and not merely documented, so a client cannot miss the day it becomes true. */
+            includesRecurringCommitments: boolean;
+            /** @description This org’s cash/bank balance at the close of `asOf` — the accounts registered in `bank_accounts`, plus any account an org has marked with the `cash` basis role that is not separately registered. Read from the same ledger every other report reads (D-13); there is no separate stored balance to drift from it (D-46). */
+            openingCash: components["schemas"]["MinorUnits"];
+        };
+        /** @description One forward-looking window: what is expected to move in it and the running cash position after it, both derived from AR/AP due dates rather than posted. */
+        CashFlowProjectionBucket: {
+            /** @description Outstanding invoice balances due in this window (total minus allocations, computed on read — D-34). A due date on or before `periodEnd` that has already passed lands in the earliest bucket rather than being dropped: money already overdue is money expected now, not money excluded from the forecast. */
+            expectedInflows: components["schemas"]["MinorUnits"];
+            /** @description The same reading over outstanding bill balances due in this window. */
+            expectedOutflows: components["schemas"]["MinorUnits"];
+            /** @description `expectedInflows - expectedOutflows`. */
+            netChange: components["schemas"]["MinorUnits"];
+            periodEnd: components["schemas"]["CalendarDate"];
+            periodStart: components["schemas"]["CalendarDate"];
+            /** @description Opening cash plus every bucket’s `netChange` through this one, inclusive. An estimate, not a ledger balance: nothing here has been received or paid yet. */
+            projectedClosingCash: components["schemas"]["MinorUnits"];
+        };
+        /** @description One forward-looking window: what is expected to move in it and the running cash position after it, both derived from AR/AP due dates rather than posted. */
+        CashFlowProjectionBucketInput: {
+            /** @description Outstanding invoice balances due in this window (total minus allocations, computed on read — D-34). A due date on or before `periodEnd` that has already passed lands in the earliest bucket rather than being dropped: money already overdue is money expected now, not money excluded from the forecast. */
+            expectedInflows: components["schemas"]["MinorUnitsInput"];
+            /** @description The same reading over outstanding bill balances due in this window. */
+            expectedOutflows: components["schemas"]["MinorUnitsInput"];
+            /** @description `expectedInflows - expectedOutflows`. */
+            netChange: components["schemas"]["MinorUnitsInput"];
+            periodEnd: components["schemas"]["CalendarDateInput"];
+            periodStart: components["schemas"]["CalendarDateInput"];
+            /** @description Opening cash plus every bucket’s `netChange` through this one, inclusive. An estimate, not a ledger balance: nothing here has been received or paid yet. */
+            projectedClosingCash: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description A forward cash-flow forecast from `asOf`: opening cash plus outstanding AR (money in) and AP (money out) bucketed by due date, projected across `buckets`. Overdue amounts land in the earliest bucket rather than being excluded. Recurring commitments are not yet included — see `includesRecurringCommitments`. There is no reconciliation figure the way aging’s C8 exists: the future has no ledger balance yet to check this against. */
+        CashFlowProjectionInput: {
+            /** @description The date actually used — the request’s, or today when it was omitted. */
+            asOf: components["schemas"]["CalendarDateInput"];
+            buckets: components["schemas"]["CashFlowProjectionBucketInput"][];
+            /**
+             * @description The width of one projection bucket, measured forward from `asOf`. `weekly` is seven days; `monthly` is one calendar month (the same day-of-month next month, clamped to that month’s last day where it does not exist — 31 January projects to 28 or 29 February).
+             * @enum {string}
+             */
+            granularity: "weekly" | "monthly";
+            /** @description Always `false` today. Recurring journals (milestone L) do not exist yet, so this forecast is AR/AP due dates only — it does not know about a rent payment or a payroll run that has no invoice or bill behind it. Present unconditionally, and not merely documented, so a client cannot miss the day it becomes true. */
+            includesRecurringCommitments: boolean;
+            /** @description This org’s cash/bank balance at the close of `asOf` — the accounts registered in `bank_accounts`, plus any account an org has marked with the `cash` basis role that is not separately registered. Read from the same ledger every other report reads (D-13); there is no separate stored balance to drift from it (D-46). */
+            openingCash: components["schemas"]["MinorUnitsInput"];
         };
         /** @description The role the member holds afterwards. Re-roling to the role they already hold succeeds and changes nothing: a client reconciling state should not have to know the current value in order to write the intended one. */
         ChangeMemberRoleRequest: {
@@ -6131,6 +6229,56 @@ export interface components {
             /** @description Every dimension value this line carries, after the call. An axis absent from the list is untagged; an empty list clears every tag. Two values on one axis is a `precondition_failed`, not a last-one-wins. */
             valueIds: string[];
         };
+        /** @description The Statement of Cash Flows, indirect method, scoped to what the ledger gives deterministically: net income, the literal change in the org’s cash accounts, and the difference between them as a single reconciling line. No categorized operating/investing/financing split — see `adjustments`. */
+        StatementOfCashFlows: {
+            /** @description `netChangeInCash - netIncome`: a single "adjustments to reconcile net income to net cash" line standing in for the non-cash and working-capital changes a categorized operating/investing/financing split would otherwise itemise. That split needs a fixed-asset register and a per-account activity classification this increment does not have; reporting one honest plug figure is preferred over a fabricated breakdown. */
+            adjustments: components["schemas"]["MinorUnits"];
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            /** @description `openingCash + netChangeInCash`, i.e. the cash accounts’ balance at `range.to`. */
+            closingCash: components["schemas"]["MinorUnits"];
+            /** @description The cash accounts’ combined movement inside the period, both bounds inclusive. Always read accrual: which account moved cash is a fact, not a recognition choice. */
+            netChangeInCash: components["schemas"]["MinorUnits"];
+            /** @description The period’s net income (the P&L core’s `totals.netIncome`), on `basis`. */
+            netIncome: components["schemas"]["MinorUnits"];
+            /** @description The cash accounts’ combined balance strictly before `range.from`. */
+            openingCash: components["schemas"]["MinorUnits"];
+            /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */
+            range: {
+                from: components["schemas"]["CalendarDate"] | null;
+                to: components["schemas"]["CalendarDate"] | null;
+            };
+            /** @description `openingCash + netChangeInCash === closingCash` and `netIncome + adjustments === netChangeInCash`. True by construction — `adjustments` is defined as the figure that makes the second equality hold, and the first is `balanceOf`’s own invariant — so this is a live check rather than a literal, following the trial balance’s convention of reporting an invariant rather than asserting it inside a read. */
+            reconciles: boolean;
+        };
+        /** @description The Statement of Cash Flows, indirect method, scoped to what the ledger gives deterministically: net income, the literal change in the org’s cash accounts, and the difference between them as a single reconciling line. No categorized operating/investing/financing split — see `adjustments`. */
+        StatementOfCashFlowsInput: {
+            /** @description `netChangeInCash - netIncome`: a single "adjustments to reconcile net income to net cash" line standing in for the non-cash and working-capital changes a categorized operating/investing/financing split would otherwise itemise. That split needs a fixed-asset register and a per-account activity classification this increment does not have; reporting one honest plug figure is preferred over a fabricated breakdown. */
+            adjustments: components["schemas"]["MinorUnitsInput"];
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            /** @description `openingCash + netChangeInCash`, i.e. the cash accounts’ balance at `range.to`. */
+            closingCash: components["schemas"]["MinorUnitsInput"];
+            /** @description The cash accounts’ combined movement inside the period, both bounds inclusive. Always read accrual: which account moved cash is a fact, not a recognition choice. */
+            netChangeInCash: components["schemas"]["MinorUnitsInput"];
+            /** @description The period’s net income (the P&L core’s `totals.netIncome`), on `basis`. */
+            netIncome: components["schemas"]["MinorUnitsInput"];
+            /** @description The cash accounts’ combined balance strictly before `range.from`. */
+            openingCash: components["schemas"]["MinorUnitsInput"];
+            /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */
+            range: {
+                from: components["schemas"]["CalendarDateInput"] | null;
+                to: components["schemas"]["CalendarDateInput"] | null;
+            };
+            /** @description `openingCash + netChangeInCash === closingCash` and `netIncome + adjustments === netChangeInCash`. True by construction — `adjustments` is defined as the figure that makes the second equality hold, and the first is `balanceOf`’s own invariant — so this is a live check rather than a literal, following the trial balance’s convention of reporting an invariant rather than asserting it inside a read. */
+            reconciles: boolean;
+        };
         /** @description Switches the session’s active organization. The role returned is the one held in the new org, never carried across the switch. */
         SwitchActiveOrgRequest: {
             /** Format: uuid */
@@ -6291,8 +6439,9 @@ export interface components {
             /** @description The bank’s own transaction identifier, where it supplied one. */
             reference: string | null;
         };
-        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
+        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `cashBasisRole: null` returns the account to unclassified. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
         UpdateAccountRequest: {
+            cashBasisRole?: ("cash" | "accrual") | null;
             description?: string | null;
             /** @description Display name, e.g. `Operating bank account`. */
             name?: string;
@@ -6308,8 +6457,9 @@ export interface components {
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
-        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
+        /** @description Partial update. An absent field is unchanged; `description: null` clears it and `parentAccountId: null` makes the account top-level. `cashBasisRole: null` returns the account to unclassified. `code` is immutable and is not accepted. `type` and `normalBalance` are refused once the account has postings. */
         UpdateAccountRequestInput: {
+            cashBasisRole?: ("cash" | "accrual") | null;
             description?: string | null;
             /** @description Display name, e.g. `Operating bank account`. */
             name?: string;
@@ -11218,6 +11368,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BalanceSheet"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStatementOfCashFlows: {
+        parameters: {
+            query?: {
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers. */
+                basis?: "accrual" | "cash";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementOfCashFlows"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getCashFlowProjection: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+                /** @description The width of one bucket, forward from `asOf`. Defaults to `monthly`. */
+                granularity?: "weekly" | "monthly";
+                /** @description How many buckets to project, at most 52. Defaults to 12. Over the maximum is refused rather than clamped. */
+                horizon?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashFlowProjection"];
                 };
             };
             /** @description Default Response */

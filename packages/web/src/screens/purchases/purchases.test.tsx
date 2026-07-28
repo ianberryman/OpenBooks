@@ -62,6 +62,7 @@ const EXPENSE: Account = {
   code: '6-1000',
   name: 'Office supplies',
   description: null,
+  cashBasisRole: null,
   isActive: true,
   normalBalance: 'debit',
   parentAccountId: null,

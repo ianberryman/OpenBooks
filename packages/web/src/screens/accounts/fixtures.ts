@@ -20,6 +20,7 @@ export function account(overrides: Partial<Account> = {}): Account {
     normalBalance: 'debit',
     parentAccountId: null,
     description: null,
+    cashBasisRole: null,
     isActive: true,
     createdAt: '2026-01-04T09:00:00.000Z',
     updatedAt: '2026-01-04T09:00:00.000Z',

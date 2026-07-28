@@ -1,4 +1,4 @@
-import type { AccountType, NormalBalance } from './accounts-api';
+import type { Account, AccountType, CashBasisRole, NormalBalance } from './accounts-api';
 
 /**
  * The words this screen puts on the wire values, and the one piece of accounting judgement
@@ -39,6 +39,58 @@ export function isAccountType(value: string): value is AccountType {
 
 export function isNormalBalance(value: string): value is NormalBalance {
   return Object.hasOwn(NORMAL_BALANCE_LABELS, value);
+}
+
+/**
+ * How the cash-basis transform (D-87, OB-154) treats this account, in the user's words.
+ *
+ * `null` — unclassified — has no entry here on purpose: it is not a third choice offered
+ * alongside the other two, it is the absence of either, and the setup nudge is what asks a
+ * user to replace it with one.
+ */
+export const CASH_BASIS_ROLE_LABELS: Readonly<Record<CashBasisRole, string>> = {
+  cash: 'Cash or cash equivalent',
+  accrual: 'Accrual-only holding account',
+};
+
+/** Offered in this order: the common case (cash) first. */
+export const CASH_BASIS_ROLES: readonly CashBasisRole[] = ['cash', 'accrual'];
+
+export function isCashBasisRole(value: string): value is CashBasisRole {
+  return Object.hasOwn(CASH_BASIS_ROLE_LABELS, value);
+}
+
+/**
+ * Whether the setup nudge should still be asking about this account.
+ *
+ * Inactive accounts are excluded: one that can no longer be posted to cannot appear in a
+ * future report either way, so nudging about its classification would be busywork with no
+ * report it could ever change.
+ */
+export function needsCashBasisClassification(account: Account): boolean {
+  return account.cashBasisRole === null && account.isActive;
+}
+
+/** The line under the classification control, naming what each choice does to a cash-basis P&L. */
+export function cashBasisRoleHint(role: CashBasisRole | null): string {
+  if (role === 'cash') {
+    return (
+      'A posting that touches this account is a cash event: a cash-basis P&L recognises the ' +
+      'other side of the entry on the date this one is posted. Bank and till accounts are ' +
+      'this.'
+    );
+  }
+  if (role === 'accrual') {
+    return (
+      'A pure-accrual holding account — prepaid, accrued, deferred, a deposit. Its no-cash ' +
+      'movement is excluded from a cash-basis P&L; only the settlement that eventually touches ' +
+      'cash counts.'
+    );
+  }
+  return (
+    'Unclassified. A cash-basis report cannot yet tell whether activity on this account is a ' +
+    'cash event or an accrual holding movement.'
+  );
 }
 
 /**

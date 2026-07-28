@@ -105,6 +105,31 @@ describe('account schemas', () => {
     );
   });
 
+  /**
+   * `cashBasisRole` is absent from create entirely — accounts are created
+   * unclassified — and takes the same `.nullish()` shape `description` does on
+   * update: absent is a no-op, `null` clears, and only `'cash'`/`'accrual'` are
+   * accepted values.
+   */
+  it('rejects cashBasisRole on create and accepts only its two values on update', () => {
+    expect(() =>
+      parseInput(createAccountRequestSchema, { ...valid, cashBasisRole: 'cash' }),
+    ).toThrow(ValidationError);
+
+    expect(parseInput(updateAccountRequestSchema, { cashBasisRole: 'cash' }).cashBasisRole).toBe(
+      'cash',
+    );
+    expect(parseInput(updateAccountRequestSchema, { cashBasisRole: 'accrual' }).cashBasisRole).toBe(
+      'accrual',
+    );
+    expect(
+      parseInput(updateAccountRequestSchema, { cashBasisRole: null }).cashBasisRole,
+    ).toBeNull();
+    expect(() => parseInput(updateAccountRequestSchema, { cashBasisRole: 'bank' })).toThrow(
+      ValidationError,
+    );
+  });
+
   it('requires normalBalance rather than defaulting it from type', () => {
     const { normalBalance: _omitted, ...withoutNormalBalance } = valid;
 

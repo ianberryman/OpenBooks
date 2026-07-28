@@ -18,7 +18,19 @@ const CASH = account({ id: 'b', code: '1100', name: 'Cash', parentAccountId: 'a'
 function noop(): void {}
 
 function row(name: string): HTMLElement {
-  return screen.getByRole('row', { name: new RegExp(name) });
+  // The column-header row can match a search term a header cell contains — 'Cash'
+  // is in the 'Cash basis' column heading — so a data-row lookup must skip the row
+  // that carries `columnheader` cells rather than assume the account name is unique
+  // across every row including the header.
+  const matches = screen
+    .getAllByRole('row', { name: new RegExp(name) })
+    .filter((candidate) => within(candidate).queryAllByRole('columnheader').length === 0);
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected exactly one data row matching ${name}, found ${String(matches.length)}.`,
+    );
+  }
+  return matches[0] as HTMLElement;
 }
 
 describe('AccountTable', () => {
@@ -96,5 +108,23 @@ describe('AccountTable', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reactivate' }));
     expect(onSetActive).toHaveBeenCalledWith(inactive, true);
+  });
+
+  it('shows each account’s cash-basis classification, unclassified included', () => {
+    const cash = account({ id: 'c', code: '1000', name: 'Bank', cashBasisRole: 'cash' });
+    const unclassified = account({ id: 'u', code: '2000', name: 'Prepaid rent' });
+
+    render(
+      <AccountTable
+        rows={buildAccountTree([cash, unclassified])}
+        busyAccountId={null}
+        onEdit={noop}
+        onRemove={noop}
+        onSetActive={noop}
+      />,
+    );
+
+    expect(within(row('Bank')).getByText('Cash or cash equivalent')).toBeInTheDocument();
+    expect(within(row('Prepaid rent')).getByText('Unclassified')).toBeInTheDocument();
   });
 });

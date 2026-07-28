@@ -186,3 +186,37 @@ export { getBalanceSheet } from './balance-sheet.service';
 
 export { BALANCE_SHEET_ACCOUNT_TYPES, balanceSheetQuerySchema } from '@openbooks/shared-types';
 export type { BalanceSheetAccountType } from '@openbooks/shared-types';
+
+/**
+ * The Statement of Cash Flows, indirect method (OB-157; D-88). A projection over two
+ * calls to the core — the P&L for net income, `getAccountBalances` again for the
+ * cash accounts' movement — read `cash-flow.service.ts` for why the reconciliation
+ * is a single honest plug rather than a fabricated operating/investing/financing
+ * split.
+ */
+export type {
+  StatementOfCashFlows,
+  StatementOfCashFlowsQuery,
+  StatementOfCashFlowsRange,
+} from './cash-flow.service';
+export { getStatementOfCashFlows } from './cash-flow.service';
+
+export { statementOfCashFlowsQuerySchema } from '@openbooks/shared-types';
+
+/**
+ * The forward cash-flow projection (OB-158, K6). Not a projection over
+ * `getAccountBalances` the way the three reports above are — opening cash is the
+ * one figure it borrows from the core; the AR/AP reads underneath it are
+ * `aging.repository.ts`'s, restricted to invoices and bills and bucketed by due
+ * date rather than by days overdue. Read `cash-flow-projection.service.ts` for why
+ * overdue amounts land in the earliest bucket instead of being excluded, and why
+ * `includesRecurringCommitments` is always `false` today.
+ */
+export type { CashFlowProjectionQuery } from './cash-flow-projection.service';
+export { getCashFlowProjection } from './cash-flow-projection.service';
+
+export {
+  CASH_FLOW_BUCKET_GRANULARITIES,
+  cashFlowProjectionQuerySchema,
+} from '@openbooks/shared-types';
+export type { CashFlowBucketGranularity } from '@openbooks/shared-types';

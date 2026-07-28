@@ -54,6 +54,7 @@ describe('accounts service', () => {
         type: 'asset',
         normalBalance: 'debit',
         description: null,
+        cashBasisRole: null,
         isActive: true,
       });
 
@@ -89,6 +90,30 @@ describe('accounts service', () => {
       await expect(updateAccount(created.id, {}, actor.ctx)).rejects.toBeInstanceOf(
         ValidationError,
       );
+    });
+
+    /**
+     * `cashBasisRole` takes the same three-valued patch `description` does: absent
+     * leaves it alone, `null` clears it, a value sets it. Accounts are created
+     * unclassified (`createAccountRequestSchema` accepts no such field), so the
+     * round trip starts from `null` rather than from a value created with.
+     */
+    it('sets, leaves alone, and clears cashBasisRole through the same three-valued patch', async () => {
+      const actor = await actorIn(db);
+      const created = await createAccount(CASH, actor.ctx);
+      expect(created.cashBasisRole).toBeNull();
+
+      const classified = await updateAccount(created.id, { cashBasisRole: 'cash' }, actor.ctx);
+      expect(classified.cashBasisRole).toBe('cash');
+
+      const untouched = await updateAccount(classified.id, { name: 'Operating' }, actor.ctx);
+      expect(untouched.cashBasisRole).toBe('cash');
+
+      const cleared = await updateAccount(untouched.id, { cashBasisRole: null }, actor.ctx);
+      expect(cleared.cashBasisRole).toBeNull();
+
+      const reread = await getAccount(cleared.id, actor.ctx);
+      expect(reread.cashBasisRole).toBeNull();
     });
 
     it('trims a code so the uniqueness key sees the value the user sees', async () => {

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DeleteAccountDialog, EditAccountDialog } from './account-dialogs';
+import { CreateAccountDialog, DeleteAccountDialog, EditAccountDialog } from './account-dialogs';
 import type { UpdateAccountBody } from './accounts-api';
 import { account, apiError, hasPostingsError } from './fixtures';
 
@@ -162,6 +162,67 @@ describe('EditAccountDialog', () => {
     // Neutral, not an error: `role="alert"` is what the refusals use, and a correct entry
     // must not arrive wearing one.
     expect(note.closest('[role="alert"]')).toBeNull();
+  });
+
+  it('sends a value chosen for an unclassified account', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(body: UpdateAccountBody, idempotencyKey: string) => void>();
+
+    render(
+      <EditAccountDialog
+        account={account({ cashBasisRole: null })}
+        accounts={[]}
+        pending={false}
+        error={null}
+        onOpenChange={noop}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.click(screen.getByRole('combobox', { name: 'Cash-basis treatment' }));
+    await user.click(screen.getByRole('option', { name: 'Cash or cash equivalent' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(onSubmit.mock.calls[0]?.[0]).toStrictEqual({ cashBasisRole: 'cash' });
+  });
+
+  it('clears an existing classification back to unclassified with an explicit null', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(body: UpdateAccountBody, idempotencyKey: string) => void>();
+
+    render(
+      <EditAccountDialog
+        account={account({ cashBasisRole: 'accrual' })}
+        accounts={[]}
+        pending={false}
+        error={null}
+        onOpenChange={noop}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.click(screen.getByRole('combobox', { name: 'Cash-basis treatment' }));
+    await user.click(screen.getByRole('option', { name: 'Unclassified' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(onSubmit.mock.calls[0]?.[0]).toStrictEqual({ cashBasisRole: null });
+  });
+});
+
+describe('CreateAccountDialog', () => {
+  it('offers no cash-basis control — accounts are created unclassified', () => {
+    render(
+      <CreateAccountDialog
+        open
+        onOpenChange={noop}
+        accounts={[]}
+        pending={false}
+        error={null}
+        onSubmit={noop}
+      />,
+    );
+
+    expect(screen.queryByText(/cash-basis/i)).toBeNull();
   });
 });
 

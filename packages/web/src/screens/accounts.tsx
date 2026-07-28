@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Button, ErrorBanner, Select } from '../components';
 import type { SelectOption } from '../components';
 import { AccountTable } from './accounts/account-table';
+import { CashBasisNudge } from './accounts/classification-nudge';
 import type {
   Account,
   AccountFilters,
@@ -206,6 +207,14 @@ export function AccountsScreen(): ReactElement {
           </Button>
         </div>
       </header>
+
+      <CashBasisNudge
+        accounts={accounts}
+        onClassify={(target) => {
+          update.reset();
+          setEditing(target);
+        }}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select
