@@ -72,6 +72,19 @@ import {
 } from '../../src/modules/drafts';
 import { importQuickBooks, previewQuickBooksImport } from '../../src/modules/imports';
 import {
+  createDunningPolicy,
+  createRecurringInvoiceTemplate,
+  deactivateDunningPolicy,
+  deactivateRecurringInvoiceTemplate,
+  getDunningPolicy,
+  getRecurringInvoiceTemplate,
+  listDunningPolicies,
+  listRecurringInvoiceTemplates,
+  updateDunningPolicy,
+  updateRecurringInvoiceTemplate,
+} from '../../src/modules/invoicing';
+import { runDueWorkNow } from '../../src/modules/scheduling';
+import {
   approveCreditNote,
   approveInvoice,
   createCreditNote,
@@ -1731,6 +1744,115 @@ const OPERATIONS: readonly Operation[] = [
     thenRequires: ['contacts.write', 'journals.post'],
     call: (s) =>
       importQuickBooks({ asOfDate: '2026-01-15', accounts: 'Name,Type\nCash,Bank\n' }, s.ctx),
+  },
+  // Phase 4 — recurring invoices and dunning. Every write shares `invoices.*` (a template is a
+  // standing instruction to raise an invoice, a policy governs sending), and none declares a
+  // `thenRequires`: creating a template writes only the template (materialisation posts later,
+  // in the engine, not in this call), creating a policy writes only the policy, and the manual
+  // run only enqueues. The id-addressed calls pass a fresh uuid — the gate is checked before the
+  // row is loaded, so a not-found is `judge`'d as allowed for a role that clears the gate.
+  {
+    name: 'createRecurringInvoiceTemplate',
+    operationId: 'createRecurringInvoiceTemplate',
+    permission: 'invoices.write',
+    call: (s) =>
+      createRecurringInvoiceTemplate(
+        {
+          contactId: s.contactId,
+          name: 'Monthly retainer',
+          materializationMode: 'draft',
+          taxMode: 'exclusive',
+          frequency: 'monthly',
+          intervalCount: 1,
+          dueDays: 0,
+          startDate: '2026-01-15',
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: s.revenueId,
+              taxRateId: null,
+            },
+          ],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listRecurringInvoiceTemplates',
+    operationId: 'listRecurringInvoiceTemplates',
+    permission: 'invoices.read',
+    call: (s) => listRecurringInvoiceTemplates({}, s.ctx),
+  },
+  {
+    name: 'getRecurringInvoiceTemplate',
+    operationId: 'getRecurringInvoiceTemplate',
+    permission: 'invoices.read',
+    call: (s) => getRecurringInvoiceTemplate(newUuid(), s.ctx),
+  },
+  {
+    name: 'updateRecurringInvoiceTemplate',
+    operationId: 'updateRecurringInvoiceTemplate',
+    permission: 'invoices.write',
+    call: (s) => updateRecurringInvoiceTemplate(newUuid(), { name: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'deactivateRecurringInvoiceTemplate',
+    operationId: 'deactivateRecurringInvoiceTemplate',
+    permission: 'invoices.write',
+    call: (s) => deactivateRecurringInvoiceTemplate(newUuid(), s.ctx),
+  },
+  {
+    name: 'createDunningPolicy',
+    operationId: 'createDunningPolicy',
+    permission: 'invoices.send',
+    call: (s) =>
+      createDunningPolicy(
+        {
+          name: 'Standard ladder',
+          stages: [
+            {
+              stageNumber: 1,
+              offsetDays: 7,
+              subject: 'Payment reminder',
+              body: 'Your invoice is overdue.',
+              lateFeeMinor: null,
+            },
+          ],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listDunningPolicies',
+    operationId: 'listDunningPolicies',
+    permission: 'invoices.read',
+    call: (s) => listDunningPolicies({}, s.ctx),
+  },
+  {
+    name: 'getDunningPolicy',
+    operationId: 'getDunningPolicy',
+    permission: 'invoices.read',
+    call: (s) => getDunningPolicy(newUuid(), s.ctx),
+  },
+  {
+    name: 'updateDunningPolicy',
+    operationId: 'updateDunningPolicy',
+    permission: 'invoices.send',
+    call: (s) => updateDunningPolicy(newUuid(), { name: 'Edited' }, s.ctx),
+  },
+  {
+    name: 'deactivateDunningPolicy',
+    operationId: 'deactivateDunningPolicy',
+    permission: 'invoices.send',
+    call: (s) => deactivateDunningPolicy(newUuid(), s.ctx),
+  },
+  {
+    name: 'runDueScheduledWork',
+    operationId: 'runDueScheduledWork',
+    permission: 'invoices.write',
+    call: (s) => runDueWorkNow(s.ctx),
   },
   {
     name: 'getBankImportMapping',

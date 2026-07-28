@@ -61,12 +61,9 @@ const recurringInvoiceTemplateParamsSchema = z.strictObject({ templateId: z.uuid
  * be referenced by nothing.
  */
 const listRecurringInvoiceTemplatesWireQuerySchema = z.strictObject({
-  isActive: z
-    .stringbool()
-    .optional()
-    .meta({
-      description: 'Only active templates when `true`, only retired ones when `false`.',
-    }),
+  isActive: z.stringbool().optional().meta({
+    description: 'Only active templates when `true`, only retired ones when `false`.',
+  }),
   limit: pageLimitQuery('recurring invoice templates'),
   cursor: pageCursorSchema.optional(),
 });

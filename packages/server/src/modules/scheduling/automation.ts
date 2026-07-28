@@ -21,13 +21,16 @@ import { OWNER_ROLE_ID } from '../orgs';
  * special-cased for the scheduler. The authority is the org's own; nothing is escalated across
  * orgs, because the context is opened per `orgId` and every read stays `tenantDb(orgId)`-scoped.
  *
- * ## Why `automation` / `scheduled`, and a null user
+ * ## Why `automation`, and no `invocation_mode`
  *
- * The provenance is the point of not simply reusing a human's context: every journal and every
- * send this produces records `actor_type = 'automation'` and `invocation_mode = 'scheduled'`
- * (plugin-api `ActorProvenance`), so an automated posting is distinguishable from an interactive
- * one forever after. `actorId` names *what* the automation is — the recurring template or dunning
- * policy the caller passes — so the trail leads back to the standing instruction that caused it.
+ * The provenance is the point of not simply reusing a human's context: every journal this
+ * produces records `actor_type = 'automation'` (plugin-api `ActorProvenance`), so an automated
+ * posting is distinguishable from an interactive one forever after, and `actorId` names *what*
+ * the automation is — the recurring template or dunning policy the caller passes — so the trail
+ * leads back to the standing instruction that caused it. `invocation_mode` is deliberately left
+ * unset: `chk_journals_invocation_mode` (0002_ledger) makes it an **agent-only** column — an AI
+ * agent's journal records `interactive` vs `scheduled`, and every other actor, automation
+ * included, carries NULL. An automation is not an agent, so it has no invocation mode to record.
  *
  * ## Why `userId` is the owner and not null
  *
@@ -50,7 +53,6 @@ export async function runAsAutomation<T>(
     roleId: OWNER_ROLE_ID,
     actorType: 'automation',
     actorId,
-    invocationMode: 'scheduled',
   });
   return runInContext(ctx, () => fn(ctx));
 }

@@ -58,7 +58,7 @@ export async function registerRecurringJob(
   queue: QueueProvider,
   deps: RecurringEngineDeps,
 ): Promise<void> {
-  await registerDailyTask(RECURRING_SWEEP_QUEUE);
+  registerDailyTask(RECURRING_SWEEP_QUEUE);
   await queue.subscribe(RECURRING_SWEEP_QUEUE, createRecurringSweepHandler(deps));
 }
 
@@ -102,15 +102,17 @@ export async function runRecurringSweep(
 /**
  * Raises one cycle's invoice from a due template, and advances its schedule.
  *
- * Idempotency comes first, under the row lock, and is checked against the
- * template's own state rather than against anything the sweep passed in: `runDate`
- * never appears below the `selectDueTemplates` read, on purpose. A template found
- * due for a payload built two ticks ago (a crashed worker, a slow restart) is
- * still resolved against what the row says *now* — D-76's once-per-cycle guard is
- * `last_run_date === next_run_date`, and the cycle it fires posts as of the
- * template's own `next_run_date`, not the wall-clock day the sweep happened to
- * run. A template overdue by more than one cycle catches up one cycle per tick
- * rather than raising every missed invoice at once.
+ * Idempotency comes first, under the row lock: D-76's once-per-cycle guard. The cycle this
+ * invocation is *for* is the one the sweep selected — `template.next_run_date` — and a cycle
+ * already fired records that date in `last_run_date` (the advance below sets it there). So a
+ * second invocation for the same dispatched cycle — a crashed worker, a slow restart, a
+ * re-enqueue — reloads the row under the lock, sees `last_run_date` has already reached that
+ * cycle, and does nothing. `runDate` never appears here: the cycle posts as of the template's
+ * own schedule date, not the wall-clock day the sweep happened to run, and a template overdue
+ * by more than one cycle catches up one cycle per tick rather than raising every missed invoice
+ * at once. Comparing to the *dispatched* cycle rather than `current.next_run_date` matters
+ * because the first run advances the latter — the two agree until then, and only the dispatched
+ * date still names the cycle after.
  */
 export async function materializeCycle(
   template: DueRecurringTemplateRow,
@@ -120,7 +122,7 @@ export async function materializeCycle(
     const current = await selectRecurringTemplateByIdForUpdate(trx, template.id);
     // Gone, or deactivated, since the sweep's snapshot — nothing to do.
     if (current === undefined || current.is_active !== 1) return;
-    if (current.last_run_date === current.next_run_date) return;
+    if (current.last_run_date === template.next_run_date) return;
 
     const issueDate = current.next_run_date;
     const lines = await selectRecurringTemplateLines(trx, template.id);

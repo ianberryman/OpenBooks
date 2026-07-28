@@ -1060,6 +1060,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/dunning-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List dunning policies
+         * @description One page of policies with their stages, ordered by `(created_at, id)`.
+         */
+        get: operations["listDunningPolicies"];
+        put?: never;
+        /**
+         * Create a dunning policy
+         * @description Creates a policy with its full ladder of stages, active by default. Takes `invoices.send`: a policy governs sending, the same reason `POST …/send` on an invoice does.
+         */
+        post: operations["createDunningPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dunning-policies/{policyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One dunning policy, with its stages */
+        get: operations["getDunningPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a dunning policy
+         * @description An absent field is left unchanged. `stages`, when present, replaces the whole ladder.
+         */
+        patch: operations["updateDunningPolicy"];
+        trace?: never;
+    };
+    "/v1/dunning-policies/{policyId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate a dunning policy
+         * @description Removes a policy from the sweep without deleting its history. Idempotent: an already-inactive policy is returned unchanged rather than refused.
+         */
+        post: operations["deactivateDunningPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/fiscal-periods": {
         parameters: {
             query?: never;
@@ -1812,6 +1877,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/recurring-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recurring invoice templates
+         * @description One page of templates, ordered by `(created_at, id)`, oldest first.
+         */
+        get: operations["listRecurringInvoiceTemplates"];
+        put?: never;
+        /**
+         * Create a recurring invoice template
+         * @description A customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field — the response carries `nextRunDate`/`lastRunDate` instead, the schedule state the engine advances.
+         */
+        post: operations["createRecurringInvoiceTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recurring-invoices/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recurring invoice template, with its lines */
+        get: operations["getRecurringInvoiceTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a recurring invoice template
+         * @description An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on and this endpoint cannot reach it.
+         */
+        patch: operations["updateRecurringInvoiceTemplate"];
+        trace?: never;
+    };
+    "/v1/recurring-invoices/{templateId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retire a recurring invoice template
+         * @description The engine stops raising invoices from this template. Idempotent: an already-inactive template is returned unchanged rather than refused. Nothing already materialised is affected — this reaches only future cycles.
+         */
+        post: operations["deactivateRecurringInvoiceTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/aging": {
         parameters: {
             query?: never;
@@ -1966,6 +2096,26 @@ export interface paths {
         get: operations["listAssignableRoles"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/scheduling/run-due-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run due background work now
+         * @description Enqueues the recurring-invoice and dunning sweeps for today, the same fan-out the daily tick performs at midnight. Idempotent: a recurring cycle guards on its last run date and a dunning stage on the send record, so a second run in the same day does nothing new.
+         */
+        post: operations["runDueScheduledWork"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4205,6 +4355,42 @@ export interface components {
             memo?: string | null;
             reference?: string | null;
         };
+        /** @description Creates a dunning policy with its full ladder of stages, active by default. */
+        CreateDunningPolicyRequest: {
+            /** @description Display name for the policy, e.g. `Standard 30/60/90`. */
+            name: string;
+            /** @description The ladder, in any order — `stageNumber` carries the order, not array position. Stage numbers must be unique within the policy (`uq_dunning_stages_policy_stage`). */
+            stages: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnits"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
+        /** @description Creates a dunning policy with its full ladder of stages, active by default. */
+        CreateDunningPolicyRequestInput: {
+            /** @description Display name for the policy, e.g. `Standard 30/60/90`. */
+            name: string;
+            /** @description The ladder, in any order — `stageNumber` carries the order, not array position. Stage numbers must be unique within the policy (`uq_dunning_stages_policy_stage`). */
+            stages: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnitsInput"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
         /** @description Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range. */
         CreateFiscalPeriodRequest: {
             /** @description Calendar month, 1–12. */
@@ -4326,6 +4512,88 @@ export interface components {
             startDate?: components["schemas"]["CalendarDateInput"] | null;
             /** @description What the statement says the account held at `endDate`. The claim being tested. */
             statementClosingBalance: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description Creates a recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field. */
+        CreateRecurringInvoiceTemplateRequest: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId: string;
+            /**
+             * @description The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no payment-terms model yet (ROADMAP), so the template names the offset itself.
+             * @default 0
+             */
+            dueDays: number;
+            /** @description The last date a cycle may fire. Null is open-ended. */
+            endDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /**
+             * @description How many `frequency` units between cycles. `1` is every cycle; `3` is every third.
+             * @default 1
+             */
+            intervalCount: number;
+            lines: components["schemas"]["RecurringInvoiceLine"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "approved";
+            memo?: string | null;
+            /** @description The template’s own label — what an operator picks it out by, not a line. */
+            name: string;
+            /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response — `nextRunDate` is the schedule’s live pointer from here on. */
+            startDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field. */
+        CreateRecurringInvoiceTemplateRequestInput: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId: string;
+            /**
+             * @description The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no payment-terms model yet (ROADMAP), so the template names the offset itself.
+             * @default 0
+             */
+            dueDays: number;
+            /** @description The last date a cycle may fire. Null is open-ended. */
+            endDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /**
+             * @description How many `frequency` units between cycles. `1` is every cycle; `3` is every third.
+             * @default 1
+             */
+            intervalCount: number;
+            lines: components["schemas"]["RecurringInvoiceLineInput"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "approved";
+            memo?: string | null;
+            /** @description The template’s own label — what an operator picks it out by, not a line. */
+            name: string;
+            /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response — `nextRunDate` is the schedule’s live pointer from here on. */
+            startDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
         };
         /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
         CreateTaxRateRequest: {
@@ -4718,6 +4986,56 @@ export interface components {
             net: components["schemas"]["MinorUnitsInput"];
             /** @description The sum of every line’s `taxAmount` — the sum of rounded lines, never the rounded sum. A customer who adds the tax column must reach this number. */
             tax: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One dunning policy and its ladder of stages. */
+        DunningPolicy: {
+            /** Format: uuid */
+            id: string;
+            isActive: boolean;
+            name: string;
+            stages: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnits"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
+        /** @description One dunning policy and its ladder of stages. */
+        DunningPolicyInput: {
+            /** Format: uuid */
+            id: string;
+            isActive: boolean;
+            name: string;
+            stages: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnitsInput"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
+        /** @description One page of the org’s dunning policies, ordered by `(created_at, id)`. */
+        DunningPolicyPage: {
+            items: components["schemas"]["DunningPolicy"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s dunning policies, ordered by `(created_at, id)`. */
+        DunningPolicyPageInput: {
+            items: components["schemas"]["DunningPolicyInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
         /** @description The body of every non-2xx response. */
         ErrorResponse: {
@@ -6321,6 +6639,122 @@ export interface components {
             /** @description The journal’s own reference, or null. */
             reference: string | null;
         };
+        /** @description One line of a recurring template: the inputs `createInvoice` reprices each cycle, and none of what it computes — a template is not a posted document (D-35). */
+        RecurringInvoiceLine: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on the invoice each cycle materialises.
+             */
+            accountId: string;
+            /** @description What the line is for. Nullable, unlike an invoice line’s own (`documentLineInputSchema` requires one): a template line is not yet a document line, and a template author may leave this for the cycle to fall back on. */
+            description?: string | null;
+            quantity: components["schemas"]["Quantity"];
+            /** @description The single rate this line is taxed at. Absent or null means no tax. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the template’s `taxMode` is `inclusive`, restated each cycle against the lines it prices. */
+            unitAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description One line of a recurring template: the inputs `createInvoice` reprices each cycle, and none of what it computes — a template is not a posted document (D-35). */
+        RecurringInvoiceLineInput: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on the invoice each cycle materialises.
+             */
+            accountId: string;
+            /** @description What the line is for. Nullable, unlike an invoice line’s own (`documentLineInputSchema` requires one): a template line is not yet a document line, and a template author may leave this for the cycle to fall back on. */
+            description?: string | null;
+            quantity: components["schemas"]["QuantityInput"];
+            /** @description The single rate this line is taxed at. Absent or null means no tax. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the template’s `taxMode` is `inclusive`, restated each cycle against the lines it prices. */
+            unitAmount: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description A recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `nextRunDate` and `lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone. */
+        RecurringInvoiceTemplate: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId: string;
+            dueDays: number;
+            endDate: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /** Format: uuid */
+            id: string;
+            intervalCount: number;
+            /** @description Whether the engine still runs this template. Cleared automatically once `nextRunDate` would fall after `endDate`, and settable by hand through the update request. */
+            isActive: boolean;
+            /** @description The date of the most recently materialised cycle, or null before the first one. The once-per-cycle guard (D-76): a template already run for a date is not run again, so a restart mid-tick cannot double-raise. */
+            lastRunDate: components["schemas"]["CalendarDate"] | null;
+            lines: components["schemas"]["RecurringInvoiceLine"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "approved";
+            memo: string | null;
+            name: string;
+            /** @description The next date a cycle fires. Each cycle materialises the invoice and advances this by `frequency` × `intervalCount` (D-75’s daily tick is what notices it has arrived). */
+            nextRunDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description A recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `nextRunDate` and `lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone. */
+        RecurringInvoiceTemplateInput: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId: string;
+            dueDays: number;
+            endDate: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /** Format: uuid */
+            id: string;
+            intervalCount: number;
+            /** @description Whether the engine still runs this template. Cleared automatically once `nextRunDate` would fall after `endDate`, and settable by hand through the update request. */
+            isActive: boolean;
+            /** @description The date of the most recently materialised cycle, or null before the first one. The once-per-cycle guard (D-76): a template already run for a date is not run again, so a restart mid-tick cannot double-raise. */
+            lastRunDate: components["schemas"]["CalendarDateInput"] | null;
+            lines: components["schemas"]["RecurringInvoiceLineInput"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "approved";
+            memo: string | null;
+            name: string;
+            /** @description The next date a cycle fires. Each cycle materialises the invoice and advances this by `frequency` × `intervalCount` (D-75’s daily tick is what notices it has arrived). */
+            nextRunDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description One page of recurring invoice templates, oldest first by creation. */
+        RecurringInvoiceTemplatePage: {
+            items: components["schemas"]["RecurringInvoiceTemplate"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of recurring invoice templates, oldest first by creation. */
+        RecurringInvoiceTemplatePageInput: {
+            items: components["schemas"]["RecurringInvoiceTemplateInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials. */
         RegisterRequest: {
             displayName: string;
@@ -6394,6 +6828,22 @@ export interface components {
             /** @description The reversal’s own entry date, which must itself fall in an open period. */
             date: components["schemas"]["CalendarDateInput"];
             memo?: string;
+        };
+        /** @description The outcome of a manual scheduler run: the date its sweeps were enqueued for. */
+        RunDueWorkResult: {
+            /**
+             * Format: date
+             * @description The calendar date the sweeps were enqueued for — the process’s own today.
+             */
+            runDate: string;
+        };
+        /** @description The outcome of a manual scheduler run: the date its sweeps were enqueued for. */
+        RunDueWorkResultInput: {
+            /**
+             * Format: date
+             * @description The calendar date the sweeps were enqueued for — the process’s own today.
+             */
+            runDate: string;
         };
         /** @description The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused. */
         SetJournalLineDimensionsRequest: {
@@ -6813,6 +7263,42 @@ export interface components {
             memo?: string | null;
             reference?: string | null;
         };
+        /** @description Updates a dunning policy. An absent field is left unchanged. */
+        UpdateDunningPolicyRequest: {
+            /** @description Prefer `POST …/deactivate` to retire a policy — this field exists for the same request to also change other fields, not as the primary way to flip it. */
+            isActive?: boolean;
+            name?: string;
+            stages?: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnits"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
+        /** @description Updates a dunning policy. An absent field is left unchanged. */
+        UpdateDunningPolicyRequestInput: {
+            /** @description Prefer `POST …/deactivate` to retire a policy — this field exists for the same request to also change other fields, not as the primary way to flip it. */
+            isActive?: boolean;
+            name?: string;
+            stages?: {
+                /** @description The reminder email’s body. */
+                body: string;
+                /** @description An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up). */
+                lateFeeMinor?: components["schemas"]["MinorUnitsInput"] | null;
+                /** @description Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it. */
+                offsetDays: number;
+                /** @description The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent. */
+                stageNumber: number;
+                /** @description The reminder email’s subject line. */
+                subject: string;
+            }[];
+        };
         /** @description Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set — send every line the invoice should have, including the unchanged ones. Changing `taxMode` reprices the lines rather than converting them. */
         UpdateInvoiceRequest: {
             /** Format: uuid */
@@ -6862,6 +7348,66 @@ export interface components {
         UpdateReconciliationSessionRequestInput: {
             endDate?: components["schemas"]["CalendarDateInput"];
             statementClosingBalance?: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description Partial update of a template. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on. */
+        UpdateRecurringInvoiceTemplateRequest: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId?: string;
+            dueDays?: number;
+            endDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency?: "weekly" | "monthly" | "quarterly" | "yearly";
+            intervalCount?: number;
+            isActive?: boolean;
+            lines?: components["schemas"]["RecurringInvoiceLine"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode?: "draft" | "approved";
+            memo?: string | null;
+            name?: string;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a template. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on. */
+        UpdateRecurringInvoiceTemplateRequestInput: {
+            /**
+             * Format: uuid
+             * @description The customer each cycle’s invoice is raised to.
+             */
+            contactId?: string;
+            dueDays?: number;
+            endDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles. Combined with `intervalCount` — `frequency: "monthly", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.
+             * @enum {string}
+             */
+            frequency?: "weekly" | "monthly" | "quarterly" | "yearly";
+            intervalCount?: number;
+            isActive?: boolean;
+            lines?: components["schemas"]["RecurringInvoiceLineInput"][];
+            /**
+             * @description What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.
+             * @enum {string}
+             */
+            materializationMode?: "draft" | "approved";
+            memo?: string | null;
+            name?: string;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
         };
         /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
         UpdateTaxRateRequest: {
@@ -9736,6 +10282,178 @@ export interface operations {
             };
         };
     };
+    listDunningPolicies: {
+        parameters: {
+            query?: {
+                /** @description How many dunning policies to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DunningPolicyPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDunningPolicy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDunningPolicyRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DunningPolicy"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDunningPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DunningPolicy"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDunningPolicy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDunningPolicyRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DunningPolicy"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateDunningPolicy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                policyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DunningPolicy"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listFiscalPeriods: {
         parameters: {
             query?: {
@@ -11553,6 +12271,180 @@ export interface operations {
             };
         };
     };
+    listRecurringInvoiceTemplates: {
+        parameters: {
+            query?: {
+                /** @description Only active templates when `true`, only retired ones when `false`. */
+                isActive?: string;
+                /** @description How many recurring invoice templates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringInvoiceTemplatePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createRecurringInvoiceTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecurringInvoiceTemplateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringInvoiceTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRecurringInvoiceTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringInvoiceTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateRecurringInvoiceTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecurringInvoiceTemplateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringInvoiceTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateRecurringInvoiceTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringInvoiceTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getAging: {
         parameters: {
             query: {
@@ -11825,6 +12717,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssignableRoleList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    runDueScheduledWork: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDueWorkResult"];
                 };
             };
             /** @description Default Response */

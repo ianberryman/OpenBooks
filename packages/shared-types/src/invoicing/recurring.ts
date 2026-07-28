@@ -99,11 +99,15 @@ const recurringTemplateCreateShape = {
     description:
       'How many `frequency` units between cycles. `1` is every cycle; `3` is every third.',
   }),
-  dueDays: z.int().min(0).default(0).meta({
-    description:
-      'The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no ' +
-      'payment-terms model yet (ROADMAP), so the template names the offset itself.',
-  }),
+  dueDays: z
+    .int()
+    .min(0)
+    .default(0)
+    .meta({
+      description:
+        'The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no ' +
+        'payment-terms model yet (ROADMAP), so the template names the offset itself.',
+    }),
   memo: documentMemoSchema.nullish(),
   endDate: calendarDateSchema.nullish().meta({
     description: 'The last date a cycle may fire. Null is open-ended.',

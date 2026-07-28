@@ -196,15 +196,7 @@ export async function selectStagesByPolicy(
 ): Promise<readonly DunningStageRow[]> {
   return db
     .selectFrom('dunning_stages')
-    .select([
-      'id',
-      'policy_id',
-      'stage_number',
-      'offset_days',
-      'subject',
-      'body',
-      'late_fee_minor',
-    ])
+    .select(['id', 'policy_id', 'stage_number', 'offset_days', 'subject', 'body', 'late_fee_minor'])
     .where('policy_id', '=', policyId)
     .orderBy('stage_number', 'asc')
     .execute();

@@ -67,6 +67,6 @@ export async function registerDunningJob(
   queue: QueueProvider,
   deps: DunningJobDeps,
 ): Promise<void> {
-  await registerDailyTask(DUNNING_SWEEP_QUEUE);
+  registerDailyTask(DUNNING_SWEEP_QUEUE);
   await queue.subscribe(DUNNING_SWEEP_QUEUE, createDunningSweepHandler(deps));
 }

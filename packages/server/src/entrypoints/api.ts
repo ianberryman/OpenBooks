@@ -14,6 +14,8 @@ import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import { resolveSessionIdentity } from '../modules/auth';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
+import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
+import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
 import { buildApp } from '../transport';
 
@@ -80,9 +82,19 @@ export async function startApi(): Promise<void> {
    * nothing). `worker.ts` registers the same handler; exactly one process does, chosen by
    * the queue provider.
    */
+  let stopDailyTick: (() => void) | undefined;
   if (config.providers.queue.provider === 'in-process') {
     await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
-    logger.info({ role: 'api', queue: 'in-process' }, 'statement import job registered in-process');
+    await registerRecurringJob(queueProvider(), { logger });
+    await registerDunningJob(queueProvider(), { logger });
+    // The daily tick (OB-127) runs here under the in-process adapter, because this is the
+    // process that consumes what it enqueues (the comment above). A stop handle is captured so
+    // the shutdown drain clears it before closing the pool.
+    stopDailyTick = startDailyTick({ logger });
+    logger.info(
+      { role: 'api', queue: 'in-process' },
+      'statement, recurring and dunning jobs registered in-process; daily tick started',
+    );
   }
 
   /**
@@ -101,6 +113,8 @@ export async function startApi(): Promise<void> {
     shuttingDown = true;
 
     logger.info({ signal }, 'shutting down');
+    // Stop the daily tick first, so it cannot enqueue against a closing pool.
+    stopDailyTick?.();
     // `app.close()` stops accepting connections and lets in-flight requests
     // finish; the pool is destroyed only afterwards, or a request still writing
     // would lose its connection mid-statement.

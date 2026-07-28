@@ -63,6 +63,8 @@ interface Scene {
    */
   readonly discardableDraftId: string;
   readonly inviteId: string;
+  readonly recurringTemplateId: string;
+  readonly dunningPolicyId: string;
 
   /**
    * M3's fixtures (OB-067's routes, OB-062 … OB-066's services).
@@ -221,6 +223,35 @@ async function scene(app: App): Promise<Scene> {
   if (invited.statusCode !== 201) throw new Error(`invite setup failed: ${invited.body}`);
   const inviteId = invited.json<{ invitation: { id: string } }>().invitation.id;
 
+  // Phase 4: a recurring template and a dunning policy, so the matrix can prove their
+  // id-addressed routes 404 across orgs. Neither posts anything — a `draft`-mode template only
+  // stores its schedule — so both simply exist for the owner to resolve and the stranger not to.
+  const recurringTemplateId = await created('recurring', '/v1/recurring-invoices', {
+    contactId,
+    name: 'Monthly retainer',
+    materializationMode: 'draft',
+    taxMode: 'exclusive',
+    frequency: 'monthly',
+    intervalCount: 1,
+    dueDays: 0,
+    startDate: '2026-01-15',
+    lines: [
+      {
+        description: null,
+        quantity: '1',
+        unitAmount: '150000',
+        accountId: revenueId,
+        taxRateId: null,
+      },
+    ],
+  });
+  const dunningPolicyId = await created('dunning', '/v1/dunning-policies', {
+    name: 'Standard ladder',
+    stages: [
+      { stageNumber: 1, offsetDays: 7, subject: 'Reminder', body: 'Overdue.', lateFeeMinor: null },
+    ],
+  });
+
   const subledger = await subledgerScene(app, owner, created, revenueId);
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
 
@@ -237,6 +268,8 @@ async function scene(app: App): Promise<Scene> {
     draftId,
     discardableDraftId,
     inviteId,
+    recurringTemplateId,
+    dunningPolicyId,
     ...subledger,
     ...banking,
   };
@@ -752,6 +785,45 @@ const SURFACES: readonly Surface[] = [
     method: 'DELETE',
     path: '/v1/contacts/%s',
     id: (s) => s.contactId,
+  },
+  // Phase 4: the recurring template and dunning policy id-addressed routes.
+  {
+    operationId: 'getRecurringInvoiceTemplate',
+    method: 'GET',
+    path: '/v1/recurring-invoices/%s',
+    id: (s) => s.recurringTemplateId,
+  },
+  {
+    operationId: 'updateRecurringInvoiceTemplate',
+    method: 'PATCH',
+    path: '/v1/recurring-invoices/%s',
+    id: (s) => s.recurringTemplateId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'deactivateRecurringInvoiceTemplate',
+    method: 'POST',
+    path: '/v1/recurring-invoices/%s/deactivate',
+    id: (s) => s.recurringTemplateId,
+  },
+  {
+    operationId: 'getDunningPolicy',
+    method: 'GET',
+    path: '/v1/dunning-policies/%s',
+    id: (s) => s.dunningPolicyId,
+  },
+  {
+    operationId: 'updateDunningPolicy',
+    method: 'PATCH',
+    path: '/v1/dunning-policies/%s',
+    id: (s) => s.dunningPolicyId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'deactivateDunningPolicy',
+    method: 'POST',
+    path: '/v1/dunning-policies/%s/deactivate',
+    id: (s) => s.dunningPolicyId,
   },
   {
     operationId: 'getDimension',

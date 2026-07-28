@@ -45,6 +45,10 @@ import {
   updateCreditNote,
   updateInvoice,
 } from '../../src/modules/invoices';
+import {
+  createRecurringInvoiceTemplate,
+  updateRecurringInvoiceTemplate,
+} from '../../src/modules/invoicing';
 import { postJournal } from '../../src/modules/ledger';
 import { changeMemberRole, inviteMember } from '../../src/modules/members';
 import { OWNER_ROLE_ID } from '../../src/modules/orgs';
@@ -148,6 +152,8 @@ interface Org {
   /** Both flags, because the AR services refuse a non-customer and AP a non-vendor. */
   readonly partyId: string;
   readonly taxRateId: string;
+  /** A draft-mode recurring template, so the `update*` reference rows have one to edit. */
+  readonly recurringTemplateId: string;
   /** Approved, so it can be an allocation target and has room for three. */
   readonly invoiceId: string;
   readonly billId: string;
@@ -439,6 +445,7 @@ type SubledgerFixtures = Pick<
   | 'invoiceId'
   | 'partyId'
   | 'paymentId'
+  | 'recurringTemplateId'
   | 'taxRateId'
   | 'vendorCreditId'
 >;
@@ -505,9 +512,40 @@ async function subledgerFixtures(
 
   const invoiceId = await approved(invoice, (id) => approveInvoice(id, ctx));
 
+  // A recurring template so the `update*` reference rows have an owned row to edit while
+  // naming a stranger's contact/account/tax rate in the patch. Draft mode: it posts nothing.
+  const recurringTemplateId = await asOwner(
+    async () =>
+      (
+        await createRecurringInvoiceTemplate(
+          {
+            contactId: party.id,
+            name: 'Monthly retainer',
+            materializationMode: 'draft',
+            taxMode: 'exclusive',
+            frequency: 'monthly',
+            intervalCount: 1,
+            dueDays: 0,
+            startDate: DATE,
+            lines: [
+              {
+                description: null,
+                quantity: '1',
+                unitAmount: '150000',
+                accountId: accounts.revenueId,
+                taxRateId: null,
+              },
+            ],
+          },
+          ctx,
+        )
+      ).id,
+  );
+
   return {
     partyId: party.id,
     taxRateId: taxRate.id,
+    recurringTemplateId,
     invoiceId,
     billId: await approved(bill, (id) => approveBill(id, ctx)),
     creditNoteId: await approved(creditNote, (id) => approveCreditNote(id, ctx)),
@@ -1185,6 +1223,142 @@ const REFERENCES: readonly Reference[] = [
               unitAmount: '100000',
               accountId: s.caller.revenueId,
               dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  // Phase 4: recurring templates. Every id-shaped field a template body accepts —
+  // `contactId` on the header, `accountId`/`taxRateId` on a line — on both create and update.
+  // Dunning carries none (a stage names no ids).
+  {
+    operationId: 'createRecurringInvoiceTemplate',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createRecurringInvoiceTemplate(
+        {
+          contactId: id,
+          name: 'Monthly retainer',
+          materializationMode: 'draft',
+          taxMode: 'exclusive',
+          frequency: 'monthly',
+          intervalCount: 1,
+          dueDays: 0,
+          startDate: DATE,
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: s.caller.revenueId,
+              taxRateId: null,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createRecurringInvoiceTemplate',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      createRecurringInvoiceTemplate(
+        {
+          contactId: s.caller.partyId,
+          name: 'Monthly retainer',
+          materializationMode: 'draft',
+          taxMode: 'exclusive',
+          frequency: 'monthly',
+          intervalCount: 1,
+          dueDays: 0,
+          startDate: DATE,
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: id,
+              taxRateId: null,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createRecurringInvoiceTemplate',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createRecurringInvoiceTemplate(
+        {
+          contactId: s.caller.partyId,
+          name: 'Monthly retainer',
+          materializationMode: 'draft',
+          taxMode: 'exclusive',
+          frequency: 'monthly',
+          intervalCount: 1,
+          dueDays: 0,
+          startDate: DATE,
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateRecurringInvoiceTemplate',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      updateRecurringInvoiceTemplate(s.caller.recurringTemplateId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateRecurringInvoiceTemplate',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      updateRecurringInvoiceTemplate(
+        s.caller.recurringTemplateId,
+        {
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: id,
+              taxRateId: null,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateRecurringInvoiceTemplate',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateRecurringInvoiceTemplate(
+        s.caller.recurringTemplateId,
+        {
+          lines: [
+            {
+              description: null,
+              quantity: '1',
+              unitAmount: '150000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
             },
           ],
         },

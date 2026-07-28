@@ -167,6 +167,18 @@ describe('the /v1 route table', () => {
         'discardInvoice',
         'approveInvoice',
         'voidInvoice',
+        // Phase 4: recurring invoice templates, dunning policies, and the manual scheduler run.
+        'createRecurringInvoiceTemplate',
+        'listRecurringInvoiceTemplates',
+        'getRecurringInvoiceTemplate',
+        'updateRecurringInvoiceTemplate',
+        'deactivateRecurringInvoiceTemplate',
+        'createDunningPolicy',
+        'listDunningPolicies',
+        'getDunningPolicy',
+        'updateDunningPolicy',
+        'deactivateDunningPolicy',
+        'runDueScheduledWork',
         // INV (Phase 1): invoice delivery + the org letterhead it prints under.
         'sendInvoice',
         'getBranding',

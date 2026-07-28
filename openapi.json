@@ -7553,6 +7553,144 @@
         },
         "type": "object"
       },
+      "CreateDunningPolicyRequest": {
+        "additionalProperties": false,
+        "description": "Creates a dunning policy with its full ladder of stages, active by default.",
+        "properties": {
+          "name": {
+            "description": "Display name for the policy, e.g. `Standard 30/60/90`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stages": {
+            "description": "The ladder, in any order — `stageNumber` carries the order, not array position. Stage numbers must be unique within the policy (`uq_dunning_stages_policy_stage`).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnits"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "stages"
+        ],
+        "type": "object"
+      },
+      "CreateDunningPolicyRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a dunning policy with its full ladder of stages, active by default.",
+        "properties": {
+          "name": {
+            "description": "Display name for the policy, e.g. `Standard 30/60/90`.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stages": {
+            "description": "The ladder, in any order — `stageNumber` carries the order, not array position. Stage numbers must be unique within the policy (`uq_dunning_stages_policy_stage`).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnitsInput"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "stages"
+        ],
+        "type": "object"
+      },
       "CreateFiscalPeriodRequest": {
         "additionalProperties": false,
         "description": "Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range.",
@@ -7980,6 +8118,212 @@
           "bankAccountId",
           "endDate",
           "statementClosingBalance"
+        ],
+        "type": "object"
+      },
+      "CreateRecurringInvoiceTemplateRequest": {
+        "additionalProperties": false,
+        "description": "Creates a recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "default": 0,
+            "description": "The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no payment-terms model yet (ROADMAP), so the template names the offset itself.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last date a cycle may fire. Null is open-ended."
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "default": 1,
+            "description": "How many `frequency` units between cycles. `1` is every cycle; `3` is every third.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLine"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "The template’s own label — what an operator picks it out by, not a line.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response — `nextRunDate` is the schedule’s live pointer from here on."
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "name",
+          "materializationMode",
+          "taxMode",
+          "frequency",
+          "intervalCount",
+          "dueDays",
+          "lines",
+          "startDate"
+        ],
+        "type": "object"
+      },
+      "CreateRecurringInvoiceTemplateRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "default": 0,
+            "description": "The net term each cycle applies: `dueDate = issueDate + dueDays`. There is no payment-terms model yet (ROADMAP), so the template names the offset itself.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last date a cycle may fire. Null is open-ended."
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "default": 1,
+            "description": "How many `frequency` units between cycles. `1` is every cycle; `3` is every third.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLineInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "The template’s own label — what an operator picks it out by, not a line.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response — `nextRunDate` is the schedule’s live pointer from here on."
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "name",
+          "materializationMode",
+          "taxMode",
+          "frequency",
+          "lines",
+          "startDate"
         ],
         "type": "object"
       },
@@ -9492,6 +9836,210 @@
           "net",
           "tax",
           "gross"
+        ],
+        "type": "object"
+      },
+      "DunningPolicy": {
+        "additionalProperties": false,
+        "description": "One dunning policy and its ladder of stages.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnits"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "stages"
+        ],
+        "type": "object"
+      },
+      "DunningPolicyInput": {
+        "additionalProperties": false,
+        "description": "One dunning policy and its ladder of stages.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnitsInput"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "stages"
+        ],
+        "type": "object"
+      },
+      "DunningPolicyPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s dunning policies, ordered by `(created_at, id)`.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DunningPolicy"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "DunningPolicyPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s dunning policies, ordered by `(created_at, id)`.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DunningPolicyInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -15629,6 +16177,404 @@
         ],
         "type": "object"
       },
+      "RecurringInvoiceLine": {
+        "additionalProperties": false,
+        "description": "One line of a recurring template: the inputs `createInvoice` reprices each cycle, and none of what it computes — a template is not a posted document (D-35).",
+        "properties": {
+          "accountId": {
+            "description": "The income account this line credits on the invoice each cycle materialises.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the line is for. Nullable, unlike an invoice line’s own (`documentLineInputSchema` requires one): a template line is not yet a document line, and a template author may leave this for the cycle to fall back on."
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "taxRateId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single rate this line is taxed at. Absent or null means no tax."
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The price of one unit, in minor units. Tax-inclusive exactly when the template’s `taxMode` is `inclusive`, restated each cycle against the lines it prices."
+          }
+        },
+        "required": [
+          "quantity",
+          "unitAmount",
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "RecurringInvoiceLineInput": {
+        "additionalProperties": false,
+        "description": "One line of a recurring template: the inputs `createInvoice` reprices each cycle, and none of what it computes — a template is not a posted document (D-35).",
+        "properties": {
+          "accountId": {
+            "description": "The income account this line credits on the invoice each cycle materialises.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the line is for. Nullable, unlike an invoice line’s own (`documentLineInputSchema` requires one): a template line is not yet a document line, and a template author may leave this for the cycle to fall back on."
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/QuantityInput"
+          },
+          "taxRateId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single rate this line is taxed at. Absent or null means no tax."
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The price of one unit, in minor units. Tax-inclusive exactly when the template’s `taxMode` is `inclusive`, restated each cycle against the lines it prices."
+          }
+        },
+        "required": [
+          "quantity",
+          "unitAmount",
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "RecurringInvoiceTemplate": {
+        "additionalProperties": false,
+        "description": "A recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `nextRunDate` and `lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "description": "Whether the engine still runs this template. Cleared automatically once `nextRunDate` would fall after `endDate`, and settable by hand through the update request.",
+            "type": "boolean"
+          },
+          "lastRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the most recently materialised cycle, or null before the first one. The once-per-cycle guard (D-76): a template already run for a date is not run again, so a restart mid-tick cannot double-raise."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLine"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextRunDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The next date a cycle fires. Each cycle materialises the invoice and advances this by `frequency` × `intervalCount` (D-75’s daily tick is what notices it has arrived)."
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "name",
+          "materializationMode",
+          "taxMode",
+          "frequency",
+          "intervalCount",
+          "dueDays",
+          "memo",
+          "nextRunDate",
+          "lastRunDate",
+          "endDate",
+          "isActive",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "RecurringInvoiceTemplateInput": {
+        "additionalProperties": false,
+        "description": "A recurring invoice template: a customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `nextRunDate` and `lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "description": "Whether the engine still runs this template. Cleared automatically once `nextRunDate` would fall after `endDate`, and settable by hand through the update request.",
+            "type": "boolean"
+          },
+          "lastRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the most recently materialised cycle, or null before the first one. The once-per-cycle guard (D-76): a template already run for a date is not run again, so a restart mid-tick cannot double-raise."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLineInput"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextRunDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The next date a cycle fires. Each cycle materialises the invoice and advances this by `frequency` × `intervalCount` (D-75’s daily tick is what notices it has arrived)."
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "name",
+          "materializationMode",
+          "taxMode",
+          "frequency",
+          "intervalCount",
+          "dueDays",
+          "memo",
+          "nextRunDate",
+          "lastRunDate",
+          "endDate",
+          "isActive",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "RecurringInvoiceTemplatePage": {
+        "additionalProperties": false,
+        "description": "One page of recurring invoice templates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceTemplate"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "RecurringInvoiceTemplatePageInput": {
+        "additionalProperties": false,
+        "description": "One page of recurring invoice templates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceTemplateInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "RegisterRequest": {
         "additionalProperties": false,
         "description": "Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials.",
@@ -15874,6 +16820,38 @@
         },
         "required": [
           "date"
+        ],
+        "type": "object"
+      },
+      "RunDueWorkResult": {
+        "additionalProperties": false,
+        "description": "The outcome of a manual scheduler run: the date its sweeps were enqueued for.",
+        "properties": {
+          "runDate": {
+            "description": "The calendar date the sweeps were enqueued for — the process’s own today.",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runDate"
+        ],
+        "type": "object"
+      },
+      "RunDueWorkResultInput": {
+        "additionalProperties": false,
+        "description": "The outcome of a manual scheduler run: the date its sweeps were enqueued for.",
+        "properties": {
+          "runDate": {
+            "description": "The calendar date the sweeps were enqueued for — the process’s own today.",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runDate"
         ],
         "type": "object"
       },
@@ -17480,6 +18458,140 @@
         },
         "type": "object"
       },
+      "UpdateDunningPolicyRequest": {
+        "additionalProperties": false,
+        "description": "Updates a dunning policy. An absent field is left unchanged.",
+        "properties": {
+          "isActive": {
+            "description": "Prefer `POST …/deactivate` to retire a policy — this field exists for the same request to also change other fields, not as the primary way to flip it.",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnits"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateDunningPolicyRequestInput": {
+        "additionalProperties": false,
+        "description": "Updates a dunning policy. An absent field is left unchanged.",
+        "properties": {
+          "isActive": {
+            "description": "Prefer `POST …/deactivate` to retire a policy — this field exists for the same request to also change other fields, not as the primary way to flip it.",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "description": "The reminder email’s body.",
+                  "maxLength": 20000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "lateFeeMinor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnitsInput"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "An optional late fee this stage would post, in minor units. `null`/absent is the ordinary case of a reminder that costs nothing. Not yet posted by the engine (a follow-up)."
+                },
+                "offsetDays": {
+                  "description": "Days relative to the invoice’s due date this stage triggers on: negative is before the due date, zero is on it, positive is a chase after it.",
+                  "maximum": 3650,
+                  "minimum": -3650,
+                  "type": "integer"
+                },
+                "stageNumber": {
+                  "description": "The rung’s position in the ladder. The engine sends at most one stage per sweep per invoice — the highest-numbered stage that has come due and has not already sent.",
+                  "maximum": 65535,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "subject": {
+                  "description": "The reminder email’s subject line.",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "stageNumber",
+                "offsetDays",
+                "subject",
+                "body"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "UpdateInvoiceRequest": {
         "additionalProperties": false,
         "description": "Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set — send every line the invoice should have, including the unchanged ones. Changing `taxMode` reprices the lines rather than converting them.",
@@ -17678,6 +18790,178 @@
           },
           "statementClosingBalance": {
             "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateRecurringInvoiceTemplateRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of a template. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLine"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateRecurringInvoiceTemplateRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of a template. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on.",
+        "properties": {
+          "contactId": {
+            "description": "The customer each cycle’s invoice is raised to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDays": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles. Combined with `intervalCount` — `frequency: \"monthly\", intervalCount: 3` is quarterly by another name, spelled the way the template’s author meant it.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringInvoiceLineInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the invoice it materialises (D-76). `approved` posts the journal and allocates the number through the same `approveInvoice` path a human uses, unattended, via a system/automation actor so provenance still lands on the journal. `draft` lands an editable draft for a human to review.",
+            "enum": [
+              "draft",
+              "approved"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -23515,6 +24799,271 @@
         ]
       }
     },
+    "/v1/dunning-policies": {
+      "get": {
+        "description": "One page of policies with their stages, ordered by `(created_at, id)`.",
+        "operationId": "listDunningPolicies",
+        "parameters": [
+          {
+            "description": "How many dunning policies to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningPolicyPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List dunning policies",
+        "tags": [
+          "dunning"
+        ]
+      },
+      "post": {
+        "description": "Creates a policy with its full ladder of stages, active by default. Takes `invoices.send`: a policy governs sending, the same reason `POST …/send` on an invoice does.",
+        "operationId": "createDunningPolicy",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDunningPolicyRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningPolicy"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a dunning policy",
+        "tags": [
+          "dunning"
+        ]
+      }
+    },
+    "/v1/dunning-policies/{policyId}": {
+      "get": {
+        "operationId": "getDunningPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningPolicy"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One dunning policy, with its stages",
+        "tags": [
+          "dunning"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is left unchanged. `stages`, when present, replaces the whole ladder.",
+        "operationId": "updateDunningPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDunningPolicyRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningPolicy"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update a dunning policy",
+        "tags": [
+          "dunning"
+        ]
+      }
+    },
+    "/v1/dunning-policies/{policyId}/deactivate": {
+      "post": {
+        "description": "Removes a policy from the sweep without deleting its history. Idempotent: an already-inactive policy is returned unchanged rather than refused.",
+        "operationId": "deactivateDunningPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningPolicy"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Deactivate a dunning policy",
+        "tags": [
+          "dunning"
+        ]
+      }
+    },
     "/v1/fiscal-periods": {
       "get": {
         "operationId": "listFiscalPeriods",
@@ -26441,6 +27990,280 @@
         ]
       }
     },
+    "/v1/recurring-invoices": {
+      "get": {
+        "description": "One page of templates, ordered by `(created_at, id)`, oldest first.",
+        "operationId": "listRecurringInvoiceTemplates",
+        "parameters": [
+          {
+            "description": "Only active templates when `true`, only retired ones when `false`.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many recurring invoice templates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringInvoiceTemplatePage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List recurring invoice templates",
+        "tags": [
+          "recurring-invoices"
+        ]
+      },
+      "post": {
+        "description": "A customer, a schedule, and how to raise the invoice each cycle (D-75, D-76). `startDate` seeds `nextRunDate` and is not stored as its own field — the response carries `nextRunDate`/`lastRunDate` instead, the schedule state the engine advances.",
+        "operationId": "createRecurringInvoiceTemplate",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecurringInvoiceTemplateRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringInvoiceTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a recurring invoice template",
+        "tags": [
+          "recurring-invoices"
+        ]
+      }
+    },
+    "/v1/recurring-invoices/{templateId}": {
+      "get": {
+        "operationId": "getRecurringInvoiceTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringInvoiceTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One recurring invoice template, with its lines",
+        "tags": [
+          "recurring-invoices"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary invoice from here on and this endpoint cannot reach it.",
+        "operationId": "updateRecurringInvoiceTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecurringInvoiceTemplateRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringInvoiceTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update a recurring invoice template",
+        "tags": [
+          "recurring-invoices"
+        ]
+      }
+    },
+    "/v1/recurring-invoices/{templateId}/deactivate": {
+      "post": {
+        "description": "The engine stops raising invoices from this template. Idempotent: an already-inactive template is returned unchanged rather than refused. Nothing already materialised is affected — this reaches only future cycles.",
+        "operationId": "deactivateRecurringInvoiceTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringInvoiceTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Retire a recurring invoice template",
+        "tags": [
+          "recurring-invoices"
+        ]
+      }
+    },
     "/v1/reports/aging": {
       "get": {
         "description": "What is owed and how late it is, per contact, split into current / 1–30 / 31–60 / 61–90 / 90+ days past due — measured from the **due** date rather than the issue date, because that is what \"overdue\" means to the person chasing it (D-40). Aggregated over documents and allocations rather than over journal lines, which is what makes C8 worth asserting: `totals` must equal the control account’s balance at `asOf`, and an aging report that does not tie to the ledger is a list of hopes. That is why unapplied credit is in here at all — an unallocated payment or credit note is money already sitting in the control account, so it appears as a **negative** amount in `current` on the contact holding it, and a report that omitted it would overstate what the business is owed by exactly that much. The report deliberately does not state the control-account balance itself: an org that has nominated nothing has none to state, and a reconciliation that is sometimes reported is one nobody trusts. Everything is computed as at `asOf`, including each document’s `outstanding`, so last month’s aging still prints last month’s figures next year. Not paginated, on purpose: a page of buckets sums to nothing in particular. Takes `reports.read` and only that.",
@@ -26995,6 +28818,50 @@
         "summary": "List the roles this organization may grant",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/v1/scheduling/run-due-work": {
+      "post": {
+        "description": "Enqueues the recurring-invoice and dunning sweeps for today, the same fan-out the daily tick performs at midnight. Idempotent: a recurring cycle guards on its last run date and a dunning stage on the send record, so a second run in the same day does nothing new.",
+        "operationId": "runDueScheduledWork",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDueWorkResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Run due background work now",
+        "tags": [
+          "scheduling"
         ]
       }
     },

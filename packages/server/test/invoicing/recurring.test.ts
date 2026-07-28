@@ -8,12 +8,8 @@ import {
   createRecurringInvoiceTemplate,
   getRecurringInvoiceTemplate,
 } from '../../src/modules/invoicing/recurring/recurring.service';
-import type {
-  DueRecurringTemplateRow,
-} from '../../src/modules/invoicing/recurring/recurring.repository';
-import {
-  selectDueTemplates,
-} from '../../src/modules/invoicing/recurring/recurring.repository';
+import type { DueRecurringTemplateRow } from '../../src/modules/invoicing/recurring/recurring.repository';
+import { selectDueTemplates } from '../../src/modules/invoicing/recurring/recurring.repository';
 import { listInvoices } from '../../src/modules/invoices';
 import { SYSTEM_ROLE_UUIDS } from '../db';
 import { sceneIn, useServiceDatabase, withContext } from '../payments/support';
@@ -44,9 +40,10 @@ const db = useServiceDatabase();
  * is `NOT NULL` and references `users`, so even an unattended cycle attributes the
  * document it raises to somebody. `recurring_invoice_templates` carries no
  * "created by" column of its own, so which user `runAsAutomation` picks (most
- * plausibly the org's owner) is a policy decision that belongs to OB-127, not to
- * this ticket — this test stands in with the scene's own user rather than
- * inventing that policy.
+ * plausibly the org's owner) is a policy decision `runAsAutomation` (OB-127) makes —
+ * this test stands in with the scene's own user. No `invocationMode`:
+ * `chk_journals_invocation_mode` (0002_ledger) makes it agent-only, so an automation
+ * that posts a journal must leave it NULL, exactly as `runAsAutomation` does.
  */
 function automationContextFor(scene: Scene): RequestContext {
   return createRequestContext({
@@ -55,7 +52,6 @@ function automationContextFor(scene: Scene): RequestContext {
     userId: scene.userUuid,
     actorType: 'automation',
     actorId: scene.userUuid,
-    invocationMode: 'scheduled',
   });
 }
 

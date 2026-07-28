@@ -155,7 +155,7 @@ export async function listDunningPolicies(
   const page = await selectPoliciesPage(db, limit, query.cursor);
 
   return {
-    items: await Promise.all(page.items.map((row) => toWirePolicy(db, row))),
+    items: await Promise.all(page.rows.map((row) => toWirePolicy(db, row))),
     nextCursor: page.nextCursor,
   };
 }

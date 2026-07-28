@@ -48,16 +48,24 @@ const POLICY_NAME_MAX_LENGTH = 255;
  * is.
  */
 export const dunningStageSchema = z.strictObject({
-  stageNumber: z.int().min(1).max(STAGE_NUMBER_MAX).meta({
-    description:
-      'The rung’s position in the ladder. The engine sends at most one stage per sweep per ' +
-      'invoice — the highest-numbered stage that has come due and has not already sent.',
-  }),
-  offsetDays: z.int().min(-OFFSET_DAYS_BOUND).max(OFFSET_DAYS_BOUND).meta({
-    description:
-      'Days relative to the invoice’s due date this stage triggers on: negative is before the ' +
-      'due date, zero is on it, positive is a chase after it.',
-  }),
+  stageNumber: z
+    .int()
+    .min(1)
+    .max(STAGE_NUMBER_MAX)
+    .meta({
+      description:
+        'The rung’s position in the ladder. The engine sends at most one stage per sweep per ' +
+        'invoice — the highest-numbered stage that has come due and has not already sent.',
+    }),
+  offsetDays: z
+    .int()
+    .min(-OFFSET_DAYS_BOUND)
+    .max(OFFSET_DAYS_BOUND)
+    .meta({
+      description:
+        'Days relative to the invoice’s due date this stage triggers on: negative is before the ' +
+        'due date, zero is on it, positive is a chase after it.',
+    }),
   subject: z.string().trim().min(1).max(STAGE_SUBJECT_MAX_LENGTH).meta({
     description: 'The reminder email’s subject line.',
   }),
@@ -78,11 +86,14 @@ export const createDunningPolicyRequestSchema = z
     name: z.string().trim().min(1).max(POLICY_NAME_MAX_LENGTH).meta({
       description: 'Display name for the policy, e.g. `Standard 30/60/90`.',
     }),
-    stages: z.array(dunningStageSchema).min(1).meta({
-      description:
-        'The ladder, in any order — `stageNumber` carries the order, not array position. Stage ' +
-        'numbers must be unique within the policy (`uq_dunning_stages_policy_stage`).',
-    }),
+    stages: z
+      .array(dunningStageSchema)
+      .min(1)
+      .meta({
+        description:
+          'The ladder, in any order — `stageNumber` carries the order, not array position. Stage ' +
+          'numbers must be unique within the policy (`uq_dunning_stages_policy_stage`).',
+      }),
   })
   .meta({
     id: 'CreateDunningPolicyRequest',
@@ -101,11 +112,14 @@ export type CreateDunningPolicyRequest = z.infer<typeof createDunningPolicyReque
 export const updateDunningPolicyRequestSchema = z
   .strictObject({
     name: z.string().trim().min(1).max(POLICY_NAME_MAX_LENGTH).optional(),
-    isActive: z.boolean().optional().meta({
-      description:
-        'Prefer `POST …/deactivate` to retire a policy — this field exists for the same ' +
-        'request to also change other fields, not as the primary way to flip it.',
-    }),
+    isActive: z
+      .boolean()
+      .optional()
+      .meta({
+        description:
+          'Prefer `POST …/deactivate` to retire a policy — this field exists for the same ' +
+          'request to also change other fields, not as the primary way to flip it.',
+      }),
     stages: z.array(dunningStageSchema).min(1).optional(),
   })
   .meta({

@@ -23,6 +23,7 @@ import { registerPeriodRoutes } from './periods';
 import { registerReconciliationRoutes } from './reconciliation';
 import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerReportRoutes } from './reports';
+import { registerSchedulingRoutes } from './scheduling';
 import { registerSettingsRoutes } from './settings';
 import { registerStatementLineRoutes } from './statement-lines';
 import { registerTaxRateRoutes } from './tax-rates';
@@ -379,6 +380,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerInvoiceRoutes(app);
   registerRecurringInvoiceRoutes(app);
   registerDunningRoutes(app);
+  registerSchedulingRoutes(app);
   registerBillRoutes(app);
   registerPaymentRoutes(app);
   registerBankAccountRoutes(app);
