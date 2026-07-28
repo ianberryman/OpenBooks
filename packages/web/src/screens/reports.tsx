@@ -74,17 +74,19 @@ const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
  */
 const CAPABILITIES: Readonly<Partial<Record<ReportView, ReportCapabilities>>> = {
   // M1's endpoint: one inclusive upper bound, and nothing else.
-  'trial-balance': { dates: 'asOf', dimensions: false, groupBy: false },
-  'profit-and-loss': { dates: 'range', dimensions: true, groupBy: true },
+  'trial-balance': { dates: 'asOf', dimensions: false, groupBy: false, basis: false },
+  // The one report with the full cash-basis dispatch (OB-154/156): a basis toggle, but
+  // no cash-basis slicing yet, so the transform refuses basis+dimension together.
+  'profit-and-loss': { dates: 'range', dimensions: true, groupBy: true, basis: true },
   // A position at a point in time, so no lower bound. `asOf` is required, and the fiscal
   // year the derived earnings lines are scoped to is resolved from it (D-20).
-  'balance-sheet': { dates: 'asOf', dimensions: true, groupBy: true },
+  'balance-sheet': { dates: 'asOf', dimensions: true, groupBy: true, basis: false },
   // No `groupBy`: dividing a list of individual lines into columns is a cross-tabulation
   // and not a ledger.
-  'general-ledger': { dates: 'range', dimensions: true, groupBy: false },
+  'general-ledger': { dates: 'range', dimensions: true, groupBy: false, basis: false },
   // No dimension filter and no `groupBy`: the statement reconciles net income against the
   // cash accounts' own movement, whole-org, and neither figure has a per-slice reading yet.
-  'cash-flow': { dates: 'range', dimensions: false, groupBy: false },
+  'cash-flow': { dates: 'range', dimensions: false, groupBy: false, basis: false },
 };
 
 export function ReportsScreen(): ReactElement {

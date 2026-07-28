@@ -39,6 +39,8 @@ export interface ReportFilterState {
   /** The dimension axis to slice by, or `null` for one undivided report. */
   readonly groupBy: string | null;
   readonly axes: readonly AxisFilterState[];
+  /** The recognition basis for reports that offer the choice (K1, D-87). */
+  readonly basis: 'accrual' | 'cash';
   /**
    * Zero rows are included by the server on purpose — an empty bank account is how
    * someone notices the month's receipts were posted somewhere else — so hiding them is
@@ -70,7 +72,16 @@ export function initialFilterState(today: string = todayCalendarDate()): ReportF
    * foots. An unbounded range is instead reported back by every response, so what the
    * reader sees is what was applied.
    */
-  return { from: '', to: today, groupBy: null, axes: [], hideZeroRows: false };
+  return { from: '', to: today, groupBy: null, axes: [], basis: 'accrual', hideZeroRows: false };
+}
+
+/**
+ * The `basis` a basis-aware report sends. Always sent, so the badge on the response
+ * reflects the toggle rather than the org default drifting out of step with it — the
+ * server treats it as the per-report override K1 describes.
+ */
+export function basisQuery(state: ReportFilterState): { basis: 'accrual' | 'cash' } {
+  return { basis: state.basis };
 }
 
 export function isAxisFilterActive(axis: AxisFilterState): boolean {

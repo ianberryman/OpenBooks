@@ -27,7 +27,7 @@ describe('UnusedControlNotice', () => {
     render(
       <UnusedControlNotice
         state={initialFilterState('2026-06-30')}
-        capabilities={{ dates: 'range', dimensions: true, groupBy: true }}
+        capabilities={{ dates: 'range', dimensions: true, groupBy: true, basis: false }}
       />,
     );
 
@@ -43,7 +43,7 @@ describe('UnusedControlNotice', () => {
           groupBy: DEPT,
           axes: [{ dimensionId: DEPT, valueIds: ['sales'], includeUnassigned: false }],
         }}
-        capabilities={{ dates: 'asOf', dimensions: false, groupBy: false }}
+        capabilities={{ dates: 'asOf', dimensions: false, groupBy: false, basis: false }}
       />,
     );
 
@@ -56,7 +56,7 @@ describe('UnusedControlNotice', () => {
     render(
       <UnusedControlNotice
         state={{ ...initialFilterState('2026-06-30'), groupBy: DEPT }}
-        capabilities={{ dates: 'asOf', dimensions: true, groupBy: true }}
+        capabilities={{ dates: 'asOf', dimensions: true, groupBy: true, basis: false }}
       />,
     );
 

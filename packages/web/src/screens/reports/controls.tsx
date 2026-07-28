@@ -33,6 +33,8 @@ export type Dimension = components['schemas']['Dimension'];
 export type DimensionValue = components['schemas']['DimensionValue'];
 
 export interface ReportCapabilities {
+  /** Whether the report can be rendered on a chosen recognition basis (K1, D-87). */
+  readonly basis: boolean;
   /** `range` shows both bounds; `asOf` shows only the upper one, and names it as at. */
   readonly dates: 'range' | 'asOf';
   readonly dimensions: boolean;
@@ -144,6 +146,24 @@ export function ReportControls({
             onChange({ ...state, to });
           }}
         />
+
+        {capabilities.basis && (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-text">Basis</span>
+            <Select
+              aria-label="Basis"
+              value={state.basis}
+              options={[
+                { value: 'accrual', label: 'Accrual' },
+                { value: 'cash', label: 'Cash' },
+              ]}
+              onValueChange={(value) => {
+                onChange({ ...state, basis: value === 'cash' ? 'cash' : 'accrual' });
+              }}
+              className="w-40"
+            />
+          </div>
+        )}
 
         {capabilities.groupBy && (
           // A `<div>` and an `aria-label` rather than a `<label>`: the select's trigger is a

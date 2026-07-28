@@ -6,7 +6,7 @@ import type { components } from '../../api';
 import { ErrorBanner } from '../../components';
 import { AmountCell, GroupHeading } from './cells';
 import type { DrillTarget, ReportFilterState } from './filters';
-import { rangeQuery, sliceQuery } from './filters';
+import { basisQuery, rangeQuery, sliceQuery } from './filters';
 import { BasisBadge, ReportPending, ReportTitle, describeRange } from './layout';
 import { StatementSection, SubtotalNote } from './statement';
 
@@ -40,7 +40,13 @@ export interface ProfitAndLossViewProps {
 }
 
 export function ProfitAndLossView({ state, onDrillThrough }: ProfitAndLossViewProps): ReactElement {
-  const query = { ...rangeQuery(state), ...sliceQuery(state) };
+  // Cash basis re-recognises through the subledger and does not thread a contact or
+  // dimension yet, so the transform refuses basis+slice — send the range and basis only,
+  // rather than a slice the server would reject. Accrual keeps the full slice.
+  const query =
+    state.basis === 'cash'
+      ? { ...rangeQuery(state), ...basisQuery(state) }
+      : { ...rangeQuery(state), ...sliceQuery(state), ...basisQuery(state) };
   const report = useQuery({
     queryKey: ['reports', 'profit-and-loss', query],
     queryFn: async (): Promise<ProfitAndLoss> =>
