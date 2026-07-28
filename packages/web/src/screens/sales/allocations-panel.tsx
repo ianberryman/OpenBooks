@@ -9,7 +9,7 @@ import type { Allocation, SalesDocumentKind } from './queries';
  *
  * ## Why the un-apply button is here rather than only in a payments screen
  *
- * It is the recovery for `document_allocated` — voiding a document with allocations
+ * It is the recovery for `document_has_allocations` — voiding a document with allocations
  * against it is refused, and the refusal says to remove them first. A refusal whose fix
  * lives on a screen the user has to go and find is a refusal they read as a dead end, so
  * the rows the void was refused over are listed on the document itself with the operation

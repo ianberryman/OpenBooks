@@ -38,56 +38,23 @@ import { useServiceDatabase } from '../permissions/support';
 import { contextFor } from './support';
 
 /**
- * **The AR and AP subledgers spell the same refusals differently.** Pinned, not
- * fixed.
+ * **The AR and AP subledgers now spell the four shared refusals identically
+ * (OB-092).**
  *
- * OB-067 found this while writing the route descriptions and put the table in
- * `src/transport/routes/bills.ts`, because a published description that named a
- * token the server never sends is worse than no description. It landed here because
- * that file also says where it belongs: "reconciling the two is a service-layer
- * change", and OB-072 may not make one.
+ * They did not. AR reported editing an approved document as `document_not_draft`, a
+ * double approval and a double void as a bare `409 conflict` with **no `details`
+ * bag at all**, and a void-with-allocations as `document_allocated` — while AP used
+ * `document_approved`, `document_already_approved`, `document_already_void` and
+ * `document_has_allocations`, all `412 precondition_failed`. A client branching on
+ * `details.precondition` got nothing from an AR double-approval, because a
+ * `ConflictError` carries no details.
  *
- * Four facts are common to both subledgers and each is reported two ways:
- *
- * | fact                         | AR (`ar-documents.service.ts`) | AP (`ap-documents.service.ts`) |
- * | ---------------------------- | ------------------------------ | ------------------------------ |
- * | editing an approved document | 412 `document_not_draft`       | 412 `document_approved`        |
- * | approving twice              | **409 `conflict`**             | 412 `document_already_approved`|
- * | voiding twice                | **409 `conflict`**             | 412 `document_already_void`    |
- * | voiding with allocations     | 412 `document_allocated`       | 412 `document_has_allocations` |
- *
- * ## Why this is a test and not a note
- *
- * A machine-readable token exists so a client can branch on it, and a client that
- * has to learn which of two names a fact goes by depending on which subledger it is
- * in has no reason to trust that a third will not appear. The divergence is
- * currently *invisible*: each service's own suite asserts its own vocabulary and
- * agrees with itself, and nothing anywhere compares the two. So it is asserted here
- * side by side, in one table, and a failure prints both halves — which is what
- * makes a future third spelling, or a silent reconciliation of these two, land in
- * front of whoever caused it.
- *
- * Note in particular that the two rows in bold are not merely different tokens: the
- * AR side answers a **different status code**. A client written against AP that
- * branches on `precondition_failed` and reads `details.precondition` gets nothing
- * useful from an AR double-approval at all, because a `409 conflict` carries no
- * `details` — `ConflictError` takes an optional bag and neither call site passes
- * one. That asymmetry is asserted below as `precondition: null`.
- *
- * ## The one fact they already agree on
- *
- * Voiding a document that was never approved is `document_not_approved` on all four
- * kinds. It is in the table for exactly that reason: it is the control. Without it
- * a reader could conclude the two services simply never coordinated, when in fact
- * they agree wherever the token was written down first and diverge only where each
- * was written independently.
- *
- * ## Which spelling should win, for whoever reconciles this
- *
- * This test states no preference — it asserts what is. The recommendation is in
- * OB-072's report, and it is not the test's business to encode it, because a test
- * that asserted the preferred vocabulary would be a failing test rather than a
- * record of a decision nobody has made yet.
+ * OB-092 reconciled AR onto the AP spelling — the AP vocabulary won because it is
+ * complete, machine-branchable, and already published. This test now asserts the
+ * two vocabularies are **equal** across all four facts, the guard that they stay
+ * reconciled, where it once pinned the divergence. The control is unchanged:
+ * voiding a never-approved document is `document_not_approved` on all four kinds,
+ * which both sides always agreed on.
  */
 const db = useServiceDatabase();
 
@@ -101,12 +68,12 @@ interface Refusal {
   readonly precondition: string | null;
 }
 
-const AR: Refusal = {
+/** Editing/discarding an approved document — `document_approved` on both sides now. */
+const editApproved: Refusal = {
   status: 412,
   code: 'precondition_failed',
-  precondition: 'document_not_draft',
+  precondition: 'document_approved',
 };
-const AP: Refusal = { status: 412, code: 'precondition_failed', precondition: 'document_approved' };
 
 /** Every document one org can be put into the four refusable states with. */
 interface Documents {
@@ -185,8 +152,8 @@ async function refusal(call: () => Promise<unknown>, ctx: RequestContext): Promi
   }
 }
 
-describe('the AR and AP subledgers spell four shared refusals differently', () => {
-  it('reports each fact the way its own service does, and the two do not agree', async () => {
+describe('the AR and AP subledgers spell four shared refusals identically (OB-092)', () => {
+  it('reports each fact the same way on both sides', async () => {
     const built = await scene();
 
     const verdicts: Record<string, unknown> = {};
@@ -221,88 +188,42 @@ describe('the AR and AP subledgers spell four shared refusals differently', () =
       );
     }
 
-    const notApproved: Refusal = {
+    const refusalOf = (precondition: string): Refusal => ({
       status: 412,
       code: 'precondition_failed',
-      precondition: 'document_not_approved',
-    };
-    // A `409` naming nothing. Written as a literal rather than derived from a
-    // constant shared with the rows above, because the point of the row is that it
-    // is *unlike* them.
-    const conflict: Refusal = { status: 409, code: 'conflict', precondition: null };
+      precondition,
+    });
+    const approvedTwice = refusalOf('document_already_approved');
+    const alreadyVoid = refusalOf('document_already_void');
+    const hasAllocations = refusalOf('document_has_allocations');
+    const notApproved = refusalOf('document_not_approved');
+
+    // The same six verdicts for every kind, AR and AP alike — which is the whole
+    // point: one shape, applied four times, is the assertion that they agree.
+    const shared = (prefix: string): Record<string, Refusal> => ({
+      [`${prefix}.editApproved`]: editApproved,
+      [`${prefix}.discardApproved`]: editApproved,
+      [`${prefix}.approveTwice`]: approvedTwice,
+      [`${prefix}.voidTwice`]: alreadyVoid,
+      [`${prefix}.voidAllocated`]: hasAllocations,
+      [`${prefix}.voidDraft`]: notApproved,
+    });
 
     expect(verdicts).toEqual({
-      // AR — the invoice and the credit note, which share `ArDocumentKind`.
-      'invoice.editApproved': AR,
-      'invoice.discardApproved': AR,
-      'invoice.approveTwice': conflict,
-      'invoice.voidTwice': conflict,
-      'invoice.voidAllocated': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_allocated',
-      },
-      'invoice.voidDraft': notApproved,
-      'creditNote.editApproved': AR,
-      'creditNote.discardApproved': AR,
-      'creditNote.approveTwice': conflict,
-      'creditNote.voidTwice': conflict,
-      'creditNote.voidAllocated': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_allocated',
-      },
-      'creditNote.voidDraft': notApproved,
-
-      // AP — the bill and the vendor credit, which share `ApDocumentRow`.
-      'bill.editApproved': AP,
-      'bill.discardApproved': AP,
-      'bill.approveTwice': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_already_approved',
-      },
-      'bill.voidTwice': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_already_void',
-      },
-      'bill.voidAllocated': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_has_allocations',
-      },
-      'bill.voidDraft': notApproved,
-      'vendorCredit.editApproved': AP,
-      'vendorCredit.discardApproved': AP,
-      'vendorCredit.approveTwice': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_already_approved',
-      },
-      'vendorCredit.voidTwice': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_already_void',
-      },
-      'vendorCredit.voidAllocated': {
-        status: 412,
-        code: 'precondition_failed',
-        precondition: 'document_has_allocations',
-      },
-      'vendorCredit.voidDraft': notApproved,
+      ...shared('invoice'),
+      ...shared('creditNote'),
+      ...shared('bill'),
+      ...shared('vendorCredit'),
     });
   });
 
   /**
-   * The divergence stated as a property rather than as twenty-four literals.
-   *
-   * The table above would still pass if someone renamed *both* sides to a third
-   * token in one commit, which would be a fix. This is the assertion that fails on
-   * the fix as well: it says the two vocabularies are unequal, and it is the one to
-   * delete when they are reconciled.
+   * The agreement stated as a property rather than as twenty-four literals. Before
+   * OB-092 this asserted the two vocabularies were *unequal*; inverted, it is the
+   * regression guard that they stay reconciled — a future divergence on either side
+   * fails it, as the reconciliation itself once would have.
    */
-  it('answers the same three questions with three different tokens on each side', async () => {
+  it('answers the three once-divergent questions identically on both sides', async () => {
     const built = await scene();
     const ar = built.invoice;
     const ap = built.bill;
@@ -331,9 +252,9 @@ describe('the AR and AP subledgers spell four shared refusals differently', () =
         JSON.stringify(receivable) === JSON.stringify(payable),
       ]),
     ).toEqual([
-      ['editApproved', false],
-      ['approveTwice', false],
-      ['voidAllocated', false],
+      ['editApproved', true],
+      ['approveTwice', true],
+      ['voidAllocated', true],
     ]);
   });
 });
@@ -405,8 +326,8 @@ async function scene(): Promise<Record<DocumentKind, Documents>> {
    * A payment on each side, ten times over what the allocations below apply.
    *
    * Over-allocating a document is refused (C3) and over-drawing the source with it,
-   * and either refusal would arrive where this file expects `document_allocated` —
-   * a wrong token that looks exactly like the finding being pinned.
+   * and either refusal would arrive where this file expects `document_has_allocations`
+   * — a wrong token that looks exactly like the reconciled fact being asserted.
    */
   const payment = async (direction: 'made' | 'received'): Promise<string> =>
     (

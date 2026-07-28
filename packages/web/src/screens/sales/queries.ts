@@ -338,7 +338,7 @@ export async function allocateCreditNote(
 }
 
 /**
- * Un-applying one allocation, which is the recovery the `document_allocated` refusal
+ * Un-applying one allocation, which is the recovery the `document_has_allocations` refusal
  * names.
  *
  * A plain delete and not a reversal, and that is not an exception to D-16: an allocation

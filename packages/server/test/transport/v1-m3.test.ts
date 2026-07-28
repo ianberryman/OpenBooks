@@ -292,7 +292,7 @@ describe('invoices', () => {
     expect(discarded.statusCode).toBe(412);
     expect(errorBody(discarded.body).error).toMatchObject({
       code: 'precondition_failed',
-      details: { precondition: 'document_not_draft' },
+      details: { precondition: 'document_approved' },
     });
 
     const voided = await app.inject({

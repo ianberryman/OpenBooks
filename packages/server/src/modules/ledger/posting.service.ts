@@ -139,7 +139,7 @@ export async function postJournal(
       entryDate: input.date,
       memo: input.memo ?? null,
       reference: null,
-      source: 'manual',
+      source: input.source ?? 'manual',
       actorType: input.actorType,
       actorId,
       invocationMode: input.invocationMode ?? null,

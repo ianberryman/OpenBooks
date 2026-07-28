@@ -516,6 +516,9 @@ function postInput(
   return {
     date,
     ...(memo === undefined || memo === null ? {} : { memo }),
+    // A statement-line clearing is its own origin (OB-091): the entry and its
+    // difference both post as `clearing`, not `manual`.
+    source: 'clearing',
     actorType: ctx.actorType,
     actorId: ctx.actorId,
     ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),

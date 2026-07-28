@@ -301,10 +301,10 @@ import { registerTaxRateRoutes } from './tax-rates';
  * `void` as `POST`s on their own paths rather than as `PATCH { status }`, because
  * D-38 makes `status` *derived* — there is no column to set, and two of its five
  * values are reachable only by allocating. `src/transport/routes/invoices.ts` carries
- * the argument in full, and `bills.ts` records the one thing that surprised this
- * ticket: the AR and AP services spell the same refusals differently
- * (`document_not_draft` against `document_approved`, a `409 conflict` against
- * `document_already_approved`). The routes publish what the services actually raise.
+ * the argument in full. The AR and AP services once spelled the same refusals
+ * differently; OB-092 reconciled AR onto the AP vocabulary, so both now raise the
+ * same `412` tokens (`document_approved`, `document_already_approved`, …), and
+ * `bills.ts` documents the shared spelling.
  *
  * **`{ items, nextCursor }` on the general ledger.** D-21 gives every list one
  * envelope and six endpoints use it; `GET /v1/reports/general-ledger` does not,

@@ -86,7 +86,7 @@ import {
  * `DELETE /v1/invoices/{id}` on a draft deletes it, exactly as `discardDraft` does
  * and for the same reason (D-19): nothing about it reached the ledger and it holds
  * no number, so removing it restates nothing and leaves no gap. On an approved
- * document it is a `precondition_failed` carrying `document_not_draft` — the
+ * document it is a `precondition_failed` carrying `document_approved` — the
  * correction is a credit note or a void, and a `DELETE` that sometimes reversed a
  * journal would be a deletion that is not one.
  *
@@ -252,7 +252,7 @@ export function registerInvoiceRoutes(app: App): void {
         summary: 'Update a draft invoice',
         description:
           'Drafts only. An approved invoice answers `precondition_failed` with ' +
-          '`document_not_draft`: the ledger has been told, and the correction is a credit note ' +
+          '`document_approved`: the ledger has been told, and the correction is a credit note ' +
           'or a void (D-38). `lines` replaces the whole set, and changing `taxMode` reprices ' +
           'them rather than converting them.',
         tags: [INVOICE_TAG],
@@ -288,7 +288,7 @@ export function registerInvoiceRoutes(app: App): void {
         description:
           'Deletes a draft and its lines. Nothing in the ledger changes, because nothing about ' +
           'this invoice ever reached it, and no number is freed because none was allocated. An ' +
-          'approved invoice is refused with `document_not_draft` — void it instead.',
+          'approved invoice is refused with `document_approved` — void it instead.',
         tags: [INVOICE_TAG],
         headers: idempotencyKeyHeaderSchema,
         params: invoiceParamsSchema,
@@ -353,7 +353,7 @@ export function registerInvoiceRoutes(app: App): void {
           'invoice, its number and its original journal all stay visible, because a voided ' +
           'document that vanished would make the gapless sequence a lie (D-16, D-38, C7). The ' +
           'reversal takes its own `date`, which must fall in an open period. An invoice with ' +
-          'allocations against it is refused with `document_allocated` — un-apply them first, or ' +
+          'allocations against it is refused with `document_has_allocations` — un-apply them first, or ' +
           'the payment would read as fully applied while the receivable had been reversed.',
         tags: [INVOICE_TAG],
         headers: idempotencyKeyHeaderSchema,
@@ -551,7 +551,7 @@ export function registerInvoiceRoutes(app: App): void {
         summary: 'Void an approved credit note',
         description:
           'A reversing journal, never a deletion. A credit note that has been applied to an ' +
-          'invoice is refused with `document_allocated`.',
+          'invoice is refused with `document_has_allocations`.',
         tags: [CREDIT_NOTE_TAG],
         headers: idempotencyKeyHeaderSchema,
         params: creditNoteParamsSchema,

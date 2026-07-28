@@ -69,22 +69,22 @@ import {
  * it is missing — it is how a supplier gets paid twice, and neither the total nor
  * the trial balance shows anything wrong.
  *
- * ## The precondition tokens are not the AR ones, and that is a finding not a design
+ * ## The precondition tokens, now shared with AR (OB-092)
  *
- * The AP service raises `precondition_failed` where the AR service raises `409
- * conflict` for the same fact, and spells two shared facts differently:
+ * AR once raised `409 conflict` where AP raises `precondition_failed`, and spelled
+ * two shared facts differently. OB-092 reconciled AR onto this file's spelling — the
+ * AP vocabulary won because it is complete and machine-branchable — so both
+ * subledgers now answer the four shared facts with the same `412` tokens:
  *
- * | fact                        | AR (`invoices.ts`)         | AP (this file)               |
- * | --------------------------- | -------------------------- | ---------------------------- |
- * | editing an approved document | `document_not_draft`       | `document_approved`          |
- * | approving twice              | `409 conflict`             | `document_already_approved`  |
- * | voiding twice                | `409 conflict`             | `document_already_void`      |
- * | voiding with allocations     | `document_allocated`       | `document_has_allocations`   |
+ * | fact                         | token (AR and AP alike)     |
+ * | ---------------------------- | --------------------------- |
+ * | editing an approved document | `document_approved`         |
+ * | approving twice              | `document_already_approved` |
+ * | voiding twice                | `document_already_void`     |
+ * | voiding with allocations     | `document_has_allocations`  |
  *
- * These routes publish what the services actually raise rather than a tidied-up
- * version, because a description that named a token the server never sends is worse
- * than no description. Reconciling the two is a service-layer change and belongs
- * with OB-072's enforcement matrix, where every operation is already enumerated.
+ * `test/enforcement/refusal-vocabulary.test.ts` asserts the two vocabularies are
+ * equal, the guard that they stay reconciled.
  */
 
 const BILL_TAG = 'bills';

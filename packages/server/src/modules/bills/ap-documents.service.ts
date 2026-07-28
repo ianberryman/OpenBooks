@@ -886,6 +886,9 @@ function toPostJournalInput(
     // absent approve-request schema.
     date: row.issue_date,
     memo: row.memo ?? defaultMemo(row.document_type, sequenceNumber, row.reference),
+    // `bill` or `vendor_credit` — the origin `0005_subledger` documents and, before
+    // OB-091, never set (every subledger journal landed as `manual`).
+    source: row.document_type,
     actorType: ctx.actorType,
     actorId: ctx.actorId,
     ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),

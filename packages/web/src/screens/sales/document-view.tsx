@@ -35,7 +35,7 @@ import { StatusBadge, TAX_MODE_LABELS, lifecycleSummary, vocabularyFor } from '.
  * ## Read-only is the point, not a limitation
  *
  * Approval told the ledger. There is no edit affordance here — not disabled, absent —
- * because the server refuses an edit with `document_not_draft` and an edit form that only
+ * because the server refuses an edit with `document_approved` and an edit form that only
  * ever fails is worse than no form. The corrections are a credit note (a document in its
  * own right) and a void (a reversing journal, never a deletion).
  *
@@ -46,7 +46,7 @@ import { StatusBadge, TAX_MODE_LABELS, lifecycleSummary, vocabularyFor } from '.
  * while a reversal in the current period leaves those statements intact and shows the
  * correction where it happened.
  *
- * A document with allocations against it is refused with `document_allocated`, and that is
+ * A document with allocations against it is refused with `document_has_allocations`, and that is
  * the refusal this view exists to make actionable rather than merely legible. Voiding
  * reverses the journal while the allocation would remain, so a payment would read as fully
  * applied against a receivable that no longer exists and the subledger would disagree with

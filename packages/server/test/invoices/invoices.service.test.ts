@@ -573,8 +573,9 @@ describe('approving (D-38, C1, C9)', () => {
       await approveInvoice(draft.id);
 
       expect(await wireErrorOf(() => approveInvoice(draft.id))).toMatchObject({
-        code: 'conflict',
-        status: 409,
+        code: 'precondition_failed',
+        status: 412,
+        details: { precondition: 'document_already_approved' },
       });
       expect(await readArState(db.app, s.actor.orgId)).toMatchObject({
         documentNumbers: ['1'],
@@ -689,11 +690,11 @@ describe('approving (D-38, C1, C9)', () => {
 
       expect(await wireErrorOf(() => updateInvoice(draft.id, { memo: 'too late' }))).toMatchObject({
         code: 'precondition_failed',
-        details: { precondition: 'document_not_draft' },
+        details: { precondition: 'document_approved' },
       });
       expect(await wireErrorOf(() => discardInvoice(draft.id))).toMatchObject({
         code: 'precondition_failed',
-        details: { precondition: 'document_not_draft' },
+        details: { precondition: 'document_approved' },
       });
     });
   });
@@ -843,7 +844,8 @@ describe('voiding (D-16, D-38, C7)', () => {
       await voidInvoice(draft.id, { date: s.date });
 
       expect(await wireErrorOf(() => voidInvoice(draft.id, { date: s.date }))).toMatchObject({
-        code: 'conflict',
+        code: 'precondition_failed',
+        details: { precondition: 'document_already_void' },
       });
       expect(await readArState(db.app, s.actor.orgId)).toMatchObject({ journals: 2 });
     });
@@ -884,7 +886,7 @@ describe('voiding (D-16, D-38, C7)', () => {
 
       expect(await wireErrorOf(() => voidInvoice(approved.id, { date: s.date }))).toMatchObject({
         code: 'precondition_failed',
-        details: { precondition: 'document_allocated' },
+        details: { precondition: 'document_has_allocations' },
       });
       expect(await readArState(db.app, s.actor.orgId)).toMatchObject({ journals: 2 });
     });

@@ -670,20 +670,19 @@ describe('the refusal vocabulary', () => {
   });
 
   /**
-   * OB-092 records one divergence — AR and AP spelling four shared facts differently
-   * — and says the AP spelling wins. It is pinned rather than fixed, deliberately.
-   * What this asserts is the thing that would make it worse: banking must not
-   * introduce a *third* name for a fact M3 already names.
+   * OB-092 reconciled the AR/AP divergence onto the AP spelling. What this asserts
+   * is the thing that would still make it worse: banking must not introduce a
+   * *third* name for a fact M3 already names. The old AR-only tokens
+   * (`document_allocated`, `document_not_draft`) are gone from M3 and so are gone
+   * from this list.
    */
   it('does not respell anything M3 already says', () => {
     const M3_TOKENS = [
-      'document_allocated',
       'document_already_approved',
       'document_already_void',
       'document_approved',
       'document_has_allocations',
       'document_not_approved',
-      'document_not_draft',
     ];
 
     const collisions = Object.values(BANKING_PRECONDITIONS).filter((token) =>

@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * 2. **`status` is never written.** It is derived on read (D-38), so a `PATCH` naming it
  *    would publish a contract in which a computed value is writable. The assertion is over
  *    every request the screen makes, not over one call site.
- * 3. **The `document_allocated` refusal renders as something to do.** Voiding a document
+ * 3. **The `document_has_allocations` refusal renders as something to do.** Voiding a document
  *    with allocations against it is refused because the reversal would leave the payment
  *    reading as applied against a receivable that no longer exists; the recovery is to
  *    un-apply first, and the screen has to say so and offer it.
@@ -358,7 +358,7 @@ describe('SalesScreen', () => {
         'This invoice has 1 allocation(s) against it. Remove them first: voiding reverses the ' +
           'journal, and an allocation left pointing at a voided document would make the ' +
           'subledger disagree with the control account by exactly the amount applied.',
-        { precondition: 'document_allocated' },
+        { precondition: 'document_has_allocations' },
       ),
     );
 

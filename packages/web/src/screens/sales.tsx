@@ -61,7 +61,7 @@ import { vocabularyFor } from './sales/vocabulary';
  *
  * Which component an open document gets is decided by its computed status and by nothing
  * else. A draft gets the editor; anything else gets the read-only view, because after
- * approval an edit is refused with `document_not_draft` and a form that only ever fails is
+ * approval an edit is refused with `document_approved` and a form that only ever fails is
  * worse than no form at all.
  */
 type View = { readonly kind: 'list' } | { readonly kind: 'document'; readonly documentId: string };

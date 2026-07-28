@@ -118,7 +118,11 @@ describe('two callers approving the same invoice', () => {
         () => undefined,
         (thrown: unknown) => thrown,
       );
-      expect(toWireError(error)).toMatchObject({ code: 'conflict', status: 409 });
+      expect(toWireError(error)).toMatchObject({
+        code: 'precondition_failed',
+        status: 412,
+        details: { precondition: 'document_already_approved' },
+      });
 
       const state = await readArState(db.app, s.actor.orgId);
       expect(state).toMatchObject({
@@ -214,7 +218,7 @@ describe('the number, the posting and the record are one transaction (D-38)', ()
       );
       expect(toWireError(error)).toMatchObject({
         code: 'precondition_failed',
-        details: { precondition: 'document_not_draft' },
+        details: { precondition: 'document_approved' },
       });
 
       expect(await readArState(db.app, s.actor.orgId)).toMatchObject({
@@ -263,7 +267,7 @@ describe('the number, the posting and the record are one transaction (D-38)', ()
 
       expect(toWireError(await edit.promise.catch((error: unknown) => error))).toMatchObject({
         code: 'precondition_failed',
-        details: { precondition: 'document_not_draft' },
+        details: { precondition: 'document_approved' },
       });
     } finally {
       await first.close();

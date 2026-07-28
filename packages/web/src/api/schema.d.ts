@@ -786,7 +786,7 @@ export interface paths {
         put?: never;
         /**
          * Void an approved credit note
-         * @description A reversing journal, never a deletion. A credit note that has been applied to an invoice is refused with `document_allocated`.
+         * @description A reversing journal, never a deletion. A credit note that has been applied to an invoice is refused with `document_has_allocations`.
          */
         post: operations["voidCreditNote"];
         delete?: never;
@@ -1198,14 +1198,14 @@ export interface paths {
         post?: never;
         /**
          * Discard a draft invoice
-         * @description Deletes a draft and its lines. Nothing in the ledger changes, because nothing about this invoice ever reached it, and no number is freed because none was allocated. An approved invoice is refused with `document_not_draft` — void it instead.
+         * @description Deletes a draft and its lines. Nothing in the ledger changes, because nothing about this invoice ever reached it, and no number is freed because none was allocated. An approved invoice is refused with `document_approved` — void it instead.
          */
         delete: operations["discardInvoice"];
         options?: never;
         head?: never;
         /**
          * Update a draft invoice
-         * @description Drafts only. An approved invoice answers `precondition_failed` with `document_not_draft`: the ledger has been told, and the correction is a credit note or a void (D-38). `lines` replaces the whole set, and changing `taxMode` reprices them rather than converting them.
+         * @description Drafts only. An approved invoice answers `precondition_failed` with `document_approved`: the ledger has been told, and the correction is a credit note or a void (D-38). `lines` replaces the whole set, and changing `taxMode` reprices them rather than converting them.
          */
         patch: operations["updateInvoice"];
         trace?: never;
@@ -1241,7 +1241,7 @@ export interface paths {
         put?: never;
         /**
          * Void an approved invoice
-         * @description Posts a reversing journal and records it on the invoice. Nothing is deleted: the invoice, its number and its original journal all stay visible, because a voided document that vanished would make the gapless sequence a lie (D-16, D-38, C7). The reversal takes its own `date`, which must fall in an open period. An invoice with allocations against it is refused with `document_allocated` — un-apply them first, or the payment would read as fully applied while the receivable had been reversed.
+         * @description Posts a reversing journal and records it on the invoice. Nothing is deleted: the invoice, its number and its original journal all stay visible, because a voided document that vanished would make the gapless sequence a lie (D-16, D-38, C7). The reversal takes its own `date`, which must fall in an open period. An invoice with allocations against it is refused with `document_has_allocations` — un-apply them first, or the payment would read as fully applied while the receivable had been reversed.
          */
         post: operations["voidInvoice"];
         delete?: never;

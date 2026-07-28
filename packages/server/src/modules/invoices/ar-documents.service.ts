@@ -8,7 +8,6 @@ import type { KeysetPage, TenantDatabase } from '../../db';
 import { bufferToUuid, tryUuidToBuffer, uuidToBuffer } from '../../db';
 import type { ValidationIssue } from '../../errors';
 import {
-  ConflictError,
   InternalError,
   NotFoundError,
   PreconditionFailedError,
@@ -339,7 +338,8 @@ export async function approveArDocument(
     const row = assertFound(await selectDocumentByIdForUpdate(trx, kind, id), kind.resource);
 
     if (row.journal_id !== null) {
-      throw new ConflictError(
+      throw new PreconditionFailedError(
+        'document_already_approved',
         `This ${kind.resource} has already been approved. Approval posts to the ledger and ` +
           'happens once; correct it with a credit note or void it (D-38).',
       );
@@ -431,7 +431,8 @@ export async function voidArDocument(
       );
     }
     if (row.void_journal_id !== null) {
-      throw new ConflictError(
+      throw new PreconditionFailedError(
+        'document_already_void',
         `This ${kind.resource} is already void. Its journal has been reversed once, and ` +
           'reversing the reversal would re-instate it.',
       );
@@ -440,7 +441,7 @@ export async function voidArDocument(
     const allocations = await selectAllocations(trx, kind, id);
     if (allocations.length > 0) {
       throw new PreconditionFailedError(
-        'document_allocated',
+        'document_has_allocations',
         `This ${kind.resource} has ${String(allocations.length)} allocation(s) against it. ` +
           'Remove them first: voiding reverses the journal, and an allocation left pointing at a ' +
           'voided document would make the subledger disagree with the control account by exactly ' +
@@ -787,6 +788,9 @@ function toPostJournalInput(
     // The document's own memo when it has one, and its number when it does not, so
     // a journal list is readable without joining back to the subledger.
     memo: row.memo ?? reference,
+    // `invoice` or `credit_note` — the origin the subledger header always claimed
+    // the journal carries and, before OB-091, never actually set.
+    source: kind.documentType,
     actorType: ctx.actorType,
     actorId: ctx.actorId,
     ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
@@ -880,7 +884,7 @@ function assertDraft(kind: ArDocumentKind, row: DocumentRow): void {
   if (row.journal_id === null) return;
 
   throw new PreconditionFailedError(
-    'document_not_draft',
+    'document_approved',
     `This ${kind.resource} has been approved, so it can no longer be edited or discarded. The ` +
       'ledger has been told (D-38): correct it with a credit note, or void it — which reverses ' +
       'its journal and leaves both visible.',

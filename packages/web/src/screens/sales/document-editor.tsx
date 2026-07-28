@@ -258,7 +258,7 @@ export function DocumentEditor({
               this organization has not nominated a usable one. Set it in Settings, then approve
               again — nothing about this draft was changed.
             </p>
-          ) : token === 'document_not_draft' ? (
+          ) : token === 'document_approved' ? (
             <p className="text-sm text-text-muted">
               This {words.singular.toLowerCase()} has been approved since this form was opened, so
               it can no longer be edited. Reload it to see what it now is; the correction after

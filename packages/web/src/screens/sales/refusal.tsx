@@ -11,11 +11,11 @@ import { ApiError, presentApiError } from '../../api';
  * `details.precondition` that decides what the next step *is* — and three of them have a
  * next step the user can take on this very screen:
  *
- * - `document_allocated` — voiding is refused because allocations point at the document.
+ * - `document_has_allocations` — voiding is refused because allocations point at the document.
  *   The recovery is to un-apply them first, and they are listed with a button each.
  * - `receivable_control_account_not_set` / `…_unusable` — approving is refused because the
  *   org has nominated no receivables control account. The recovery is in Settings.
- * - `document_not_draft` — an edit or a discard arrived after someone else approved it.
+ * - `document_approved` — an edit or a discard arrived after someone else approved it.
  *   The recovery is to reload and look at what it now is.
  *
  * Title and message still come from `presentApiError`, so a 404 or a 409 reads the same
@@ -93,5 +93,5 @@ export function preconditionToken(error: unknown): string | null {
  * caused by the operation meant to correct things.
  */
 export function isAllocatedRefusal(error: unknown): boolean {
-  return preconditionToken(error) === 'document_allocated';
+  return preconditionToken(error) === 'document_has_allocations';
 }

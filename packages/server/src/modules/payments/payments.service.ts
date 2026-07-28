@@ -153,6 +153,7 @@ export async function recordPayment(
       {
         date: request.date,
         ...(request.memo === undefined || request.memo === null ? {} : { memo: request.memo }),
+        source: 'payment',
         actorType: ctx.actorType,
         actorId: ctx.actorId,
         ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
