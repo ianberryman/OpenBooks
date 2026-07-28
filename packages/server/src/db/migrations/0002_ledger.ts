@@ -85,6 +85,14 @@ export async function up(db: MigrationDb): Promise<void> {
       name              VARCHAR(255) NOT NULL,
       type              ENUM('asset','liability','equity','revenue','expense') NOT NULL,
       normal_balance    ENUM('debit','credit') NOT NULL,
+      -- How the cash-basis transform (D-87, OB-154) treats activity on this account.
+      -- 'cash' means a journal touching it is a cash event whose P&L legs are recognised
+      -- at the journal's own date; 'accrual' marks a pure-accrual holding account (prepaid,
+      -- accrued, deferred, deposits) whose no-cash movement is excluded from a cash-basis
+      -- P&L. NULL is unclassified: the transform infers from bank_accounts and flags for the
+      -- setup nudge (K3/K4). A hint the user sets, not derived from the account type, since
+      -- the same type covers both (a bank is an asset, so is a prepaid).
+      cash_basis_role   ENUM('cash','accrual') NULL,
       parent_account_id BINARY(16)   NULL,
       description       VARCHAR(512) NULL,
       is_active         TINYINT(1)   NOT NULL DEFAULT 1,

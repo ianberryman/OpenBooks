@@ -142,6 +142,11 @@ export async function up(db: MigrationDb): Promise<void> {
       org_id                        BINARY(16)  NOT NULL,
       receivable_control_account_id BINARY(16)  NULL,
       payable_control_account_id    BINARY(16)  NULL,
+      -- The basis a report renders on unless the request overrides it (K1, D-87).
+      -- Defaults to 'accrual': the ledger is accrual-capable and every M2 report was
+      -- accrual (D-22), so an org sees no change until it opts into cash. NOT NULL: there
+      -- is always a default basis, even on the lazily-created settings row.
+      default_reporting_basis       ENUM('accrual','cash') NOT NULL DEFAULT 'accrual',
       created_at                    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at                    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
                                                 ON UPDATE CURRENT_TIMESTAMP(3),

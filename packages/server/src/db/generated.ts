@@ -22,6 +22,7 @@ export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export interface Accounts {
+  cash_basis_role: "accrual" | "cash" | null;
   code: string;
   created_at: Generated<Date>;
   description: string | null;
@@ -456,6 +457,7 @@ export interface JournalSequences {
 
 export interface OrgAccountingSettings {
   created_at: Generated<Date>;
+  default_reporting_basis: Generated<"accrual" | "cash">;
   org_id: Buffer;
   payable_control_account_id: Buffer | null;
   receivable_control_account_id: Buffer | null;
