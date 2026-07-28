@@ -5,6 +5,7 @@ import { allocatePayment, recordPayment } from '../../src/modules/payments';
 import { selectCashBasisBalances } from '../../src/modules/reports/cash-basis/service';
 import type { BalanceQuerySpec } from '../../src/modules/reports/balances.repository';
 import { selectAccountBalances } from '../../src/modules/reports/balances.repository';
+import { getProfitAndLoss } from '../../src/modules/reports/profit-and-loss.service';
 import { documentIn, sceneIn, useServiceDatabase, withContext } from '../payments/support';
 import type { Scene } from '../payments/support';
 
@@ -88,5 +89,32 @@ describe('the cash-basis transform', () => {
     const cash = await selectCashBasisBalances(tenantDb(scene.orgId), PL_SPEC);
     const revenue = cash.rows.find((row) => row.accountId === scene.revenue.uuid);
     expect(revenue?.balance.movement.credits).toBe(250_00n);
+  });
+
+  it('renders a cash-basis P&L end to end, labeled, with only the paid revenue', async () => {
+    const scene = await sceneIn(db);
+    const invoice = await documentIn(db, scene, 'invoice', { amountMinor: 100_00n });
+    await payInvoice(scene, invoice.uuid, '4000');
+
+    const [cash, accrual] = await Promise.all([
+      withContext(scene.ctx, () => getProfitAndLoss({ basis: 'cash' }, scene.ctx)),
+      withContext(scene.ctx, () => getProfitAndLoss({ basis: 'accrual' }, scene.ctx)),
+    ]);
+
+    expect(cash.basis).toBe('cash');
+    expect(cash.totals.revenue).toBe('4000');
+    expect(cash.totals.netIncome).toBe('4000');
+    // The same ledger, accrual: the whole invoice is revenue the moment it is raised.
+    expect(accrual.basis).toBe('accrual');
+    expect(accrual.totals.revenue).toBe('10000');
+  });
+
+  it('refuses a cash-basis P&L sliced by contact rather than silently dropping the filter', async () => {
+    const scene = await sceneIn(db);
+    await expect(
+      withContext(scene.ctx, () =>
+        getProfitAndLoss({ basis: 'cash', contactId: scene.contact.uuid }, scene.ctx),
+      ),
+    ).rejects.toMatchObject({ code: 'validation_failed' });
   });
 });

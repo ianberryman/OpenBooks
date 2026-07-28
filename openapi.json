@@ -13526,7 +13526,11 @@
         "description": "Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges.",
         "properties": {
           "basis": {
-            "const": "accrual",
+            "description": "The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
             "type": "string"
           },
           "groupBy": {
@@ -13663,7 +13667,11 @@
         "description": "Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges.",
         "properties": {
           "basis": {
-            "const": "accrual",
+            "description": "The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
             "type": "string"
           },
           "groupBy": {

@@ -29,6 +29,7 @@ import {
   selectAccountBalances,
   selectDimensionValueLabels,
 } from './balances.repository';
+import { selectCashBasisBalances } from './cash-basis/service';
 import type { AccountBalanceNode, AccountBalanceRow } from './tree';
 import { buildAccountTree } from './tree';
 
@@ -142,6 +143,14 @@ export interface AccountBalancesOptions {
    * process's own, so a malformed one throws rather than 404s.
    */
   readonly accountIds?: readonly string[];
+  /**
+   * The recognition basis (D-87). `accrual` (the default) reads the ledger directly;
+   * `cash` runs the transform (`cash-basis/service.ts`), which re-recognises each
+   * document at its settling payment. Both return the same `AggregatedBalanceRow`
+   * shape, so the assembly below is identical — basis is a swap of the source, not a
+   * second report.
+   */
+  readonly basis?: 'accrual' | 'cash';
 }
 
 /**
@@ -165,7 +174,10 @@ export async function getAccountBalances(
 
   const db = orgScope(ctx);
   const spec = await resolveSpec(db, request, options);
-  const rows = await selectAccountBalances(db, spec);
+  const rows =
+    options.basis === 'cash'
+      ? (await selectCashBasisBalances(db, spec)).rows
+      : await selectAccountBalances(db, spec);
 
   return assemble(rows, {
     range: { from: spec.from, to: spec.to },

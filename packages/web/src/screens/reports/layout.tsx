@@ -25,17 +25,17 @@ export function ReportTitle({
 }
 
 /**
- * The reporting basis, printed rather than assumed (D-22).
+ * The reporting basis, printed rather than assumed (K1, D-87).
  *
- * M2 is accrual-only and the responses carry `basis: 'accrual'` for one reason: accrual
- * figures read under a cash-basis heading are a number someone might file. A badge is the
- * cheapest way to make that misreading impossible instead of merely unlikely, and it is
- * the thing that changes when M3 gives the field a second value.
+ * Responses carry `basis` for one reason: accrual figures read under a cash-basis heading
+ * — or the reverse — are a number someone might file. A badge is the cheapest way to make
+ * that misreading impossible instead of merely unlikely. The field gained its second value
+ * (`cash`) when the transform (OB-154) landed; this is where it shows.
  */
-export function BasisBadge({ basis }: { readonly basis: 'accrual' }): ReactElement {
+export function BasisBadge({ basis }: { readonly basis: 'accrual' | 'cash' }): ReactElement {
   return (
     <span className="rounded-full border border-border bg-surface-sunken px-2 py-0.5 text-xs text-text-muted">
-      {basis === 'accrual' ? 'Accrual basis' : basis}
+      {basis === 'cash' ? 'Cash basis' : 'Accrual basis'}
     </span>
   );
 }

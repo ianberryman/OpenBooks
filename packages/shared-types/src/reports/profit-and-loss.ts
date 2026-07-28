@@ -72,9 +72,30 @@ export type ProfitAndLossAccountType = (typeof PROFIT_AND_LOSS_ACCOUNT_TYPES)[nu
  * places that can disagree, and buy nothing on the wire: a zod refinement emits
  * nothing into JSON Schema, so the published artifact is identical either way.
  */
+/**
+ * The recognition basis a report is rendered on (K1, D-87). `accrual` recognises a
+ * document when it is raised; `cash` re-recognises it when cash settles it. Superseded
+ * D-22's accrual-only stance. Shared by every basis-labeled report.
+ */
+export const REPORT_BASES = ['accrual', 'cash'] as const;
+
+export const reportBasisSchema = z.enum(REPORT_BASES).meta({
+  description:
+    'The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment ' +
+    'settles it, proportionally for partials). On a request it overrides the org’s default for ' +
+    'this one run; on a response it states which basis produced the numbers.',
+});
+
+export type ReportBasis = z.infer<typeof reportBasisSchema>;
+
 export const profitAndLossQuerySchema = z
   .strictObject({
     ...reportRangeShape,
+    // Overrides the org's `default_reporting_basis` for this run (K1). Absent means
+    // the org default. Cash basis does not yet slice by contact or dimension, so the
+    // service refuses `basis: cash` combined with those filters rather than silently
+    // ignoring them (a filter dropped is a report of the wrong scope).
+    basis: reportBasisSchema.optional(),
     contactId: reportSliceShape.contactId,
     dimensions: reportSliceShape.dimensions,
     groupBy: reportSliceShape.groupBy,
@@ -206,14 +227,12 @@ export const profitAndLossSchema = z
           'from the ledger’s beginning, `to` when every posting to date is in.',
       }),
     /**
-     * Stated on the response, not accepted on the query. D-22 defers cash basis to
-     * M3 because it needs a payment date to key on, and names the failure it is
-     * avoiding: accrual figures printed under a cash-basis heading are a number
-     * someone might file. Saying which basis produced these numbers is what makes
-     * that misreading impossible rather than merely unlikely, and it is the field
-     * M3 widens rather than adds.
+     * Which basis produced these numbers (K1, D-87). Stated on every response so
+     * accrual figures can never be read under a cash-basis heading — the misfiling
+     * D-22 named and deferred, now closed by the transform rather than by omission.
+     * The request's `basis`, or the org's `default_reporting_basis` when it was absent.
      */
-    basis: z.literal('accrual'),
+    basis: reportBasisSchema,
     groupBy: z.uuid().nullable(),
     groups: z.array(profitAndLossGroupSchema),
     totals: profitAndLossTotalsSchema.meta({

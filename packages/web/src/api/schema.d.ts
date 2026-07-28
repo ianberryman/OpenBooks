@@ -5685,8 +5685,11 @@ export interface components {
         };
         /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
         ProfitAndLoss: {
-            /** @constant */
-            basis: "accrual";
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
             groupBy: string | null;
             groups: components["schemas"]["ProfitAndLossGroup"][];
             /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */
@@ -5715,8 +5718,11 @@ export interface components {
         };
         /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
         ProfitAndLossInput: {
-            /** @constant */
-            basis: "accrual";
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
             groupBy: string | null;
             groups: components["schemas"]["ProfitAndLossGroupInput"][];
             /** @description The bounds that were applied, both inclusive. `from` is null when the statement runs from the ledger’s beginning, `to` when every posting to date is in. */

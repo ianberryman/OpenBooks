@@ -2,15 +2,17 @@ import type {
   NormalBalance,
   ProfitAndLossAccountType,
   ProfitAndLossQueryParams,
+  ReportBasis,
 } from '@openbooks/shared-types';
 import { PROFIT_AND_LOSS_ACCOUNT_TYPES, profitAndLossQuerySchema } from '@openbooks/shared-types';
 
 import { getContext } from '../../context';
 import type { RequestContext } from '../../context';
-import { InternalError, parseInput } from '../../errors';
+import { InternalError, parseInput, ValidationError } from '../../errors';
 import { requirePermission } from '../permissions';
 
 import type { AccountBalance, BalanceAmounts } from './amounts';
+import { orgScope } from './balances.repository';
 import type { AccountBalances, ReportGroup, ReportGroupKey, ReportRange } from './balances.service';
 import { getAccountBalances } from './balances.service';
 import type { AccountBalanceNode, AccountBalanceRow } from './tree';
@@ -112,8 +114,8 @@ export interface ProfitAndLossGroup {
 
 export interface ProfitAndLoss {
   readonly range: ReportRange;
-  /** D-22: accrual only in M2. Stated so the numbers cannot be read as cash basis. */
-  readonly basis: 'accrual';
+  /** Which basis produced these numbers (K1, D-87) — the request's, or the org default. */
+  readonly basis: ReportBasis;
   readonly groupBy: string | null;
   readonly groups: readonly ProfitAndLossGroup[];
   /** Every group summed. Equal to the same statement run without `groupBy` (B6). */
@@ -137,12 +139,54 @@ export async function getProfitAndLoss(
   await requirePermission(ctx, 'reports.read');
   const request = parseInput(profitAndLossQuerySchema, query);
 
+  const { basis: requestBasis, ...balanceQuery } = request;
+  const basis = await resolveBasis(ctx, requestBasis);
+  if (basis === 'cash') assertCashBasisSupported(balanceQuery);
+
   const balances = await getAccountBalances(
-    { ...request, types: [...PROFIT_AND_LOSS_ACCOUNT_TYPES] },
+    { ...balanceQuery, types: [...PROFIT_AND_LOSS_ACCOUNT_TYPES] },
     ctx,
+    { basis },
   );
 
-  return project(balances);
+  return project(balances, basis);
+}
+
+/**
+ * The basis this run uses: the request's override, or the org's `default_reporting_basis`
+ * (D-87). The settings row is lazily created (`0005`), so an org that never set a
+ * default reads `accrual` — the ledger's own basis, and what every M2 report was.
+ */
+async function resolveBasis(
+  ctx: RequestContext,
+  requestBasis: ReportBasis | undefined,
+): Promise<ReportBasis> {
+  if (requestBasis !== undefined) return requestBasis;
+  const row = await orgScope(ctx)
+    .selectFrom('org_accounting_settings')
+    .select('default_reporting_basis')
+    .executeTakeFirst();
+  return row?.default_reporting_basis ?? 'accrual';
+}
+
+/**
+ * Cash basis re-recognises through the subledger and does not yet carry a contact or
+ * dimension through that path (`cash-basis/service.ts`). Rather than silently drop the
+ * filter — a report of the wrong scope wearing the right heading — a sliced cash-basis
+ * request is refused until the transform threads them. The whole-org cash P&L is the
+ * majority case (D-88); slicing lands with a later increment.
+ */
+function assertCashBasisSupported(query: Omit<ProfitAndLossQuery, 'basis'>): void {
+  if (
+    query.contactId !== undefined ||
+    (query.dimensions !== undefined && query.dimensions.length > 0) ||
+    query.groupBy !== undefined
+  ) {
+    throw new ValidationError(
+      'Cash-basis reporting does not yet support contact or dimension slicing; run it without ' +
+        'those filters, or use accrual basis.',
+    );
+  }
 }
 
 /** One group's two sections, still in `bigint` so the report's totals can sum them. */
@@ -157,7 +201,7 @@ interface Section {
   readonly total: bigint;
 }
 
-function project(balances: AccountBalances): ProfitAndLoss {
+function project(balances: AccountBalances, basis: ReportBasis): ProfitAndLoss {
   const sections = balances.groups.map(sectionsOf);
 
   let revenue = 0n;
@@ -169,7 +213,7 @@ function project(balances: AccountBalances): ProfitAndLoss {
 
   return {
     range: balances.range,
-    basis: 'accrual',
+    basis,
     groupBy: balances.groupBy,
     groups: sections.map(toGroup),
     totals: {

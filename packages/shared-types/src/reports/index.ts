@@ -57,8 +57,12 @@ export {
  * convention — amounts are signed to their section rather than left as
  * `debits - credits` — and for why every account of the type appears even at zero.
  */
-export { PROFIT_AND_LOSS_ACCOUNT_TYPES } from './profit-and-loss';
-export type { ProfitAndLossAccountType, ProfitAndLossQueryParams } from './profit-and-loss';
+export { PROFIT_AND_LOSS_ACCOUNT_TYPES, REPORT_BASES } from './profit-and-loss';
+export type {
+  ProfitAndLossAccountType,
+  ProfitAndLossQueryParams,
+  ReportBasis,
+} from './profit-and-loss';
 export {
   profitAndLossGroupSchema,
   profitAndLossQuerySchema,
@@ -66,6 +70,7 @@ export {
   profitAndLossSchema,
   profitAndLossSectionSchema,
   profitAndLossTotalsSchema,
+  reportBasisSchema,
 } from './profit-and-loss';
 
 /**
