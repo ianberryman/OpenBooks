@@ -11,6 +11,7 @@ import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
+import { registerDunningRoutes } from './dunning';
 import { registerImportRoutes } from './imports';
 import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
@@ -106,6 +107,11 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `POST`   | `/v1/invoices/:invoiceId/approve`               | `approveInvoice`            | required        | org            |
  * | `POST`   | `/v1/invoices/:invoiceId/void`                  | `voidInvoice`               | required        | org            |
  * | `POST`   | `/v1/invoices/:invoiceId/send`                  | `sendInvoice`               | required        | org            |
+ * | `POST`   | `/v1/dunning-policies`                          | `createDunningPolicy`       | required        | org            |
+ * | `GET`    | `/v1/dunning-policies`                          | `listDunningPolicies`       | —               | —              |
+ * | `GET`    | `/v1/dunning-policies/:policyId`                | `getDunningPolicy`          | —               | —              |
+ * | `PATCH`  | `/v1/dunning-policies/:policyId`                | `updateDunningPolicy`       | required        | org            |
+ * | `POST`   | `/v1/dunning-policies/:policyId/deactivate`     | `deactivateDunningPolicy`   | required        | org            |
  * | `GET`    | `/v1/journal-lines/:lineId/dimensions`          | `getJournalLineDimensions`  | —               | —              |
  * | `PUT`    | `/v1/journal-lines/:lineId/dimensions`          | `setJournalLineDimensions`  | required        | org            |
  * | `POST`   | `/v1/journal-drafts`                            | `createDraft`               | required        | org            |
@@ -372,6 +378,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerTaxRateRoutes(app);
   registerInvoiceRoutes(app);
   registerRecurringInvoiceRoutes(app);
+  registerDunningRoutes(app);
   registerBillRoutes(app);
   registerPaymentRoutes(app);
   registerBankAccountRoutes(app);
