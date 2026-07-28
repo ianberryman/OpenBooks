@@ -11511,6 +11511,8 @@ export interface operations {
             query?: {
                 from?: components["schemas"]["CalendarDateInput"];
                 to?: components["schemas"]["CalendarDateInput"];
+                /** @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers. */
+                basis?: "accrual" | "cash";
                 /** @description Only lines naming this contact. Not a subledger — that is M3. */
                 contactId?: string;
                 /** @description A url-encoded JSON array of dimension filters. Each entry is `{ "dimensionId": uuid, "valueIds"?: uuid[], "includeUnassigned"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing. */

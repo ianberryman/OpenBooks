@@ -190,6 +190,10 @@ const groupByWireSchema = z
 const profitAndLossWireQuerySchema = z.strictObject({
   from: calendarDateSchema.optional(),
   to: calendarDateSchema.optional(),
+  // Overrides the org's `default_reporting_basis` for this run (K1). The strict object
+  // rejects any key it does not name, so the basis toggle is inert until it is listed
+  // here — the service and the shared query schema already carry it.
+  basis: reportBasisSchema.optional(),
   ...reportSliceWireShape,
   groupBy: groupByWireSchema,
 });
@@ -340,11 +344,12 @@ export function registerReportRoutes(app: App): void {
       },
     },
     async (request): Promise<z.infer<typeof profitAndLossSchema>> => {
-      const { from, to, contactId, dimensions, groupBy } = request.query;
+      const { from, to, basis, contactId, dimensions, groupBy } = request.query;
       const report = await getProfitAndLoss(
         {
           ...(from === undefined ? {} : { from }),
           ...(to === undefined ? {} : { to }),
+          ...(basis === undefined ? {} : { basis }),
           ...(contactId === undefined ? {} : { contactId }),
           ...(dimensions === undefined ? {} : { dimensions }),
           ...(groupBy === undefined ? {} : { groupBy }),

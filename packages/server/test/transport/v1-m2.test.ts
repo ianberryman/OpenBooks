@@ -633,6 +633,26 @@ describe('chart templates', () => {
 });
 
 describe('the M2 reports', () => {
+  it('accepts the basis override on the profit and loss across the wire (K1)', async () => {
+    const app = harness.app();
+    const scene = await ledgerScene(app, 'basis-wire@example.invalid', 'Basis Books');
+
+    // The route's querystring schema is a strict object, so a key it does not name is a 400
+    // before the service is reached. This is the guard for exactly that gap: the shared query
+    // schema and the service carried `basis` while the wire schema did not, and every
+    // service-level report test passed while the basis toggle 400'd in the running app. A
+    // test that drives the service directly cannot see this — it has to cross transport.
+    for (const basis of ['accrual', 'cash'] as const) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/v1/reports/profit-and-loss?from=2026-01-01&to=2026-12-31&basis=${basis}`,
+        headers: { cookie: scene.session.cookie },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ basis });
+    }
+  });
+
   it('serves a profit and loss, a balance sheet, and a general ledger that ties', async () => {
     const app = harness.app();
     const scene = await ledgerScene(app, 'reports@example.invalid', 'Report Books');
