@@ -67,12 +67,12 @@ the worker, but feeds Q later; Q (Phase 7) needs M5-platform's agent-review queu
 **M1–M4 are built. Minimum credible public launch (M1–M4 + QuickBooks import) is one import
 away.** Read this section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                                                                                       |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                                                                                         |
-| Gate   | `yarn check` passes — 2,060 tests across 173 files, ~2.5 min; the E2E passes against a real stack                                                                     |
-| Push   | **59 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                     |
-| Next   | M5 (platform surface) is scoped — start at wave 0 (OB-096 schema/grants, OB-097 wire contracts). Four follow-up tickets remain outstanding, none blocking — see below |
+|        |                                                                                                                                                                                                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                                                                                                                                                                                                |
+| Gate   | `yarn check` passes — 2,060 tests across 173 files, ~2.5 min; the E2E passes against a real stack                                                                                                                                                                            |
+| Push   | **64 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                                                                                                                            |
+| Next   | **Phase 0 done** (OB-091/092/093 committed, gate green). **Now: Phase 1 — INV invoice delivery**; the parallel execution plan is in [Phase 1 execution](#phase-1-execution--inv-delivery-parallelised). Full order in the [Release plan](#release-plan--post-m4-sequencing). |
 
 M4 is complete, including its two follow-ups: **OB-095** (the bank-account setup screen — the
 banking section's Accounts tab, with `deactivate`/`reactivate` guarded by the open-session
@@ -91,59 +91,21 @@ the event-log retention window (spec §14's open number); and opaque tokens vs J
 open direction is **QuickBooks import** — the remaining gate for the minimum credible public
 launch, since M1–M4 are done.
 
-### Outstanding tickets, none blocking M4
+### Follow-up tickets — Phase 0 cleared the M3 debt
 
-Four follow-ups, deliberately not folded into other commits because each touches a contract,
-a kernel, a seed, or a decision rather than the module that found it. The first three came out
-of M3; **OB-094** out of M4 wave 4, explicitly deferred by decision. (**OB-095** — the
-bank-account setup screen — is now built; see below.)
+The three M3 follow-ups are **done** (Phase 0, committed on `develop`: `44101d5`, `bef26a6`, gate
+green), and **OB-094** is subsumed. Nothing on this list remains outstanding.
 
-| ID         | What                                                        | Why it was deferred                                                             |
-| ---------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **OB-091** | `PostJournalInput` gains a `source`                         | Ledger kernel — `plugin-api` + `posting.service.ts`                             |
-| **OB-092** | Reconcile the AR/AP refusal vocabulary onto the AP spelling | Wire-contract change; tokens are published                                      |
-| **OB-093** | Decide whether `ar_only`/`ap_only` may finish a document    | Migration + product decision, not a test fix                                    |
-| **OB-094** | Split coding: one statement line across several accounts    | Clearing contract + migration + service + screen — a decision taken to defer it |
+| ID         | What                                                        | Landed                                                                                                                                                                                                   |
+| ---------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OB-093** | `ar_only`/`ap_only` gain `journals.post`/`journals.reverse` | Seeded in `0001_tenancy`; the two clerk roles now approve, void and pay what they enter — the Pay Bills prerequisite.                                                                                    |
+| **OB-091** | `PostJournalInput` gains a `source`                         | Subledger journals carry `invoice`/`bill`/`payment`/`clearing` instead of the old blanket `manual`.                                                                                                      |
+| **OB-092** | AR/AP refusal vocabulary reconciled onto AP                 | AR now raises `412` with `document_approved`/`document_already_approved`/… instead of a detail-less `409`; `openapi.json` + web client regenerated; the vocabulary test now guards they stay reconciled. |
+| **OB-094** | Split coding — one statement line across several accounts   | **Subsumed** by Cash application ([D-80](#d-80), OB-137): "multiple entries per statement line" is that generalisation, lockbox the same mechanism.                                                      |
 
-**OB-094** — the matching screen (OB-086) does accept/correct/defer/undo, but a **split** is
-not expressible: a line clears once (`uq_blc_line`) and a clearing codes it to one target.
-Splitting means a clearing that carries several coded portions (an array of
-`{ accountId, amount }` summing to the line) and posts an N-line journal, with the difference
-logic generalised. That is a contract, a migration, a service change and a screen — its own
-ticket, and the decision was taken to defer it rather than widen wave 4. None of E1–E10
-requires it; it is a real bookkeeping convenience (QuickBooks and Xero have it) for later.
-**Now subsumed by the Cash application initiative** ([D-80](#d-80), OB-137): "multiple entries per
-statement line" is exactly this generalisation, with lockbox as the same mechanism — see below.
-
-**OB-095 (done)** — the banking section gained an **Accounts** tab: a bank-account setup screen
-that registers an account over a ledger asset-account picker (D-46) and deactivates/reactivates
-it. `deactivateBankAccount` refuses an account with an **open reconciliation session**
-(`bank_account_has_open_session`) — the business-logic guard that had it deferred at OB-084 —
-and reactivate is its ungated counterpart. Both enforce `banking.import` and are covered across
-all three enforcement matrices (with the correct B11 non-entry, since the ops carry their id in
-the path, not a body). The E2E's API seeding is no longer the only way to create an account.
-
-**OB-091** — every document journal currently posts with `source = 'manual'`, because
-`PostJournalInput` has no `source` field and `postJournal` hardcodes it. Reported
-independently by three agents. `0005_subledger`'s header already claims the journal carries
-`'invoice'`/`'bill'`, so the schema documentation and the runtime disagree today.
-
-**OB-092** — AR and AP spell the same refusals differently (`document_not_draft` vs
-`document_approved`, `document_allocated` vs `document_has_allocations`), and worse, AR
-raises `ConflictError` for double-approve and double-void, which carries **no `details` bag
-at all**. A client gets `409` with prose and nothing to branch on, where AP gives `412` plus
-`document_already_approved`. That is a functional gap rather than a naming preference, so
-the AP vocabulary should win. `test/enforcement/refusal-vocabulary.test.ts` pins the current
-divergence, including a property asserting the two vocabularies are _unequal_ — so
-reconciling them to a third spelling would also fail, deliberately.
-
-**OB-093** — `ar_only` and `ap_only` hold `invoices.*`/`bills.*`/`payments_*.*` but not
-`journals.post` or `journals.reverse`, so the two roles that exist to enter AR and AP
-documents cannot approve, void, or record a payment. Ten published operations refuse them.
-Pinned as a known gap across the matrix and the service suites rather than fixed, because
-seeding those codes is a migration and a decision about what those roles are _for_. A clerk
-can still allocate, because allocation posts no journal — so the line currently falls
-exactly at the ledger, which is a defensible place for it.
+**OB-095 (done, M4)** — the banking section's **Accounts** tab registers a bank account over a
+ledger asset-account picker (D-46) and deactivates/reactivates it, with `deactivateBankAccount`
+refusing an account that has an open reconciliation session (`bank_account_has_open_session`).
 
 ### Environment notes that cost time to rediscover
 
@@ -152,10 +114,14 @@ exactly at the ledger, which is a defensible place for it.
   **3100**). Those are deliberately separate from `DATABASE_PORT`/`HTTP_PORT`, which are
   what the processes bind _inside_ the network — setting those to dodge a host clash
   silently repoints the application. See the comments in `docker-compose.yml`.
-- **The Compose `api` and `migrate` services cannot be built here**: Docker Hub pulls hang
-  on this machine's credential helper, first recorded in OB-027. Run the server from the
-  host instead (`yarn dev`, which needs the env from `.env.example`), against the Compose
-  database. The e2e suite's `scripts/start-stack.mjs` already does exactly this.
+- **The prod image builds and runs now** (was OB-027's blocker). The Docker Hub "pull hang" is the
+  `credsStore: desktop` helper being consulted on public pulls; a throwaway `DOCKER_CONFIG` (empty
+  `auths`, `~/.docker/contexts` copied in) does an anonymous pull without touching the real config.
+  Once `node:22.19.0-slim` is cached, plain `docker compose build` works. Three latent build bugs were
+  also fixed to make the image build+run for the first time since M4 (commit `2766e5a`: missing
+  `packages/e2e` COPY; `__dirname` ESM shim; swagger-ui externalised). A **persistent containerised
+  stack now runs on this host** — UI `:8089`, API `:3100`, MySQL `:13307`, data in
+  `openbooks_mysql-data`; update with `docker compose build && docker compose up -d`.
 - Editing a migration in place (D-15) leaves an already-migrated local database
   inconsistent, and `migrate:down` is what discovers it. Drop and recreate the schema; the
   reset procedure is in `src/db/migrations/README.md`.
@@ -171,6 +137,101 @@ SESSION_COOKIE_SECURE=false` — `OPENBOOKS_ROLE=api yarn workspace @openbooks/s
   `org` object (`{ name, chartTemplateId: 'general_small_business', fiscalYearStartMonth }`), the
   fiscal-year field is `fiscalYear` (not `year`), the bank ledger account is code `1010`, and
   every write needs an `Idempotency-Key`.
+
+---
+
+## Phase 1 execution — INV delivery, parallelised
+
+The active phase, broken down so several developers can work concurrently without blocking each
+other. Phase 1 is the **delivery core of INV, not all of it**: an org sets branding, and a user sends
+an approved invoice — a themed PDF is rendered, retained, and emailed to the customer as a link to a
+hosted, token-gated page where they view it and download the PDF. **Recurring and dunning are Phase 4**
+(OB-127 scheduler, OB-128, OB-129), so they and their schema/contract/screen slices are out of scope
+here.
+
+### The Phase 1 slice of the INV tickets
+
+Some INV tickets span both phases; Phase 1 takes only their delivery portion.
+
+| Ticket                              | Phase 1 scope                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| **OB-120** StorageProvider adapters | Whole — `local` + `s3` + `storageProvider()`. First consumer, foundation.                   |
+| **OB-121** Hosted invoice page      | Whole — capability token, the two public endpoints, the SPA public route.                   |
+| **OB-122** Schema                   | **Delivery only** — `org_branding` + `invoice_deliveries`. (recurring/dunning tables → P4.) |
+| **OB-123** Wire contracts           | **Delivery only** — branding, send request/response, public-invoice view.                   |
+| **OB-124** Branding service + logo  | Whole.                                                                                      |
+| **OB-125** PDF renderer             | Whole.                                                                                      |
+| **OB-126** `sendInvoice`            | Whole.                                                                                      |
+| **OB-130** `/v1` surface            | **Delivery only** — branding, send, and the public page endpoints.                          |
+| **OB-131** Screens                  | **Delivery only** — invoice preview/send + branding settings.                               |
+| **OB-132/133** Enforcement + E2E    | **Delivery only** — brand → send → view → download.                                         |
+
+### Two forks resolved, so no stream is blocked on a decision
+
+- **PDF library → `pdfmake`.** Declarative document-definition, tables are first-class (an invoice is
+  a header + an addresses block + a line-item table + totals + footer), Node-native, deterministic,
+  and lighter than `@react-pdf/renderer`. Wrapped behind an `InvoiceRenderer` interface so the choice
+  is swappable and every consumer depends on the interface, not the library. _(My call — overridable;
+  `@react-pdf/renderer` is the JSX-layout alternative if the web team prefers it.)_
+- **Hosted-page token.** A **per-delivery capability token**, minted as `prefix.secret` (32-byte
+  secret) and stored on `invoice_deliveries` as `key_prefix` + SHA-256 hash — the exact pattern
+  `sessions`/`api_keys`/`oauth_tokens` already use. URL `/(i)/{token}`; **no expiry** (an approved
+  invoice stays viewable), read-only, no session — the token is the whole authorization ([D-74](#d-74)).
+  Served by two **public, token-gated endpoints outside the `/v1` permission surface**:
+  `GET /public/invoices/{token}` (the view) and `GET /public/invoices/{token}/pdf` (streams the
+  retained artifact). The endpoint resolves org → `tenantDb` from the token, so tenant isolation
+  still holds below it; this is the **one sanctioned unauthenticated read**, and it gets its own
+  security review (a new surface that bypasses `requirePermission`).
+
+### The contract-first seams (built first, fast — they gate everything)
+
+- **F1 — Wire contracts** (OB-123 delivery subset): branding, the send request/response, the
+  `PublicInvoiceView` shape, and the token format. Once these Zod schemas land, service _and_ web
+  developers code against them, not each other.
+- **F2 — Schema** (OB-122 delivery subset): `org_branding` + `invoice_deliveries` + grants.
+- **F3 — StorageProvider interface**: already exists in `plugin-api`; OB-120 builds the adapters, but
+  every consumer codes against the interface from day one.
+
+### Parallel workstreams (the DAG)
+
+**Foundation (day 0–1, front-loaded — small, gates the rest):**
+
+| #   | Stream           | Ticket            | Depends on           |
+| --- | ---------------- | ----------------- | -------------------- |
+| F1  | Wire contracts   | OB-123 (delivery) | —                    |
+| F2  | Schema + grants  | OB-122 (delivery) | —                    |
+| F3  | Storage adapters | OB-120            | — (interface exists) |
+
+**Then five concurrent streams, each against the contracts/interfaces — not against each other:**
+
+| #   | Stream                                 | Ticket            | Depends on       | Works standalone via                            |
+| --- | -------------------------------------- | ----------------- | ---------------- | ----------------------------------------------- |
+| S1  | Branding service + logo                | OB-124            | F2, F3-interface | —                                               |
+| S2  | PDF renderer (`pdfmake`)               | OB-125            | F1, F3-interface | a **branding fixture** (doesn't wait on S1)     |
+| S3  | Hosted page + token + public endpoints | OB-121            | F1, F2           | a **stub PDF + stub view** (doesn't wait on S2) |
+| S4  | Web delivery UI + branding settings    | OB-131 (delivery) | F1               | a **mock client** off the contracts             |
+| S5  | `/v1` transport (branding, send)       | OB-130 (delivery) | F1               | maps arguments; wires to services when ready    |
+
+**Convergence (the integrator, once S1+S2+S3 land):**
+
+| #   | Stream            | Ticket                | Depends on                                      |
+| --- | ----------------- | --------------------- | ----------------------------------------------- |
+| C1  | `sendInvoice`     | OB-126                | S1, S2, S3, F2 (the one place the streams meet) |
+| C2  | Enforcement + E2E | OB-132/133 (delivery) | C1, S4                                          |
+
+**Critical path:** F1 → S2 → C1 → C2. Everything else fans out around it; with ~5 developers the
+foundation clears in a day or two and S1–S5 run in parallel until `sendInvoice` integrates them.
+
+### The interface contracts between streams (so a stream never has to read another's code)
+
+- **`InvoiceRenderer.render(invoice, branding) → { bytes, contentType }`** — S2 owns; C1 and S3
+  consume. Branding is a typed input from F1, so S2 develops against a fixture until S1 is ready.
+- **`storageProvider().put/get/signedUrl(key)`** — F3 owns the adapter; S1/S2/S3/C1 code against the
+  `plugin-api` interface that exists today. Keys are org-scoped (`{orgId}/branding/logo`,
+  `{orgId}/invoices/{id}/{deliveryId}.pdf`).
+- **`PublicInvoiceView` + the token format** (F1) — S3 and S4 both consume; neither invents its own.
+- **`invoice_deliveries` columns** (F2) — C1 writes the row (recipient, artifact key, `key_prefix` +
+  token hash, provider message id, sent-at); S3 reads it to resolve a token to an invoice + artifact.
 
 ---
 
