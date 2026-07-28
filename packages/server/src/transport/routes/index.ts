@@ -11,6 +11,7 @@ import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
+import { registerImportRoutes } from './imports';
 import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
 import { registerJournalRoutes } from './journals';
@@ -198,6 +199,22 @@ import { registerTaxRateRoutes } from './tax-rates';
  * `banking.reopen`; and `banking.read` for `getReconciliationReport`. The list, get and
  * report reads on a session are `banking.reconcile`, because the service gates them so.
  *
+ * ### Phase 3 — the QuickBooks CSV migration importer (the launch gate)
+ *
+ * | Method   | Path                              | operationId                | Idempotency-Key | Claim scope |
+ * | -------- | ---------------------------------- | --------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/imports/quickbooks/preview`   | `previewQuickBooksImport`   | required        | org         |
+ * | `POST`   | `/v1/imports/quickbooks`           | `importQuickBooks`          | required        | org         |
+ *
+ * `previewQuickBooksImport` takes `accounts.read` and `contacts.read` and writes
+ * nothing. `importQuickBooks` takes `accounts.write`, `contacts.write`, and
+ * `journals.post` — plus, only on the path where the trial balance's date falls
+ * outside any generated fiscal year, `periods.write` (`imports/quickbooks/service.ts`
+ * explains why that one permission is conditional rather than declared up front).
+ * Everything commits in one transaction or none of it does; there is no queue,
+ * unlike the bank statement import above, because the whole cutover is bounded and
+ * synchronous — see `@openbooks/shared-types/imports/quickbooks`.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -355,4 +372,5 @@ export function registerV1Routes(app: App, config: Config): void {
   registerStatementLineRoutes(app);
   registerBankRuleRoutes(app);
   registerReconciliationRoutes(app);
+  registerImportRoutes(app);
 }

@@ -175,6 +175,28 @@ export async function selectContactByIdForUpdate(
 }
 
 /**
+ * Which of `codes` this org already uses (Phase 3, the QuickBooks CSV import).
+ *
+ * Mirrors `accounts.repository.ts`'s `selectExistingCodes`: the comparison is the
+ * column's own `utf8mb4_0900_ai_ci` collation via `IN`, matching what
+ * `uq_contacts_org_code` enforces, so this finds exactly the codes a bulk create
+ * would collide on — the same pre-check `applyChartTemplate` runs for accounts,
+ * for the same all-or-nothing commit. A `null` code never matches — MySQL treats
+ * NULLs as distinct in a unique index — so the caller filters null codes out
+ * before calling this; the `flatMap` below is defensive against the same fact on
+ * the read side, since nothing in `codes` should be able to select a null row.
+ */
+export async function selectExistingCodes(
+  db: TenantDatabase,
+  codes: readonly string[],
+): Promise<readonly string[]> {
+  if (codes.length === 0) return [];
+
+  const rows = await db.selectFrom('contacts').select('code').where('code', 'in', codes).execute();
+  return rows.flatMap((row) => (row.code === null ? [] : [row.code]));
+}
+
+/**
  * `(created_at, id)` — the general ordering D-21 names, and the one this list has
  * to use rather than merely may.
  *
