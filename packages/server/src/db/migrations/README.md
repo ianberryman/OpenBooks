@@ -58,6 +58,7 @@ check.
 | `0003_idempotency` | Idempotency keys for every write endpoint                    |
 | `0005_subledger`   | Tax rates, AR/AP documents, payments, allocations, sequences |
 | `0006_banking`     | Bank accounts, statement import, matching, reconciliation    |
+| `0007_invoice_delivery` | Org branding, and the append-only record of a sent invoice |
 | `0999_app_grants`  | Narrows the app user so journals are append-only             |
 
 The grants migration must run last. `0999_app_grants` issues a table-level `GRANT`

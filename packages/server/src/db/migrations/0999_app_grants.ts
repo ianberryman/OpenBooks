@@ -111,6 +111,15 @@ const APPEND_ONLY_TABLES = [
   // below (D-14) — so the lock is mutable and the history is not.
   'bank_statement_lines',
   'reconciliation_session_events',
+  // ── Invoice delivery (0007_invoice_delivery) ───────────────────────────────
+  //
+  // `invoice_deliveries` is the record that an invoice was sent — to which address,
+  // at which time, as which frozen artifact. It is evidence, and the append-only
+  // argument is `bank_statement_lines`' argument (D-42) applied to an outbound event:
+  // a record the application can rewrite attests to nothing. A re-send is a new row
+  // and a failed attempt is its own row, so no delivery's record is ever edited. Its
+  // sibling `org_branding` is a setting and is mutable, below.
+  'invoice_deliveries',
 ] as const;
 
 /**
@@ -245,6 +254,14 @@ const MUTABLE_TABLES = [
   // DELETE or LOCK TABLES for a locking read — which is exactly why the journal
   // sequence counter is its own table (D-14). Its history is append-only above.
   'reconciliation_sessions',
+  // ── Invoice delivery (0007_invoice_delivery) ───────────────────────────────
+  //
+  // The org's letterhead, one row per org (OB-122). Mutable for the reason
+  // `org_accounting_settings` is: it is a setting, and changing it moves how the
+  // *next* invoice renders without reaching one already sent — a delivery's artifact
+  // was frozen at send time and lives in `invoice_deliveries`, which is append-only
+  // above. Editing the letterhead restates no financial statement.
+  'org_branding',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {
