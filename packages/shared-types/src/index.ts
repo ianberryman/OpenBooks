@@ -18,6 +18,7 @@ export * from './delivery';
 export * from './dimensions';
 export * from './drafts';
 export * from './imports';
+export * from './invoicing';
 export * from './journals';
 export * from './members';
 export * from './money';

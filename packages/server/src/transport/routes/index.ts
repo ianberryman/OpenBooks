@@ -20,6 +20,7 @@ import { registerOrgRoutes } from './orgs';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
 import { registerReconciliationRoutes } from './reconciliation';
+import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerReportRoutes } from './reports';
 import { registerSettingsRoutes } from './settings';
 import { registerStatementLineRoutes } from './statement-lines';
@@ -130,6 +131,11 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `GET`    | `/v1/reports/general-ledger`                    | `getGeneralLedger`          | —               | —              |
  * | `GET`    | `/v1/reports/profit-and-loss`                   | `getProfitAndLoss`          | —               | —              |
  * | `GET`    | `/v1/reports/trial-balance`                     | `getTrialBalance`           | —               | —              |
+ * | `POST`   | `/v1/recurring-invoices`                        | `createRecurringInvoiceTemplate` | required   | org            |
+ * | `GET`    | `/v1/recurring-invoices`                        | `listRecurringInvoiceTemplates`  | —          | —              |
+ * | `GET`    | `/v1/recurring-invoices/:templateId`            | `getRecurringInvoiceTemplate`    | —          | —              |
+ * | `PATCH`  | `/v1/recurring-invoices/:templateId`            | `updateRecurringInvoiceTemplate` | required   | org            |
+ * | `POST`   | `/v1/recurring-invoices/:templateId/deactivate` | `deactivateRecurringInvoiceTemplate` | required | org        |
  * | `GET`    | `/v1/roles`                                     | `listAssignableRoles`       | —               | —              |
  * | `POST`   | `/v1/tax-rates`                                 | `createTaxRate`             | required        | org            |
  * | `GET`    | `/v1/tax-rates`                                 | `listTaxRates`              | —               | —              |
@@ -365,6 +371,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerSettingsRoutes(app);
   registerTaxRateRoutes(app);
   registerInvoiceRoutes(app);
+  registerRecurringInvoiceRoutes(app);
   registerBillRoutes(app);
   registerPaymentRoutes(app);
   registerBankAccountRoutes(app);
