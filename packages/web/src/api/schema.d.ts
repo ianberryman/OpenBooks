@@ -24,6 +24,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/invoices/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hosted invoice page, unauthenticated
+         * @description Renders the customer-safe view of one invoice for whoever holds the link — no session, no permission, read-only (D-74). Carries no internal identifiers: no journal, contact or org id, only what prints on an invoice and the two links (this page, and the PDF) a customer can act on. An unknown, malformed or never-issued token all answer with the same `404`.
+         */
+        get: operations["getPublicInvoiceView"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/invoices/{token}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The retained invoice PDF, unauthenticated
+         * @description Streams the exact PDF snapshot taken when this invoice was sent, carrying the same capability token as the hosted page. The same `404` rule applies: an unknown, malformed or never-issued token is indistinguishable from a token for an invoice that does not exist.
+         */
+        get: operations["getPublicInvoicePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/accounting-settings": {
         parameters: {
             query?: never;
@@ -554,6 +594,50 @@ export interface paths {
          * @description Posts a reversing journal and records it on the bill; nothing is deleted (D-16, C7). The reversal takes its own `date`, which must fall in an open period. A bill with allocations against it is refused with `document_has_allocations`.
          */
         post: operations["voidBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org’s invoice letterhead
+         * @description Name, address, contact details, logo and accent colour — what an invoice PDF and the hosted page print at their head (S2, S3). Lazily created: an org that has never set any of this still gets a row back, because a PDF renderer needs somewhere to read from on an org’s very first invoice. Reading this takes `branding.read`.
+         */
+        get: operations["getBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the org’s invoice letterhead
+         * @description An omitted field is left as it is; an explicit `null` clears it — except `displayName`, which has no null state and can only be changed. `logoStorageKey` is accepted here so a client can clear the logo with `null`, but the key itself is ordinarily written by `POST /v1/branding/logo`, not typed in by hand. Writing this takes `branding.write`.
+         */
+        patch: operations["updateBranding"];
+        trace?: never;
+    };
+    "/v1/branding/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload the org’s logo
+         * @description Replaces the org’s logo and returns the branding record carrying the new `logoStorageKey`. Stored under an org-scoped key (`{orgId}/branding/logo`, F3) and served back only as a derived `logoUrl`, never as this key — see `orgBrandingSchema`. To remove a logo rather than replace it, send `null` to `PATCH /v1/branding`’s `logoStorageKey` instead. Writing this takes `branding.write`.
+         */
+        post: operations["uploadBrandingLogo"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1224,6 +1308,26 @@ export interface paths {
          * @description The irreversible step (D-38), and the only thing on this path that writes to the ledger (C1): in one transaction it allocates the gapless document number, posts a balanced journal debiting the org’s receivables control account, and records both. No body — the entry date is the invoice’s own `issueDate` and the actor is the session. Refusals worth branching on: `receivable_control_account_not_set` and `receivable_control_account_unusable` are `precondition_failed` naming the org setting to fix, and an invoice that is already approved is a `409 conflict` — approval posts to the ledger and happens once.
          */
         post: operations["approveInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email an approved invoice to its customer
+         * @description Renders the invoice to PDF under the org’s current branding, retains that PDF as the sent snapshot, mints a hosted-page link, and emails it to `recipientEmail` or, if absent, the invoiced contact’s own email (C1). The response is the delivery record — never the invoice — because sending changes nothing about the invoice itself (D-38): no `status`, no new field on `invoiceSchema`, only a row describing the attempt. A draft cannot be sent — there is nothing approved to render — and C1 (the service, authored separately) owns the exact refusal token for that case. Takes `invoices.send`, distinct from `invoices.write`: sending reaches a customer’s inbox and editing a draft does not.
+         */
+        post: operations["sendInvoice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6654,6 +6758,102 @@ export interface operations {
             };
         };
     };
+    getPublicInvoiceView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The hosted invoice page’s capability token, `{prefix}.{secret}` — the whole authorization for this request. No session, no permission, no expiry (D-74). */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The customer-safe invoice the hosted page renders, served unauthenticated to whoever holds the link. Carries no internal identifiers — no journal, contact or org id — only what prints on an invoice and the two links to act on it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The sender’s letterhead as the hosted page shows it, customer-safe. */
+                        branding: {
+                            addressLine1: string | null;
+                            addressLine2: string | null;
+                            brandColor: string | null;
+                            city: string | null;
+                            country: string | null;
+                            displayName: string;
+                            invoiceFooter: string | null;
+                            /** @description A URL for the org’s logo, derived from its stored key — never the key itself. Null when the org has uploaded no logo. */
+                            logoUrl: string | null;
+                            postalCode: string | null;
+                            region: string | null;
+                        };
+                        /** @description Who the invoice is addressed to, as a printed name — not a reference to a row. */
+                        customerName: string;
+                        /** @description The org’s number for this invoice, as printed. A sent invoice is always numbered. */
+                        documentNumber: string;
+                        dueDate: components["schemas"]["CalendarDate"];
+                        issueDate: components["schemas"]["CalendarDate"];
+                        lines: {
+                            description: string;
+                            grossAmount: components["schemas"]["MinorUnits"];
+                            netAmount: components["schemas"]["MinorUnits"];
+                            quantity: components["schemas"]["Quantity"];
+                            taxAmount: components["schemas"]["MinorUnits"];
+                            unitAmount: components["schemas"]["MinorUnits"];
+                        }[];
+                        memo: string | null;
+                        /** @description The `/public/invoices/{token}/pdf` link, carrying the same capability token as this page. */
+                        pdfUrl: string;
+                        /** @description The customer’s own reference — their purchase-order number, when they gave one. */
+                        reference: string | null;
+                        taxSummary: {
+                            net: components["schemas"]["MinorUnits"];
+                            percentage: string | null;
+                            tax: components["schemas"]["MinorUnits"];
+                            taxRateName: string | null;
+                        }[];
+                        totals: components["schemas"]["DocumentTotals"];
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPublicInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The hosted invoice page’s capability token, `{prefix}.{secret}` — the whole authorization for this request. No session, no permission, no expiry (D-74). */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getControlAccounts: {
         parameters: {
             query?: never;
@@ -7920,6 +8120,197 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        addressLine1: string | null;
+                        addressLine2: string | null;
+                        brandColor: string | null;
+                        city: string | null;
+                        country: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @description What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on. */
+                        displayName: string;
+                        email: string | null;
+                        invoiceFooter: string | null;
+                        logoStorageKey: string | null;
+                        phone: string | null;
+                        postalCode: string | null;
+                        region: string | null;
+                        taxNumber: string | null;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        website: string | null;
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateBranding: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Partial update of the org’s branding. An absent field is unchanged and an explicit `null` clears a nullable one. `displayName` cannot be cleared, only changed. */
+        requestBody: {
+            content: {
+                "application/json": {
+                    addressLine1?: string | null;
+                    addressLine2?: string | null;
+                    brandColor?: string | null;
+                    city?: string | null;
+                    country?: string | null;
+                    /** @description What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on. */
+                    displayName?: string;
+                    email?: string | null;
+                    invoiceFooter?: string | null;
+                    logoStorageKey?: string | null;
+                    phone?: string | null;
+                    postalCode?: string | null;
+                    region?: string | null;
+                    taxNumber?: string | null;
+                    website?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        addressLine1: string | null;
+                        addressLine2: string | null;
+                        brandColor: string | null;
+                        city: string | null;
+                        country: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @description What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on. */
+                        displayName: string;
+                        email: string | null;
+                        invoiceFooter: string | null;
+                        logoStorageKey: string | null;
+                        phone: string | null;
+                        postalCode: string | null;
+                        region: string | null;
+                        taxNumber: string | null;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        website: string | null;
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadBrandingLogo: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: byte
+                     * @description The image, base64-encoded. Decodes to at most 2097152 bytes (2 MiB).
+                     */
+                    content: string;
+                    /**
+                     * @description The image format. Anything else is refused before the bytes are read.
+                     * @enum {string}
+                     */
+                    contentType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+                    /** @description What the file was called. Recorded nowhere — only its bytes and type are kept. */
+                    filename: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        addressLine1: string | null;
+                        addressLine2: string | null;
+                        brandColor: string | null;
+                        city: string | null;
+                        country: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @description What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on. */
+                        displayName: string;
+                        email: string | null;
+                        invoiceFooter: string | null;
+                        logoStorageKey: string | null;
+                        phone: string | null;
+                        postalCode: string | null;
+                        region: string | null;
+                        taxNumber: string | null;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        website: string | null;
+                    };
                 };
             };
             /** @description Default Response */
@@ -9582,6 +9973,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sendInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        /** @description Sends an invoice to its customer. `recipientEmail` overrides the destination for this one send; absent, the server uses the invoiced contact’s email. */
+        requestBody: {
+            content: {
+                "application/json": {
+                    recipientEmail?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The record of one invoice send: which invoice, where it went, whether the provider took it, and the public link the customer received. Never the token secret or its hash. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The object-store key of the PDF snapshot taken at send time — the invoice frozen as it was sent, so a later edit cannot rewrite what the customer received. */
+                        artifactStorageKey: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        id: string;
+                        /**
+                         * Format: uuid
+                         * @description The invoice that was sent.
+                         */
+                        invoiceId: string;
+                        /** @description The email provider’s own id for this message, when it accepted one. Null on a `failed` send, or before the provider has answered. */
+                        providerMessageId: string | null;
+                        /** @description The `/i/{token}` link the customer was given, carrying the capability token. The token itself is stored only as a prefix and a hash (see the file header); this is the whole link as it was sent. */
+                        publicUrl: string;
+                        /**
+                         * Format: email
+                         * @description Where this send went — the override if one was given, else the contact’s email.
+                         */
+                        recipientEmail: string;
+                        /**
+                         * Format: date-time
+                         * @description When the send was attempted.
+                         */
+                        sentAt: string;
+                        /**
+                         * @description Whether the provider accepted the send. `sent` on acceptance, `failed` otherwise. Not delivery confirmation — that is a later provider signal on its own surface.
+                         * @enum {string}
+                         */
+                        status: "sent" | "failed";
+                    };
                 };
             };
             /** @description Default Response */

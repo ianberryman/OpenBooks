@@ -14,6 +14,8 @@ import {
 } from '../../components';
 import { AllocateDialog } from './allocate-dialog';
 import { AllocationsPanel } from './allocations-panel';
+import { sendInvoice } from './delivery-client';
+import type { InvoiceDelivery } from './delivery-client';
 import { todayIsoDate } from './document-state';
 import { apiFor, deleteAllocation, salesKeys } from './queries';
 import type {
@@ -52,6 +54,18 @@ import { StatusBadge, TAX_MODE_LABELS, lifecycleSummary, vocabularyFor } from '.
  * applied against a receivable that no longer exists and the subledger would disagree with
  * the control account by exactly the amount applied. The fix is to un-apply first, so the
  * refusal scrolls the user to rows with an Un-apply button on each.
+ *
+ * ## Send (OB-131, Phase 1, S4)
+ *
+ * Invoices only — nothing about a credit note is ever mailed to a customer — and offered
+ * whenever the invoice is not void; `sendInvoice` carries an optional `recipientEmail`
+ * that overrides the invoiced contact's own address for that one send, so the dialog is
+ * where that override is typed rather than a silent default. What this section itself
+ * renders — the lines, the totals, the tax summary — *is* the preview: there is no second
+ * "preview" endpoint in the delivery contract, so confirming the dialog is confirming
+ * against what is already on screen. `sendInvoice`'s call goes through
+ * `./delivery-client.ts`, a hand-typed mock of `POST /v1/invoices/{id}/send` — see that
+ * file's header for why and for the one-line swap once the route is generated.
  */
 export interface DocumentViewProps {
   readonly document: SalesDocument;
@@ -78,6 +92,9 @@ export function DocumentView({
   const [allocating, setAllocating] = useState(false);
   const [voidDate, setVoidDate] = useState(() => todayIsoDate());
   const [voidMemo, setVoidMemo] = useState('');
+  const [sending, setSending] = useState(false);
+  const [recipientOverride, setRecipientOverride] = useState('');
+  const [delivery, setDelivery] = useState<InvoiceDelivery | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
 
   const voidDocument = useMutation({
@@ -103,7 +120,23 @@ export function DocumentView({
     }) => deleteAllocation(variables.allocationId, variables.idempotencyKey),
   });
 
-  const busy = voidDocument.isPending || unapply.isPending;
+  const send = useMutation({
+    mutationFn: async (variables: {
+      readonly recipientEmail: string;
+      readonly idempotencyKey: string;
+    }) =>
+      sendInvoice(
+        document.id,
+        // '' means "no override" — the contact's own email, per `sendInvoiceRequestSchema`
+        // — and must not become `recipientEmail: ''` on the wire.
+        variables.recipientEmail.trim() === ''
+          ? {}
+          : { recipientEmail: variables.recipientEmail.trim() },
+        variables.idempotencyKey,
+      ),
+  });
+
+  const busy = voidDocument.isPending || unapply.isPending || send.isPending;
   const presented = failure === null ? null : presentApiError(failure);
   const token = preconditionToken(failure);
 
@@ -151,9 +184,28 @@ export function DocumentView({
     }
   }
 
+  async function handleSend(): Promise<void> {
+    setFailure(null);
+    try {
+      const result = await send.mutateAsync({
+        recipientEmail: recipientOverride,
+        // Minted per submission, `handleVoid`'s reason: the body carries the recipient
+        // override, so a key reused after the user corrected it would come back as an
+        // `idempotency_key_conflict` instead of the retry they asked for.
+        idempotencyKey: newIdempotencyKey(),
+      });
+      setDelivery(result);
+      setSending(false);
+      setRecipientOverride('');
+    } catch (error) {
+      setFailure(error);
+    }
+  }
+
   const isVoid = document.status === 'void';
   const canApplyCredit =
     isCreditNote(document, kind) && !isVoid && document.settlement.outstanding !== '0';
+  const canSend = kind === 'invoice' && !isVoid;
 
   return (
     <section
@@ -302,12 +354,47 @@ export function DocumentView({
         />
       </div>
 
+      {delivery !== null && (
+        <div
+          role="status"
+          className="flex flex-col gap-1 rounded-lg border border-border bg-surface-sunken p-3"
+        >
+          <p className="text-sm font-semibold text-text">
+            {delivery.status === 'sent' ? 'Sent' : 'Send failed'} to {delivery.recipientEmail}
+          </p>
+          <p className="text-xs text-text-subtle">
+            {new Date(delivery.sentAt).toLocaleString()} ·{' '}
+            <a
+              href={delivery.publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:no-underline"
+            >
+              Hosted invoice link
+            </a>
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
         <div className="flex-1" />
 
         {canApplyCredit && (
           <Button variant="primary" disabled={busy} onClick={() => setAllocating(true)}>
             Apply to invoices
+          </Button>
+        )}
+
+        {canSend && (
+          <Button
+            variant="primary"
+            disabled={busy}
+            onClick={() => {
+              send.reset();
+              setSending(true);
+            }}
+          >
+            {send.isPending ? 'Sending…' : 'Send'}
           </Button>
         )}
 
@@ -369,6 +456,53 @@ export function DocumentView({
                 placeholder="Carried onto the reversing journal"
                 onChange={(event) => {
                   setVoidMemo(event.target.value);
+                }}
+              />
+            </Field>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={sending}
+        onOpenChange={(next) => {
+          if (!next) setSending(false);
+        }}
+      >
+        <DialogContent
+          title="Send this invoice?"
+          description="An email goes out with a link to the invoice below and a PDF attached."
+          footer={
+            <>
+              <Button onClick={() => setSending(false)}>Cancel</Button>
+              <Button
+                variant="primary"
+                disabled={send.isPending}
+                onClick={() => {
+                  void handleSend();
+                }}
+              >
+                {send.isPending ? 'Sending…' : 'Send'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-text-muted">
+              Everything above — the lines, the totals, the tax summary — is what the customer will
+              see, dressed in the organization&rsquo;s branding.
+            </p>
+
+            <Field hint="Leave blank to send to the customer’s own email on file.">
+              <FieldLabel>Send to a different address</FieldLabel>
+              <TextInput
+                type="email"
+                value={recipientOverride}
+                placeholder={
+                  reference.contactsById.get(document.contactId)?.displayName ?? 'Customer email'
+                }
+                onChange={(event) => {
+                  setRecipientOverride(event.target.value);
                 }}
               />
             </Field>

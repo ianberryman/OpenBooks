@@ -17404,6 +17404,342 @@
         ]
       }
     },
+    "/public/invoices/{token}": {
+      "get": {
+        "description": "Renders the customer-safe view of one invoice for whoever holds the link — no session, no permission, read-only (D-74). Carries no internal identifiers: no journal, contact or org id, only what prints on an invoice and the two links (this page, and the PDF) a customer can act on. An unknown, malformed or never-issued token all answer with the same `404`.",
+        "operationId": "getPublicInvoiceView",
+        "parameters": [
+          {
+            "description": "The hosted invoice page’s capability token, `{prefix}.{secret}` — the whole authorization for this request. No session, no permission, no expiry (D-74).",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The customer-safe invoice the hosted page renders, served unauthenticated to whoever holds the link. Carries no internal identifiers — no journal, contact or org id — only what prints on an invoice and the two links to act on it.",
+                  "properties": {
+                    "branding": {
+                      "additionalProperties": false,
+                      "description": "The sender’s letterhead as the hosted page shows it, customer-safe.",
+                      "properties": {
+                        "addressLine1": {
+                          "anyOf": [
+                            {
+                              "maxLength": 255,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "addressLine2": {
+                          "anyOf": [
+                            {
+                              "maxLength": 255,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "brandColor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "maxLength": 128,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "country": {
+                          "anyOf": [
+                            {
+                              "maxLength": 128,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "displayName": {
+                          "maxLength": 255,
+                          "type": "string"
+                        },
+                        "invoiceFooter": {
+                          "anyOf": [
+                            {
+                              "maxLength": 1024,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "logoUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "A URL for the org’s logo, derived from its stored key — never the key itself. Null when the org has uploaded no logo."
+                        },
+                        "postalCode": {
+                          "anyOf": [
+                            {
+                              "maxLength": 32,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "region": {
+                          "anyOf": [
+                            {
+                              "maxLength": 128,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "displayName",
+                        "addressLine1",
+                        "addressLine2",
+                        "city",
+                        "region",
+                        "postalCode",
+                        "country",
+                        "logoUrl",
+                        "brandColor",
+                        "invoiceFooter"
+                      ],
+                      "type": "object"
+                    },
+                    "customerName": {
+                      "description": "Who the invoice is addressed to, as a printed name — not a reference to a row.",
+                      "type": "string"
+                    },
+                    "documentNumber": {
+                      "description": "The org’s number for this invoice, as printed. A sent invoice is always numbered.",
+                      "type": "string"
+                    },
+                    "dueDate": {
+                      "$ref": "#/components/schemas/CalendarDate"
+                    },
+                    "issueDate": {
+                      "$ref": "#/components/schemas/CalendarDate"
+                    },
+                    "lines": {
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "One invoice line, customer-safe: what it is, how many, and the money.",
+                        "properties": {
+                          "description": {
+                            "type": "string"
+                          },
+                          "grossAmount": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          },
+                          "netAmount": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          },
+                          "quantity": {
+                            "$ref": "#/components/schemas/Quantity"
+                          },
+                          "taxAmount": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          },
+                          "unitAmount": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          }
+                        },
+                        "required": [
+                          "description",
+                          "quantity",
+                          "unitAmount",
+                          "netAmount",
+                          "taxAmount",
+                          "grossAmount"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pdfUrl": {
+                      "description": "The `/public/invoices/{token}/pdf` link, carrying the same capability token as this page.",
+                      "type": "string"
+                    },
+                    "reference": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The customer’s own reference — their purchase-order number, when they gave one."
+                    },
+                    "taxSummary": {
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "One tax rate’s net and tax on this invoice, as printed.",
+                        "properties": {
+                          "net": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          },
+                          "percentage": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tax": {
+                            "$ref": "#/components/schemas/MinorUnits"
+                          },
+                          "taxRateName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "taxRateName",
+                          "percentage",
+                          "net",
+                          "tax"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "totals": {
+                      "$ref": "#/components/schemas/DocumentTotals"
+                    }
+                  },
+                  "required": [
+                    "documentNumber",
+                    "reference",
+                    "issueDate",
+                    "dueDate",
+                    "lines",
+                    "totals",
+                    "taxSummary",
+                    "memo",
+                    "customerName",
+                    "branding",
+                    "pdfUrl"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The customer-safe invoice the hosted page renders, served unauthenticated to whoever holds the link. Carries no internal identifiers — no journal, contact or org id — only what prints on an invoice and the two links to act on it."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The hosted invoice page, unauthenticated",
+        "tags": [
+          "public-invoices"
+        ]
+      }
+    },
+    "/public/invoices/{token}/pdf": {
+      "get": {
+        "description": "Streams the exact PDF snapshot taken when this invoice was sent, carrying the same capability token as the hosted page. The same `404` rule applies: an unknown, malformed or never-issued token is indistinguishable from a token for an invoice that does not exist.",
+        "operationId": "getPublicInvoicePdf",
+        "parameters": [
+          {
+            "description": "The hosted invoice page’s capability token, `{prefix}.{secret}` — the whole authorization for this request. No session, no permission, no expiry (D-74).",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The retained invoice PDF, unauthenticated",
+        "tags": [
+          "public-invoices"
+        ]
+      }
+    },
     "/v1/accounting-settings": {
       "get": {
         "description": "Which of the org’s own accounts an approved invoice debits and an approved bill credits. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. Reading this takes `orgs.read` rather than `accounts.read`: what is being read is a decision the organization made, and it is the field a client needs in order to explain a refused approval.",
@@ -19421,6 +19757,965 @@
         "summary": "Void an approved bill",
         "tags": [
           "bills"
+        ]
+      }
+    },
+    "/v1/branding": {
+      "get": {
+        "description": "Name, address, contact details, logo and accent colour — what an invoice PDF and the hosted page print at their head (S2, S3). Lazily created: an org that has never set any of this still gets a row back, because a PDF renderer needs somewhere to read from on an org’s very first invoice. Reading this takes `branding.read`.",
+        "operationId": "getBranding",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org.",
+                  "properties": {
+                    "addressLine1": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "addressLine2": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "brandColor": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s accent colour as a six-digit hex string, e.g. `#1a1a1a`. Used to tint the hosted invoice page and the PDF. Send `null` to fall back to the default.",
+                          "examples": [
+                            "#1a1a1a",
+                            "#0b5cff"
+                          ],
+                          "pattern": "^#[0-9a-fA-F]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "city": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "description": "What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on.",
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s own billing email, printed on the invoice so a customer can reply. Send `null` to clear it. This is not the delivery recipient — that is the customer’s address.",
+                          "format": "email",
+                          "maxLength": 320,
+                          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invoiceFooter": {
+                      "anyOf": [
+                        {
+                          "description": "Free text printed at the foot of every invoice — payment instructions, a thank-you, the bank details a customer pays into. Send `null` to clear it.",
+                          "maxLength": 1024,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "logoStorageKey": {
+                      "anyOf": [
+                        {
+                          "description": "The object-store key of the org’s logo, written after a logo upload rather than typed here. The public invoice view renders a `logoUrl` derived from this, never the key. Send `null` to remove the logo.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "phone": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s phone number, printed as-is on the invoice. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "postalCode": {
+                      "anyOf": [
+                        {
+                          "maxLength": 32,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "taxNumber": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free text, not validated against any jurisdiction’s check digit. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "website": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s website, printed as entered. Send `null` to clear it.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "addressLine1",
+                    "addressLine2",
+                    "city",
+                    "region",
+                    "postalCode",
+                    "country",
+                    "email",
+                    "phone",
+                    "website",
+                    "taxNumber",
+                    "logoStorageKey",
+                    "brandColor",
+                    "invoiceFooter",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The org’s invoice letterhead",
+        "tags": [
+          "branding"
+        ]
+      },
+      "patch": {
+        "description": "An omitted field is left as it is; an explicit `null` clears it — except `displayName`, which has no null state and can only be changed. `logoStorageKey` is accepted here so a client can clear the logo with `null`, but the key itself is ordinarily written by `POST /v1/branding/logo`, not typed in by hand. Writing this takes `branding.write`.",
+        "operationId": "updateBranding",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Partial update of the org’s branding. An absent field is unchanged and an explicit `null` clears a nullable one. `displayName` cannot be cleared, only changed.",
+                "properties": {
+                  "addressLine1": {
+                    "anyOf": [
+                      {
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "addressLine2": {
+                    "anyOf": [
+                      {
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "brandColor": {
+                    "anyOf": [
+                      {
+                        "description": "The org’s accent colour as a six-digit hex string, e.g. `#1a1a1a`. Used to tint the hosted invoice page and the PDF. Send `null` to fall back to the default.",
+                        "examples": [
+                          "#1a1a1a",
+                          "#0b5cff"
+                        ],
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "city": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "country": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "displayName": {
+                    "description": "What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on.",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "description": "The org’s own billing email, printed on the invoice so a customer can reply. Send `null` to clear it. This is not the delivery recipient — that is the customer’s address.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "invoiceFooter": {
+                    "anyOf": [
+                      {
+                        "description": "Free text printed at the foot of every invoice — payment instructions, a thank-you, the bank details a customer pays into. Send `null` to clear it.",
+                        "maxLength": 1024,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "logoStorageKey": {
+                    "anyOf": [
+                      {
+                        "description": "The object-store key of the org’s logo, written after a logo upload rather than typed here. The public invoice view renders a `logoUrl` derived from this, never the key. Send `null` to remove the logo.",
+                        "maxLength": 512,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      {
+                        "description": "The org’s phone number, printed as-is on the invoice. Send `null` to clear it.",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "postalCode": {
+                    "anyOf": [
+                      {
+                        "maxLength": 32,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "region": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "taxNumber": {
+                    "anyOf": [
+                      {
+                        "description": "The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free text, not validated against any jurisdiction’s check digit. Send `null` to clear it.",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "website": {
+                    "anyOf": [
+                      {
+                        "description": "The org’s website, printed as entered. Send `null` to clear it.",
+                        "maxLength": 512,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "Partial update of the org’s branding. An absent field is unchanged and an explicit `null` clears a nullable one. `displayName` cannot be cleared, only changed.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org.",
+                  "properties": {
+                    "addressLine1": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "addressLine2": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "brandColor": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s accent colour as a six-digit hex string, e.g. `#1a1a1a`. Used to tint the hosted invoice page and the PDF. Send `null` to fall back to the default.",
+                          "examples": [
+                            "#1a1a1a",
+                            "#0b5cff"
+                          ],
+                          "pattern": "^#[0-9a-fA-F]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "city": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "description": "What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on.",
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s own billing email, printed on the invoice so a customer can reply. Send `null` to clear it. This is not the delivery recipient — that is the customer’s address.",
+                          "format": "email",
+                          "maxLength": 320,
+                          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invoiceFooter": {
+                      "anyOf": [
+                        {
+                          "description": "Free text printed at the foot of every invoice — payment instructions, a thank-you, the bank details a customer pays into. Send `null` to clear it.",
+                          "maxLength": 1024,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "logoStorageKey": {
+                      "anyOf": [
+                        {
+                          "description": "The object-store key of the org’s logo, written after a logo upload rather than typed here. The public invoice view renders a `logoUrl` derived from this, never the key. Send `null` to remove the logo.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "phone": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s phone number, printed as-is on the invoice. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "postalCode": {
+                      "anyOf": [
+                        {
+                          "maxLength": 32,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "taxNumber": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free text, not validated against any jurisdiction’s check digit. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "website": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s website, printed as entered. Send `null` to clear it.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "addressLine1",
+                    "addressLine2",
+                    "city",
+                    "region",
+                    "postalCode",
+                    "country",
+                    "email",
+                    "phone",
+                    "website",
+                    "taxNumber",
+                    "logoStorageKey",
+                    "brandColor",
+                    "invoiceFooter",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Change the org’s invoice letterhead",
+        "tags": [
+          "branding"
+        ]
+      }
+    },
+    "/v1/branding/logo": {
+      "post": {
+        "description": "Replaces the org’s logo and returns the branding record carrying the new `logoStorageKey`. Stored under an org-scoped key (`{orgId}/branding/logo`, F3) and served back only as a derived `logoUrl`, never as this key — see `orgBrandingSchema`. To remove a logo rather than replace it, send `null` to `PATCH /v1/branding`’s `logoStorageKey` instead. Writing this takes `branding.write`.",
+        "operationId": "uploadBrandingLogo",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "description": "The image, base64-encoded. Decodes to at most 2097152 bytes (2 MiB).",
+                    "format": "byte",
+                    "maxLength": 2796204,
+                    "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "description": "The image format. Anything else is refused before the bytes are read.",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp",
+                      "image/gif"
+                    ],
+                    "type": "string"
+                  },
+                  "filename": {
+                    "description": "What the file was called. Recorded nowhere — only its bytes and type are kept.",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "filename",
+                  "contentType",
+                  "content"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org.",
+                  "properties": {
+                    "addressLine1": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "addressLine2": {
+                      "anyOf": [
+                        {
+                          "maxLength": 255,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "brandColor": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s accent colour as a six-digit hex string, e.g. `#1a1a1a`. Used to tint the hosted invoice page and the PDF. Send `null` to fall back to the default.",
+                          "examples": [
+                            "#1a1a1a",
+                            "#0b5cff"
+                          ],
+                          "pattern": "^#[0-9a-fA-F]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "city": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "country": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "description": "What the org calls itself on the invoices it sends — the name at the top of the letterhead, e.g. `Acme Supplies Limited`. Required: an invoice printed under no name is not one anyone can act on.",
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s own billing email, printed on the invoice so a customer can reply. Send `null` to clear it. This is not the delivery recipient — that is the customer’s address.",
+                          "format": "email",
+                          "maxLength": 320,
+                          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "invoiceFooter": {
+                      "anyOf": [
+                        {
+                          "description": "Free text printed at the foot of every invoice — payment instructions, a thank-you, the bank details a customer pays into. Send `null` to clear it.",
+                          "maxLength": 1024,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "logoStorageKey": {
+                      "anyOf": [
+                        {
+                          "description": "The object-store key of the org’s logo, written after a logo upload rather than typed here. The public invoice view renders a `logoUrl` derived from this, never the key. Send `null` to remove the logo.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "phone": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s phone number, printed as-is on the invoice. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "postalCode": {
+                      "anyOf": [
+                        {
+                          "maxLength": 32,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "region": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "taxNumber": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free text, not validated against any jurisdiction’s check digit. Send `null` to clear it.",
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "website": {
+                      "anyOf": [
+                        {
+                          "description": "The org’s website, printed as entered. Send `null` to clear it.",
+                          "maxLength": 512,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "addressLine1",
+                    "addressLine2",
+                    "city",
+                    "region",
+                    "postalCode",
+                    "country",
+                    "email",
+                    "phone",
+                    "website",
+                    "taxNumber",
+                    "logoStorageKey",
+                    "brandColor",
+                    "invoiceFooter",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The letterhead an org’s invoices are printed under: its name, address, contact details, logo and accent colour. One row per org."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Upload the org’s logo",
+        "tags": [
+          "branding"
         ]
       }
     },
@@ -22071,6 +23366,149 @@
           }
         },
         "summary": "Approve an invoice and post its journal",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/v1/invoices/{invoiceId}/send": {
+      "post": {
+        "description": "Renders the invoice to PDF under the org’s current branding, retains that PDF as the sent snapshot, mints a hosted-page link, and emails it to `recipientEmail` or, if absent, the invoiced contact’s own email (C1). The response is the delivery record — never the invoice — because sending changes nothing about the invoice itself (D-38): no `status`, no new field on `invoiceSchema`, only a row describing the attempt. A draft cannot be sent — there is nothing approved to render — and C1 (the service, authored separately) owns the exact refusal token for that case. Takes `invoices.send`, distinct from `invoices.write`: sending reaches a customer’s inbox and editing a draft does not.",
+        "operationId": "sendInvoice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoiceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Sends an invoice to its customer. `recipientEmail` overrides the destination for this one send; absent, the server uses the invoiced contact’s email.",
+                "properties": {
+                  "recipientEmail": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "Sends an invoice to its customer. `recipientEmail` overrides the destination for this one send; absent, the server uses the invoiced contact’s email.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The record of one invoice send: which invoice, where it went, whether the provider took it, and the public link the customer received. Never the token secret or its hash.",
+                  "properties": {
+                    "artifactStorageKey": {
+                      "description": "The object-store key of the PDF snapshot taken at send time — the invoice frozen as it was sent, so a later edit cannot rewrite what the customer received.",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "invoiceId": {
+                      "description": "The invoice that was sent.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "providerMessageId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The email provider’s own id for this message, when it accepted one. Null on a `failed` send, or before the provider has answered."
+                    },
+                    "publicUrl": {
+                      "description": "The `/i/{token}` link the customer was given, carrying the capability token. The token itself is stored only as a prefix and a hash (see the file header); this is the whole link as it was sent.",
+                      "type": "string"
+                    },
+                    "recipientEmail": {
+                      "description": "Where this send went — the override if one was given, else the contact’s email.",
+                      "format": "email",
+                      "maxLength": 320,
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+                      "type": "string"
+                    },
+                    "sentAt": {
+                      "description": "When the send was attempted.",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "Whether the provider accepted the send. `sent` on acceptance, `failed` otherwise. Not delivery confirmation — that is a later provider signal on its own surface.",
+                      "enum": [
+                        "sent",
+                        "failed"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "invoiceId",
+                    "recipientEmail",
+                    "sentAt",
+                    "artifactStorageKey",
+                    "providerMessageId",
+                    "status",
+                    "publicUrl",
+                    "createdAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The record of one invoice send: which invoice, where it went, whether the provider took it, and the public link the customer received. Never the token secret or its hash."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Email an approved invoice to its customer",
         "tags": [
           "invoices"
         ]

@@ -70,7 +70,7 @@ describe('the caller’s permission set', () => {
 
     expect(identity.roleId).toBe(SYSTEM_ROLE_UUIDS.owner);
     // The Owner bundle, spot-checked rather than restated: the catalog's own drift
-    // test in `test/permissions/` is the authority on what the 48 codes are, and a
+    // test in `test/permissions/` is the authority on what the 51 codes are, and a
     // second copy of the list here would be a second thing to update.
     expect(permissions).toContain('accounts.write');
     expect(permissions).toContain('journals.post');

@@ -6,6 +6,7 @@ import { registerBankAccountRoutes } from './bank-accounts';
 import { registerBankImportRoutes } from './bank-imports';
 import { registerBankRuleRoutes } from './bank-rules';
 import { registerBillRoutes } from './bills';
+import { registerBrandingRoutes } from './branding';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
@@ -52,6 +53,9 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `DELETE` | `/v1/bills/:billId`                             | `discardBill`               | required        | org            |
  * | `POST`   | `/v1/bills/:billId/approve`                     | `approveBill`               | required        | org            |
  * | `POST`   | `/v1/bills/:billId/void`                        | `voidBill`                  | required        | org            |
+ * | `GET`    | `/v1/branding`                                  | `getBranding`               | —               | —              |
+ * | `PATCH`  | `/v1/branding`                                  | `updateBranding`            | required        | org            |
+ * | `POST`   | `/v1/branding/logo`                             | `uploadBrandingLogo`        | required        | org            |
  * | `GET`    | `/v1/chart-templates`                           | `listChartTemplates`        | —               | —              |
  * | `POST`   | `/v1/chart-templates/apply`                     | `applyChartTemplate`        | required        | org            |
  * | `POST`   | `/v1/contacts`                                  | `createContact`             | required        | org            |
@@ -99,6 +103,7 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `DELETE` | `/v1/invoices/:invoiceId`                       | `discardInvoice`            | required        | org            |
  * | `POST`   | `/v1/invoices/:invoiceId/approve`               | `approveInvoice`            | required        | org            |
  * | `POST`   | `/v1/invoices/:invoiceId/void`                  | `voidInvoice`               | required        | org            |
+ * | `POST`   | `/v1/invoices/:invoiceId/send`                  | `sendInvoice`               | required        | org            |
  * | `GET`    | `/v1/journal-lines/:lineId/dimensions`          | `getJournalLineDimensions`  | —               | —              |
  * | `PUT`    | `/v1/journal-lines/:lineId/dimensions`          | `setJournalLineDimensions`  | required        | org            |
  * | `POST`   | `/v1/journal-drafts`                            | `createDraft`               | required        | org            |
@@ -140,6 +145,16 @@ import { registerTaxRateRoutes } from './tax-rates';
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/allocations`| `allocateVendorCredit`      | required        | org            |
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/approve`    | `approveVendorCredit`       | required        | org            |
  * | `POST`   | `/v1/vendor-credits/:vendorCreditId/void`       | `voidVendorCredit`          | required        | org            |
+ *
+ * OB-130 adds four operations for Phase 1's invoice delivery (the delivery slice of
+ * INV; ROADMAP "Phase 1 execution", stream S5): `getBranding` takes `branding.read`;
+ * `updateBranding` and `uploadBrandingLogo` take `branding.write`; `sendInvoice`
+ * takes `invoices.send`, distinct from `invoices.write` because sending reaches a
+ * customer's inbox and editing a draft does not. The two public, unauthenticated
+ * endpoints the hosted page needs — `GET /public/invoices/{token}` and its `/pdf`
+ * sibling — are **not** on this table: S3 (OB-121) registers them outside `/v1`
+ * entirely, deliberately bypassing every hook and permission this table's routes
+ * share, and `branding.ts`'s file header says why.
  *
  * ### OB-084 — the `/v1` surface for banking (M4)
  *
@@ -320,6 +335,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerAuthRoutes(app, config);
   registerOrgRoutes(app);
   registerAccountRoutes(app);
+  registerBrandingRoutes(app);
   registerChartTemplateRoutes(app);
   registerContactRoutes(app);
   registerDimensionRoutes(app);

@@ -83,7 +83,7 @@ export interface TestDatabase {
 /**
  * Tables the migrations seed and no test may clear.
  *
- * `permissions` is the fixed catalog (48 rows) and `roles`/`role_permissions` hold
+ * `permissions` is the fixed catalog (51 rows) and `roles`/`role_permissions` hold
  * the six system roles. Clearing them would not merely reset state, it would undo
  * part of `0001_tenancy` — and the app user has no way to put them back. Custom
  * roles (`org_id IS NOT NULL`) are test data and are cleared.

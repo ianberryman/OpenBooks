@@ -62,6 +62,7 @@ export const PERMISSION_KEYS = [
   'invoices.read',
   'invoices.write',
   'invoices.void',
+  'invoices.send',
   'credit_notes.read',
   'credit_notes.write',
   'payments_received.read',
@@ -75,6 +76,9 @@ export const PERMISSION_KEYS = [
   'payments_made.write',
   'tax_rates.read',
   'tax_rates.write',
+  // Invoice delivery — the org letterhead an invoice is sent under (Phase 1, INV).
+  'branding.read',
+  'branding.write',
   'banking.read',
   'banking.import',
   'banking.match',
@@ -115,12 +119,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 48 codes and the six system roles are set operations over
+ * Migration `0001` seeds 51 codes and the six system roles are set operations over
  * that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 48> = true;
+type AssertCatalogSize<_N extends 51> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

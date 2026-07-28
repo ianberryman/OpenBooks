@@ -33,17 +33,35 @@ import { createErrorHandler, createNotFoundHandler } from './errors';
 import { registerHealthRoute } from './health';
 import { registerOpenApi } from './openapi';
 import { registerV1Routes } from './routes';
+import { registerArtifactRoutes } from './routes/artifacts';
+import { registerPublicInvoiceRoutes } from './routes/public-invoices';
 import type { App } from './types';
 
 /**
  * Routes that establish or destroy a session, and therefore must be reachable despite the
  * cookie the caller arrived with. See the identity hook below for why. Matched on the route
  * template (`request.routeOptions.url`), which is stable across query strings and casing.
+ *
+ * The two `/public/invoices/*` routes (OB-121, D-74) are here for a related but distinct
+ * reason: they carry **no session at all** — the capability token in the path is the whole
+ * authorization — and the identity resolver *throws* on a cookie that names a revoked or
+ * expired session (`context.ts`: correct for a tenant route, where a forged cookie deserves a
+ * 401). A customer opening an emailed invoice link in a browser that also happens to hold a
+ * stale `HttpOnly` session cookie from an unrelated login must not be locked out of a page that
+ * needs no login at all, so these two skip identity resolution exactly as login/register/logout
+ * do, and for the same shape of reason: the incoming cookie, whatever it says, is not this
+ * request's business.
  */
 const IDENTITY_ESTABLISHING_ROUTES: ReadonlySet<string> = new Set([
   '/v1/auth/login',
   '/v1/auth/register',
   '/v1/auth/logout',
+  '/public/invoices/:token',
+  '/public/invoices/:token/pdf',
+  // The self-host artifact stream (`routes/artifacts.ts`, local adapter only): its
+  // consumer is the unauthenticated hosted invoice page's logo, so the unguessable
+  // key is the whole authorization, the same shape as the two routes above.
+  '/artifacts/*',
 ]);
 
 export interface BuildAppOptions {
@@ -247,6 +265,13 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   app.setNotFoundHandler(createNotFoundHandler(logger));
 
   registerHealthRoute(app);
+  // Outside `/v1` and outside the permission surface entirely (OB-121, D-74): the
+  // one sanctioned unauthenticated read on the API. See `public-invoices.ts`'s file
+  // header for why these two live here rather than inside `registerV1Routes`.
+  registerPublicInvoiceRoutes(app);
+  // Local-adapter only, and hidden from `openapi.json`: the retrieval path the local
+  // StorageProvider's `signedUrl` points at. Registers nothing under s3 (`artifacts.ts`).
+  registerArtifactRoutes(app, config);
   // Registration order is not load-bearing: `canonicalize` sorts the document's keys,
   // so moving a route or splitting a file cannot change `openapi.json` (see
   // `./openapi.ts`). It is alphabetical inside `registerV1Routes` for readers only.

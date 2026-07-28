@@ -284,6 +284,7 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('invoices.read',          'View customer invoices (M3)'),
       ('invoices.write',         'Create and modify customer invoices (M3)'),
       ('invoices.void',          'Void customer invoices (M3)'),
+      ('invoices.send',          'Send an invoice to its customer (INV)'),
       ('credit_notes.read',      'View credit notes (M3)'),
       ('credit_notes.write',     'Create and modify credit notes (M3)'),
       ('payments_received.read', 'View customer payments (M3)'),
@@ -297,6 +298,8 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('payments_made.write',    'Record and apply vendor payments (M3)'),
       ('tax_rates.read',         'View tax rates (M3)'),
       ('tax_rates.write',        'Create and modify tax rates (M3)'),
+      ('branding.read',          'View the org invoice letterhead (INV)'),
+      ('branding.write',         'Change the org invoice letterhead and logo (INV)'),
       ('banking.read',           'View bank accounts and transactions (M4)'),
       ('banking.import',         'Import bank statement files (M4)'),
       ('banking.match',          'Match and split bank transactions (M4)'),
@@ -409,7 +412,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
     WHERE r.is_system = 1 AND r.code = 'ar_only'
       AND p.code IN (
-        'invoices.read', 'invoices.write', 'invoices.void',
+        'invoices.read', 'invoices.write', 'invoices.void', 'invoices.send',
         'credit_notes.read', 'credit_notes.write',
         'payments_received.read', 'payments_received.write',
         'contacts.read', 'contacts.write',

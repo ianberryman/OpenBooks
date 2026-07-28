@@ -5,17 +5,26 @@ import {
   creditNotePageSchema,
   creditNoteSchema,
   documentStatusSchema,
+  invoiceDeliverySchema,
   invoicePageSchema,
   invoiceSchema,
   pageCursorSchema,
+  sendInvoiceRequestSchema,
   updateCreditNoteRequestSchema,
   updateInvoiceRequestSchema,
   voidDocumentRequestSchema,
 } from '@openbooks/shared-types';
-import type { CreditNote, CreditNotePage, Invoice, InvoicePage } from '@openbooks/shared-types';
+import type {
+  CreditNote,
+  CreditNotePage,
+  Invoice,
+  InvoiceDelivery,
+  InvoicePage,
+} from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
+import { sendInvoice } from '../../modules/delivery';
 import { withIdempotency } from '../../modules/idempotency';
 import {
   approveCreditNote,
@@ -108,6 +117,21 @@ import {
  * credits. Routing it here would put two of the three sources of an allocation in
  * one place and the third somewhere else, which is how a second definition of
  * outstanding gets written.
+ *
+ * ## `POST …/send` is idempotent for the same reason `approve` is
+ *
+ * Sending is not a status transition — `status` stays whatever the settlement
+ * arithmetic already says it is (D-38) — but it is exactly as irreversible as
+ * approving, in the sense that matters here: a customer who received one email
+ * should not receive a second because a client retried. `sendInvoiceRequestSchema`
+ * takes no invoice fields, only an optional `recipientEmail` override, and the
+ * `Idempotency-Key`/`withIdempotency` pairing every other write on this surface
+ * uses is what turns a double-clicked Send into one email rather than two: the
+ * fingerprint folds in `invoiceId` and the body, so a retry with the same key
+ * replays the first `invoiceDeliverySchema` record instead of sending again
+ * (OB-130, for OB-126/C1). The route takes `invoices.send` — a permission distinct
+ * from `invoices.write`, because sending reaches a customer's inbox and editing a
+ * draft does not.
  */
 
 const INVOICE_TAG = 'invoices';
@@ -371,6 +395,41 @@ export function registerInvoiceRoutes(app: App): void {
       );
 
       return reply.status(result.status).send(idempotentBody<Invoice>(result));
+    },
+  );
+
+  app.post(
+    '/v1/invoices/:invoiceId/send',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'sendInvoice',
+        summary: 'Email an approved invoice to its customer',
+        description:
+          'Renders the invoice to PDF under the org’s current branding, retains that PDF as the ' +
+          'sent snapshot, mints a hosted-page link, and emails it to `recipientEmail` or, if ' +
+          'absent, the invoiced contact’s own email (C1). The response is the delivery record — ' +
+          'never the invoice — because sending changes nothing about the invoice itself (D-38): no ' +
+          '`status`, no new field on `invoiceSchema`, only a row describing the attempt. A draft ' +
+          'cannot be sent — there is nothing approved to render — and C1 (the service, authored ' +
+          'separately) owns the exact refusal token for that case. Takes `invoices.send`, distinct ' +
+          'from `invoices.write`: sending reaches a customer’s inbox and editing a draft does not.',
+        tags: [INVOICE_TAG],
+        headers: idempotencyKeyHeaderSchema,
+        params: invoiceParamsSchema,
+        body: sendInvoiceRequestSchema,
+        response: { 200: invoiceDeliverySchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const { invoiceId } = request.params;
+      const result = await withIdempotency(
+        { endpoint: 'sendInvoice', request: { invoiceId, send: request.body }, successStatus: 200 },
+        () => sendInvoice(invoiceId, request.body, ctx),
+      );
+
+      return reply.status(result.status).send(idempotentBody<InvoiceDelivery>(result));
     },
   );
 

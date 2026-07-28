@@ -1,7 +1,15 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterAll, beforeAll } from 'vitest';
 
+import { loadConfig } from '../../src/config';
 import { destroyDatabase, initializeDatabase, isDatabaseInitialized } from '../../src/db/index';
+import { createLogger } from '../../src/logging';
 import { resolveSessionIdentity, SESSION_COOKIE_NAME } from '../../src/modules/auth/index';
+import { selectEmailProvider, setOutboundEmail, setStorageProvider } from '../../src/providers';
+import { createLocalStorageProvider } from '../../src/providers/storage/local';
 import { IDEMPOTENCY_KEY_HEADER } from '../../src/transport/index';
 import type { App } from '../../src/transport/index';
 import type { TestDatabase } from '../db';
@@ -39,10 +47,43 @@ export function useV1App(): V1Harness {
   const db = useTestDatabase();
   let app: App | undefined;
   let logs: LogCapture | undefined;
+  let storageDir: string | undefined;
 
   // Registered after the harness's own `beforeAll`, so `appConnectionConfig` is live.
   beforeAll(async () => {
     if (!isDatabaseInitialized()) initializeDatabase(db.appConnectionConfig);
+    // Invoice delivery (branding logo, `sendInvoice`) reaches `storageProvider()`, which
+    // resolves from `getConfig()` — unset for storage in these suites. Install a local
+    // adapter over a temp directory so a logo upload or a rendered PDF is written and read
+    // back through the real provider, spec §11's "no mocks" applied to blob storage — the
+    // same seam `test/branding` and `test/delivery` install for their own suites.
+    storageDir = await mkdtemp(join(tmpdir(), 'openbooks-v1-storage-'));
+    setStorageProvider(createLocalStorageProvider({ provider: 'local', basePath: storageDir }));
+
+    // `sendInvoice` (INV) is the first operation on this surface to email anything, and
+    // `outboundEmail()` otherwise resolves through `getConfig()` — unset here — and throws.
+    // Install a real `log` provider over a discarded stream, the same seam `test/members`
+    // uses for the invite mail: a genuine send (spec §11, no mocks), just not captured,
+    // because these suites assert the delivery record rather than the message.
+    const emailConfig = loadConfig({
+      OPENBOOKS_ROLE: 'api',
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'info',
+      DATABASE_HOST: 'unused',
+      DATABASE_USER: 'unused',
+      DATABASE_PASSWORD: 'unused',
+      DATABASE_NAME: 'unused',
+      SESSION_SECRET: 's'.repeat(40),
+      STORAGE_LOCAL_PATH: storageDir,
+      EMAIL_FROM_ADDRESS: 'billing@openbooks.test',
+      APP_BASE_URL: 'https://app.openbooks.test',
+    });
+    const emailLogger = createLogger(emailConfig, { write() {} });
+    setOutboundEmail({
+      provider: selectEmailProvider(emailConfig, emailLogger),
+      logger: emailLogger,
+      ...(emailConfig.appBaseUrl === undefined ? {} : { appBaseUrl: emailConfig.appBaseUrl }),
+    });
     /**
      * The real resolver, which is the only way these tests exercise authentication at
      * all: `buildApp` treats `resolveIdentity` as optional and an app built without one
@@ -59,6 +100,10 @@ export function useV1App(): V1Harness {
   afterAll(async () => {
     await app?.close();
     app = undefined;
+    setStorageProvider(undefined);
+    setOutboundEmail(undefined);
+    if (storageDir !== undefined) await rm(storageDir, { recursive: true, force: true });
+    storageDir = undefined;
     await destroyDatabase();
   });
 

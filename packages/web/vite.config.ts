@@ -49,6 +49,19 @@ export default defineConfig({
         target: API_TARGET,
         changeOrigin: true,
       },
+      // `/public` (the hosted invoice page's data + PDF) and `/artifacts` (the local
+      // adapter's logo/PDF stream) for the same reason as `/health`: the `/i/:token`
+      // route and the logos it renders call them, and without a rule Vite's SPA
+      // fallback would answer with index.html and a 200, turning a missing proxy into
+      // an opaque client-side parse error rather than a clear failure.
+      '/public': {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
+      '/artifacts': {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
     },
   },
   /**

@@ -86,6 +86,8 @@ import {
   voidCreditNote,
   voidInvoice,
 } from '../../src/modules/invoices';
+import { getBranding, updateBranding, uploadLogo } from '../../src/modules/branding';
+import { sendInvoice } from '../../src/modules/delivery';
 import {
   getTrialBalance,
   listJournals,
@@ -318,10 +320,10 @@ const ROLES = [
  * database by construction can never disagree with it. This table is the claim; the
  * database is what it is checked against.
  *
- * Thirty-five rows, because thirty-five of the catalog's forty-eight codes are
- * checked by a service. The other thirteen are `LATENT_GRANTS` below. Eighteen of
- * the thirty-five arrived with M3 and are marked; every one of them is a role
- * widened by a service rather than by a migration (C11, known gap 6).
+ * Forty-three rows, because forty-three of the catalog's fifty-one codes are
+ * checked by a service. The other eight are `LATENT_GRANTS` below. Eighteen arrived
+ * with M3 and are marked, and three with INV (branding + `invoices.send`); every one
+ * of them is a role widened by a service rather than by a migration (C11, known gap 6).
  */
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
@@ -403,6 +405,19 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // And the one M3 write neither clerk holds. A tax rate is configuration, not a
   // document — `0001_tenancy` gives the clerks `tax_rates.read` and stops there.
   'tax_rates.write': ['owner', 'bookkeeper'],
+
+  // ---------------------------------------------------------------------------
+  // INV (Phase 1) — the three codes invoice delivery gave an enforcement point.
+  //
+  // `branding.read`/`branding.write` gate the org letterhead (`modules/branding`):
+  // read flows to the two read-only roles through `%.read`, write is Owner and
+  // Bookkeeper like every other configuration write. `invoices.send` (`modules/
+  // delivery`) is the AR mirror of the M3 document writes — `0001_tenancy` adds it
+  // to `ar_only`'s list so a clerk can send the invoices they raise.
+  // ---------------------------------------------------------------------------
+  'branding.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'branding.write': ['owner', 'bookkeeper'],
+  'invoices.send': ['owner', 'bookkeeper', 'arOnly'],
 
   /**
    * The two codes that had waited since M1 with no enforcement point anywhere, and
@@ -1076,6 +1091,41 @@ const OPERATIONS: readonly Operation[] = [
     thenRequires: ['journals.reverse'],
     call: (s) => voidInvoice(s.voidableInvoiceId, { date: s.date }, s.ctx),
   },
+
+  // ---------------------------------------------------------------------------
+  // INV (Phase 1) — branding and invoice delivery. `invoices.send` has no
+  // `thenRequires`: sending posts no journal. These rows exercise the *gate*, not
+  // the send — the call is judged `allowed` the moment `requirePermission` passes,
+  // so a downstream miss (an absent invoice, an unconfigured store) is `allowed`
+  // for a holder, which is exactly the verdict the seeds predict. `sendInvoice`
+  // names a fresh id on purpose: a holder 404s past its one gate (there is no
+  // second gate a false `allowed` could hide), a non-holder is refused first.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'getBranding',
+    operationId: 'getBranding',
+    permission: 'branding.read',
+    call: (s) => getBranding(s.ctx),
+  },
+  {
+    name: 'updateBranding',
+    operationId: 'updateBranding',
+    permission: 'branding.write',
+    call: (s) => updateBranding({ displayName: 'Rebranded Co' }, s.ctx),
+  },
+  {
+    name: 'uploadBrandingLogo',
+    operationId: 'uploadBrandingLogo',
+    permission: 'branding.write',
+    call: (s) => uploadLogo(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), 'image/png', s.ctx),
+  },
+  {
+    name: 'sendInvoice',
+    operationId: 'sendInvoice',
+    permission: 'invoices.send',
+    call: (s) => sendInvoice(newUuid(), {}, s.ctx),
+  },
+
   {
     name: 'createCreditNote',
     operationId: 'createCreditNote',
@@ -1840,6 +1890,11 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   // the A7 404.
   'listOrgMemberships',
   'switchActiveOrg',
+  // The hosted invoice page (INV, OB-121, D-74): the capability token in the path is
+  // the whole authorization, so these two carry no permission and reach no role —
+  // the one sanctioned unauthenticated read on the API. See `public-invoices.ts`.
+  'getPublicInvoiceView',
+  'getPublicInvoicePdf',
 ]);
 
 /**
@@ -2679,7 +2734,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the forty codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the forty-three codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -2709,7 +2764,7 @@ describe('gap 6 — the grants that nothing checks yet', () => {
    */
   it.each([
     ['apOnly', 17],
-    ['arOnly', 17],
+    ['arOnly', 18],
   ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
     const rows = await db.app
       .selectFrom('role_permissions')

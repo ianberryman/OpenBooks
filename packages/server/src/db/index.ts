@@ -75,6 +75,11 @@ export {
 // tenantDb takes. Three modules had written this independently before it was
 // hoisted; see org-scope.ts for why its failure is a 500 and not a 400.
 export { orgScope } from './org-scope';
+// The one sanctioned unauthenticated read (OB-121, D-74): resolves a hosted
+// invoice page's capability token to its delivery row before any org is known.
+// See `delivery-lookup.ts` for why this cannot go through `tenantDb`.
+export { selectDeliveryCredentialByKeyPrefix } from './delivery-lookup';
+export type { DeliveryCredentialRow } from './delivery-lookup';
 // Driver-error predicates. A unique key or a grant is the real guarantee for several
 // rules while the application pre-check races it; these turn the losing race into the
 // same answer rather than an opaque 500.

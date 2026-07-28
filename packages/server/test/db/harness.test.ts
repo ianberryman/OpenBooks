@@ -78,13 +78,13 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 48-permission catalog', async () => {
+    it('has the fixed 51-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
         .executeTakeFirstOrThrow();
 
-      expect(Number(row.count)).toBe(48);
+      expect(Number(row.count)).toBe(51);
     });
 
     it('has the six system roles at their reserved ids', async () => {

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, matchPath, useLocation } from 'react-router-dom';
 
 import { permissionSet, useIdentity } from './auth/identity';
 import type { CallerIdentity } from './auth/identity';
@@ -12,6 +12,7 @@ import { BankingScreen } from './screens/banking';
 import { ContactsScreen } from './screens/contacts';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
+import { PublicInvoiceScreen } from './screens/public-invoice';
 import { PurchasesScreen } from './screens/purchases';
 import { ReportsScreen } from './screens/reports';
 import { SalesScreen } from './screens/sales';
@@ -33,14 +34,49 @@ import { QueryScopeBoundary } from './shell/query-scope';
  *
  * `QueryScopeBoundary` sits inside the router so that a scope reset remounts the screens
  * without disturbing history — see that module for why the clear needs a remount at all.
+ *
+ * `/i/:token` (OB-131, Phase 1, S4 — `src/screens/public-invoice.tsx`) is carved out
+ * *before* `QueryScopeBoundary` and `AppRoutes`. It is reached by a capability token in
+ * the URL by whoever holds the link — ordinarily a customer with no OpenBooks account —
+ * so it must call `GET /v1/auth/me` never, join the query cache an org switch clears
+ * never, and render inside `<AppShell>` never: all three assume a session this page must
+ * not need, even an absent one.
+ *
+ * `RootRoutes` chooses with `matchPath` rather than nesting `AppRoutes` under a wrapping
+ * `<Route path="/*">`. Every route table below — `SignedOutRoutes`, `OrgSelectionRoutes`,
+ * `SignedInRoutes` — is written with **absolute** paths (`/accounts`, not `accounts`)
+ * because historically each was the outermost `<Routes>`, matched against the full
+ * location with no ancestor `<Route>` narrowing it. `src/screens/banking/index.tsx` shows
+ * what the *other* convention looks like — **relative** paths under its own
+ * `/banking/*` parent — and mixing the two by wrapping `AppRoutes` in a splat `<Route>`
+ * here would silently break every absolute path one level down. `RootRoutes` sidesteps the
+ * question entirely: it renders `<PublicInvoiceScreen>` through its own unwrapped
+ * `<Routes>`, exactly as `AppRoutes` renders its own, so neither tree's path convention
+ * changes.
  */
 export function App(): ReactElement {
   return (
     <BrowserRouter>
-      <QueryScopeBoundary>
-        <AppRoutes />
-      </QueryScopeBoundary>
+      <RootRoutes />
     </BrowserRouter>
+  );
+}
+
+function RootRoutes(): ReactElement {
+  const location = useLocation();
+
+  if (matchPath('/i/:token', location.pathname) !== null) {
+    return (
+      <Routes>
+        <Route path="/i/:token" element={<PublicInvoiceScreen />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <QueryScopeBoundary>
+      <AppRoutes />
+    </QueryScopeBoundary>
   );
 }
 

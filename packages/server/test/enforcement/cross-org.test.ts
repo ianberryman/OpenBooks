@@ -960,6 +960,16 @@ const SURFACES: readonly Surface[] = [
     id: (s) => s.voidableInvoiceId,
     payload: () => ({ date: DOCUMENT_DATE }),
   },
+  {
+    // INV (Phase 1): sending another org's invoice is the same 404 as reading it. The
+    // owner's control pass over its own approved invoice is not a `404` — it reaches the
+    // send (or a precondition past the gate), which is all this matrix asks.
+    operationId: 'sendInvoice',
+    method: 'POST',
+    path: '/v1/invoices/%s/send',
+    id: (s) => s.targetInvoiceId,
+    payload: () => ({}),
+  },
   // Last of the invoice rows: the control pass reaches a 204 and the draft is gone.
   {
     operationId: 'discardInvoice',
@@ -1431,9 +1441,17 @@ describe('A7 across every surface that takes a resource id', () => {
       paths: Record<string, Record<string, { operationId: string }>>;
     };
 
+    // The hosted invoice page's two routes are path-templated on `{token}`, but a
+    // capability token is not an org-scoped resource id: it carries no org context and
+    // is the whole authorization (D-74), so A7's cross-org 404 does not apply — a forged
+    // or foreign token is already indistinguishable from an unissued one, proven in
+    // `test/delivery`. They are excluded here rather than added to `SURFACES` with an
+    // org axis they do not have.
+    const tokenGatedPublicOperations = new Set(['getPublicInvoiceView', 'getPublicInvoicePdf']);
     const templated = Object.entries(document.paths)
       .filter(([path]) => path.includes('{'))
       .flatMap(([, item]) => Object.values(item).map((operation) => operation.operationId))
+      .filter((operationId) => !tokenGatedPublicOperations.has(operationId))
       .sort();
 
     const covered = SURFACES.map((surface) => surface.operationId).sort();

@@ -45,7 +45,7 @@ const MIGRATION_TABLES = ['kysely_migration', 'kysely_migration_lock'] as const;
 /**
  * Empty, and that is the finding resolved.
  *
- * `permissions` used to sit here: its behaviour was right — the 48-row catalog is
+ * `permissions` used to sit here: its behaviour was right — the 51-row catalog is
  * fixed by spec §5 and the application must never write it — but right by *omission*
  * rather than declaration, which cost the migration its central signal. Its argument
  * is that its two lists partition the schema, so a table added without a grant

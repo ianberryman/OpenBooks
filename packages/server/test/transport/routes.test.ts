@@ -164,6 +164,11 @@ describe('the /v1 route table', () => {
         'discardInvoice',
         'approveInvoice',
         'voidInvoice',
+        // INV (Phase 1): invoice delivery + the org letterhead it prints under.
+        'sendInvoice',
+        'getBranding',
+        'updateBranding',
+        'uploadBrandingLogo',
         'createCreditNote',
         'listCreditNotes',
         'getCreditNote',

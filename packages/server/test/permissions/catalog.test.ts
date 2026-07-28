@@ -42,12 +42,12 @@ describe('the permission catalog and the seeded table agree', () => {
     expect(PERMISSION_KEYS.filter((code) => !seeded.has(code))).toEqual([]);
   });
 
-  it('has 48 codes, the number migration 0001 seeds', async () => {
+  it('has 51 codes, the number migration 0001 seeds', async () => {
     // Pinned in both places on purpose. `_CatalogSize` in catalog.ts fails the
     // build if the array changes length; this fails the suite if the migration
     // does. Neither alone catches a coordinated-looking edit to one side.
-    expect(await selectCatalogCodes()).toHaveLength(48);
-    expect(PERMISSION_KEYS).toHaveLength(48);
+    expect(await selectCatalogCodes()).toHaveLength(51);
+    expect(PERMISSION_KEYS).toHaveLength(51);
   });
 
   it('lists no code twice', async () => {
