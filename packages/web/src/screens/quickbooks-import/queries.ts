@@ -26,14 +26,9 @@ import { thinRequest } from '../../lib/thin-client';
  * import their types from this module and need no change beyond that swap.
  */
 
-const ACCOUNT_TYPES = ['asset', 'liability', 'equity', 'revenue', 'expense'] as const;
-export type QuickBooksAccountType = (typeof ACCOUNT_TYPES)[number];
-
-const NORMAL_BALANCES = ['debit', 'credit'] as const;
-export type QuickBooksNormalBalance = (typeof NORMAL_BALANCES)[number];
-
-const ISSUE_FILES = ['accounts', 'customers', 'vendors', 'trialBalance'] as const;
-export type QuickBooksImportFile = (typeof ISSUE_FILES)[number];
+export type QuickBooksAccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+export type QuickBooksNormalBalance = 'debit' | 'credit';
+export type QuickBooksImportFile = 'accounts' | 'customers' | 'vendors' | 'trialBalance';
 
 /**
  * The request — one date and up to four CSV files, read to text client-side exactly as

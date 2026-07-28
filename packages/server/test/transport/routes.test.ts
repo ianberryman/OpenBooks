@@ -217,6 +217,9 @@ describe('the /v1 route table', () => {
         'saveBankImportMapping',
         'listBankImportMappings',
         'getBankImportMapping',
+        // Phase 3 — the QuickBooks CSV migration import.
+        'previewQuickBooksImport',
+        'importQuickBooks',
         'listStatementLines',
         'getStatementLine',
         'proposeBankMatches',

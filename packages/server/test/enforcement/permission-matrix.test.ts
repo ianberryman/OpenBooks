@@ -70,6 +70,7 @@ import {
   postDraft,
   updateDraft,
 } from '../../src/modules/drafts';
+import { importQuickBooks, previewQuickBooksImport } from '../../src/modules/imports';
 import {
   approveCreditNote,
   approveInvoice,
@@ -1706,6 +1707,30 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listBankImportMappings',
     permission: 'banking.read',
     call: (s) => listBankImportMappings(s.bankAccountId, {}, s.ctx),
+  },
+  // The QuickBooks cutover checks its permissions upfront and unconditionally (a single
+  // operation that creates accounts, contacts and — with a trial balance — a journal, so it
+  // requires the union). `journals.post` is gated even on a lists-only run; `periods.write` is
+  // reached only on the fiscal-year branch a trial balance can trigger, so it is not declared
+  // here and this call sends no trial balance.
+  {
+    name: 'previewQuickBooksImport',
+    operationId: 'previewQuickBooksImport',
+    permission: 'accounts.read',
+    thenRequires: ['contacts.read'],
+    call: (s) =>
+      previewQuickBooksImport(
+        { asOfDate: '2026-01-15', accounts: 'Name,Type\nCash,Bank\n' },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'importQuickBooks',
+    operationId: 'importQuickBooks',
+    permission: 'accounts.write',
+    thenRequires: ['contacts.write', 'journals.post'],
+    call: (s) =>
+      importQuickBooks({ asOfDate: '2026-01-15', accounts: 'Name,Type\nCash,Bank\n' }, s.ctx),
   },
   {
     name: 'getBankImportMapping',

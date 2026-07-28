@@ -22,13 +22,9 @@ import {
   parseInput,
 } from '../../../errors';
 import { createAccount } from '../../accounts';
-import {
-  selectExistingCodes as selectExistingAccountCodes,
-} from '../../accounts/accounts.repository';
+import { selectExistingCodes as selectExistingAccountCodes } from '../../accounts/accounts.repository';
 import { createContact } from '../../contacts';
-import {
-  selectExistingCodes as selectExistingContactCodes,
-} from '../../contacts/contacts.repository';
+import { selectExistingCodes as selectExistingContactCodes } from '../../contacts/contacts.repository';
 import { postJournal } from '../../ledger';
 import { generateFiscalYear, selectFiscalYearStartMonth } from '../../periods';
 import { requirePermission } from '../../permissions';
@@ -259,7 +255,8 @@ async function postOpeningJournal(
     return posted.journalId;
   } catch (error) {
     const missingPeriod =
-      error instanceof PreconditionFailedError && error.details?.precondition === 'period_missing';
+      error instanceof PreconditionFailedError &&
+      error.details?.['precondition'] === 'period_missing';
     if (!missingPeriod) throw error;
 
     await ensureFiscalYearCovers(ctx, asOfDate);

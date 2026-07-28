@@ -1178,6 +1178,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/imports/quickbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit a QuickBooks CSV import
+         * @description Creates the chart of accounts, the customers and vendors, and — if a trial balance was sent — posts it as one opening journal, all in a single transaction: every account and contact lands, or none of them do. Refuses on a code conflict, an unbalanced trial balance (`opening_balance_unbalanced`), or a trial-balance line naming an account the file did not create (`opening_balance_unknown_account`).
+         */
+        post: operations["importQuickBooks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/imports/quickbooks/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a QuickBooks CSV import without writing
+         * @description Parses the chart, contact lists, and trial balance and reports what committing them would create — draft accounts and contacts, code conflicts, whether the opening balance balances, and every row-level problem. Writes nothing. A `POST` because the files are in the body, and it carries an `Idempotency-Key` like every write on this surface even though it claims none.
+         */
+        post: operations["previewQuickBooksImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/invites": {
         parameters: {
             query?: never;
@@ -9920,6 +9960,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankImportMapping"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importQuickBooks: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickBooksImportRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickBooksImportResult"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    previewQuickBooksImport: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuickBooksImportRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuickBooksImportPreview"];
                 };
             };
             /** @description Default Response */

@@ -246,7 +246,10 @@ describe('parseContactsCsv', () => {
   });
 
   it('reports a missing Name as an issue against the correct file', () => {
-    const { contacts, issues } = parseContactsCsv('Name\n\n', null);
+    // A row that carries a cell but no Name — a genuinely blank line is skipped by the
+    // tokenizer (a trailing newline is not a row), so this mirrors the accounts case
+    // (`'Name,Type\n,Bank\n'`): content present, Name absent.
+    const { contacts, issues } = parseContactsCsv('Name,Email\n,bob@acme.test\n', null);
 
     expect(contacts).toEqual([]);
     expect(issues).toEqual([{ file: 'customers', row: 1, message: expect.any(String) }]);

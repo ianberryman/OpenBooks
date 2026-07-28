@@ -23882,6 +23882,114 @@
         ]
       }
     },
+    "/v1/imports/quickbooks": {
+      "post": {
+        "description": "Creates the chart of accounts, the customers and vendors, and — if a trial balance was sent — posts it as one opening journal, all in a single transaction: every account and contact lands, or none of them do. Refuses on a code conflict, an unbalanced trial balance (`opening_balance_unbalanced`), or a trial-balance line naming an account the file did not create (`opening_balance_unknown_account`).",
+        "operationId": "importQuickBooks",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickBooksImportRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickBooksImportResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Commit a QuickBooks CSV import",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/v1/imports/quickbooks/preview": {
+      "post": {
+        "description": "Parses the chart, contact lists, and trial balance and reports what committing them would create — draft accounts and contacts, code conflicts, whether the opening balance balances, and every row-level problem. Writes nothing. A `POST` because the files are in the body, and it carries an `Idempotency-Key` like every write on this surface even though it claims none.",
+        "operationId": "previewQuickBooksImport",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickBooksImportRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickBooksImportPreview"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Preview a QuickBooks CSV import without writing",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/v1/invites": {
       "get": {
         "description": "Takes `members.read`. `expired` is derived from the clock on every read rather than stored: a stored status would be wrong between the moment an invitation lapses and whatever job noticed, and there is no such job.",
