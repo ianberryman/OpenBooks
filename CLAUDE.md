@@ -146,3 +146,34 @@ unknown value.
 `.github/workflows/` — **`workflow_dispatch` only.** Automatic triggers are deliberately
 commented out, not absent; uncommenting them is the whole change. Nothing runs until
 someone starts it.
+
+## Agents
+
+Planning, design, and orchestration are an **Opus** agent's job. **Exploration and
+coding-from-scope run as Sonnet subagents** the orchestrator dispatches. Opus owns the
+scope, the seams, and integration; Sonnet executes against a spec. Match the model to the
+task: read-only exploration can be the cheapest capable model, coding-from-scope is Sonnet,
+and the loop that has to hold the whole picture stays Opus.
+
+Best practices this split has earned:
+
+- **Fix the seams before you fan out.** When parallelising a wave, the orchestrator pins
+  the interface contracts first — exact field/column names, function signatures, token
+  formats — so independently-authored streams compose. They will still diverge on details
+  (a column width, a spelling); reconciling those is the orchestrator's integration step,
+  not a subagent's.
+- **Specs are self-contained.** A subagent gets the deliverable, the exact contract to
+  match, and the convention exemplars to read first (point it at the analogous existing
+  file). Ambiguity in the spec is wasted subagent work.
+- **Subagents author; the orchestrator verifies.** A worktree-isolated subagent has no
+  `node_modules`, so it cannot build or run the gate — it authors by matching existing code
+  and self-reviews. The orchestrator integrates (cherry-pick the disjoint branches), runs
+  `yarn check`, and fixes what the gate surfaces. Un-gated subagent output is unproven;
+  the gate is where parallel work is proven.
+- **Schema changes need the orchestrator's hand.** A subagent writes the migration and the
+  `MUTABLE_TABLES`/`APPEND_ONLY_TABLES`/`TENANT_TABLES` entries but leaves `generated.ts` —
+  codegen needs a live migrated database. Pre-release you cannot incrementally migrate an
+  already-migrated DB (a new migration sorting before an applied one is refused), so codegen
+  against a **throwaway** MySQL migrated fresh with the full set, never the running stack.
+  The pinned schema-set tripwires (`harness`, `tenant-scope`, `grants` tests) then need the
+  new table names — updating them is part of the change, not a failure.
