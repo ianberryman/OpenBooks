@@ -362,6 +362,20 @@ export interface IdempotencyKeys {
   response_status: number | null;
 }
 
+export interface InvoiceDeliveries {
+  artifact_storage_key: string;
+  created_at: Generated<Date>;
+  id: Buffer;
+  invoice_id: Buffer;
+  key_prefix: string;
+  org_id: Buffer;
+  provider_message_id: string | null;
+  recipient_email: string;
+  sent_at: Generated<Date>;
+  status: string;
+  token_hash: Buffer;
+}
+
 export interface JournalDraftLineDimensions {
   created_at: Generated<Date>;
   dimension_id: Buffer;
@@ -446,6 +460,26 @@ export interface OrgAccountingSettings {
   payable_control_account_id: Buffer | null;
   receivable_control_account_id: Buffer | null;
   updated_at: Generated<Date>;
+}
+
+export interface OrgBranding {
+  address_line1: string | null;
+  address_line2: string | null;
+  brand_color: string | null;
+  city: string | null;
+  country: string | null;
+  created_at: Generated<Date>;
+  display_name: string;
+  email: string | null;
+  invoice_footer: string | null;
+  logo_storage_key: string | null;
+  org_id: Buffer;
+  phone: string | null;
+  postal_code: string | null;
+  region: string | null;
+  tax_number: string | null;
+  updated_at: Generated<Date>;
+  website: string | null;
 }
 
 export interface OrgInvites {
@@ -604,6 +638,7 @@ export interface DB {
   document_sequences: DocumentSequences;
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
+  invoice_deliveries: InvoiceDeliveries;
   journal_draft_line_dimensions: JournalDraftLineDimensions;
   journal_draft_lines: JournalDraftLines;
   journal_drafts: JournalDrafts;
@@ -612,6 +647,7 @@ export interface DB {
   journal_sequences: JournalSequences;
   journals: Journals;
   org_accounting_settings: OrgAccountingSettings;
+  org_branding: OrgBranding;
   org_invites: OrgInvites;
   org_members: OrgMembers;
   orgs: Orgs;

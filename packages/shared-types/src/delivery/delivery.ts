@@ -119,7 +119,8 @@ export const invoiceDeliverySchema = z
     id: z.uuid(),
     invoiceId: z.uuid().meta({ description: 'The invoice that was sent.' }),
     recipientEmail: recipientEmailSchema.meta({
-      description: 'Where this send went — the override if one was given, else the contact’s email.',
+      description:
+        'Where this send went — the override if one was given, else the contact’s email.',
     }),
     sentAt: z.iso.datetime().meta({
       description: 'When the send was attempted.',
@@ -233,10 +234,12 @@ const publicBrandingSchema = z
 export const publicInvoiceViewSchema = z
   .strictObject({
     documentNumber: z.string().meta({
-      description: 'The org’s number for this invoice, as printed. A sent invoice is always numbered.',
+      description:
+        'The org’s number for this invoice, as printed. A sent invoice is always numbered.',
     }),
     reference: z.string().nullable().meta({
-      description: 'The customer’s own reference — their purchase-order number, when they gave one.',
+      description:
+        'The customer’s own reference — their purchase-order number, when they gave one.',
     }),
     issueDate: calendarDateSchema,
     dueDate: calendarDateSchema,

@@ -53,9 +53,7 @@ export function createS3StorageProvider(
     },
 
     async get(key) {
-      const result = await client.send(
-        new GetObjectCommand({ Bucket: storage.bucket, Key: key }),
-      );
+      const result = await client.send(new GetObjectCommand({ Bucket: storage.bucket, Key: key }));
       // `Body` is a stream in Node; the SDK's `transformToByteArray` drains it to the
       // `Uint8Array` the contract returns. It is optional on the response type (a
       // GET can in principle return no body), so its absence is a real error to
@@ -71,11 +69,9 @@ export function createS3StorageProvider(
     },
 
     signedUrl(key, expiresInSeconds) {
-      return getSignedUrl(
-        client,
-        new GetObjectCommand({ Bucket: storage.bucket, Key: key }),
-        { expiresIn: expiresInSeconds },
-      );
+      return getSignedUrl(client, new GetObjectCommand({ Bucket: storage.bucket, Key: key }), {
+        expiresIn: expiresInSeconds,
+      });
     },
   };
 }

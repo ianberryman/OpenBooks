@@ -89,11 +89,16 @@ const websiteSchema = z.string().trim().min(1).max(ORG_BRANDING_WEBSITE_MAX_LENG
   description: 'The org’s website, printed as entered. Send `null` to clear it.',
 });
 
-const taxNumberSchema = z.string().trim().min(1).max(ORG_BRANDING_TAX_NUMBER_MAX_LENGTH).meta({
-  description:
-    'The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free ' +
-    'text, not validated against any jurisdiction’s check digit. Send `null` to clear it.',
-});
+const taxNumberSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(ORG_BRANDING_TAX_NUMBER_MAX_LENGTH)
+  .meta({
+    description:
+      'The org’s tax registration number — the VAT/GST/ABN a filing requires on an invoice. Free ' +
+      'text, not validated against any jurisdiction’s check digit. Send `null` to clear it.',
+  });
 
 /**
  * The object-store key of the uploaded logo, not a URL.
@@ -135,11 +140,16 @@ const brandColorSchema = z
     examples: ['#1a1a1a', '#0b5cff'],
   });
 
-const invoiceFooterSchema = z.string().trim().min(1).max(ORG_BRANDING_FOOTER_MAX_LENGTH).meta({
-  description:
-    'Free text printed at the foot of every invoice — payment instructions, a thank-you, the ' +
-    'bank details a customer pays into. Send `null` to clear it.',
-});
+const invoiceFooterSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(ORG_BRANDING_FOOTER_MAX_LENGTH)
+  .meta({
+    description:
+      'Free text printed at the foot of every invoice — payment instructions, a thank-you, the ' +
+      'bank details a customer pays into. Send `null` to clear it.',
+  });
 
 /**
  * The org's branding as the API returns it.
