@@ -1,4 +1,4 @@
-import type { EmailProvider, QueueProvider } from '@openbooks/plugin-api';
+import type { EmailProvider, QueueProvider, StorageProvider } from '@openbooks/plugin-api';
 
 import type { Config } from '../config';
 import { getConfig } from '../config';
@@ -7,6 +7,7 @@ import { getLogger } from '../logging';
 import { createLogEmailProvider } from './email/log';
 import { createSesEmailProvider } from './email/ses';
 import { InProcessQueue } from './queue/in-process';
+import { createStorageProvider } from './storage';
 
 /**
  * Concrete provider adapters, selected by the configuration (spec §3, D-07).
@@ -174,6 +175,45 @@ export function setQueueProvider(value: QueueProvider | undefined): void {
   resolvedQueue = value;
 }
 
+/**
+ * The process-wide storage dependency, built on first use.
+ *
+ * The same seam as `outboundEmail` and `queueProvider`, and for the same reasons: a
+ * function rather than an exported `const`, so importing this module does not validate
+ * the environment or construct an AWS client as a side effect; lazy, so all three roles
+ * (api, worker, migrate) get the same behaviour without any of them building an S3
+ * client for a store they never touch — `migrate` keeps no blobs and builds nothing.
+ *
+ * Its first consumer is invoicing (OB-120): the api reads it to retain a rendered PDF
+ * and to store an org logo, and to hand a client a `signedUrl` for either. Selection is
+ * config-driven and needs no logger — unlike the queue and email, a storage adapter has
+ * no failure it reports out of band; a failed `put`/`get` rejects to its caller.
+ *
+ * A single accessor rather than a `Providers` bag, for `queueProvider`'s reason: one
+ * consumer so far, and a registry now would be the shape spec §8 warns against.
+ */
+let resolvedStorage: StorageProvider | undefined;
+
+export function storageProvider(): StorageProvider {
+  // `??=` and not a `const config = getConfig()` above it, for `outboundEmail`'s
+  // reason: an installed value must short-circuit the config read entirely.
+  resolvedStorage ??= createStorageProvider(getConfig().providers.storage);
+  return resolvedStorage;
+}
+
+/**
+ * Installs the storage adapter for the rest of the process, or clears it.
+ *
+ * For hosts and tests, not services — the same seam `setQueueProvider` is. A suite that
+ * exercises retained-PDF or logo handling installs a `local` adapter pointed at a temp
+ * directory and reads the bytes back through the same `get` the api would, which is spec
+ * §11's "no mocks" applied to blob storage.
+ */
+export function setStorageProvider(value: StorageProvider | undefined): void {
+  resolvedStorage = value;
+}
+
 export { InProcessQueue } from './queue/in-process';
 export { createLogEmailProvider } from './email/log';
 export { createSesEmailProvider } from './email/ses';
+export { createStorageProvider } from './storage';
