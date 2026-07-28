@@ -336,6 +336,40 @@ export interface DocumentSequences {
   updated_at: Generated<Date>;
 }
 
+export interface DunningPolicies {
+  created_at: Generated<Date>;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface DunningSends {
+  created_at: Generated<Date>;
+  id: Buffer;
+  invoice_id: Buffer;
+  org_id: Buffer;
+  provider_message_id: string | null;
+  recipient_email: string;
+  sent_at: Generated<Date>;
+  stage_id: Buffer;
+  status: string;
+}
+
+export interface DunningStages {
+  body: string;
+  created_at: Generated<Date>;
+  id: Buffer;
+  late_fee_minor: bigint | null;
+  offset_days: number;
+  org_id: Buffer;
+  policy_id: Buffer;
+  stage_number: number;
+  subject: string;
+  updated_at: Generated<Date>;
+}
+
 export interface FiscalPeriods {
   closed_at: Date | null;
   closed_by_user_id: Buffer | null;
@@ -564,6 +598,39 @@ export interface ReconciliationSessions {
   updated_at: Generated<Date>;
 }
 
+export interface RecurringInvoiceTemplateLines {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  description: string | null;
+  id: Generated<bigint>;
+  line_number: number;
+  org_id: Buffer;
+  quantity_micros: bigint;
+  tax_rate_id: Buffer | null;
+  template_id: Buffer;
+  unit_amount_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface RecurringInvoiceTemplates {
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  due_days: Generated<number>;
+  end_date: string | null;
+  frequency: string;
+  id: Buffer;
+  interval_count: Generated<number>;
+  is_active: Generated<number>;
+  last_run_date: string | null;
+  materialization_mode: string;
+  memo: string | null;
+  name: string;
+  next_run_date: string;
+  org_id: Buffer;
+  tax_mode: string;
+  updated_at: Generated<Date>;
+}
+
 export interface RolePermissions {
   permission_code: string;
   role_id: Buffer;
@@ -638,6 +705,9 @@ export interface DB {
   dimension_values: DimensionValues;
   dimensions: Dimensions;
   document_sequences: DocumentSequences;
+  dunning_policies: DunningPolicies;
+  dunning_sends: DunningSends;
+  dunning_stages: DunningStages;
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
   invoice_deliveries: InvoiceDeliveries;
@@ -657,6 +727,8 @@ export interface DB {
   permissions: Permissions;
   reconciliation_session_events: ReconciliationSessionEvents;
   reconciliation_sessions: ReconciliationSessions;
+  recurring_invoice_template_lines: RecurringInvoiceTemplateLines;
+  recurring_invoice_templates: RecurringInvoiceTemplates;
   role_permissions: RolePermissions;
   roles: Roles;
   sessions: Sessions;

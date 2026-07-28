@@ -120,6 +120,14 @@ const APPEND_ONLY_TABLES = [
   // and a failed attempt is its own row, so no delivery's record is ever edited. Its
   // sibling `org_branding` is a setting and is mutable, below.
   'invoice_deliveries',
+  // ── Dunning (0008_recurring_dunning) ───────────────────────────────────────
+  //
+  // `dunning_sends` is both evidence a reminder went out and the once-per-stage guard
+  // (D-77): a stage sends at most once per invoice, enforced by a unique key whose
+  // point is defeated the moment a row can be deleted and the send retried. It is
+  // `invoice_deliveries`' append-only argument applied to a chase. Its policy and stage
+  // siblings are settings and are mutable, below.
+  'dunning_sends',
 ] as const;
 
 /**
@@ -262,6 +270,18 @@ const MUTABLE_TABLES = [
   // was frozen at send time and lives in `invoice_deliveries`, which is append-only
   // above. Editing the letterhead restates no financial statement.
   'org_branding',
+  // ── Recurring invoices & dunning (0008_recurring_dunning) ──────────────────
+  //
+  // Standing instructions, all settings. A recurring template and its lines, and a
+  // dunning policy and its stages, are edited freely: a change reaches the *next*
+  // cycle or reminder and no invoice already raised or chased. The append-only halves
+  // are the things they produce — the invoices (their own journals) and `dunning_sends`
+  // above — not these definitions. `recurring_invoice_template_lines` and
+  // `dunning_stages` are mutable children whose parents are here for the same reason.
+  'recurring_invoice_templates',
+  'recurring_invoice_template_lines',
+  'dunning_policies',
+  'dunning_stages',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

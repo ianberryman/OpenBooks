@@ -62,6 +62,9 @@ export const TENANT_TABLES = [
   'dimension_values',
   'dimensions',
   'document_sequences',
+  'dunning_policies',
+  'dunning_sends',
+  'dunning_stages',
   'fiscal_periods',
   'idempotency_keys',
   'invoice_deliveries',
@@ -79,6 +82,8 @@ export const TENANT_TABLES = [
   'payments',
   'reconciliation_session_events',
   'reconciliation_sessions',
+  'recurring_invoice_template_lines',
+  'recurring_invoice_templates',
   'tax_rates',
 ] as const satisfies readonly TenantTableName[];
 

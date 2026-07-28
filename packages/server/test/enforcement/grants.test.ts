@@ -346,6 +346,7 @@ describe('the grant lists and the live server agree', () => {
       'bank_statement_lines',
       'reconciliation_session_events',
       'invoice_deliveries',
+      'dunning_sends',
     ]);
     expect(MUTABLE_TABLES).toContain('bank_statement_imports');
     expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');

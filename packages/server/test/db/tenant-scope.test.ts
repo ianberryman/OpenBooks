@@ -181,6 +181,9 @@ describe('the tenant table set is derived from the schema', () => {
       'dimension_values',
       'dimensions',
       'document_sequences',
+      'dunning_policies',
+      'dunning_sends',
+      'dunning_stages',
       'fiscal_periods',
       'idempotency_keys',
       'invoice_deliveries',
@@ -198,6 +201,8 @@ describe('the tenant table set is derived from the schema', () => {
       'payments',
       'reconciliation_session_events',
       'reconciliation_sessions',
+      'recurring_invoice_template_lines',
+      'recurring_invoice_templates',
       'tax_rates',
     ]);
   });

@@ -37,6 +37,7 @@ describe('test database harness', () => {
         '0005_subledger',
         '0006_banking',
         '0007_invoice_delivery',
+        '0008_recurring_dunning',
         '0999_app_grants',
       ]);
     });

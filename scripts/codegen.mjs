@@ -184,6 +184,22 @@ const OVERRIDES = {
     // replaces the mapped type outright.
     'reconciliation_sessions.open_marker': 'Generated<Buffer | null>',
     'reconciliation_session_events.asserted_balance_minor': 'bigint | null',
+
+    // ── Recurring invoices & dunning (0008_recurring_dunning) ────────────────
+    //
+    // The same three column kinds one more time. The schedule dates are calendar
+    // DATEs and map to `string` (nullability spelled out, since an override replaces
+    // the whole mapped type); the template line repeats `ar_document_lines`' money
+    // and quantity corrections exactly; and the optional late fee is a nullable money
+    // BIGINT. `dunning_sends` and `dunning_policies` need no entry — their only
+    // non-scalar columns are DATETIME instants, which keep their `Date` mapping.
+    'recurring_invoice_templates.next_run_date': 'string',
+    'recurring_invoice_templates.last_run_date': 'string | null',
+    'recurring_invoice_templates.end_date': 'string | null',
+    'recurring_invoice_template_lines.id': 'Generated<bigint>',
+    'recurring_invoice_template_lines.quantity_micros': 'bigint',
+    'recurring_invoice_template_lines.unit_amount_minor': 'bigint',
+    'dunning_stages.late_fee_minor': 'bigint | null',
   },
 };
 

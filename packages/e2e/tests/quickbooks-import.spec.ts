@@ -63,7 +63,9 @@ test('a business migrates its chart, contacts and opening balances from QuickBoo
 
     await page.getByLabel('Chart of accounts').setInputFiles(csv('accounts.csv', ACCOUNTS_CSV));
     await page.getByLabel('Customers').setInputFiles(csv('customers.csv', CUSTOMERS_CSV));
-    await page.getByLabel('Trial balance').setInputFiles(csv('trial-balance.csv', TRIAL_BALANCE_CSV));
+    await page
+      .getByLabel('Trial balance')
+      .setInputFiles(csv('trial-balance.csv', TRIAL_BALANCE_CSV));
   });
 
   await test.step('preview shows what would be created, and that the opening balance balances', async () => {
@@ -73,7 +75,9 @@ test('a business migrates its chart, contacts and opening balances from QuickBoo
     await expect(preview.getByText('5 accounts to create')).toBeVisible();
     await expect(preview.getByText('1 customer, 0 vendors')).toBeVisible();
     // The trial balance is self-balancing (7,000.00 each side), so the importer will post it.
-    await expect(preview.getByText('Balanced — ready to post as the opening journal.')).toBeVisible();
+    await expect(
+      preview.getByText('Balanced — ready to post as the opening journal.'),
+    ).toBeVisible();
   });
 
   await test.step('commit the cutover — accounts, the customer, and the opening journal at once', async () => {
