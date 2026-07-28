@@ -105,15 +105,14 @@
  * is gone, because D-23 makes templates opt-in and an org that declined one had no
  * way to approve a bill at all.
  *
- * ## One known gap, carried deliberately
+ * ## The AP clerk can finish a bill (OB-093)
  *
- * **An `ap_only` clerk cannot yet approve.** `postJournal` requires
- * `journals.post` and `reverseJournal` requires `journals.reverse`; the seeded
- * `ap_only` role (migration `0001_tenancy`) holds neither, so the role that exists
- * to enter bills cannot approve or void one. That is known gap 6 arriving early —
- * C11 puts it on OB-071 — and the fix is a role seed, not a change here.
- * `test/bills/permissions.test.ts` pins the current behaviour so the day it is
- * fixed is the day someone reads this paragraph.
+ * `postJournal` requires `journals.post` and `reverseJournal` requires
+ * `journals.reverse`. The seeded `ap_only` role (migration `0001_tenancy`) now
+ * holds both, so the role that exists to enter bills can approve, void and pay
+ * one — closing the gap M3 found (formerly known gap 6). The fix was the role
+ * seed, not a change here; the ledger still authorizes its own writes (spec §2.4).
+ * `test/bills/permissions.test.ts` asserts the completion.
  */
 
 export {

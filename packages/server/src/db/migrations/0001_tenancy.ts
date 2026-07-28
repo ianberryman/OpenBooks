@@ -382,7 +382,10 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
       )
   `.execute(db);
 
-  // AP only: the payables side, plus the reads needed to do that job.
+  // AP only: the payables side, plus the reads needed to do that job — and
+  // `journals.post`/`journals.reverse`, because approving, voiding and paying a
+  // bill all post through the ledger kernel, and a role that exists to enter AP
+  // that cannot finish what it entered is a role that does nothing (OB-093).
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
@@ -393,11 +396,14 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'payments_made.read', 'payments_made.write',
         'contacts.read', 'contacts.write',
         'accounts.read', 'periods.read', 'journals.read',
+        'journals.post', 'journals.reverse',
         'tax_rates.read', 'dimensions.read', 'reports.read'
       )
   `.execute(db);
 
-  // AR only: the receivables mirror of AP only.
+  // AR only: the receivables mirror of AP only, including the same
+  // `journals.post`/`journals.reverse` so an AR clerk can approve, void and
+  // record a receipt against the invoices they enter (OB-093).
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
@@ -408,6 +414,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'payments_received.read', 'payments_received.write',
         'contacts.read', 'contacts.write',
         'accounts.read', 'periods.read', 'journals.read',
+        'journals.post', 'journals.reverse',
         'tax_rates.read', 'dimensions.read', 'reports.read'
       )
   `.execute(db);

@@ -349,8 +349,8 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // Approver holds it, and D-30 turns on exactly that: drafting reuses this code,
   // so a role whose bundle is `%.read` plus `journals.post` can compose a proposal
   // as well as post one. See `Approver composes and posts a draft` below.
-  'journals.post': ['owner', 'bookkeeper', 'approver'],
-  'journals.reverse': ['owner', 'bookkeeper'],
+  'journals.post': ['owner', 'bookkeeper', 'approver', 'apOnly', 'arOnly'],
+  'journals.reverse': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
   'members.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   // One of the two codes Bookkeeper is excluded from — `orgs.write` below is the
   // other. A bookkeeper runs the books; they do not decide who has access.
@@ -2708,8 +2708,8 @@ describe('gap 6 — the grants that nothing checks yet', () => {
    * codes each clerk *holds* is asserted alongside it.
    */
   it.each([
-    ['apOnly', 15],
-    ['arOnly', 15],
+    ['apOnly', 17],
+    ['arOnly', 17],
   ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
     const rows = await db.app
       .selectFrom('role_permissions')
@@ -2737,51 +2737,27 @@ describe('gap 6 — the grants that nothing checks yet', () => {
 });
 
 /**
- * **The finding M3 produced, pinned rather than fixed.**
+ * **The finding M3 produced, now fixed (OB-093).**
  *
- * `ar_only` and `ap_only` exist so that a clerk can enter the documents of one
- * subledger and nothing else. `0001_tenancy` gives each of them the document codes
- * for their side and **neither `journals.post` nor `journals.reverse`** — and
- * approving a document posts a journal, voiding one reverses a journal, and
- * recording a payment posts a journal. `postJournal` and `reverseJournal` check the
- * caller's own permission, which is the correct design (the ledger kernel is the
- * only writer and it authorizes its own writes, spec §2.4) with a consequence
- * nobody wrote down until the services were built: **the two roles that exist to
- * run AR and AP cannot complete a single document between them.**
+ * `ar_only` and `ap_only` exist so that a clerk can run one subledger end to end.
+ * They held the document codes for their side but not `journals.post`/
+ * `journals.reverse`, and approving a document posts a journal, voiding one
+ * reverses a journal, and recording a payment posts a journal — so the two roles
+ * that exist to run AR and AP could not complete a single document between them.
+ * `postJournal`/`reverseJournal` check the caller's own permission (the ledger
+ * kernel authorizes its own writes, spec §2.4), which is the right design; the fix
+ * was the seed, not the kernel. `0001_tenancy` now grants both clerks the two
+ * codes, and the resolution was a decision about what a clerk is *for*: the role
+ * exists to enter and finish AP/AR documents, so it must be able to post them.
  *
- * These tests assert the *current* behaviour and none of them says it is right.
- * They are a tripwire: the day someone adds the two codes to either bundle, they
- * fail, and whoever sees the failure reads this paragraph. Two alternatives were
- * available and neither belongs in a test file — seed the codes, which is a
- * migration and a decision about what a "clerk" is allowed to do to the ledger; or
- * let a document permission authorize a posting, which would make `journals.post`
- * describable as "unless you go through a document" and is worse.
- *
- * The AP half is also pinned at the module, in `test/bills/permissions.test.ts`,
- * which is where OB-063 found it. It is repeated here because this is the file that
- * claims to describe every role's whole authority, and a gap of this size stated
- * only in one module's suite is a gap stated nowhere a reviewer of C11 will look.
- *
- * ## What changed at OB-072: the gap is now published
- *
- * Nothing about the gap moved — the same three refusals, from the same two codes.
- * What moved is that every operation involved has a route now, so the rows in the
- * matrix above name them: `approveInvoice`, `voidInvoice`, `approveBill`,
- * `voidBill`, `approveCreditNote`, `voidCreditNote`, `approveVendorCredit`,
- * `voidVendorCredit`, `recordPayment` and `voidPayment` are ten published
- * operations an `ar_only` or `ap_only` caller is refused, and the operation ids
- * those rows carry are the ones a client is holding.
- *
- * The rows agree with these tests rather than contradicting them, and it is worth
- * saying how: a row's verdict is computed by `expectedVerdict` from `gatesOf`,
- * which walks `permission` and then `thenRequires` — so `approveInvoice` predicts
- * `refused journals.post` for both clerks from the declared gates alone. If someone
- * removed `thenRequires: ['journals.post']` to make the matrix "pass", the row would
- * predict `allowed`, the pass for that role would fail, and these tests would still
- * be here. Two independent statements of the same fact is the point.
+ * These tests now assert the completion end to end. `GRANTED_TO` names both clerks
+ * on `journals.post`/`journals.reverse`, so the matrix rows for `approveInvoice`,
+ * `voidInvoice`, `approveBill`, `voidBill`, `recordPayment` and their siblings
+ * predict `allowed` for these roles; this block is the second, independent
+ * statement of the same fact, at the service.
  */
-describe('known gap — an AR or AP clerk cannot finish what they started', () => {
-  it('lets an AR clerk write an invoice and refuses to let them issue it', async () => {
+describe('an AR or AP clerk finishes what they started (OB-093)', () => {
+  it('lets an AR clerk write an invoice and issue it', async () => {
     const built = await scene('arOnly');
 
     const invoice = await runInContext(built.ctx, () =>
@@ -2796,80 +2772,69 @@ describe('known gap — an AR or AP clerk cannot finish what they started', () =
       ),
     );
 
-    // Everything up to the ledger works, which is what makes the refusal a gap
-    // rather than a role that simply does not do this.
     expect(invoice.status).toBe('draft');
-    await expect(
-      runInContext(built.ctx, () => approveInvoice(invoice.id, built.ctx)),
-    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+    const approved = await runInContext(built.ctx, () => approveInvoice(invoice.id, built.ctx));
+    expect(approved.status).toBe('approved');
   });
 
-  it('refuses an AR clerk the void of an invoice they hold `invoices.void` for', async () => {
+  it('lets an AR clerk void an invoice they hold `invoices.void` for', async () => {
     const built = await scene('arOnly');
 
-    // The document permission is held and is not what refuses: the clerk gets past
-    // `invoices.void` and is stopped by the reversal the void has to post.
-    await expect(
-      runInContext(built.ctx, () =>
-        voidInvoice(built.voidableInvoiceId, { date: built.date }, built.ctx),
-      ),
-    ).rejects.toMatchObject({ details: { permission: 'journals.reverse' } });
+    const voided = await runInContext(built.ctx, () =>
+      voidInvoice(built.voidableInvoiceId, { date: built.date }, built.ctx),
+    );
+    expect(voided.status).toBe('void');
   });
 
-  it('refuses an AR clerk the payment that would settle their own invoice', async () => {
+  it('lets an AR clerk record the payment that settles their own invoice', async () => {
     const built = await scene('arOnly');
 
-    await expect(
-      runInContext(built.ctx, () =>
-        recordPayment(
-          {
-            direction: 'received',
-            contactId: built.partyId,
-            date: built.date,
-            amount: '5000',
-            accountId: built.bankId,
-          },
-          built.ctx,
-        ),
+    const payment = await runInContext(built.ctx, () =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: built.partyId,
+          date: built.date,
+          amount: '5000',
+          accountId: built.bankId,
+        },
+        built.ctx,
       ),
-    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+    );
+    expect(payment.status).toBe('recorded');
   });
 
-  it('refuses an AP clerk approve, void and payment for the same reason', async () => {
+  it('lets an AP clerk approve, void and record a payment', async () => {
     const built = await scene('apOnly');
 
-    await expect(
-      runInContext(built.ctx, () => approveBill(built.approvableBillId, built.ctx)),
-    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+    const approved = await runInContext(built.ctx, () =>
+      approveBill(built.approvableBillId, built.ctx),
+    );
+    expect(approved.status).toBe('approved');
 
-    await expect(
-      runInContext(built.ctx, () =>
-        voidBill(built.voidableBillId, { date: built.date }, built.ctx),
-      ),
-    ).rejects.toMatchObject({ details: { permission: 'journals.reverse' } });
+    const voided = await runInContext(built.ctx, () =>
+      voidBill(built.voidableBillId, { date: built.date }, built.ctx),
+    );
+    expect(voided.status).toBe('void');
 
-    await expect(
-      runInContext(built.ctx, () =>
-        recordPayment(
-          {
-            direction: 'made',
-            contactId: built.partyId,
-            date: built.date,
-            amount: '5000',
-            accountId: built.bankId,
-          },
-          built.ctx,
-        ),
+    const payment = await runInContext(built.ctx, () =>
+      recordPayment(
+        {
+          direction: 'made',
+          contactId: built.partyId,
+          date: built.date,
+          amount: '5000',
+          accountId: built.bankId,
+        },
+        built.ctx,
       ),
-    ).rejects.toMatchObject({ details: { permission: 'journals.post' } });
+    );
+    expect(payment.status).toBe('recorded');
   });
 
   /**
-   * The half that does work, asserted so the gap is bounded rather than vague.
-   *
-   * Allocation posts nothing (D-37), so a clerk can apply a credit their colleague
-   * approved. The line falls exactly at the ledger: everything that writes a journal
-   * is refused and everything that does not is allowed.
+   * Allocation posts nothing (D-37), so it worked even before OB-093 — kept to hold
+   * the line that everything below the ledger was always allowed for a clerk.
    */
   it('lets an AR clerk allocate, because an allocation posts no journal', async () => {
     const built = await scene('arOnly');

@@ -38,8 +38,10 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   ['approver', 21],
   // Every `.read` except api_keys.read.
   ['readOnly', 19],
-  ['apOnly', 15],
-  ['arOnly', 15],
+  // 15 document/read codes plus journals.post and journals.reverse (OB-093), so a
+  // clerk can finish — approve, void, pay — the documents they enter.
+  ['apOnly', 17],
+  ['arOnly', 17],
 ];
 
 describe('the six system roles resolve to the bundles migration 0001 gives them', () => {

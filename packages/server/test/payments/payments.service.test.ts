@@ -404,38 +404,27 @@ describe('who may record a payment', () => {
   });
 
   /**
-   * **A finding, pinned rather than worked around.**
+   * **A finding, now fixed (OB-093).**
    *
-   * The seeded `ar_only` role holds `payments_received.write` and does *not* hold
-   * `journals.post` (`0001_tenancy`). Recording a payment posts a journal, and
-   * `postJournal` checks `journals.post` against the caller's own context — so an
-   * AR clerk holding exactly the permission named for the job is refused one layer
-   * down, on a key nobody handed them.
-   *
-   * This is not something OB-064 may fix. Widening the role is a migration and a
-   * matrix change (known gap 6, OB-072); posting under a borrowed authority would
-   * make `journals.post` mean nothing. So the current behaviour is asserted here,
-   * where a change to it is a visible test edit rather than a silent one.
+   * The seeded `ar_only` role holds `payments_received.write` and now also
+   * `journals.post` (`0001_tenancy`), so an AR clerk can record the receipt their
+   * role exists to record — the posting `postJournal` gates on is one they hold.
    */
-  it('refuses an AR clerk their own receipt, at journals.post — known gap', async () => {
+  it('records an AR clerk their own receipt — holds journals.post (OB-093)', async () => {
     const arOnly = await sceneIn(db, 'arOnly');
 
-    await expect(
-      withContext(arOnly.ctx, () =>
-        recordPayment(
-          {
-            direction: 'received',
-            contactId: arOnly.contact.uuid,
-            date: arOnly.date,
-            amount: '10000',
-            accountId: arOnly.bank.uuid,
-          },
-          arOnly.ctx,
-        ),
+    const payment = await withContext(arOnly.ctx, () =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: arOnly.contact.uuid,
+          date: arOnly.date,
+          amount: '10000',
+          accountId: arOnly.bank.uuid,
+        },
+        arOnly.ctx,
       ),
-    ).rejects.toMatchObject({
-      code: 'permission_denied',
-      details: { permission: 'journals.post' },
-    });
+    );
+    expect(payment.status).toBe('recorded');
   });
 });

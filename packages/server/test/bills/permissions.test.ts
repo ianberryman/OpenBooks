@@ -132,7 +132,7 @@ describe('a read-only caller', () => {
   });
 });
 
-describe('the AP clerk, and the gap that stops them finishing a bill', () => {
+describe('the AP clerk finishes a bill (OB-093)', () => {
   it('may enter and edit one', async () => {
     const clerk = await memberOf(db, s, 'apOnly');
 
@@ -144,40 +144,29 @@ describe('the AP clerk, and the gap that stops them finishing a bill', () => {
   });
 
   /**
-   * **Known gap 6, arriving early.** The seeded `ap_only` role (migration
-   * `0001_tenancy`) holds `bills.*` and `vendor_credits.*` and does *not* hold
-   * `journals.post` or `journals.reverse`. Approving posts a journal and voiding
-   * reverses one, so the role that exists to enter bills cannot finish one.
-   *
-   * These two tests pin the **current** behaviour deliberately. Neither is an
-   * assertion that the refusal is right — it plainly is not — but a tripwire: the
-   * day the role seed grants `journals.post` to `ap_only`, they fail, and whoever
-   * sees them reads this paragraph and deletes them. An `it.skip` or a silent
-   * omission would leave the gap invisible instead, and C11 puts it on OB-071.
-   *
-   * The fix is a role seed, not a change in this module. A `bills.approve` code
-   * would not help either: `postJournal` checks `journals.post`, and that check is
-   * the ledger's, which is exactly where it belongs.
+   * **Gap 6, closed (OB-093).** The seeded `ap_only` role (migration
+   * `0001_tenancy`) now holds `journals.post` and `journals.reverse` alongside its
+   * `bills.*`/`vendor_credits.*` codes, so the role that exists to enter bills can
+   * finish one. Approving posts a journal and voiding reverses one; both check the
+   * caller's own permission at the ledger (spec §2.4), which is why the fix was the
+   * seed and not this module.
    */
-  it('cannot yet approve one — no `journals.post` (C11, gap 6)', async () => {
+  it('approves one — holds `journals.post` (OB-093)', async () => {
     const clerk = await memberOf(db, s, 'apOnly');
     const bill = await withContext(clerk, () => createBill(draftBill(s), clerk));
 
-    expect(await wireErrorOf(withContext(clerk, () => approveBill(bill.id, clerk)))).toMatchObject({
-      code: 'permission_denied',
-      details: { permission: 'journals.post' },
-    });
+    const approved = await withContext(clerk, () => approveBill(bill.id, clerk));
+    expect(approved.status).toBe('approved');
   });
 
-  it('cannot yet void one — no `journals.reverse` (C11, gap 6)', async () => {
+  it('voids one — holds `journals.reverse` (OB-093)', async () => {
     const clerk = await memberOf(db, s, 'apOnly');
 
-    // Approved by the org's owner, so the void is the only thing under test.
-    const bill = await withContext(s.ctx, () => createBill(draftBill(s), s.ctx));
-    await withContext(s.ctx, () => approveBill(bill.id, s.ctx));
+    // Approved by the clerk themselves now that they can — the void is under test.
+    const bill = await withContext(clerk, () => createBill(draftBill(s), clerk));
+    await withContext(clerk, () => approveBill(bill.id, clerk));
 
-    expect(
-      await wireErrorOf(withContext(clerk, () => voidBill(bill.id, { date: s.date }, clerk))),
-    ).toMatchObject({ code: 'permission_denied', details: { permission: 'journals.reverse' } });
+    const voided = await withContext(clerk, () => voidBill(bill.id, { date: s.date }, clerk));
+    expect(voided.status).toBe('void');
   });
 });
