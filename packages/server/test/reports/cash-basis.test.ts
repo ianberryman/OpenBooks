@@ -6,8 +6,20 @@ import { selectCashBasisBalances } from '../../src/modules/reports/cash-basis/se
 import type { BalanceQuerySpec } from '../../src/modules/reports/balances.repository';
 import { selectAccountBalances } from '../../src/modules/reports/balances.repository';
 import { getProfitAndLoss } from '../../src/modules/reports/profit-and-loss.service';
+import { postJournal } from '../../src/modules/ledger';
 import { documentIn, sceneIn, useServiceDatabase, withContext } from '../payments/support';
 import type { Scene } from '../payments/support';
+
+async function markCash(
+  db: ReturnType<typeof useServiceDatabase>,
+  accountId: Buffer,
+): Promise<void> {
+  await db.app
+    .updateTable('accounts')
+    .set({ cash_basis_role: 'cash' })
+    .where('id', '=', accountId)
+    .execute();
+}
 
 /**
  * The cash-basis transform end to end, against real MySQL (OB-154; K2). The pure
@@ -116,5 +128,74 @@ describe('the cash-basis transform', () => {
         getProfitAndLoss({ basis: 'cash', contactId: scene.contact.uuid }, scene.ctx),
       ),
     ).rejects.toMatchObject({ code: 'validation_failed' });
+  });
+
+  it('recognises a direct cash sale posted straight to the ledger (path B, K3)', async () => {
+    const scene = await sceneIn(db);
+    await markCash(db, scene.bank.id);
+    // A cash sale with no invoice: debit the bank, credit revenue.
+    await withContext(scene.ctx, () =>
+      postJournal(
+        {
+          date: scene.date,
+          actorType: 'user',
+          actorId: scene.ctx.actorId,
+          lines: [
+            { accountId: scene.bank.uuid, side: 'debit', amount: 5000n },
+            { accountId: scene.revenue.uuid, side: 'credit', amount: 5000n },
+          ],
+        },
+        scene.ctx,
+      ),
+    );
+
+    const cash = await selectCashBasisBalances(tenantDb(scene.orgId), PL_SPEC);
+    const revenue = cash.rows.find((row) => row.accountId === scene.revenue.uuid);
+    expect(revenue?.balance.movement.credits).toBe(5000n);
+  });
+
+  it('flags an unallocated receipt rather than recognising it (K4)', async () => {
+    const scene = await sceneIn(db);
+    await withContext(scene.ctx, () =>
+      recordPayment(
+        {
+          direction: 'received',
+          contactId: scene.contact.uuid,
+          date: scene.date,
+          amount: '3000',
+          accountId: scene.bank.uuid,
+        },
+        scene.ctx,
+      ),
+    );
+
+    const cash = await selectCashBasisBalances(tenantDb(scene.orgId), PL_SPEC);
+    expect(cash.review.some((flag) => flag.kind === 'unallocated_receipt')).toBe(true);
+  });
+
+  it('flags a mixed cash/accrual journal and does not split it (K3)', async () => {
+    const scene = await sceneIn(db);
+    await markCash(db, scene.bank.id);
+    // Expense part-paid in cash, part on account: cash + accrual + P&L → ambiguous.
+    await withContext(scene.ctx, () =>
+      postJournal(
+        {
+          date: scene.date,
+          actorType: 'user',
+          actorId: scene.ctx.actorId,
+          lines: [
+            { accountId: scene.expense.uuid, side: 'debit', amount: 100n },
+            { accountId: scene.bank.uuid, side: 'credit', amount: 60n },
+            { accountId: scene.payable.uuid, side: 'credit', amount: 40n },
+          ],
+        },
+        scene.ctx,
+      ),
+    );
+
+    const cash = await selectCashBasisBalances(tenantDb(scene.orgId), PL_SPEC);
+    expect(cash.review.some((flag) => flag.kind === 'mixed_cash_journal')).toBe(true);
+    const expense = cash.rows.find((row) => row.accountId === scene.expense.uuid);
+    expect(expense?.balance.movement.debits).toBe(0n);
   });
 });

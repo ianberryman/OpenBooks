@@ -88,6 +88,24 @@ export const reportBasisSchema = z.enum(REPORT_BASES).meta({
 
 export type ReportBasis = z.infer<typeof reportBasisSchema>;
 
+/**
+ * An edge the cash-basis transform flagged rather than guessed (K3/K4, D-87). The
+ * report recognises the deterministic majority — documents settled by cash, journals
+ * fully backed by cash — and refuses to invent a number for the rest: an unapplied
+ * receipt that may or may not be income, a journal mixing cash with an accrual account.
+ * Empty on accrual basis, and on a cash-basis report with no such edges.
+ */
+export const reviewFlagSchema = z
+  .strictObject({
+    kind: z.string().meta({ description: 'The class of edge, e.g. `unallocated_receipt`.' }),
+    detail: z
+      .string()
+      .meta({ description: 'A human-readable account of what was not recognised.' }),
+  })
+  .meta({ id: 'ReportReviewFlag' });
+
+export type ReportReviewFlag = z.infer<typeof reviewFlagSchema>;
+
 export const profitAndLossQuerySchema = z
   .strictObject({
     ...reportRangeShape,
@@ -239,6 +257,11 @@ export const profitAndLossSchema = z
       description:
         'Every group summed, including the unassigned bucket. Equal to the same statement run ' +
         'without `groupBy` (B6).',
+    }),
+    review: z.array(reviewFlagSchema).meta({
+      description:
+        'Edges the cash-basis transform flagged rather than guessed (K3/K4) — unapplied receipts, ' +
+        'mixed cash/accrual journals. Always empty on accrual basis.',
     }),
   })
   .meta({

@@ -97,6 +97,7 @@ const SLICED: ProfitAndLoss = {
   basis: 'accrual',
   groupBy: DEPARTMENT,
   range: { from: '2026-01-01', to: '2026-03-31' },
+  review: [],
   groups: [TAGGED, UNTAGGED],
   totals: { revenue: '330000', expenses: '110000', netIncome: '220000' },
 };
@@ -174,6 +175,7 @@ describe('ProfitAndLossReport — an unsliced statement', () => {
     basis: 'accrual',
     groupBy: null,
     range: { from: null, to: '2026-03-31' },
+    review: [],
     groups: [{ ...TAGGED, key: null }],
     totals: { revenue: '280000', expenses: '100000', netIncome: '180000' },
   };

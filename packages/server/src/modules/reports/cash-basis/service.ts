@@ -7,7 +7,8 @@ import { balanceOf, ZERO_AMOUNTS } from '../amounts';
 import type { AggregatedBalanceRow, BalanceQuerySpec } from '../balances.repository';
 
 import { recognizeCashBasis } from './recognition';
-import { gatherRecognizableDocuments } from './repository';
+import type { DirectCashResult } from './repository';
+import { gatherDirectCash, gatherRecognizableDocuments } from './repository';
 
 /**
  * The cash-basis transform (OB-154; D-87) — a drop-in for `selectAccountBalances`.
@@ -18,15 +19,13 @@ import { gatherRecognizableDocuments } from './repository';
  * — every account matching the spec appears, at zero if it recognised nothing — the
  * same denseness the accrual core gets from its `LEFT JOIN` from `accounts`.
  *
- * ## Scope of this first increment
+ * ## Scope
  *
- * Recognition is **path A only** (document settlement, `repository.ts`) and covers the
- * P&L accounts a cash-basis P&L reads. It deliberately does not yet do: direct cash
- * journals (path B), the review flags (D-99 — `review` is returned empty and is the
- * seam they land on), dimension grouping, or a cash-basis balance sheet (which needs
- * D-20's current-year-earnings reconciliation). `groupValueId` is therefore always
- * `null`. Those are the following increments; the interface is shaped for them now so
- * adding them does not move this seam.
+ * Recognition is path A (document settlement) and path B (direct cash journals), and
+ * covers the P&L accounts a cash-basis P&L reads; `review` carries the K3/K4 edges the
+ * transform flags rather than guesses. Still deferred, the interface shaped for them:
+ * dimension grouping (`groupValueId` is always `null`) and a cash-basis balance sheet
+ * (which needs D-20's current-year-earnings reconciliation).
  */
 
 /** A ledger fact the transform could not recognise deterministically (D-99). */
@@ -45,9 +44,12 @@ export async function selectCashBasisBalances(
   db: TenantDatabase,
   spec: BalanceQuerySpec,
 ): Promise<CashBasisResult> {
-  const documents = await gatherRecognizableDocuments(db);
+  const [documents, directCash] = await Promise.all([
+    gatherRecognizableDocuments(db),
+    gatherDirectCash(db),
+  ]);
   const recognized = recognizeCashBasis(
-    { documents, directCashLegs: [] },
+    { documents, directCashLegs: directCash.legs },
     { from: spec.from, to: spec.to },
   );
 
@@ -92,5 +94,36 @@ export async function selectCashBasisBalances(
     };
   });
 
-  return { rows, review: [] };
+  return { rows, review: reviewFlagsOf(directCash) };
+}
+
+/**
+ * The edges D-87 flags rather than guesses (K3/K4), turned from the repository's counts
+ * into the wire's `review` list. Each is a whole class of judgment the report will not
+ * make silently: an unapplied receipt that might or might not be income, a cash journal
+ * mixing cash with an accrual account whose cash content is not a clean fraction. A
+ * count of zero produces no flag, so a clean ledger reports an empty list rather than a
+ * row of noughts.
+ */
+function reviewFlagsOf(directCash: DirectCashResult): readonly ReviewFlag[] {
+  const flags: ReviewFlag[] = [];
+  if (directCash.unallocatedReceiptCount > 0) {
+    flags.push({
+      kind: 'unallocated_receipt',
+      detail:
+        `${String(directCash.unallocatedReceiptCount)} received payment(s) settle no invoice. ` +
+        'Whether cash held against nothing on the subledger is income is a judgment; it is not ' +
+        'recognised here.',
+    });
+  }
+  if (directCash.mixedCashJournalCount > 0) {
+    flags.push({
+      kind: 'mixed_cash_journal',
+      detail:
+        `${String(directCash.mixedCashJournalCount)} cash journal(s) also touch an accrual ` +
+        'account, so how much of their revenue or expense the cash backs is ambiguous. They are ' +
+        'flagged rather than split.',
+    });
+  }
+  return flags;
 }

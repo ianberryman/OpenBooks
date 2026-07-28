@@ -5795,6 +5795,8 @@ export interface components {
                 from: components["schemas"]["CalendarDate"] | null;
                 to: components["schemas"]["CalendarDate"] | null;
             };
+            /** @description Edges the cash-basis transform flagged rather than guessed (K3/K4) — unapplied receipts, mixed cash/accrual journals. Always empty on accrual basis. */
+            review: components["schemas"]["ReportReviewFlag"][];
             /** @description Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6). */
             totals: components["schemas"]["ProfitAndLossTotals"];
         };
@@ -5828,6 +5830,8 @@ export interface components {
                 from: components["schemas"]["CalendarDateInput"] | null;
                 to: components["schemas"]["CalendarDateInput"] | null;
             };
+            /** @description Edges the cash-basis transform flagged rather than guessed (K3/K4) — unapplied receipts, mixed cash/accrual journals. Always empty on accrual basis. */
+            review: components["schemas"]["ReportReviewFlagInput"][];
             /** @description Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6). */
             totals: components["schemas"]["ProfitAndLossTotalsInput"];
         };
@@ -6206,6 +6210,18 @@ export interface components {
             /** Format: uuid */
             dimensionValueId: string;
             name: string;
+        };
+        ReportReviewFlag: {
+            /** @description A human-readable account of what was not recognised. */
+            detail: string;
+            /** @description The class of edge, e.g. `unallocated_receipt`. */
+            kind: string;
+        };
+        ReportReviewFlagInput: {
+            /** @description A human-readable account of what was not recognised. */
+            detail: string;
+            /** @description The class of edge, e.g. `unallocated_receipt`. */
+            kind: string;
         };
         /** @description Posts the reversal of an existing journal: a new journal with every line’s side inverted. A journal may be reversed once. */
         ReverseJournalRequest: {

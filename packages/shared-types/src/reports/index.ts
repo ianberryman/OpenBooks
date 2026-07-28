@@ -62,6 +62,7 @@ export type {
   ProfitAndLossAccountType,
   ProfitAndLossQueryParams,
   ReportBasis,
+  ReportReviewFlag,
 } from './profit-and-loss';
 export {
   profitAndLossGroupSchema,
@@ -71,6 +72,7 @@ export {
   profitAndLossSectionSchema,
   profitAndLossTotalsSchema,
   reportBasisSchema,
+  reviewFlagSchema,
 } from './profit-and-loss';
 
 /**

@@ -1,4 +1,4 @@
-import type { AccountBalancesQueryParams } from '@openbooks/shared-types';
+import type { AccountBalancesQueryParams, ReportReviewFlag } from '@openbooks/shared-types';
 import { accountBalancesQuerySchema } from '@openbooks/shared-types';
 
 import { getContext } from '../../context';
@@ -106,6 +106,11 @@ export interface AccountBalances {
   readonly groups: readonly ReportGroup[];
   /** The sum of every group. Equal to the same query's totals ungrouped (B6). */
   readonly totals: AccountBalance;
+  /**
+   * Edges the cash-basis transform flagged rather than guessed (K3/K4). Empty on
+   * accrual basis and on a clean cash-basis run — the accrual core produces none.
+   */
+  readonly review: readonly ReportReviewFlag[];
 }
 
 export type AccountBalancesQuery = AccountBalancesQueryParams;
@@ -174,16 +179,20 @@ export async function getAccountBalances(
 
   const db = orgScope(ctx);
   const spec = await resolveSpec(db, request, options);
-  const rows =
+  const source =
     options.basis === 'cash'
-      ? (await selectCashBasisBalances(db, spec)).rows
-      : await selectAccountBalances(db, spec);
+      ? await selectCashBasisBalances(db, spec)
+      : { rows: await selectAccountBalances(db, spec), review: [] as const };
 
-  return assemble(rows, {
-    range: { from: spec.from, to: spec.to },
-    groupBy: request.groupBy ?? null,
-    labels: await labelsFor(db, rows),
-  });
+  return assemble(
+    source.rows,
+    {
+      range: { from: spec.from, to: spec.to },
+      groupBy: request.groupBy ?? null,
+      labels: await labelsFor(db, source.rows),
+    },
+    source.review,
+  );
 }
 
 /**
@@ -248,7 +257,11 @@ interface Assembly {
   readonly labels: ReadonlyMap<string, DimensionValueLabel>;
 }
 
-function assemble(rows: readonly AggregatedBalanceRow[], into: Assembly): AccountBalances {
+function assemble(
+  rows: readonly AggregatedBalanceRow[],
+  into: Assembly,
+  review: readonly ReportReviewFlag[],
+): AccountBalances {
   // The chart, in the order the query returned it, which is account code order.
   // Taken from the rows rather than from a second read: the aggregation is a LEFT
   // JOIN out of `accounts`, so every account it was asked about produces at least
@@ -278,6 +291,7 @@ function assemble(rows: readonly AggregatedBalanceRow[], into: Assembly): Accoun
     groupBy: into.groupBy,
     groups,
     totals: sumAccountBalances(groups.map((group) => group.totals)),
+    review,
   };
 }
 

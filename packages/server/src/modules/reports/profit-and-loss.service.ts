@@ -3,6 +3,7 @@ import type {
   ProfitAndLossAccountType,
   ProfitAndLossQueryParams,
   ReportBasis,
+  ReportReviewFlag,
 } from '@openbooks/shared-types';
 import { PROFIT_AND_LOSS_ACCOUNT_TYPES, profitAndLossQuerySchema } from '@openbooks/shared-types';
 
@@ -120,6 +121,8 @@ export interface ProfitAndLoss {
   readonly groups: readonly ProfitAndLossGroup[];
   /** Every group summed. Equal to the same statement run without `groupBy` (B6). */
   readonly totals: ProfitAndLossTotals;
+  /** Edges the cash-basis transform flagged rather than guessed (K3/K4). Empty on accrual. */
+  readonly review: readonly ReportReviewFlag[];
 }
 
 export type ProfitAndLossQuery = ProfitAndLossQueryParams;
@@ -221,6 +224,7 @@ function project(balances: AccountBalances, basis: ReportBasis): ProfitAndLoss {
       expenses: expenses.toString(),
       netIncome: (revenue - expenses).toString(),
     },
+    review: balances.review,
   };
 }
 

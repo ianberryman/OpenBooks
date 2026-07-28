@@ -13768,6 +13768,13 @@
             ],
             "type": "object"
           },
+          "review": {
+            "description": "Edges the cash-basis transform flagged rather than guessed (K3/K4) — unapplied receipts, mixed cash/accrual journals. Always empty on accrual basis.",
+            "items": {
+              "$ref": "#/components/schemas/ReportReviewFlag"
+            },
+            "type": "array"
+          },
           "totals": {
             "$ref": "#/components/schemas/ProfitAndLossTotals",
             "description": "Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6)."
@@ -13778,7 +13785,8 @@
           "basis",
           "groupBy",
           "groups",
-          "totals"
+          "totals",
+          "review"
         ],
         "type": "object"
       },
@@ -13909,6 +13917,13 @@
             ],
             "type": "object"
           },
+          "review": {
+            "description": "Edges the cash-basis transform flagged rather than guessed (K3/K4) — unapplied receipts, mixed cash/accrual journals. Always empty on accrual basis.",
+            "items": {
+              "$ref": "#/components/schemas/ReportReviewFlagInput"
+            },
+            "type": "array"
+          },
           "totals": {
             "$ref": "#/components/schemas/ProfitAndLossTotalsInput",
             "description": "Every group summed, including the unassigned bucket. Equal to the same statement run without `groupBy` (B6)."
@@ -13919,7 +13934,8 @@
           "basis",
           "groupBy",
           "groups",
-          "totals"
+          "totals",
+          "review"
         ],
         "type": "object"
       },
@@ -15160,6 +15176,42 @@
           "dimensionValueId",
           "code",
           "name"
+        ],
+        "type": "object"
+      },
+      "ReportReviewFlag": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "description": "A human-readable account of what was not recognised.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The class of edge, e.g. `unallocated_receipt`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "ReportReviewFlagInput": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "description": "A human-readable account of what was not recognised.",
+            "type": "string"
+          },
+          "kind": {
+            "description": "The class of edge, e.g. `unallocated_receipt`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "detail"
         ],
         "type": "object"
       },

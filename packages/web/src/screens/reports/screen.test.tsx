@@ -104,6 +104,7 @@ vi.mock('../../api', async (importOriginal) => {
         basis: 'accrual',
         groupBy: null,
         range: { from: null, to: '2026-06-30' },
+        review: [],
         groups: [
           {
             key: null,
