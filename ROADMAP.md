@@ -67,12 +67,12 @@ the worker, but feeds Q later; Q (Phase 7) needs M5-platform's agent-review queu
 **M1–M4 are built. Minimum credible public launch (M1–M4 + QuickBooks import) is one import
 away.** Read this section first; the per-milestone Status sections below carry the detail.
 
-|        |                                                                                                                                                                                                                                                                              |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch | `develop`, working tree clean                                                                                                                                                                                                                                                |
-| Gate   | `yarn check` passes — 2,060 tests across 173 files, ~2.5 min; the E2E passes against a real stack                                                                                                                                                                            |
-| Push   | **64 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                                                                                                                            |
-| Next   | **Phase 0 done** (OB-091/092/093 committed, gate green). **Now: Phase 1 — INV invoice delivery**; the parallel execution plan is in [Phase 1 execution](#phase-1-execution--inv-delivery-parallelised). Full order in the [Release plan](#release-plan--post-m4-sequencing). |
+|        |                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch | `develop`, working tree clean                                                                                                                                                                                                                                                                                             |
+| Gate   | `yarn check` passes — 2,060 tests across 173 files, ~2.5 min; the E2E passes against a real stack                                                                                                                                                                                                                         |
+| Push   | **71 commits ahead of `origin/develop`, unpushed** — needs credentials this machine does not hold                                                                                                                                                                                                                         |
+| Next   | **Phase 1 foundations done** (F1/F2/F3 — OB-120/122/123 integrated, gate green). **Now: the five parallel streams S1–S5**, then `sendInvoice` — see [Phase 1 execution](#phase-1-execution--inv-delivery-parallelised) for the concrete names + DAG. Full order in the [Release plan](#release-plan--post-m4-sequencing). |
 
 M4 is complete, including its two follow-ups: **OB-095** (the bank-account setup screen — the
 banking section's Accounts tab, with `deactivate`/`reactivate` guarded by the open-session
@@ -148,6 +148,37 @@ an approved invoice — a themed PDF is rendered, retained, and emailed to the c
 hosted, token-gated page where they view it and download the PDF. **Recurring and dunning are Phase 4**
 (OB-127 scheduler, OB-128, OB-129), so they and their schema/contract/screen slices are out of scope
 here.
+
+### Status — foundations done (F1/F2/F3); S1–S5 is the active wave
+
+The three foundation streams are **integrated on `develop`, gate green (2073 tests)**. The concrete
+names S1–S5 build against:
+
+- **F1 (OB-123) — contracts.** `packages/shared-types/src/delivery/{branding,delivery}.ts`:
+  `orgBrandingSchema` / `updateOrgBrandingRequestSchema`; `sendInvoiceRequestSchema` (`{ recipientEmail? }`);
+  `invoiceDeliverySchema` (`status` ∈ `['sent','failed']`, `publicUrl`, no token secret/hash);
+  `publicInvoiceViewSchema` (customer-safe — no internal ids; `branding.logoUrl`, never `logoStorageKey`).
+  The `ORG_BRANDING_*_MAX_LENGTH` constants in `branding.ts` are the width source of truth.
+- **F2 (OB-122) — schema.** `0007_invoice_delivery`: `org_branding` (lazy one-row-per-org, PK `org_id`,
+  MUTABLE) and `invoice_deliveries` (APPEND-ONLY: `id`, `org_id`, `invoice_id`→`ar_documents`,
+  `recipient_email`, `artifact_storage_key`, `key_prefix`, `token_hash` BINARY(32), `provider_message_id`,
+  `status` CHECK IN `('sent','failed')`, `sent_at`). `generated.ts` regenerated.
+- **F3 (OB-120) — storage.** `storageProvider(): StorageProvider` / `setStorageProvider(...)` in
+  `providers/index.ts` (lazy, no logger). Local `signedUrl` returns `/artifacts/<key>` (the api streams
+  it); s3 is a real presigned GET. `@aws-sdk/client-s3` + `s3-request-presigner` added.
+
+**Locked forks:** PDF via **pdfmake** behind an `InvoiceRenderer` interface; the hosted page is a
+per-delivery capability token `{prefix}.{secret}` (`key_prefix` + SHA-256, no expiry), served by public
+endpoints `GET /public/invoices/{token}` and `.../pdf` **outside `/v1`** (resolve org→`tenantDb` from the
+token; its own security review).
+
+**Codegen note:** a pre-release DB cannot take `0007` incrementally (it sorts before the applied
+`0999`), so codegen against a **throwaway** MySQL migrated fresh — never the running stack (see
+CLAUDE.md → Agents).
+
+**Next: the five parallel streams** — S1 branding · S2 renderer · S3 hosted page · S4 web UI · S5
+transport — each against the above, then C1 `sendInvoice` integrates and C2 covers it. The DAG and the
+interface contracts are below, unchanged.
 
 ### The Phase 1 slice of the INV tickets
 
