@@ -24,6 +24,9 @@ x-openbooks-image: &openbooks-image
   image: ${OPENBOOKS_IMAGE:-openbooks:local}
   build:
     context: .
+    # Pinned so the Dockerfile's later `web` stage (nginx) cannot become the
+    # default target for the app roles. The web service selects `target: web`.
+    target: runtime
   # Reaps zombies and forwards SIGTERM. The slim base image has no init process.
   init: true
 
@@ -183,6 +186,25 @@ services:
     restart: unless-stopped
     healthcheck:
       disable: true
+
+  # The React SPA behind nginx, served same-origin with the API (see the config
+  # at infra/nginx/openbooks-web.conf for why same-origin is required). Its own
+  # image and build target, not the shared app image. `WEB_HOST_PORT` mirrors
+  # API_HOST_PORT/DATABASE_HOST_PORT: 8080 on the host, 80 inside the container.
+  web:
+    build:
+      context: .
+      target: web
+    image: ${OPENBOOKS_WEB_IMAGE:-openbooks-web:local}
+    init: true
+    ports:
+      - '${WEB_HOST_PORT:-8080}:80'
+    depends_on:
+      # Started, not healthy: nginx serves the SPA regardless, and the variable
+      # upstream + resolver lets /v1 recover on its own once api is up.
+      api:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   mysql-data:

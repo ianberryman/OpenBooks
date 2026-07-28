@@ -42,6 +42,7 @@ FROM base AS toolchain
 ENV YARN_GLOBAL_FOLDER=/opt/yarn
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/releases .yarn/releases
+COPY packages/e2e/package.json packages/e2e/
 COPY packages/eslint-plugin/package.json packages/eslint-plugin/
 COPY packages/plugin-api/package.json packages/plugin-api/
 COPY packages/server/package.json packages/server/
@@ -117,3 +118,15 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 
 CMD ["node", "dist/server/main.js"]
+
+# ── web ────────────────────────────────────────────────────────────────────────
+# The React SPA behind nginx, served same-origin with the API: nginx forwards
+# /v1, /health and /docs to the api container, so the HttpOnly session cookie and
+# the deliberately-absent CORS layer both hold — a browser reaching the API on a
+# different origin would break on both. Reuses the `build` stage's SPA output
+# rather than rebuilding it. A separate final stage from `runtime`: the app roles
+# pin `target: runtime` in docker-compose.yml so appending this cannot change the
+# image they build, and the web service selects `target: web`.
+FROM nginx:alpine AS web
+COPY infra/nginx/openbooks-web.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/packages/web/dist /usr/share/nginx/html

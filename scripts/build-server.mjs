@@ -25,8 +25,20 @@ const outDir = path.join(repoRoot, 'dist', 'server');
  *  - argon2 ships a native addon
  *  - mysql2 resolves dialect files dynamically
  *  - pino and its transports spawn worker threads by resolved path
+ *  - @fastify/swagger-ui ships static assets (its Swagger UI bundle) that it
+ *    locates relative to its own `__dirname`; bundled, that path points into
+ *    dist/server where the assets do not exist. Loaded from node_modules it
+ *    resolves them itself. The prod-deps stage installs it, so it is present.
  */
-const external = ['argon2', 'mysql2', 'mysql2/promise', 'pino', 'pino-pretty', 'thread-stream'];
+const external = [
+  'argon2',
+  'mysql2',
+  'mysql2/promise',
+  'pino',
+  'pino-pretty',
+  'thread-stream',
+  '@fastify/swagger-ui',
+];
 
 /** Internal workspace packages, consumed from source. */
 const INTERNAL_PACKAGES = {
@@ -105,11 +117,18 @@ const result = await build({
   external,
   logLevel: 'info',
   metafile: true,
-  // Node ESM has no `require`; several CJS deps reference it after bundling.
+  // Node ESM has neither `require` nor the `__filename`/`__dirname` globals, yet
+  // several bundled CJS deps reference them after bundling — @fastify/swagger-ui
+  // reads `__dirname` to locate its static assets and throws a ReferenceError at
+  // plugin registration otherwise. Shim all three from `import.meta.url`.
   banner: {
     js: [
       "import { createRequire as __createRequire } from 'node:module';",
+      "import { fileURLToPath as __fileURLToPath } from 'node:url';",
+      "import { dirname as __nodeDirname } from 'node:path';",
       'const require = __createRequire(import.meta.url);',
+      'const __filename = __fileURLToPath(import.meta.url);',
+      'const __dirname = __nodeDirname(__filename);',
     ].join('\n'),
   },
   plugins: [internalPackageResolver()],

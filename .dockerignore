@@ -41,7 +41,12 @@ coverage
 .github
 
 # Infrastructure and container definitions — not inputs to the app build.
-infra
+# `infra/nginx` is the exception: its server config is COPYed into the web image
+# (Dockerfile `web` stage), so the non-input subdirectories are enumerated rather
+# than excluding `infra` wholesale — the same deliberate-listing rule as .yarn above.
+infra/terraform
+infra/scripts
+infra/db-bootstrap
 docker
 docker-compose.yml
 docker-compose.*.yml
