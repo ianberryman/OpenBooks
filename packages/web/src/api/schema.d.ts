@@ -5903,6 +5903,126 @@ export interface components {
          * @example -2
          */
         QuantityInput: string;
+        /** @description A dry run of a QuickBooks import: the accounts and contacts it would create, the opening balance summary, and every row-level problem — nothing is written. */
+        QuickBooksImportPreview: {
+            accounts: {
+                conflicts: string[];
+                drafts: {
+                    code: string;
+                    name: string;
+                    /** @enum {string} */
+                    normalBalance: "debit" | "credit";
+                    /** @enum {string} */
+                    type: "asset" | "liability" | "equity" | "revenue" | "expense";
+                }[];
+                toCreate: number;
+            };
+            contacts: {
+                conflicts: string[];
+                customers: number;
+                drafts: {
+                    code: string | null;
+                    displayName: string;
+                    email: string | null;
+                    isCustomer: boolean;
+                    isVendor: boolean;
+                }[];
+                vendors: number;
+            };
+            issues: {
+                /** @enum {string} */
+                file: "accounts" | "customers" | "vendors" | "trialBalance";
+                message: string;
+                row: number;
+            }[];
+            openingBalance: {
+                balanced: boolean;
+                lineCount: number;
+                totalCredits: components["schemas"]["MinorUnits"];
+                totalDebits: components["schemas"]["MinorUnits"];
+                unmatchedAccounts: string[];
+            } | null;
+        };
+        /** @description A dry run of a QuickBooks import: the accounts and contacts it would create, the opening balance summary, and every row-level problem — nothing is written. */
+        QuickBooksImportPreviewInput: {
+            accounts: {
+                conflicts: string[];
+                drafts: {
+                    code: string;
+                    name: string;
+                    /** @enum {string} */
+                    normalBalance: "debit" | "credit";
+                    /** @enum {string} */
+                    type: "asset" | "liability" | "equity" | "revenue" | "expense";
+                }[];
+                toCreate: number;
+            };
+            contacts: {
+                conflicts: string[];
+                customers: number;
+                drafts: {
+                    code: string | null;
+                    displayName: string;
+                    email: string | null;
+                    isCustomer: boolean;
+                    isVendor: boolean;
+                }[];
+                vendors: number;
+            };
+            issues: {
+                /** @enum {string} */
+                file: "accounts" | "customers" | "vendors" | "trialBalance";
+                message: string;
+                row: number;
+            }[];
+            openingBalance: {
+                balanced: boolean;
+                lineCount: number;
+                totalCredits: components["schemas"]["MinorUnitsInput"];
+                totalDebits: components["schemas"]["MinorUnitsInput"];
+                unmatchedAccounts: string[];
+            } | null;
+        };
+        /** @description A QuickBooks CSV cutover: a chart of accounts, optional customer and vendor lists, and an optional opening trial balance. Sent to `preview` (writes nothing) or `import` (commits). */
+        QuickBooksImportRequest: {
+            /** @description The chart of accounts CSV. Header row with columns Name (required), Type (required — a QuickBooks account type, mapped to one of the five account types), Number (the account code, optional) and Description (optional). Parents need not precede children. */
+            accounts: string;
+            /** @description The date the opening balances are stated as at — the opening journal’s entry date. It must fall inside a generated, open fiscal period, so the year is generated first if it has not been. Ignored when no trial balance is sent. */
+            asOfDate: components["schemas"]["CalendarDate"];
+            /** @description The customer list CSV. Header row with Name (required), Number, Email and Phone (all optional). Each becomes a contact with `isCustomer`. */
+            customers?: string | null;
+            /** @description The trial balance CSV. Header row with Account (matching an account Number, or its Name when no number is given), Debit and Credit (decimal amounts, exactly one non-empty per row). Posted whole as the opening journal, so its debits and credits must be equal. */
+            trialBalance?: string | null;
+            /** @description The vendor list CSV. Same columns as customers. Each becomes a contact with `isVendor` — a name present in both lists is one contact carrying both flags. */
+            vendors?: string | null;
+        };
+        /** @description A QuickBooks CSV cutover: a chart of accounts, optional customer and vendor lists, and an optional opening trial balance. Sent to `preview` (writes nothing) or `import` (commits). */
+        QuickBooksImportRequestInput: {
+            /** @description The chart of accounts CSV. Header row with columns Name (required), Type (required — a QuickBooks account type, mapped to one of the five account types), Number (the account code, optional) and Description (optional). Parents need not precede children. */
+            accounts: string;
+            /** @description The date the opening balances are stated as at — the opening journal’s entry date. It must fall inside a generated, open fiscal period, so the year is generated first if it has not been. Ignored when no trial balance is sent. */
+            asOfDate: components["schemas"]["CalendarDateInput"];
+            /** @description The customer list CSV. Header row with Name (required), Number, Email and Phone (all optional). Each becomes a contact with `isCustomer`. */
+            customers?: string | null;
+            /** @description The trial balance CSV. Header row with Account (matching an account Number, or its Name when no number is given), Debit and Credit (decimal amounts, exactly one non-empty per row). Posted whole as the opening journal, so its debits and credits must be equal. */
+            trialBalance?: string | null;
+            /** @description The vendor list CSV. Same columns as customers. Each becomes a contact with `isVendor` — a name present in both lists is one contact carrying both flags. */
+            vendors?: string | null;
+        };
+        /** @description What a committed QuickBooks import created. */
+        QuickBooksImportResult: {
+            accountsCreated: number;
+            customersCreated: number;
+            openingJournalId: string | null;
+            vendorsCreated: number;
+        };
+        /** @description What a committed QuickBooks import created. */
+        QuickBooksImportResultInput: {
+            accountsCreated: number;
+            customersCreated: number;
+            openingJournalId: string | null;
+            vendorsCreated: number;
+        };
         /** @description What the session’s arithmetic says, all computed on read except `statementClosingBalance` (D-34, D-46). `difference` must be zero to finalise (E5). */
         ReconciliationBalances: {
             /** @description The ledger account’s balance at `endDate`, computed from journal lines (D-46). Reported rather than asserted — it differs from `clearedBalance` by exactly the entries the bank has not shown yet. */

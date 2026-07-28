@@ -14171,6 +14171,634 @@
         "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,4})?$",
         "type": "string"
       },
+      "QuickBooksImportPreview": {
+        "additionalProperties": false,
+        "description": "A dry run of a QuickBooks import: the accounts and contacts it would create, the opening balance summary, and every row-level problem — nothing is written.",
+        "properties": {
+          "accounts": {
+            "additionalProperties": false,
+            "properties": {
+              "conflicts": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "drafts": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "normalBalance": {
+                      "enum": [
+                        "debit",
+                        "credit"
+                      ],
+                      "type": "string"
+                    },
+                    "type": {
+                      "enum": [
+                        "asset",
+                        "liability",
+                        "equity",
+                        "revenue",
+                        "expense"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "name",
+                    "type",
+                    "normalBalance"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "toCreate": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "toCreate",
+              "drafts",
+              "conflicts"
+            ],
+            "type": "object"
+          },
+          "contacts": {
+            "additionalProperties": false,
+            "properties": {
+              "conflicts": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "customers": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "drafts": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "isCustomer": {
+                      "type": "boolean"
+                    },
+                    "isVendor": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "code",
+                    "email",
+                    "isCustomer",
+                    "isVendor"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "vendors": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "customers",
+              "vendors",
+              "drafts",
+              "conflicts"
+            ],
+            "type": "object"
+          },
+          "issues": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "enum": [
+                    "accounts",
+                    "customers",
+                    "vendors",
+                    "trialBalance"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "row": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "file",
+                "row",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "openingBalance": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "balanced": {
+                    "type": "boolean"
+                  },
+                  "lineCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "totalCredits": {
+                    "$ref": "#/components/schemas/MinorUnits"
+                  },
+                  "totalDebits": {
+                    "$ref": "#/components/schemas/MinorUnits"
+                  },
+                  "unmatchedAccounts": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "balanced",
+                  "totalDebits",
+                  "totalCredits",
+                  "lineCount",
+                  "unmatchedAccounts"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accounts",
+          "contacts",
+          "openingBalance",
+          "issues"
+        ],
+        "type": "object"
+      },
+      "QuickBooksImportPreviewInput": {
+        "additionalProperties": false,
+        "description": "A dry run of a QuickBooks import: the accounts and contacts it would create, the opening balance summary, and every row-level problem — nothing is written.",
+        "properties": {
+          "accounts": {
+            "properties": {
+              "conflicts": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "drafts": {
+                "items": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "normalBalance": {
+                      "enum": [
+                        "debit",
+                        "credit"
+                      ],
+                      "type": "string"
+                    },
+                    "type": {
+                      "enum": [
+                        "asset",
+                        "liability",
+                        "equity",
+                        "revenue",
+                        "expense"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "name",
+                    "type",
+                    "normalBalance"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "toCreate": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "toCreate",
+              "drafts",
+              "conflicts"
+            ],
+            "type": "object"
+          },
+          "contacts": {
+            "properties": {
+              "conflicts": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "customers": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "drafts": {
+                "items": {
+                  "properties": {
+                    "code": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "isCustomer": {
+                      "type": "boolean"
+                    },
+                    "isVendor": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "code",
+                    "email",
+                    "isCustomer",
+                    "isVendor"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "vendors": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "customers",
+              "vendors",
+              "drafts",
+              "conflicts"
+            ],
+            "type": "object"
+          },
+          "issues": {
+            "items": {
+              "properties": {
+                "file": {
+                  "enum": [
+                    "accounts",
+                    "customers",
+                    "vendors",
+                    "trialBalance"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "row": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "file",
+                "row",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "openingBalance": {
+            "anyOf": [
+              {
+                "properties": {
+                  "balanced": {
+                    "type": "boolean"
+                  },
+                  "lineCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "totalCredits": {
+                    "$ref": "#/components/schemas/MinorUnitsInput"
+                  },
+                  "totalDebits": {
+                    "$ref": "#/components/schemas/MinorUnitsInput"
+                  },
+                  "unmatchedAccounts": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "balanced",
+                  "totalDebits",
+                  "totalCredits",
+                  "lineCount",
+                  "unmatchedAccounts"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accounts",
+          "contacts",
+          "openingBalance",
+          "issues"
+        ],
+        "type": "object"
+      },
+      "QuickBooksImportRequest": {
+        "additionalProperties": false,
+        "description": "A QuickBooks CSV cutover: a chart of accounts, optional customer and vendor lists, and an optional opening trial balance. Sent to `preview` (writes nothing) or `import` (commits).",
+        "properties": {
+          "accounts": {
+            "description": "The chart of accounts CSV. Header row with columns Name (required), Type (required — a QuickBooks account type, mapped to one of the five account types), Number (the account code, optional) and Description (optional). Parents need not precede children.",
+            "maxLength": 4194304,
+            "minLength": 1,
+            "type": "string"
+          },
+          "asOfDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the opening balances are stated as at — the opening journal’s entry date. It must fall inside a generated, open fiscal period, so the year is generated first if it has not been. Ignored when no trial balance is sent."
+          },
+          "customers": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer list CSV. Header row with Name (required), Number, Email and Phone (all optional). Each becomes a contact with `isCustomer`."
+          },
+          "trialBalance": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trial balance CSV. Header row with Account (matching an account Number, or its Name when no number is given), Debit and Credit (decimal amounts, exactly one non-empty per row). Posted whole as the opening journal, so its debits and credits must be equal."
+          },
+          "vendors": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vendor list CSV. Same columns as customers. Each becomes a contact with `isVendor` — a name present in both lists is one contact carrying both flags."
+          }
+        },
+        "required": [
+          "asOfDate",
+          "accounts"
+        ],
+        "type": "object"
+      },
+      "QuickBooksImportRequestInput": {
+        "additionalProperties": false,
+        "description": "A QuickBooks CSV cutover: a chart of accounts, optional customer and vendor lists, and an optional opening trial balance. Sent to `preview` (writes nothing) or `import` (commits).",
+        "properties": {
+          "accounts": {
+            "description": "The chart of accounts CSV. Header row with columns Name (required), Type (required — a QuickBooks account type, mapped to one of the five account types), Number (the account code, optional) and Description (optional). Parents need not precede children.",
+            "maxLength": 4194304,
+            "minLength": 1,
+            "type": "string"
+          },
+          "asOfDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the opening balances are stated as at — the opening journal’s entry date. It must fall inside a generated, open fiscal period, so the year is generated first if it has not been. Ignored when no trial balance is sent."
+          },
+          "customers": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The customer list CSV. Header row with Name (required), Number, Email and Phone (all optional). Each becomes a contact with `isCustomer`."
+          },
+          "trialBalance": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trial balance CSV. Header row with Account (matching an account Number, or its Name when no number is given), Debit and Credit (decimal amounts, exactly one non-empty per row). Posted whole as the opening journal, so its debits and credits must be equal."
+          },
+          "vendors": {
+            "anyOf": [
+              {
+                "maxLength": 4194304,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vendor list CSV. Same columns as customers. Each becomes a contact with `isVendor` — a name present in both lists is one contact carrying both flags."
+          }
+        },
+        "required": [
+          "asOfDate",
+          "accounts"
+        ],
+        "type": "object"
+      },
+      "QuickBooksImportResult": {
+        "additionalProperties": false,
+        "description": "What a committed QuickBooks import created.",
+        "properties": {
+          "accountsCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "customersCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openingJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorsCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountsCreated",
+          "customersCreated",
+          "vendorsCreated",
+          "openingJournalId"
+        ],
+        "type": "object"
+      },
+      "QuickBooksImportResultInput": {
+        "additionalProperties": false,
+        "description": "What a committed QuickBooks import created.",
+        "properties": {
+          "accountsCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "customersCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openingJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorsCreated": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accountsCreated",
+          "customersCreated",
+          "vendorsCreated",
+          "openingJournalId"
+        ],
+        "type": "object"
+      },
       "ReconciliationBalances": {
         "additionalProperties": false,
         "description": "What the session’s arithmetic says, all computed on read except `statementClosingBalance` (D-34, D-46). `difference` must be zero to finalise (E5).",
