@@ -61,6 +61,14 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   // this one too — except the job-scoped ones (`ap_only`, `ar_only`), for whom the whole
   // screen is somebody else's work.
   { to: '/settings', label: 'Settings', permission: 'orgs.read' },
+  /**
+   * `accounts.write`, the same reasoning as `/banking` above: the cutover's primary write is
+   * creating the chart, and naming the narrower permission here — rather than a would-be
+   * `imports.write` the server does not have — hides the link from a caller who could not do
+   * the one thing that always has to happen for this screen to do anything (Phase 3, the
+   * QuickBooks migration gate).
+   */
+  { to: '/quickbooks-import', label: 'Import from QuickBooks', permission: 'accounts.write' },
 ];
 
 export function visibleNav(permissions: ReadonlySet<string>): readonly NavItem[] {
