@@ -8,17 +8,57 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                | Status                       |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                            | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                 | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                  | **Built — see Status below** |
-| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                        | **Scoped — see below**       |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                 | Not scoped                   |
+| Milestone | Spec phase | Outcome                                                                                                                   | Status                       |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below** |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below** |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below** |
+| M5        | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Scoped — see below**       |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                   |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                   |
+| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Scoped — see below**       |
+| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**       |
+| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Scoped — see below**       |
+| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Scoped — see below**       |
+| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**       |
+| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**       |
 
-Minimum credible public launch is M1–M4 plus QuickBooks import.
+Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
+spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
+payments:** Pay Bills (PB, OB-109…119, G, [D-63](#d-63)…[D-69](#d-69)), Invoicing (INV, OB-120…133, H,
+[D-70](#d-70)…[D-78](#d-78)), Cash application (CA, OB-134…142, I, [D-79](#d-79)…[D-81](#d-81)),
+Payment integration (PAY, OB-143…153, J, [D-82](#d-82)…[D-86](#d-86)). **Accounting depth & platform:**
+Reporting/cash-basis (K, OB-154…161), Fixed assets & recurring journals (L, OB-162…169), Procure-to-pay
+(M, OB-170…179), Budgets (N, OB-180…184), OCR capture (O, OB-185…191), Accountant & close (P,
+OB-192…199), and **M6 Automations** — the agent work queue + BYO model (Q, OB-200…210) — decisions
+[D-87](#d-87)…[D-100](#d-100). **Payment terms** ([D-79](#d-79)) generalise the discount primitive
+([D-66](#d-66)) across AP and AR; cash basis ([D-87](#d-87)) supersedes accrual-only ([D-22](#d-22)).
+
+---
+
+## Release plan — post-M4 sequencing
+
+The scoped work (M5 + the eleven session initiatives) sequenced for a credible public launch, with
+depth staged after. The launch bar is deliberately **higher than the map's "M1–M4 + QB import"**:
+today an invoice cannot be **delivered** and there is no **cash-basis** P&L, and most customers file
+cash-basis — so both are launch-blocking, not enhancements.
+
+| Phase                                   | Work                                                                                   | Why here                                                                                               |
+| --------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **0 — Unblock** (days)                  | OB-093 (AR/AP roles can post — the Pay Bills prerequisite), OB-091, OB-092             | High-leverage, tiny; clears known gaps                                                                 |
+| **1 — Invoice delivery + foundations**  | **INV** core — delivery (PDF, theme, hosted page, email) + StorageProvider + scheduler | Closes "can't send an invoice"; builds the foundations later phases reuse                              |
+| **2 — Cash-basis reporting**            | **K**                                                                                  | The majority's P&L; ledger-kernel rigor; edges flagged for manual review                               |
+| **3 — Migration gate → 🚀 LAUNCH**      | QB import (M7's import)                                                                | Minimum credible public launch                                                                         |
+| **4 — Automate the busywork**           | INV **recurring + dunning** (the rest of INV) + **OCR (O)**                            | Reuses the Phase-1 scheduler + storage; cuts manual work — prioritised **ahead of Stripe** by decision |
+| **5 — Get paid online**                 | M5-core (`external_refs` + event bus) + D-79 fee primitive → **PAY** (Stripe/Square)   | Sequenced **after OCR and recurring/dunning** by decision                                              |
+| **6 — Payment loop + accounting depth** | **CA**, **PB**, then **L**, **M**, **N**, **P**                                        | Operational completeness + the accountant/mid-market wedge                                             |
+| **7 — Platform & AI**                   | M5-platform (OAuth/MCP + agent-review queue), then **Q (M6)**                          | The AI-forward layer, on the proven core                                                               |
+
+**Dependency notes:** INV's StorageProvider and scheduler (Phase 1) are prerequisites for OCR,
+recurring/dunning, L, P and Q. PAY (Phase 5) needs M5-core (`external_refs`) and the D-79 discount/fee
+primitive, so a slice of M5 and of CA is pulled into Phase 5. OCR (Phase 4) stands alone on storage +
+the worker, but feeds Q later; Q (Phase 7) needs M5-platform's agent-review queue (OB-105).
 
 ---
 
@@ -72,6 +112,8 @@ Splitting means a clearing that carries several coded portions (an array of
 logic generalised. That is a contract, a migration, a service change and a screen — its own
 ticket, and the decision was taken to defer it rather than widen wave 4. None of E1–E10
 requires it; it is a real bookkeeping convenience (QuickBooks and Xero have it) for later.
+**Now subsumed by the Cash application initiative** ([D-80](#d-80), OB-137): "multiple entries per
+statement line" is exactly this generalisation, with lockbox as the same mechanism — see below.
 
 **OB-095 (done)** — the banking section gained an **Accounts** tab: a bank-account setup screen
 that registers an account over a ledger asset-account picker (D-46) and deactivates/reactivates
@@ -1523,6 +1565,897 @@ guarantee — the way OB-013 and OB-020 were in M1.
 
 ---
 
+## Pay Bills & disbursements
+
+An AP enhancement scoped out of session conversation, sitting outside the spec's phase order — so it
+carries its own ticket range (OB-109…OB-119) and its own criteria letter **G** (F was M5; G is next
+free). It makes paying bills a **first-class organizational function** rather than a side effect of
+the Money screen: a batch **Pay Bills** window over bills already entered, a **pending-payment
+queue** that posts no ledger effect until money actually moves, settlement-time discounts and credit
+application, and a double-payment guard that lives where the duplicate cheque is actually cut.
+
+Two facts in the existing model shape the whole thing. A payment carries one `contactId` and
+allocations refuse to cross contacts (`assertSameContact`), so a batch fans out into **one payment
+per vendor** — which is also one cheque per vendor; Pay Bills is an orchestrator over N payments,
+not one payment ([D-63](#d-63)). And a Payment _is money that moved_ — `journalId` is never null,
+no draft state (D-37/D-38) — so the queued-but-unpaid state cannot be a draft Payment. It is a
+separate **pending payment** that posts no journal and materialises into a real Payment only when it
+is issued ([D-64](#d-64), [D-65](#d-65)). That separation is not a workaround: it is what lets cash
+stay put until the cheque is cut, and what puts a clean separation-of-duties seam between the clerk
+who builds the queue and the controller who releases it.
+
+### Definition of done
+
+From the Purchases side a user selects bills already entered, applies available vendor credits and a
+settlement discount coded to an account they choose, and queues the result. Nothing has touched the
+ledger yet, and the bills those pending payments cover are no longer offered for payment a second
+time. A treasury step routes the queue to a rail — cheque, ACH, or wire — and issues it: at that
+moment, and not before, each vendor's payment posts one balanced journal (debit payables and the
+discount account, credit the bank), the allocations are written, the bills reach `paid`, and the
+rail's identifier (cheque number from the account's register, ACH trace, wire confirmation) lands on
+the payment's `reference`. "I already sent this cheque" is the same path with queue and issue
+collapsed into one gesture. `outstanding` and every financial statement stay posted-only and tie to
+the control account throughout; the double-payment guard is a computed overlay, never a stored
+balance.
+
+| #   | Acceptance criterion                                                                                             | Verified by    |
+| --- | ---------------------------------------------------------------------------------------------------------------- | -------------- |
+| G1  | A pending payment posts no journal and has no ledger effect until issued                                         | OB-111, OB-117 |
+| G2  | Issuing posts exactly one balanced journal per vendor and writes the allocations, **atomic per payment**         | OB-112, OB-118 |
+| G3  | A settlement discount posts to the **user-selected** account and brings the bill to `paid`                       | OB-113, OB-118 |
+| G4  | `available_to_pay = outstanding − committed`; a bill an open pending payment covers cannot be queued again       | OB-111, OB-117 |
+| G5  | Cancelling or editing a pending payment frees the bill with **no ledger correction**                             | OB-111, OB-117 |
+| G6  | A pending payment routes to a rail; its identifier lands on the payment; the cheque register is per bank account | OB-114, OB-118 |
+| G7  | Queue-building needs no `journals.post`; **issuing does** — the separation-of-duties split                       | OB-112, OB-117 |
+| G8  | `outstanding` and every statement stay posted-only and tie to control; `committed` never enters a report         | OB-111, OB-117 |
+
+### Explicitly out
+
+- **The reporting-snapshot layer for scale.** Per-document settlement — including `committed` —
+  scales; whole-history statement aggregates (`selectAccountBalances`, aging's unbounded outer scan)
+  do not. A close-driven period snapshot that memoises an _immutable_ prefix is the fix, and
+  append-only makes it uniquely safe ([D-69](#d-69)). It is orthogonal to Pay Bills correctness —
+  gating "millions", not this feature — so it is its own ticket, **OB-119**, not part of this DoD.
+- **Vendor bank-credential entry.** ACH and wires need the vendor's routing/account or wire
+  instructions on the contact — new, _sensitive_ data. The schema ships (OB-109); populating real
+  numbers is the user's, never seeded.
+- **Cheque-printing polish, positive pay, and ACH return handling beyond void.** The first cut prints
+  a cheque with a stub and assigns a number; the treasury-grade tail is a fast-follow. An ACH return
+  after issue is a void (reversing journal), the same answer D-38 gives everywhere.
+
+### Ticket board
+
+11 tickets across 4 waves, numbered on from M5. Sizes as before.
+
+#### Wave 0 — Schema and contracts (2 parallel)
+
+| ID         | Title                             | Size | Depends on |
+| ---------- | --------------------------------- | ---- | ---------- |
+| **OB-109** | Pending-payment schema and grants | L    | —          |
+| **OB-110** | Pay Bills wire contracts          | M    | —          |
+
+**OB-109** — `pending_payments` (one per vendor: bank account, rail, status, memo) and
+`pending_payment_intents` (the bill lines it will settle — each `{ bill_id, amount }` — plus the
+per-line settlement discount `{ amount, account_id }` and the vendor credits it will apply). Vendor
+disbursement details on `contacts` (a mailing address is there; ACH/wire add routing/account or wire
+instructions — sensitive, D-67). A per-bank-account cheque-number register. All of it **mutable** and
+named in `MUTABLE_TABLES`: a pending payment is pencil, edited and cancelled up to issue, and nothing
+here is a ledger fact, so nothing here is append-only. `0999_app_grants` still sorts last.
+
+**OB-110** — The contracts in `packages/shared-types`: the pending payment, the batch `payBills`
+request, rail routing, the settlement-discount line, and `committed` / `available_to_pay` added to
+the AP settlement read beside `outstanding` (all three computed on read, none stored — D-34, D-68).
+No `.meta({ id })` until OB-115 gives them routes.
+
+#### Wave 1 — Services (4; 113 and 114 parallel to the 111→112 spine)
+
+| ID         | Title                                       | Size | Depends on  |
+| ---------- | ------------------------------------------- | ---- | ----------- |
+| **OB-111** | Pending-payment queue service               | L    | 109, 110    |
+| **OB-112** | Issue service                               | L    | 111, OB-093 |
+| **OB-113** | Settlement-discount primitive               | M    | 110         |
+| **OB-114** | Rail adapters + vendor disbursement details | L    | 111         |
+
+**OB-111** — Build, edit, and cancel a pending-payment queue; posts no journal. Computes
+`committed = Σ open pending intents targeting a bill` and `available_to_pay = outstanding − committed`,
+and refuses queueing beyond it — under the same `FOR UPDATE` lock on the bill the allocation code
+already takes, so two concurrent builds cannot each spend the same remainder ([D-68](#d-68)).
+Cancelling frees the bill with nothing to unwind: the allocation-delete symmetry, one layer up.
+
+**OB-112** — Materialise one pending payment into a real `Payment` per vendor: post the journal
+(payables + discount-account debit, bank credit), write the allocations under the over-allocation
+lock (C3 the backstop), flip the covered bills to `paid`, and stamp the rail identifier onto
+`reference`. **Atomic per payment, not per run** — one vendor's bad ACH detail must not roll back the
+cheques. Issue is the step that requires `journals.post`; queue-building does not — the seam that
+gives OB-093 its cleaner answer ([D-65](#d-65)).
+
+**OB-113** — The settlement-discount journal line: debit payables, credit an account the **user
+selects**, defaulted from an org setting and overridable per line ([D-66](#d-66)). Brings the bill to
+`paid` honestly, rather than through a synthetic vendor credit that litters the vendor's ledger.
+
+**OB-114** — Rail adapters over the shared issue core ([D-67](#d-67)): cheque (draw the next number
+from the account register, render a printable cheque + stub), ACH (emit into a NACHA batch, capture
+the trace), wire (capture the confirmation). Rail defaulted at creation from the vendor's preferred
+method, changeable in the queue. Vendor bank-detail entry is the user's; the schema ships, the data
+does not.
+
+#### Wave 2 — Transport and screens (2)
+
+| ID         | Title                                        | Size | Depends on |
+| ---------- | -------------------------------------------- | ---- | ---------- |
+| **OB-115** | `/v1` surface for pending payments/pay-bills | M    | 111–114    |
+| **OB-116** | Pay Bills window and the disbursements queue | L    | 115        |
+
+**OB-115** — Routes: build/edit/cancel pending payments, the batch `payBills`, route-to-rail, issue,
+and the cheque print run. Handlers map arguments and hold no logic, unchanged.
+
+**OB-116** — The **Pay Bills** window (select bills by due date and vendor, apply credits and
+discounts, see _owed / in-flight / available_) and the **disbursements** screen (the pending queue,
+rail routing, issue, cheque print run). Permission-aware and advisory ([D-25](#d-25)); the services
+are the gate.
+
+#### Wave 3 — Verification (2)
+
+| ID         | Title                                              | Size | Depends on |
+| ---------- | -------------------------------------------------- | ---- | ---------- |
+| **OB-117** | Enforcement matrix + double-payment property suite | L    | 115        |
+| **OB-118** | E2E: enter → queue → route → issue → reconcile     | M    | 116        |
+
+**OB-117** — The queue-vs-issue permission split across the matrix (queue needs no `journals.post`,
+issue does); and a **contention** property for D-68 — two builders racing the same bill, one parked
+mid-transaction, proving the second cannot queue the covered amount. Prove contention, don't simulate
+it — the habit the ledger kernel earned.
+
+**OB-118** — One narrative against the real stack ([D-26](#d-26)): enter bills, build a Pay Bills
+queue carrying a discount and a vendor credit, route part to cheque and part to ACH, issue, then
+follow the journals to the ledger and match one against a bank line — the seam test most likely to
+catch what no unit sees, as OB-090 was for M4.
+
+**Critical path:** 109 → 111 → 112 → 116 → 118. **OB-093 gates OB-112** (issue needs the
+`journals.post` / `reverse` split resolved, and the queue/issue design is what gives that gap its
+answer — `ap_only` owns the queue, an issuer role holds post). **OB-119** (reporting snapshots,
+[D-69](#d-69)) gates _scale_, independently, and is tracked as an outstanding ticket, not on this
+path.
+
+---
+
+## Invoicing — delivery, recurring & dunning
+
+The AR counterpart to Pay Bills: where that made _disbursement_ a product, this makes the invoice's
+**customer-facing lifecycle** one. Today an invoice is a purely internal ledger record — no way to
+deliver it, no way to chase it, no way to issue it on a schedule. This initiative adds all three: a
+**themed PDF emailed to the customer**, an **org branding record** that brands the PDF and the email
+(and, later, the portal and statements), a **full dunning policy** that escalates overdue invoices
+automatically, and **recurring invoice templates** that post on a schedule. Criteria letter **H**
+(G was Pay Bills); tickets OB-120…OB-133.
+
+Two shared foundations are net-new, both first-consumer moments under [D-07](#d-07): the
+**StorageProvider has no adapter yet**, so invoicing — its logo and retained PDFs the first use —
+builds the `local` + `s3` adapters; and the worker has **no scheduler** (it blocks on the queue and
+runs only what is enqueued), so a time-driven runner is built here for reminders and recurring alike.
+The **EmailProvider** already sends HTML, so nothing there changes: v1 delivery is a themed email that
+**links a hosted, token-gated invoice page** with a downloadable PDF ([D-74](#d-74)) — no attachment,
+and that hosted page is the very seam the future pay-link reuses. The **inbound payment slice —
+Stripe/Square "pay this invoice online" — is parked**
+as its own future initiative ([D-78](#d-78)); this one delivers, reminds, and recurs, but does not
+itself accept a payment.
+
+### Definition of done
+
+An org sets its branding once — identity block, logo, a brand colour, a footer. A user opens an
+approved invoice and sends it: the server renders a themed PDF, retains it, and emails the customer a
+themed link to a hosted, token-gated page where they view the invoice and download the PDF; a
+delivery record captures what was sent and when, and a later branding change does not alter that
+retained artifact. Overdue invoices are walked through an
+org-defined dunning policy — escalating stages, each sent at most once, suppressed the moment the
+invoice is paid or voided. A recurring template issues an invoice every cycle on the new scheduler;
+by default it approves and posts the journal unattended, carrying **system-actor provenance** onto
+that journal (spec §6), or lands a draft when the template is set to draft. `outstanding`, the ledger
+and every statement are untouched by any of it except the recurring post, which goes through the same
+`approveInvoice` path a human uses.
+
+| #   | Acceptance criterion                                                                                                                | Verified by    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| H1  | An approved invoice renders to a **themed** PDF via the server-side library; a draft cannot be sent                                 | OB-125, OB-126 |
+| H2  | The org branding record (identity, logo, brand colour, footer) brands **both** the invoice PDF and the email                        | OB-124, OB-126 |
+| H3  | Sending records an `invoice_delivery` + a retained PDF artifact that does **not** change on a later theme edit                      | OB-126, OB-133 |
+| H4  | The StorageProvider `local` and `s3` adapters round-trip (`put`/`get`/`signedUrl`) — invoicing the first consumer                   | OB-120         |
+| H5  | The email links a **hosted, token-gated invoice page** with a downloadable PDF — no attachment                                      | OB-121, OB-126 |
+| H6  | The worker runs a **time-driven scheduler** that enqueues due work on a daily tick                                                  | OB-127         |
+| H7  | A recurring template materialises an invoice each cycle: auto-approve by default (posts journal + number), draft on request         | OB-128, OB-133 |
+| H8  | A dunning policy escalates each open invoice through its stages until paid; **each stage sends at most once**; paid/void suppresses | OB-129, OB-132 |
+| H9  | Every automated ledger write (auto-approved recurring) carries actor provenance (spec §6); send/schedule are permission-gated       | OB-128, OB-132 |
+
+### Explicitly out
+
+- **Stripe/Square inbound payment** ([D-78](#d-78)) — a separate initiative; the pay-link is the
+  documented seam this one leaves for it.
+- **A full customer portal** (login, an account, a list of their invoices, self-service pay) —
+  deferred. v1 ships only a **single hosted invoice page** reached by a capability link
+  ([D-74](#d-74)); the logged-in portal and online payment belong with the Stripe/Square slice
+  ([D-78](#d-78)).
+- **Multi-brand** (several trading names under one org) — one branding record per org for v1
+  ([D-70](#d-70)).
+- **Durable / multi-instance scheduling** — v1 is a single-worker in-process tick; durable scheduling
+  waits on the still-unimplemented `sqs` adapter ([D-49](#d-49), [D-75](#d-75)).
+- **Statements and other themed documents** — the branding record is built to serve them later, but
+  they are not in this scope.
+
+### Ticket board
+
+14 tickets across 5 waves, numbered on from Pay Bills.
+
+#### Wave 0 — Foundations, schema and contracts (4 parallel)
+
+| ID         | Title                                        | Size | Depends on |
+| ---------- | -------------------------------------------- | ---- | ---------- |
+| **OB-120** | StorageProvider adapters (`local` + `s3`)    | M    | —          |
+| **OB-121** | Hosted invoice page + public capability link | M    | —          |
+| **OB-122** | Invoicing schema and grants                  | L    | —          |
+| **OB-123** | Invoicing wire contracts                     | M    | —          |
+
+**OB-120** — The first `StorageProvider` consumer builds it ([D-07](#d-07), [D-73](#d-73)): the
+`local` and `s3` adapters behind the existing `packages/plugin-api` interface, plus a
+`storageProvider()` accessor beside `queueProvider()`/`outboundEmail()`. Keys are org-scoped
+(`{orgId}/branding/logo`, `{orgId}/invoices/{id}/{deliveryId}.pdf`). The logo and every retained
+invoice PDF live here.
+
+**OB-121** — The **hosted invoice page**: a public, token-gated view of one invoice with a **Download
+PDF** action ([D-74](#d-74)). A high-entropy capability token per delivery is the whole authorization
+— the one sanctioned unauthenticated read path, read-only, no session — and the PDF is served gated
+by that same token (streamed by the api, or a short-lived `signedUrl`). No EmailProvider change: the
+existing HTML email carries the link, and this page is the seam the Stripe/Square pay-link
+([D-78](#d-78)) later reuses.
+
+**OB-122** — The tables and grants: **org branding** (identity, logo storage key, brand colour,
+footer — columns on `org_accounting_settings` or a sibling `org_branding`, lazy-row like the control
+accounts); **`invoice_deliveries`** (invoice, recipient, sent-at, artifact key, provider message id,
+status); **`recurring_invoice_templates`** (customer + line template + tax mode + terms + schedule +
+`draft|approved` mode); **`dunning_policies`** + **`dunning_stages`** (ordered offset + template +
+optional late fee); and an append-only **`dunning_sends`** log (the once-per-stage guard). Branding,
+templates and policies are **mutable**; deliveries and dunning-sends are **append-only** and join
+`APPEND_ONLY_TABLES`. `0999_app_grants` still sorts last.
+
+**OB-123** — The wire contracts: branding, the send request, the recurring template, the dunning
+policy. No `.meta({ id })` until OB-130.
+
+#### Wave 1 — Rendering and delivery (3)
+
+| ID         | Title                                    | Size | Depends on    |
+| ---------- | ---------------------------------------- | ---- | ------------- |
+| **OB-124** | Org branding service + logo upload       | M    | 120, 122, 123 |
+| **OB-125** | Invoice PDF renderer (server-side lib)   | L    | 120, 122      |
+| **OB-126** | Invoice send — themed email + attachment | M    | 121, 124, 125 |
+
+**OB-124** — Read/write the branding record and upload the logo through the storage adapter. Colours
+and text are **stored data** the renderer consumes, not app design tokens — no `no-raw-color`
+conflict ([D-70](#d-70)).
+
+**OB-125** — The invoice PDF, rendered by a **server-side library** (deterministic, dependency-light —
+not headless Chromium, [D-71](#d-71)), taking the branding as typed inputs and the money as the
+already-string-formatted wire values (no float). Emits the artifact to storage.
+
+**OB-126** — `sendInvoice` (permission `invoices.send`): render and retain the artifact, mint the
+delivery's capability token, email the customer a themed link to the hosted page (OB-121), and write
+the `invoice_delivery`. Only an **approved** invoice is sendable; "sent" is a delivery fact, never a
+ledger status ([D-72](#d-72)).
+
+#### Wave 2 — Scheduler and automation (3)
+
+| ID         | Title                              | Size | Depends on   |
+| ---------- | ---------------------------------- | ---- | ------------ |
+| **OB-127** | Scheduler — time-driven job runner | L    | —            |
+| **OB-128** | Recurring invoice templates        | L    | 127, 122, M3 |
+| **OB-129** | Dunning policy engine              | L    | 126, 127     |
+
+**OB-127** — The net-new capability ([D-75](#d-75)): a single-worker in-process tick alongside
+`blockUntilShutdown` that, each day, enqueues due work onto the existing `QueueProvider`. Non-durable
+across restart in v1 (acceptable single-instance); a durable multi-instance scheduler waits on the
+unimplemented `sqs` adapter ([D-49](#d-49)).
+
+**OB-128** — Each cycle materialises an invoice from the template. **Auto-approve by default** — posts
+the journal and takes the number through the same `approveInvoice` path a human uses, unattended, via
+a **system/automation actor** so provenance still lands on the journal ([D-76](#d-76)) — or lands a
+draft when the template's mode is `draft`. Cycle materialisation is idempotent (one invoice per
+period).
+
+**OB-129** — The dunning engine ([D-77](#d-77)): the scheduler feeds each overdue invoice through its
+org's policy stages; each stage sends **at most once** (the `dunning_sends` guard) and reuses the
+OB-126 send path; paid/void/dispute suppresses the sequence; an optional late fee posts as the
+punitive twin of the settlement discount.
+
+#### Wave 3 — Transport and screens (2)
+
+| ID         | Title                                          | Size | Depends on |
+| ---------- | ---------------------------------------------- | ---- | ---------- |
+| **OB-130** | `/v1` surface for delivery, recurring, dunning | M    | 124–129    |
+| **OB-131** | Screens                                        | L    | 130        |
+
+**OB-130** — Routes: send/preview an invoice, branding settings, recurring templates, dunning policy.
+Handlers map arguments and hold no logic.
+
+**OB-131** — Screens: invoice preview + send, org branding settings, the recurring-template editor
+(with the draft|approved toggle), and the dunning-policy configurator. Permission-aware; the services
+are the gate.
+
+#### Wave 4 — Verification (2)
+
+| ID         | Title                                        | Size | Depends on |
+| ---------- | -------------------------------------------- | ---- | ---------- |
+| **OB-132** | Enforcement matrix + idempotency suite       | L    | 130        |
+| **OB-133** | E2E: brand → recur → post → send → dun → pay | M    | 131        |
+
+**OB-132** — The guarantees as tests: dunning sends **once per stage** under a generated run, recurring
+cycles are idempotent, an auto-approved recurring post carries provenance (F3-style), the storage
+adapters round-trip, and send/schedule sit behind their permissions across the matrix. The
+once-per-stage and once-per-cycle properties get the mutation testing load-bearing guards get.
+
+**OB-133** — One narrative against the real stack ([D-26](#d-26)): brand an org, set a recurring
+template to `approved`, let a cycle fire and post, watch the invoice go out as a themed PDF+email,
+let dunning escalate an overdue one, then mark it paid and see the sequence suppress.
+
+**Critical path:** 120 → 125 → 126 → 129 → 133; OB-127 (scheduler) gates 128 and 129, and OB-121
+(the hosted page) gates 126. OB-120 (storage), OB-121 (the public token-gated page) and OB-127 (the
+scheduler) are the three most likely to expand — the first and last are net-new plumbing, and the
+page is a new unauthenticated surface with its own security review.
+
+---
+
+## Cash application
+
+The AR receipt side: turning money that arrived into settled invoices. The bank-feed match screen
+(OB-086) is already the working surface — it ranks the open invoice a deposit probably pays and
+settles it in one accepted keystroke (`allocate_document` → `recordPayment` + allocation). This
+initiative closes the two gaps that surface leaves: a statement line can settle only **one** target
+today, and an early-payment discount has no first-class home. Criteria **I**; tickets OB-134…OB-142.
+
+It introduces the concept both this and Pay Bills were missing — **payment terms** ([D-79](#d-79)):
+a term (Net 30, 2/10 Net 30, Due on receipt) computes the due date and, when it carries one, the
+early-pay discount and its deadline; simple (net only) and rich (with a discount) both supported.
+And it generalises bank clearing to **multiple entries per statement line** ([D-80](#d-80)) — one
+deposit across several customers' invoices (lockbox) and one line coded across several accounts (the
+deferred **OB-094** split) as a single mechanism.
+
+### Definition of done
+
+An org defines payment terms and assigns a default to a customer or vendor, overridable per document.
+A deposit lands in the feed and the operator clears it across **several** targets at once — three
+customers' invoices, or one invoice plus a bank-charge line — the entries summing to the line. When
+an invoice being settled is within its discount window the screen **suggests** the discount as one of
+the entries; the operator confirms (never auto-posted), and it lands on the org's discount account.
+The same suggestion appears when paying a bill within terms in Pay Bills. The multi-entry clear still
+balances to the line (E4), and `outstanding` and the ledger stay exactly as the accepted entries
+posted them.
+
+| #   | Acceptance criterion                                                                                                                      | Verified by    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| I1  | A payment term computes the due date and, when set, the early-pay discount + deadline; customer/vendor default, per-document override     | OB-136         |
+| I2  | A bank statement line clears against **multiple entries** (invoices/bills/GL/discount) summing to the line; the clear still balances (E4) | OB-137, OB-141 |
+| I3  | Lockbox: one deposit settles **several customers'** invoices in one accepted action                                                       | OB-137, OB-142 |
+| I4  | An in-window invoice/bill shows a **suggested discount** entry; confirmed, never auto-posted, to the org's discount account               | OB-138, OB-141 |
+| I5  | The discount suggestion appears both in bank clearing **and** in Pay Bills                                                                | OB-138         |
+| I6  | Both a **simple** term (net only) and a **manual** ad-hoc discount work — rich is optional                                                | OB-136, OB-138 |
+| I7  | **OB-094 is subsumed**: one line coded across several GL accounts is the same multi-entry mechanism                                       | OB-137         |
+| I8  | Propose-then-post preserved ([D-43](#d-43)): every multi-entry clear and suggestion is human-accepted                                     | OB-141         |
+
+### Explicitly out
+
+- **Auto-posting a match** — unchanged from [D-43](#d-43): the engine proposes, a human accepts.
+  Multi-entry and discount suggestions are still one accepted keystroke, not an auto-poster.
+- **Remittance-advice file ingestion** (a customer's file listing which invoices a lump covers) —
+  later; the reference/amount/counterparty ranking already covers the common case.
+- **A dedicated batch "receive payments" grid** separate from the match workbench — the workbench,
+  extended to multi-entry, is the surface ([D-81](#d-81)).
+
+### Ticket board
+
+9 tickets across 4 waves, numbered on from Invoicing.
+
+#### Wave 0 — Schema and contracts (2 parallel)
+
+| ID         | Title                                      | Size | Depends on |
+| ---------- | ------------------------------------------ | ---- | ---------- |
+| **OB-134** | Payment terms + discount schema and grants | L    | —          |
+| **OB-135** | Cash-application wire contracts            | M    | —          |
+
+**OB-134** — `payment_terms` (name, net days, optional discount percent + window days), a default
+term on `contacts`, an override on the document, and the discount-given/received account nominations
+(alongside the control accounts in `org_accounting_settings`). Terms are **mutable**.
+
+**OB-135** — The contracts: the term, the multi-entry clearing request (an array of entries where
+today there is one), and the discount-suggestion shape. No `.meta({ id })` until OB-139.
+
+#### Wave 1 — Terms, multi-entry, and the suggestion (3)
+
+| ID         | Title                            | Size | Depends on |
+| ---------- | -------------------------------- | ---- | ---------- |
+| **OB-136** | Payment terms service            | M    | 134, 135   |
+| **OB-137** | Multi-entry bank clearing        | L    | 135, M4    |
+| **OB-138** | Terms-driven discount suggestion | M    | 136, 137   |
+
+**OB-136** — Compute the due date and, when the term carries a discount, the allowed amount and its
+deadline, from the term on the document (or the contact default). Simple terms carry no discount.
+
+**OB-137** — Extend `clearBankStatementLine` from one target to an **array of entries** —
+`allocate_document` × N, `post_entry` × N, and a discount line — generalising the difference logic
+([D-80](#d-80)). This is one deposit across many customers' invoices (lockbox) and OB-094's
+split-coding as the same mechanism; the clear still balances to the line (E4), each entry posts as
+today, and undo reverses the set.
+
+**OB-138** — When an invoice or bill being settled is within its discount window, surface the
+computed discount as a **suggested entry** the operator confirms — in bank clearing and in Pay Bills
+alike ([D-79](#d-79)). Never auto-posted; the account is the org's discount nomination.
+
+#### Wave 2 — Transport and screens (2)
+
+| ID         | Title                                            | Size | Depends on |
+| ---------- | ------------------------------------------------ | ---- | ---------- |
+| **OB-139** | `/v1` surface for terms and multi-entry clearing | M    | 136–138    |
+| **OB-140** | Screens                                          | L    | 139        |
+
+**OB-139** — Routes for terms, the multi-entry clear, and the suggestion. Handlers map arguments.
+
+**OB-140** — The multi-entry match row on the bank-match screen (add/remove entries against one
+line, with the running difference), payment-terms settings, and the discount-suggestion affordance.
+Permission-aware; the services are the gate.
+
+#### Wave 3 — Verification (2)
+
+| ID         | Title                                    | Size | Depends on |
+| ---------- | ---------------------------------------- | ---- | ---------- |
+| **OB-141** | Enforcement + multi-entry property suite | L    | 139        |
+| **OB-142** | E2E: lockbox deposit with a discount     | M    | 140        |
+
+**OB-141** — The guarantees as tests: a multi-entry clear **sums to the line** (E4) under a generated
+run of entry sets, the discount suggestion computes from the term, and every clear stays
+human-accepted. The sum-to-line and suggestion properties get the mutation testing load-bearing
+guards get.
+
+**OB-142** — One narrative ([D-26](#d-26)): a single deposit split across three customers' invoices,
+one of them settled with an in-terms early-pay discount, and the clear balancing to the deposit.
+
+**Critical path:** 134 → 137 → 138 → 140 → 142. OB-137 (multi-entry clearing) is the load-bearing
+change — it is the generalisation OB-094 was deferred for, now the mechanism for lockbox too.
+
+---
+
+## Payment integration — Stripe & Square
+
+Accepting a customer payment online, and the AR inbound-rail mirror of the AP disbursement rails
+([D-67](#d-67)). Its own initiative, deliberately separate from cash application: that one applies
+money the org already has; this one **brings money in through a processor** and models the very
+different settlement shape a processor imposes. Criteria **J**; tickets OB-143…OB-153. It leans on
+three earlier seams — the hosted invoice page ([D-74](#d-74)) as the pay-link surface, M5's
+`external_refs` for webhook idempotency, and the new scheduler (OB-127) for the polling backstop.
+
+The load-bearing model is [D-82](#d-82): **a processor is a clearing account, not a bank.** A charge
+clears AR into the processor's clearing account _immediately_; the periodic **payout** moves the
+accumulated balance to the real bank, net of fees and refunds; the bank feed reconciles that single
+payout. So "invoice paid" (at charge) and "cash in bank" (at payout) decouple, and the books
+reconcile because the clearing account nets to zero against the payout.
+
+### Definition of done
+
+An org connects Stripe or Square with its own keys (in the secrets provider — OpenBooks never sees a
+card, [D-83](#d-83)). A customer opens the hosted invoice page, clicks pay, and pays on the
+processor's own checkout. A signed, `external_refs`-idempotent webhook records a `received` payment
+via a **system actor**, allocates it to the invoice named in the checkout metadata (certain identity,
+not a guess), and posts the per-charge fee ([D-84](#d-84)) — all into the clearing account. A daily
+poll backstops missed webhooks and reconciles the clearing balance against the processor's own
+([D-85](#d-85)). When the processor pays out, the bank feed reconciles the net deposit against the
+clearing account. Refunds post as opposite-direction payments; a chargeback is recorded and coded at
+payout, its full lifecycle deferred.
+
+| #   | Acceptance criterion                                                                                        | Verified by    |
+| --- | ----------------------------------------------------------------------------------------------------------- | -------------- |
+| J1  | A processor is a **clearing account**: a charge clears AR into it, a payout moves it to the bank            | OB-147, OB-153 |
+| J2  | **Hosted checkout only** — no card data touches OpenBooks (PCI SAQ-A); keys in the secrets provider         | OB-145, OB-151 |
+| J3  | An online payment auto-records + auto-allocates to the invoice in checkout metadata, via a **system actor** | OB-148, OB-153 |
+| J4  | The **per-charge fee** posts at charge through the discount/fee primitive ([D-79](#d-79))                   | OB-147         |
+| J5  | Webhooks are **signature-verified** and `external_refs`-idempotent — a replay collapses to one payment (F9) | OB-148, OB-152 |
+| J6  | A scheduled poll reconciles the clearing balance against the **processor's reported balance**               | OB-148         |
+| J7  | Refunds post as opposite-direction payments; **chargebacks are recorded-and-coded at payout** (lean)        | OB-149         |
+| J8  | The **payout reconciles** against the clearing account through the bank match pipeline                      | OB-147, OB-153 |
+| J9  | Stripe **and** Square work behind one `PaymentProcessorProvider`; the pay-link reuses the hosted page       | OB-145, OB-146 |
+
+### Explicitly out
+
+- **Embedded card fields** (Stripe Elements and the like) — hosted checkout only, to stay out of PCI
+  scope ([D-83](#d-83)).
+- **Full dispute lifecycle** (opened/evidence/won/lost states) — v1 records and codes the chargeback
+  at payout ([D-84](#d-84)).
+- **Multi-currency** (spec §13) — the processor charges in the org's currency; still deferred.
+- **A full customer portal** — the pay-link opens the single hosted invoice page ([D-74](#d-74)), not
+  a logged-in account.
+
+### Ticket board
+
+11 tickets across 5 waves, numbered on from Cash application.
+
+#### Wave 0 — Provider, schema and contracts (2 parallel)
+
+| ID         | Title                                         | Size | Depends on |
+| ---------- | --------------------------------------------- | ---- | ---------- |
+| **OB-143** | `PaymentProcessorProvider` + processor schema | L    | M5         |
+| **OB-144** | Payment-integration wire contracts            | M    | M5         |
+
+**OB-143** — The new provider interface (create hosted-checkout link, verify webhook, normalise
+events — charge/fee/refund/dispute/payout) and its schema: the processor **clearing account** (a
+ledger account plus processor-import metadata, like a bank account is — D-46), the webhook-event log,
+and the `external_refs` rows that key a processor object to an OpenBooks entity. The provider is the
+AR mirror of the AP rails ([D-67](#d-67), [D-86](#d-86)).
+
+**OB-144** — The contracts: connect-processor, the normalised event, the pay-link. OAuth-style
+processor endpoints stay outside the typed envelope where the processor dictates their shape.
+
+#### Wave 1 — Adapters and the clearing model (3)
+
+| ID         | Title                                       | Size | Depends on   |
+| ---------- | ------------------------------------------- | ---- | ------------ |
+| **OB-145** | Stripe adapter                              | L    | 143, INV     |
+| **OB-146** | Square adapter                              | M    | 143          |
+| **OB-147** | Clearing-account posting + payout reconcile | L    | 143, M4, 138 |
+
+**OB-145** — Hosted-checkout link (invoice id in the session metadata for certain identity),
+signature verification, and event normalisation. The pay-link lands on the hosted invoice page
+(OB-121 / [D-74](#d-74)).
+
+**OB-146** — The Square adapter behind the same interface — the second implementation that proves the
+abstraction, the way M5's consumers proved the platform contracts.
+
+**OB-147** — The posting model ([D-82](#d-82)): charge → clear AR + per-charge fee + credit clearing;
+payout → debit bank, credit clearing; and the payout reconciled against the clearing account through
+the M4 match pipeline. The fee is the discount/fee primitive ([D-79](#d-79)) on the receiving side.
+
+#### Wave 2 — Webhooks and the money events (2)
+
+| ID         | Title                               | Size | Depends on    |
+| ---------- | ----------------------------------- | ---- | ------------- |
+| **OB-148** | Webhook receiver + polling backstop | L    | 145, 147, 127 |
+| **OB-149** | Refunds + lean chargeback coding    | M    | 148           |
+
+**OB-148** — The signed inbound endpoint (distinct from M5's deferred _outbound_ push, [D-57](#d-57)):
+verify, dedupe through `external_refs` (F9), and drive `recordPayment` + allocation via a system
+actor so provenance lands (spec §6). A scheduled poll on OB-127 backstops missed webhooks and
+reconciles the clearing balance against the processor's own ([D-85](#d-85)) — the subledger-agreement
+discipline OB-088 applied to reconciliation, one level further out.
+
+**OB-149** — Refunds as opposite-direction payments (the retained fee stays an expense); a chargeback
+recorded and coded when it hits the payout, its full lifecycle deferred ([D-84](#d-84)).
+
+#### Wave 3 — Transport and screens (2)
+
+| ID         | Title                                       | Size | Depends on |
+| ---------- | ------------------------------------------- | ---- | ---------- |
+| **OB-150** | `/v1` surface + pay-link on the hosted page | M    | 145–149    |
+| **OB-151** | Connect-a-processor settings screen         | M    | 150        |
+
+**OB-150** — The management routes and the pay-link wired onto the hosted invoice page (OB-121).
+
+**OB-151** — Connect Stripe/Square per org, keys stored through the secrets provider — never entered
+into or echoed by OpenBooks ([D-83](#d-83)).
+
+#### Wave 4 — Verification (2)
+
+| ID         | Title                                                 | Size | Depends on |
+| ---------- | ----------------------------------------------------- | ---- | ---------- |
+| **OB-152** | Enforcement + idempotency property suite              | L    | 150        |
+| **OB-153** | E2E: pay a hosted invoice → paid → payout → reconcile | M    | 151        |
+
+**OB-152** — The guarantees as tests: a replayed webhook collapses to one payment (F9-style), the
+clearing account reconciles against a generated charge/fee/refund/payout stream, and every
+processor-driven write carries provenance. The idempotency property gets mutation testing.
+
+**OB-153** — One narrative against the real stack ([D-26](#d-26)), with a processor sandbox: pay an
+invoice on hosted checkout, watch the webhook mark it paid and post the fee into clearing, then a
+payout reconcile the clearing account against the bank line.
+
+**Critical path:** 143 → 145 → 147 → 148 → 153. OB-147 (the clearing model) and OB-148 (the webhook
+receiver) are the two most likely to expand — the settlement shape and the exactly-once guarantee,
+the way OB-098 and OB-100 were for M5.
+
+---
+
+## Financial reporting — cash basis, cash flow, projection
+
+The reporting layer M2 deferred, now **majority-critical**: most customers file cash-basis while still
+using accrual documents operationally (session finding), so cash-basis reporting is the majority's
+daily P&L, not a toggle. Three reports on one "trace ledger events to cash timing" engine. Criteria
+**K**; tickets OB-154…OB-161.
+
+The load-bearing piece is the **cash-basis transform** ([D-87](#d-87)), built with ledger-kernel rigor
+because the stakes are "gets them in trouble." The common document→payment case is deterministic
+(re-recognise at payment date, proportional for partials, exclude unpaid); the risk concentrates in a
+small set of edges — accrual adjusting JEs (counted only to the extent they touch cash) and
+prepayments/unallocated receipts — which are **flagged and routed to review** ([Q](#q), the agent
+queue), never silently guessed. Every report is unmistakably **basis-labeled**.
+
+### Definition of done
+
+An org sets its default basis. P&L and the cash-flow reports render on that basis, labeled. The
+cash-basis transform re-recognises each accrual document at its settling payment date, proportionally
+for partials, excludes the unpaid, and counts a journal only to the extent it touches cash — flagging
+the ambiguous. A **Statement of Cash Flows** (indirect) — the missing third statement — reconciles net
+income to cash movement. A **cash-flow projection** forecasts forward from AR/AP due dates and
+recurring commitments.
+
+| #   | Acceptance criterion                                                                                        | Verified by    |
+| --- | ----------------------------------------------------------------------------------------------------------- | -------------- |
+| K1  | Reports render on the org's basis, **unmistakably labeled**; basis is a per-report override of the default  | OB-156         |
+| K2  | Cash basis re-recognises a document at its **payment date**, **proportional** for partials, excludes unpaid | OB-154, OB-160 |
+| K3  | A journal counts on cash basis **only to the extent it touches cash**; the rest is flagged                  | OB-154, OB-155 |
+| K4  | Accrual adjusting JEs and prepayments/unallocated receipts are **flagged for review**, not guessed          | OB-155         |
+| K5  | The **Statement of Cash Flows** (indirect) reconciles net income to the change in cash                      | OB-157, OB-160 |
+| K6  | The **cash-flow projection** forecasts from AR/AP due dates + recurring commitments                         | OB-158         |
+| K7  | The transform is **property- and mutation-tested** to ledger-kernel standard                                | OB-160         |
+
+### Ticket board
+
+| ID         | Title                                                   | Size | Depends on |
+| ---------- | ------------------------------------------------------- | ---- | ---------- |
+| **OB-154** | Cash-basis transform engine                             | L    | M3         |
+| **OB-155** | Ambiguous-edge flagging → review/agent queue            | M    | 154, Q     |
+| **OB-156** | Org default basis + report basis labeling               | M    | 154        |
+| **OB-157** | Statement of Cash Flows (indirect)                      | L    | M2         |
+| **OB-158** | Cash-flow projection                                    | L    | M3, INV    |
+| **OB-159** | `/v1` + report viewers                                  | M    | 154–158    |
+| **OB-160** | Property/mutation suite                                 | L    | 154, 157   |
+| **OB-161** | E2E: cash-basis P&L + cash flow across partial payments | M    | 159        |
+
+**Critical path:** 154 → 156 → 157 → 160 → 161. OB-154 (the transform) is the load-bearing change and
+gets the mutation testing the posting kernel got.
+
+---
+
+## Fixed assets & recurring journals
+
+Depreciation and amortisation, plus the recurring-journal machinery they ride on — both on the OB-127
+scheduler and the draft-vs-auto-approve pattern ([D-76](#d-76)). Criteria **L**; tickets OB-162…OB-169.
+
+### Definition of done
+
+An org registers an asset (cost, method, life, in-service date); the system computes the schedule and
+posts monthly depreciation/amortisation journals — auto-approved by default, draft on request, system-
+actor provenance ([D-89](#d-89)). Disposal posts the gain/loss. Independently, a **recurring GL entry**
+([D-90](#d-90)) — a scheduled fixed-or-formula journal — covers prepaid amortisation, accruals and
+deferred-revenue recognition on the same scheduler.
+
+| #   | Acceptance criterion                                                                          | Verified by    |
+| --- | --------------------------------------------------------------------------------------------- | -------------- |
+| L1  | A recurring GL template posts its journal each period; auto-approve default, draft on request | OB-162, OB-168 |
+| L2  | A registered asset computes a depreciation/amortisation schedule (straight-line, declining)   | OB-164, OB-168 |
+| L3  | Scheduled periods post depreciation via a recurring journal, once per period (idempotent)     | OB-165, OB-168 |
+| L4  | Disposal posts the gain/loss and stops the schedule                                           | OB-166         |
+| L5  | Every automated post carries system-actor provenance (spec §6)                                | OB-162, OB-165 |
+| L6  | Schedule totals equal cost less residual; property-tested                                     | OB-168         |
+
+### Ticket board
+
+| ID         | Title                                                   | Size | Depends on |
+| ---------- | ------------------------------------------------------- | ---- | ---------- |
+| **OB-162** | Recurring GL entry (scheduled journal template)         | M    | OB-127     |
+| **OB-163** | Fixed-asset register + schema                           | M    | —          |
+| **OB-164** | Depreciation/amortisation schedule computation          | L    | 163        |
+| **OB-165** | Scheduled posting of depreciation via recurring journal | M    | 162, 164   |
+| **OB-166** | Disposal (gain/loss)                                    | M    | 164        |
+| **OB-167** | `/v1` + screens                                         | L    | 162–166    |
+| **OB-168** | Property suite (schedule sums; recurring idempotency)   | M    | 165        |
+| **OB-169** | E2E                                                     | M    | 167        |
+
+**Critical path:** 162 → 164 → 165 → 168 → 169.
+
+---
+
+## Procure-to-pay & pre-sale — POs, estimates, expenses
+
+The operational documents that sit **before** a bill or invoice: purchase orders (→ bill), estimates
+(→ invoice), and employee expenses (→ reimbursement). Criteria **M**; tickets OB-170…OB-179.
+
+Two shaping decisions: **POs and estimates are non-posting pre-documents** that carry lines and convert
+into the posting document ([D-92](#d-92)) — they are operational, not ledger events, until converted;
+and **employees are a new contact type** (`is_employee` beside `is_customer`/`is_vendor`,
+[D-91](#d-91)) so an expense has an owner and a reimbursement a payee.
+
+### Definition of done
+
+A PO is raised, approved, sent, and converted to a bill carrying its lines. An estimate is sent to a
+customer and converted to an invoice on acceptance. Neither posts a journal until it converts. An
+employee submits expenses; approval creates a payable/reimbursement that Pay Bills settles.
+
+| #   | Acceptance criterion                                                                       | Verified by    |
+| --- | ------------------------------------------------------------------------------------------ | -------------- |
+| M1  | A PO carries lines and **posts no journal**; converting it creates a bill with those lines | OB-171, OB-178 |
+| M2  | An estimate posts no journal; converting it creates an invoice with those lines            | OB-172, OB-178 |
+| M3  | Conversion is **once** — a converted pre-document cannot convert again (idempotent)        | OB-178         |
+| M4  | **Employees** are a contact type; an expense names one, a reimbursement pays one           | OB-170, OB-174 |
+| M5  | An approved expense creates a payable Pay Bills can settle                                 | OB-174         |
+| M6  | POs and estimates carry their own numbering, distinct from bills/invoices                  | OB-171, OB-172 |
+| M7  | Cross-org 404 holds for every new resource                                                 | OB-177         |
+| M8  | Send/approve/convert are permission-gated                                                  | OB-177         |
+
+### Ticket board
+
+| ID         | Title                                                       | Size | Depends on |
+| ---------- | ----------------------------------------------------------- | ---- | ---------- |
+| **OB-170** | Employees as a contact type (`is_employee`) + schema        | M    | —          |
+| **OB-171** | Purchase orders (non-posting) + convert-to-bill             | L    | M3         |
+| **OB-172** | Estimates/quotes (non-posting) + convert-to-invoice         | L    | M3         |
+| **OB-173** | PO approval + send (reuses hosted-page/email)               | M    | 171, INV   |
+| **OB-174** | Employee expenses + reimbursement                           | L    | 170        |
+| **OB-175** | `/v1` surface                                               | M    | 170–174    |
+| **OB-176** | Screens                                                     | L    | 175        |
+| **OB-177** | Enforcement/permissions matrix                              | M    | 175        |
+| **OB-178** | Property (convert carries lines; no double-convert)         | M    | 171, 172   |
+| **OB-179** | E2E: PO → bill, estimate → invoice, expense → reimbursement | M    | 176        |
+
+**Critical path:** 170 → 171/172 → 174 → 176 → 179.
+
+---
+
+## Budgets
+
+Budget figures by account (and dimension) per period, and budget-vs-actual reporting. **No ledger
+effect** — a budget is a parallel plane compared against actuals ([D-94](#d-94)). Criteria **N**;
+tickets OB-180…OB-184.
+
+### Definition of done
+
+An org enters (or imports) budget amounts by account/dimension/period; a budget-vs-actual report
+compares them to ledger actuals with variance, on the org's basis.
+
+| #   | Acceptance criterion                                                         | Verified by    |
+| --- | ---------------------------------------------------------------------------- | -------------- |
+| N1  | Budget amounts are entered by account/dimension/period; **no journal posts** | OB-180, OB-181 |
+| N2  | Budget-vs-actual compares budget to ledger actuals with variance             | OB-182         |
+| N3  | The report honours the org's reporting basis and dimension filters           | OB-182         |
+| N4  | Cross-org 404 and permission-gating hold                                     | OB-184         |
+
+### Ticket board
+
+| ID         | Title                                    | Size | Depends on |
+| ---------- | ---------------------------------------- | ---- | ---------- |
+| **OB-180** | Budget schema (account/dimension/period) | M    | —          |
+| **OB-181** | Budget service (enter/import)            | M    | 180        |
+| **OB-182** | Budget-vs-actual report                  | M    | 181, K     |
+| **OB-183** | `/v1` + screen                           | M    | 182        |
+| **OB-184** | Tests + E2E                              | S    | 183        |
+
+**Critical path:** 180 → 181 → 182 → 184.
+
+---
+
+## Bill capture (OCR)
+
+Snap or forward a bill/receipt, extract it, and **propose a draft bill/expense** for review. Rides the
+StorageProvider (built in Invoicing), the worker, and the propose-then-post pattern ([D-95](#d-95)).
+Criteria **O**; tickets OB-185…OB-191.
+
+### Definition of done
+
+A document arrives (upload or a per-org email-in address), is stored, and a `DocumentExtractionProvider`
+(LLM-capable) extracts vendor/date/amount/tax/lines into a **draft** bill or expense — vendor matched
+to a contact, duplicates guarded by the existing `duplicate_vendor_reference` rule. A human reviews and
+posts; the original stays **attached** to the bill.
+
+| #   | Acceptance criterion                                                      | Verified by |
+| --- | ------------------------------------------------------------------------- | ----------- |
+| O1  | A captured document is stored and extracted into a **draft** bill/expense | OB-187      |
+| O2  | Capture channels: **upload** and a **per-org email-in** address           | OB-186      |
+| O3  | Extraction **proposes**, never posts — a human commits ([D-43](#d-43))    | OB-187      |
+| O4  | Vendor is matched to a contact; a **duplicate** capture is flagged        | OB-187      |
+| O5  | The original document is **attached** to the posted bill                  | OB-188      |
+| O6  | The extraction provider is swappable (interface + LLM adapter)            | OB-185      |
+
+### Ticket board
+
+| ID         | Title                                                              | Size | Depends on   |
+| ---------- | ------------------------------------------------------------------ | ---- | ------------ |
+| **OB-185** | `DocumentExtractionProvider` interface + LLM adapter + config      | L    | —            |
+| **OB-186** | Capture channels: upload + per-org email-in                        | M    | INV(storage) |
+| **OB-187** | Extraction → draft bill/expense proposal (vendor match, dup guard) | L    | 185, 186     |
+| **OB-188** | Transaction attachments (original on the bill)                     | M    | INV(storage) |
+| **OB-189** | `/v1` + review screen                                              | M    | 187          |
+| **OB-190** | Tests                                                              | M    | 187          |
+| **OB-191** | E2E: forward a bill → draft → review → post                        | M    | 189          |
+
+**Critical path:** 185 → 187 → 189 → 191.
+
+---
+
+## Accountant access & period close
+
+Accountants as a **granted user type** (not a firm tier, [D-96](#d-96)), plus the workflow that hangs
+off their access: period close, adjusting entries, statement packages, and a surfaced audit trail.
+Criteria **P**; tickets OB-192…OB-199.
+
+### Definition of done
+
+An org owner grants an external user the seeded **`accountant`** role — broad read, adjusting/reclass
+JEs, run and close periods, statement packages, audit trail — revocable, scoped to that org, reusing
+the existing invite/membership flow. A **period-close workflow** ([D-97](#d-97)) runs a checklist,
+locks the period, and records sign-off. Adjusting entries are flagged as such. The actor provenance
+already on every journal is surfaced as a **who-changed-what** audit report ([D-98](#d-98)).
+
+| #   | Acceptance criterion                                                             | Verified by    |
+| --- | -------------------------------------------------------------------------------- | -------------- |
+| P1  | An owner grants/revokes the `accountant` role via the existing invite flow       | OB-192         |
+| P2  | The role holds read + adjusting JEs + period close + statements + audit; not ops | OB-192, OB-198 |
+| P3  | A close workflow runs a checklist, **locks** the period, records **sign-off**    | OB-193         |
+| P4  | Adjusting/reclassifying entries are **flagged** as such                          | OB-194         |
+| P5  | A statement package renders a branded P&L/BS/cash-flow bundle to PDF             | OB-195         |
+| P6  | An audit report surfaces existing actor provenance (who changed what, when)      | OB-196         |
+| P7  | Access stays org-scoped — an accountant sees only granted orgs (tenancy holds)   | OB-198         |
+
+### Ticket board
+
+| ID         | Title                                                   | Size | Depends on  |
+| ---------- | ------------------------------------------------------- | ---- | ----------- |
+| **OB-192** | `accountant` role (seed + permissions) + grant/revoke   | M    | M2          |
+| **OB-193** | Period-close workflow (checklist, lock, sign-off)       | L    | M1(periods) |
+| **OB-194** | Adjusting/reclassifying entries (flagged)               | M    | M2          |
+| **OB-195** | Statement packages (branded P&L/BS/cash-flow → PDF)     | M    | INV, K      |
+| **OB-196** | Audit-trail report (surface provenance)                 | M    | M1          |
+| **OB-197** | `/v1` + screens                                         | L    | 192–196     |
+| **OB-198** | Enforcement/permission matrix                           | M    | 197         |
+| **OB-199** | E2E: grant accountant → adjust → close → statement pack | M    | 197         |
+
+**Critical path:** 192 → 193 → 195 → 199.
+
+---
+
+## Automations (M6) — agent work queue & bring-your-own-model
+
+Realises the **M6** milestone as an **agent work queue driven by user-composed automations over the
+org's own model**. An automation = a **trigger** + **actions**; one action type runs an **agent task**
+(BYO model) that produces a **structured proposal a human reviews** ([D-60](#d-60)/[D-99](#d-99)). The
+work queue is the substrate; producers across the app enqueue items carrying a prompt + context.
+Criteria **Q**; tickets OB-200…OB-210.
+
+<a id="q"></a>
+
+### Definition of done
+
+An org configures its model and credentials ([D-100](#d-100), secrets provider — OpenBooks never sees
+them). A user builds an automation: a trigger (manual / scheduled / event) and actions, deterministic
+and/or agent-task. Producers enqueue work items (an ambiguous cash-basis JE, a captured bill, an
+uncategorised transaction) with a prompt that explains the work; the runner processes queued items via
+the BYO model into **structured proposals** that land in the M5 agent-review queue (OB-105); a human
+approves/edits/posts. **Nothing auto-posts to the ledger**, and every proposal carries model+prompt
+provenance.
+
+| #   | Acceptance criterion                                                                           | Verified by    |
+| --- | ---------------------------------------------------------------------------------------------- | -------------- |
+| Q1  | An automation is a **trigger + actions** the user composes and owns                            | OB-202, OB-208 |
+| Q2  | Triggers cover **manual, scheduled (OB-127), and event** (the M5 bus)                          | OB-205         |
+| Q3  | An **agent-task** action runs the org's **BYO model** on a work item → **structured proposal** | OB-203         |
+| Q4  | Agent proposals **never post** to the ledger; a human commits them (OB-105)                    | OB-203, OB-209 |
+| Q5  | Producers enqueue work items with a prompt + context (from events or rules)                    | OB-204         |
+| Q6  | Every proposal carries **provenance** (which model, which prompt, when)                        | OB-203, OB-209 |
+| Q7  | A model/credential failure leaves the item **queued and flagged**, never silently dropped      | OB-203, OB-209 |
+| Q8  | BYO model config is per-org, in the **secrets provider**, never echoed                         | OB-201         |
+| Q9  | Deterministic and agent-task actions **compose** in one automation                             | OB-202, OB-210 |
+
+### Ticket board
+
+| ID         | Title                                                            | Size | Depends on   |
+| ---------- | ---------------------------------------------------------------- | ---- | ------------ |
+| **OB-200** | Work-queue schema (items, prompts, status) + grants              | M    | —            |
+| **OB-201** | BYO-model config per org (secrets provider)                      | M    | M5           |
+| **OB-202** | Automation engine: trigger + actions model                       | L    | 200          |
+| **OB-203** | Agent-task action (BYO model → structured proposal)              | L    | 201, 202, M5 |
+| **OB-204** | Producers: enqueue from events (bus) + rules                     | M    | 200, M5      |
+| **OB-205** | Triggers: manual / scheduled (OB-127) / event                    | M    | 202          |
+| **OB-206** | Proposal → agent-review queue (OB-105) integration               | M    | 203, M5      |
+| **OB-207** | `/v1` surface                                                    | M    | 202–206      |
+| **OB-208** | Screens: automation builder + review queue                       | L    | 207          |
+| **OB-209** | Property/enforcement (never auto-posts; idempotent; provenance)  | L    | 207          |
+| **OB-210** | E2E: an OCR-classify automation proposes a draft → review → post | M    | 208, O       |
+
+**Critical path:** 200 → 202 → 203 → 206 → 210. OB-203 (the agent-task action) and OB-206 (the
+never-posts review gate) are the load-bearing pieces — the AI seam and the human-commit guarantee.
+
+---
+
 ## Decisions
 
 Choices made while scoping. Each is reversible; flag any you want changed before implementation.
@@ -2505,6 +3438,370 @@ feed under `integrations.read`, the agent review queue under `agents.review`, an
 its operation's own existing code. A new key is added only if a genuinely new resource needs one, and
 if so it moves the `48` assertion and its seed together — never one without the other, which is the
 drift `test/permissions/catalog.test.ts` fails on.
+
+<a id="d-63"></a>
+
+**D-63 — Pay Bills is a batch orchestrator over one payment per vendor, fanned out server-side.** A
+payment carries a single `contactId` and allocations refuse to cross contacts, so a batch of bills
+across many vendors resolves to one payment per vendor — which is also one cheque per vendor, the
+right real-world unit. The fan-out is a **server-side** `payBills` operation, not a client loop: a
+client that dies mid-loop leaves some vendors paid and others not, the orphan state the payment model
+works to avoid. Each resulting payment is its own transaction and its own journal; the batch is a
+grouping, not one atomic ledger event.
+
+<a id="d-64"></a>
+
+**D-64 — The queued-but-unpaid state is a separate `pending_payment`, not a draft `Payment`.** A
+`Payment` is money that moved: `journalId` is never null, there is no draft state (D-37/D-38), and
+`outstanding` ties the subledger to the control account precisely because every payment posted a
+journal. Giving `Payment` a nullable journal and a `pending` status would spend that invariant and
+every reader that assumes it. Instead the pending state is a distinct, **mutable** entity that posts
+no journal and materialises into a real `Payment` on issue. The pencil/ink split the codebase already
+draws between allocations and the ledger, applied one level out to the intent to pay.
+
+<a id="d-65"></a>
+
+**D-65 — Issuing posts the journal; queuing does not.** Cash does not move when a cheque is queued —
+it moves when the cheque is cut or the ACH is sent — so the bank-credit journal posts at **issue**,
+not at queue time. "I already sent this cheque" issues immediately (queue and issue in one gesture);
+"I need to print / send" issues later. More correct than QuickBooks, which drops cash at pay-bills
+time. It also draws the separation-of-duties line exactly: queue-building touches no ledger and needs
+no `journals.post`, so a clerk owns it; issue posts and needs the permission, so a controller owns
+it. This is the clean answer OB-093 was waiting for.
+
+<a id="d-66"></a>
+
+**D-66 — Settlement discounts post to a user-selected account, as a real journal line.** An
+early-payment discount is real P&L and cannot be expressed by the mutable allocation layer, which by
+definition posts no journal. So issue posts a discount line — debit payables, **credit an account the
+user chooses**, defaulted from an org setting and overridable per line — bringing the bill to `paid`
+honestly. Rejected: auto-generating a vendor credit under the hood, which reaches `paid` through the
+existing journal path but litters the vendor's ledger with system-created credit documents and their
+numbers. **Generalised by [D-79](#d-79)** into payment terms across AP and AR (simple and rich),
+suggested at pay time.
+
+<a id="d-67"></a>
+
+**D-67 — Rails are issue-time adapters over one shared issue core; the rail identifier reuses
+`reference`.** Cheque, ACH, and wire differ only in the tail of issue — the identifier and artifact
+they produce (cheque number from the account's register + a printable cheque; ACH trace + NACHA
+entry; wire confirmation). The shared core (journal, allocations, `paid`) is rail-agnostic. The
+identifier lands in the existing free-text `Payment.reference`, which D-36 already describes as "the
+cheque number, whatever identifies this movement" — no new column on the posted payment. Rail is
+defaulted at creation and reassignable in the queue, so the queue can be routed as a treasury step.
+Consequence scoped as a dependency: ACH/wire require vendor bank details, new sensitive data on
+`contacts`.
+
+<a id="d-68"></a>
+
+**D-68 — Double payment is prevented by a computed `committed` overlay, not a stored reservation.**
+Because a pending payment posts no journal, it cannot reduce `outstanding` (which must stay
+posted-only to tie to the control account), and the ledger's C3 over-allocation guard only fires at
+issue — after the duplicate cheque is already cut, and even then over-_paying_ is allowed, so it lands
+as unwanted credit rather than a stop. So the guard lives at the operational layer: a second computed
+figure `committed = Σ open pending intents on a bill`, with `available_to_pay = outstanding −
+committed`. `outstanding` is untouched and never sees `committed`; reports never see it either.
+Enforced soft at queue-build and hard at issue under the allocation code's existing `FOR UPDATE` lock,
+with C3 as the last-ditch backstop. Cancelling a pending payment frees the bill automatically — the
+figure is read, not reserved, so there is nothing to release.
+
+<a id="d-69"></a>
+
+**D-69 — The reporting-snapshot layer is a separate, append-only-enabled prerequisite for scale.**
+Per-document settlement (outstanding, `committed`, status) is a bounded, index-served slice and scales
+to millions of documents untouched. What does not scale is the whole-history statement aggregate:
+`selectAccountBalances` sums `journal_lines` from the beginning of time on every report, and aging
+does an unbounded outer scan of every in-range document. The fix is **not** a denormalised balance on
+the mutable spine — the thing the "no cache, one source of truth" docstrings rightly forbid — but a
+**close-driven period snapshot** that memoises an _immutable_ prefix: because closed-period journal
+lines can never change, the snapshot cannot go stale, and a report becomes snapshot-at-last-close plus
+the bounded open tail. Append-only makes this uniquely safe; most ledgers bolt integrity onto a
+mutable store to get it. Orthogonal to Pay Bills correctness, tracked as **OB-119**.
+
+<a id="d-70"></a>
+
+**D-70 — Org branding is a general, reusable record, not an invoice setting.** Because it is wanted
+"for other things in the future," it is modelled as an org-level branding record — identity block,
+logo, a brand colour, a footer — that feeds the invoice PDF and the outbound email now, and the
+customer page, statements and other documents later. One record per org for v1 (multi-brand is a
+later extension). It is **structured data, not a freeform template**, which is what makes a
+server-side renderer safe: no template-injection surface, deterministic output. Mutable, but each
+sent invoice freezes the branding into its retained artifact ([D-72](#d-72)), so a later rebrand does
+not rewrite what a customer already received.
+
+<a id="d-71"></a>
+
+**D-71 — Invoice PDFs are rendered by a server-side library, not headless Chromium.** A JS PDF
+library is deterministic and dependency-light and keeps the image slim; a bundled Chromium is a large,
+moving dependency in a deliberately-slim runtime. The branding is passed as typed inputs and the money
+as the already-string-formatted wire values, so there is no float and no HTML to sanitise. Revisit
+Chromium only if a design demands CSS the library cannot express.
+
+<a id="d-72"></a>
+
+**D-72 — "Sent" is a delivery fact, not a ledger status.** The draft/approved/part_paid/paid/void
+status is derived from journals and allocations; whether an invoice was delivered is orthogonal — an
+approved invoice can be unsent, sent, or sent three times. So delivery is its own `invoice_deliveries`
+record (recipient, sent-at, retained artifact key, provider message id), never a value folded into the
+computed status. Only an **approved** invoice — one with a number — is sendable. The rendered PDF is
+retained as the artifact of what was sent, immutable to later branding edits.
+
+<a id="d-73"></a>
+
+**D-73 — Invoicing is the first `StorageProvider` consumer and builds its adapters.** The interface
+and env-driven selection have existed since M1, but no adapter was written — [D-07](#d-07)'s "adapters
+ship with their first consumer," and storage had none. The org logo and the retained invoice PDFs are
+that first consumer, so this initiative writes the `local` and `s3` adapters and the
+`storageProvider()` accessor, with org-scoped keys. The same rule email followed at M2.
+
+<a id="d-74"></a>
+
+**D-74 — v1 delivery is an emailed link to a hosted, token-gated invoice page — no attachment.** An
+earlier plan attached the PDF, which would have grown the `EmailProvider` contract (attachments +
+SES `Content.Raw`/MIME); it was dropped before any build. Instead the existing HTML email carries a
+**link to a hosted invoice page** with a **Download PDF** action. Two reasons this is better, not
+just smaller: it needs no provider-contract change, and the hosted page is the exact surface the
+parked Stripe/Square pay-link ([D-78](#d-78)) later lands on — delivery and payment share a seam
+rather than being bolted together. The page is **the one sanctioned unauthenticated read**: a
+high-entropy capability token per delivery is the whole authorization, read-only, no session, and the
+PDF is served gated by the same token. A full logged-in portal stays out of scope; this is a single
+invoice reached by a capability link.
+
+<a id="d-75"></a>
+
+**D-75 — The scheduler is net-new: a single-worker in-process daily tick.** The worker blocks on the
+queue and runs only what is enqueued; there is no cron, interval or delayed-job runner. Reminders and
+recurring both need "each day, find what is due and act," so a time-driven runner is built here — a
+tick alongside `blockUntilShutdown` that enqueues onto the existing `QueueProvider`. It is
+**non-durable across a restart** in v1, which is acceptable on the single-instance deployment; a
+durable, multi-instance scheduler additionally needs the still-unimplemented `sqs` adapter
+([D-49](#d-49)), and is deferred with it.
+
+<a id="d-76"></a>
+
+**D-76 — Recurring templates auto-approve by default, with a per-template `draft|approved` setting.**
+This is the one place the system posts to the ledger with no human in the loop, and it is deliberate:
+subscriptions and rent are the common case, and forcing a human to approve an identical invoice every
+month is the friction the feature exists to remove. Auto-approve posts the journal and takes the
+number through the same `approveInvoice` path a human uses, unattended, via a **system/automation
+actor** so provenance still lands on the journal (spec §6, the non-human actor seam M5 established).
+The `draft` mode is the escape hatch for templates a human wants to review; it is permission-gated
+either way.
+
+<a id="d-77"></a>
+
+**D-77 — Full dunning: an org-configurable escalating policy, not just fixed reminders.** A reminder
+is a single message; dunning is the orchestrated sequence. The policy is ordered stages — each an
+offset from the due date, a template, a tone, and an optional late fee — that the scheduler walks each
+overdue invoice through. Each stage sends **at most once** per invoice, enforced by an append-only
+`dunning_sends` log, and the whole sequence is **suppressed** the moment the invoice is paid, voided
+or disputed. A late fee, where a stage carries one, posts as the punitive twin of the settlement
+discount ([D-66](#d-66)): a real journal line, not a status.
+
+<a id="d-78"></a>
+
+**D-78 — Stripe/Square inbound payment is a separate, parked initiative.** Accepting a payment online
+is the AR mirror of the AP disbursement rails — a processor adapter over the "record received payment
+
+- allocate" core, with the processor fee posting as the receiving-side twin of [D-66](#d-66), made
+  idempotent against at-least-once webhooks by M5's `external_refs`, and carrying non-human actor
+  provenance. It needs an inbound-webhook surface (distinct from M5's deferred _outbound_ push,
+  [D-57](#d-57)) and vendor/customer payment details. The invoicing initiative deliberately leaves it
+  out, providing only the two seams it will reuse: the hosted invoice page ([D-74](#d-74)) as the
+  pay-link surface and `external_refs` as the idempotency key.
+
+<a id="d-79"></a>
+
+**D-79 — Payment terms generalise the discount primitive across AP and AR (extends [D-66](#d-66)).**
+The manual, one-sided settlement discount of D-66 becomes a **payment term**: net days plus an
+_optional_ early-pay discount (percent + window). A term computes the due date and, when it carries a
+discount, the allowed amount and its deadline. **Simple** (net only) and **rich** (with a discount)
+are both supported, as is an ad-hoc manual discount with no term. A term is a default on the
+customer/vendor, overridable per document. On AR you _offer_ terms; on AP you _take_ them. The
+discount is **suggested at pay/apply time and confirmed by a human** — never auto-posted, consistent
+with [D-43](#d-43) — and posts a real journal line to a user-selected discount-given/received account.
+Processor fees ([D-84](#d-84)) reuse this same primitive on the receiving side.
+
+<a id="d-80"></a>
+
+**D-80 — A bank statement line clears against multiple entries.** Today a clear settles exactly one
+target. It becomes an **array** of entries — `allocate_document` × N (several invoices/bills),
+`post_entry` × N (several GL accounts), and a discount line — summing to the line, with the difference
+logic generalised. This one change delivers **lockbox** (one deposit across many customers' invoices)
+and **subsumes OB-094** (split-coding, one line across several accounts) as the same mechanism. Each
+entry posts exactly as a single-target clear does today; the set still balances to the line (E4) and
+undo reverses it as a unit. Still propose-then-post ([D-43](#d-43)) — a multi-entry clear is one
+accepted keystroke, not an auto-poster.
+
+<a id="d-81"></a>
+
+**D-81 — Cash application extends the match workbench, it does not add a new batch grid.** The M4
+bank-match screen already ranks the open invoice a deposit pays and settles it; extended to
+multi-entry ([D-80](#d-80)) with a discount suggestion ([D-79](#d-79)), it is the AR/AP application
+surface, and the money-in screen remains for receipts not in the feed. A separate "receive payments"
+batch grid would be a second surface doing what the workbench already does; remittance-advice file
+ingestion is a later addition to the same ranking, not a new screen.
+
+<a id="d-82"></a>
+
+**D-82 — A payment processor is a clearing account, not a bank.** Stripe/Square do not pay per
+transaction; they batch charges minus fees minus refunds into a periodic net **payout**. So a charge
+clears AR into the processor's **clearing account** immediately (the invoice is paid), the payout
+moves the accumulated balance from clearing to the real bank, and the bank feed reconciles the single
+payout against the clearing account. "Invoice paid" (at charge) and "cash in bank" (at payout) are
+deliberately decoupled — different accounts, different dates — and the books reconcile because
+clearing nets to zero against the payout. Modelling the processor as the bank instead would leave the
+payout unreconcilable and the fees muddled.
+
+<a id="d-83"></a>
+
+**D-83 — Hosted checkout only; OpenBooks never touches card data.** The pay-link redirects to the
+processor's own checkout; the customer enters card details there, not on an OpenBooks page. This keeps
+the system in PCI **SAQ-A** scope, stores no card data, and puts the org's processor keys in the
+secrets provider — never entered into or echoed by the application. Embedded card fields (Stripe
+Elements) would add control and PCI scope; deferred indefinitely. The checkout session carries the
+invoice id in metadata, so the resulting payment has **certain** identity and auto-allocation is not a
+guess — the one place auto-application is legitimate, unlike the inferred bank-feed match.
+
+<a id="d-84"></a>
+
+**D-84 — Per-charge fees; refunds as opposite payments; lean chargebacks.** The processor fee posts
+**at charge time**, per charge, through the discount/fee primitive ([D-79](#d-79)) — cleaner per-
+invoice P&L than deferring fees to payout, with the adapter normalising processors that only report
+fees at payout. A **refund** is a payment in the opposite direction linked to the original charge (the
+processor often retains its fee, so a refund rarely fully reverses). A **chargeback** is recorded and
+coded when it hits the payout; the full dispute lifecycle (opened/evidence/won/lost) is deferred.
+
+<a id="d-85"></a>
+
+**D-85 — Processor webhooks: signed, `external_refs`-idempotent, with a polling backstop.** The
+inbound webhook endpoint verifies the processor's signature and dedupes through M5's `external_refs`
+keyed on the processor object id, so an at-least-once redelivery collapses to one payment (F9). Because
+webhooks are also missed and reordered, a **scheduled poll** (on the OB-127 scheduler) backstops them
+and reconciles the clearing account against the processor's own reported balance — the
+subledger-agreement discipline OB-088 gave bank reconciliation, one level further out. This inbound
+surface is distinct from M5's deferred _outbound_ push ([D-57](#d-57)).
+
+<a id="d-86"></a>
+
+**D-86 — One `PaymentProcessorProvider` abstraction, Stripe and Square adapters.** A new [D-07](#d-07)
+provider — the AR inbound-rail mirror of the AP disbursement rails ([D-67](#d-67)) — behind which each
+processor's divergent webhook and checkout schemas are normalised to internal events
+(charge/fee/refund/dispute/payout). Square is the second implementation that proves the abstraction,
+as M5's real consumers proved the platform contracts. The core cash path stays processor-agnostic.
+
+<a id="d-87"></a>
+
+**D-87 — Cash basis is a report transformation on an accrual-capable ledger, not a second ledger.**
+Cash and accrual are recognition timing on the same double-entry events; accrual records are a strict
+superset from which cash is derivable, so the ledger stays accrual-capable and everyone keeps the
+operational documents ([D-88](#d-88) confirms most cash-basis businesses use invoices/bills anyway).
+The transform re-recognises each accrual document at its settling payment date, **proportionally** for
+partials, excludes the unpaid, and counts a journal **only to the extent it touches cash**. It is
+majority-critical (most customers file cash) so it is built and property/mutation-tested to
+ledger-kernel standard; the ambiguous edges (accrual adjusting JEs, prepayments/unallocated receipts)
+are **flagged for review** ([D-99](#d-99)), never silently guessed, and every report is basis-labeled.
+Supersedes [D-22](#d-22)'s accrual-only stance.
+
+<a id="d-88"></a>
+
+**D-88 — Operational documents are basis-agnostic; the Statement of Cash Flows is the missing third
+statement.** Invoices and bills are operational units (get paid, organise payables, aging, dunning),
+used by cash- and accrual-basis businesses alike — which is why the ledger keeps them and why Pay
+Bills/Invoicing/Cash application serve everyone. The reporting pack adds the two reports M2 never had:
+a **Statement of Cash Flows** (indirect, reconciling net income to the change in cash) and a **forward
+cash-flow projection** from AR/AP due dates and recurring commitments.
+
+<a id="d-89"></a>
+
+**D-89 — Depreciation and amortisation post as scheduled journals from an asset register.** An asset
+carries cost/method/life/in-service date; the register computes the schedule and the OB-127 scheduler
+posts each period's depreciation as a journal — auto-approved by default with a draft option
+([D-76](#d-76)), via a system actor so provenance lands. Disposal posts the gain/loss and stops the
+schedule. Depreciation is thus a specialised recurring GL entry ([D-90](#d-90)).
+
+<a id="d-90"></a>
+
+**D-90 — Recurring GL entries are scheduled journal templates.** A fixed or formula-driven journal the
+scheduler posts each period — prepaid amortisation, accruals, deferred-revenue recognition — distinct
+from recurring invoices (which are AR documents). Same scheduler and draft-vs-auto-approve pattern as
+recurring invoices and depreciation.
+
+<a id="d-91"></a>
+
+**D-91 — Employees are a contact type.** `is_employee` beside `is_customer`/`is_vendor` on the single
+`contacts` table, so an expense has an owner and a reimbursement a payee without a parallel entity. The
+same composite-key tenancy and contact machinery apply.
+
+<a id="d-92"></a>
+
+**D-92 — POs and estimates are non-posting pre-documents that convert.** A purchase order and an
+estimate carry lines and their own numbering but **post no journal** — they are operational (approve,
+send, track), not ledger events. Converting a PO creates a bill, an estimate an invoice, carrying the
+lines; conversion is once (idempotent). This keeps the ledger's "a journal is an economic event" line
+clean while giving procurement and pre-sale their documents.
+
+<a id="d-93"></a>
+
+**D-93 — Employee expenses create a payable that Pay Bills settles.** An approved expense (owned by an
+employee contact, [D-91](#d-91)) becomes a payable/reimbursement that flows through the existing Pay
+Bills path — no separate disbursement mechanism. Mileage and per-diem detail are later.
+
+<a id="d-94"></a>
+
+**D-94 — Budgets are a parallel plane with no ledger effect.** Budget amounts by account/dimension/
+period are stored and compared against ledger actuals in a budget-vs-actual report; they post no
+journal and touch no balance. The report honours the org's reporting basis and dimension filters.
+
+<a id="d-95"></a>
+
+**D-95 — OCR/bill capture proposes a draft; a human posts.** A captured document (upload or a per-org
+email-in address) is stored (the Invoicing StorageProvider) and a swappable `DocumentExtractionProvider`
+(LLM-capable, given the stack) extracts it into a **draft** bill/expense — vendor matched to a contact,
+duplicates caught by the existing `duplicate_vendor_reference` guard, the original attached. Extraction
+**proposes**, a human commits ([D-43](#d-43)); the non-determinism of extraction makes that gate
+non-negotiable. It is a producer for the agent queue ([D-99](#d-99)).
+
+<a id="d-96"></a>
+
+**D-96 — An accountant is a granted user type, not a firm tier.** An org owner grants an external user
+the seeded **`accountant`** role through the existing invite/membership flow — broad read, adjusting/
+reclass JEs, run and close periods, statement packages, audit trail; not operational document entry —
+revocable and org-scoped. Multi-client is just membership in several orgs with org-switch; a firm
+entity above orgs is deferred. Keeps the strict composite-key isolation intact.
+
+<a id="d-97"></a>
+
+**D-97 — Period close is a workflow over the existing period lock.** A checklist per period, then lock
+(the M1 period lock) and a recorded sign-off — the accountant activity the period lock was always for,
+now with the process around it. Reopen stays the audited, permission-gated path.
+
+<a id="d-98"></a>
+
+**D-98 — Adjusting entries are flagged; the audit trail is surfaced, not built.** Adjusting/reclassifying
+journals are ordinary journals marked as such for the accountant's review. Every journal already carries
+actor provenance (spec §6); the audit report **surfaces** it as who-changed-what — a read over data that
+already exists, not new capture.
+
+<a id="d-99"></a>
+
+**D-99 — M6 is an agent work queue driven by user-composed automations; agents propose, humans post.**
+The Automations milestone is realised as a **work queue** (items carrying a prompt + context, enqueued
+by producers across the app) plus an **automation engine** where an automation is a trigger (manual/
+scheduled/event) and actions, one action type being an **agent task** that runs the org's model over a
+work item into a **structured proposal**. Proposals land in the M5 review queue (OB-105) and **never
+post to the ledger** ([D-60](#d-60)); deterministic and agent-task actions compose. This is user-driven
+(nothing runs unless the user built the automation) and the safety mechanism for risky judgments like
+[D-87](#d-87)'s cash-basis edges.
+
+<a id="d-100"></a>
+
+**D-100 — Bring-your-own-model, per org, through the secrets provider.** The org configures its own
+model and credentials; OpenBooks orchestrates the queue and prompts, the org's model does the inference,
+and the org bears the cost and keeps the data in its own model relationship — the M5 "a model the user
+already pays for" seam. Credentials live in the secrets provider and are never entered into or echoed by
+the application. A model/credential failure leaves the work item queued and flagged, never silently
+dropped.
 
 ## Status — Milestone 1
 
