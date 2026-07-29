@@ -171,12 +171,26 @@ export type InvoiceSummary = z.infer<typeof invoiceSummarySchema>;
  * `dueDate` is optional and defaults to `issueDate` — due on receipt. Defaulted
  * rather than nullable because aging measures from the due date (D-40), and a null
  * due date would make a document that ages from nothing.
+ *
+ * `paymentTermId` is create-only (OB-136, D-108): it overrides the customer's
+ * default term for this one invoice, resolved by `resolveDocumentTerm`
+ * (contact-default-then-document-override) and recorded whenever a term is
+ * resolved, independent of whether `dueDate` was also given explicitly. There is
+ * no way to change it after creation — a term already governing a document must
+ * not have its due-date or discount arithmetic move under it once entered.
  */
 export const createInvoiceRequestSchema = z
   .strictObject({
     contactId: z.uuid(),
     issueDate: calendarDateSchema,
     dueDate: calendarDateSchema.optional(),
+    paymentTermId: z.uuid().optional().meta({
+      description:
+        'Overrides the customer’s default payment term for this invoice. Absent falls back to ' +
+        'the contact’s own default, if any; there is no term at all if neither names one. ' +
+        'Create-only — a term already resolved onto a document is not reachable through ' +
+        '`UpdateInvoiceRequest`.',
+    }),
     taxMode: taxModeSchema,
     reference: documentReferenceSchema.nullish(),
     memo: documentMemoSchema.nullish(),
@@ -187,7 +201,8 @@ export const createInvoiceRequestSchema = z
     description:
       'Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and ' +
       '`lines` is optional, because “New invoice” produces an empty one and the arity and account ' +
-      'checks belong at approval.',
+      'checks belong at approval. `paymentTermId` overrides the contact’s default term and is ' +
+      'create-only.',
   });
 
 export type CreateInvoiceRequest = z.infer<typeof createInvoiceRequestSchema>;

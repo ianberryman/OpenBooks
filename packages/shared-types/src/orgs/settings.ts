@@ -127,28 +127,34 @@ export type UpdateControlAccountsRequest = z.infer<typeof updateControlAccountsR
  * org — the AP mirror. Separately nullable for `controlAccountsSchema`'s own
  * reason: an org that only invoices never gives a vendor discount.
  *
- * No `.meta({ id })` yet, matching `payment-terms.ts`'s rule: OB-139's routes are
- * the later leaf that references this shape, and an unreferenced component would
- * fail A10.
+ * `.meta({ id })` arrived with OB-139's `/v1/settings/discount-accounts` routes,
+ * matching `payment-terms.ts`'s rule: an id with no route referencing it fails A10.
  */
-export const discountAccountsSchema = z.strictObject({
-  discountGivenAccountId: z
-    .uuid()
-    .nullable()
-    .meta({
-      description:
-        'The account an early-pay discount debits when this org gives one to a customer. Null ' +
-        'until nominated; confirming a discount without it is a `precondition_failed`.',
-    }),
-  discountReceivedAccountId: z
-    .uuid()
-    .nullable()
-    .meta({
-      description:
-        'The account an early-pay discount credits when a vendor gives one to this org. Null until ' +
-        'nominated.',
-    }),
-});
+export const discountAccountsSchema = z
+  .strictObject({
+    discountGivenAccountId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The account an early-pay discount debits when this org gives one to a customer. Null ' +
+          'until nominated; confirming a discount without it is a `precondition_failed`.',
+      }),
+    discountReceivedAccountId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The account an early-pay discount credits when a vendor gives one to this org. Null ' +
+          'until nominated.',
+      }),
+  })
+  .meta({
+    id: 'DiscountAccounts',
+    description:
+      'The org’s early-pay discount nominations. Either may be null — the two sides are ' +
+      'separately usable, and an org that only invoices never gives a vendor discount.',
+  });
 
 export type DiscountAccounts = z.infer<typeof discountAccountsSchema>;
 
@@ -163,6 +169,13 @@ export const updateDiscountAccountsRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateDiscountAccountsRequest',
+    description:
+      'Partial update. An omitted field is left as it is; an explicit `null` clears the ' +
+      'nomination. Both land in one transaction. Changing one moves future postings only — a ' +
+      'discount already posted names the account it posted to and is never restated.',
   });
 
 export type UpdateDiscountAccountsRequest = z.infer<typeof updateDiscountAccountsRequestSchema>;

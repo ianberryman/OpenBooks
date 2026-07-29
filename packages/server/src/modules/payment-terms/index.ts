@@ -17,9 +17,11 @@
  *
  * ## What is not here
  *
- * - **OB-139's routes** — no `.meta({ id })` on `paymentTermSchema` or
- *   `updatePaymentTermRequestSchema` until then, per `payment-terms.ts`'s own
- *   header.
+ * - **The `/v1` routes** (OB-139) — payment-terms CRUD, the
+ *   `GET /v1/payment-terms/discount-suggestion` preview, and the
+ *   `paymentTermId` document-create field are transport
+ *   (`transport/routes/payment-terms.ts`); this module holds the services they
+ *   call.
  * - **Discount-account nomination** — `discount_given_account_id`/
  *   `discount_received_account_id` live in `org_accounting_settings` beside the
  *   control accounts, so `getDiscountAccounts`/`updateDiscountAccounts`/

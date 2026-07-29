@@ -1,9 +1,19 @@
-import { controlAccountsSchema, updateControlAccountsRequestSchema } from '@openbooks/shared-types';
-import type { ControlAccounts } from '@openbooks/shared-types';
+import {
+  controlAccountsSchema,
+  discountAccountsSchema,
+  updateControlAccountsRequestSchema,
+  updateDiscountAccountsRequestSchema,
+} from '@openbooks/shared-types';
+import type { ControlAccounts, DiscountAccounts } from '@openbooks/shared-types';
 
 import { getContext } from '../../context';
 import { withIdempotency } from '../../modules/idempotency';
-import { getControlAccounts, updateControlAccounts } from '../../modules/settings';
+import {
+  getControlAccounts,
+  getDiscountAccounts,
+  updateControlAccounts,
+  updateDiscountAccounts,
+} from '../../modules/settings';
 import type { App } from '../types';
 import {
   ERROR_RESPONSES,
@@ -67,9 +77,27 @@ import {
  * The write takes `orgs.write` rather than `accounts.write`, which is the service's
  * decision and not this route's: the role that enters documents is not the role that
  * decides the shape of the books.
+ *
+ * ## `/v1/settings/discount-accounts` (OB-139, Cash application; D-106, D-107)
+ *
+ * The early-pay discount nominations, added below as their own path rather than as
+ * two more fields on `/v1/accounting-settings` because the ticket that adds them
+ * names the path this way; both still live in the one `org_accounting_settings` row
+ * `discount-accounts.ts` shares with the control accounts, and both take
+ * `orgs.read`/`orgs.write` for exactly this file's reasoning applied twice over
+ * (D-107: no new catalog key). `PATCH`, not `PUT`, mirroring `updateControlAccounts`
+ * above rather than the literal verb the ticket named: `updateDiscountAccountsRequestSchema`
+ * carries the identical absent-vs-`null` three-valued shape — an omitted side is left
+ * alone, an explicit `null` clears it, `{}` is refused — and a `PUT` cannot express
+ * "change only one side" without forcing a client to restate a value it may not have
+ * read, the lost-update shape this file's own header argues against. Neither is
+ * refused while a discount already posted to the previous account is outstanding, for
+ * the same reason a control-account repoint is not: refusing would strand exactly the
+ * org that nominated the wrong account and has already confirmed something.
  */
 
 const TAG = 'accounting-settings';
+const DISCOUNT_TAG = 'discount-accounts';
 
 export function registerSettingsRoutes(app: App): void {
   app.get(
@@ -123,6 +151,58 @@ export function registerSettingsRoutes(app: App): void {
       );
 
       return reply.status(result.status).send(idempotentBody<ControlAccounts>(result));
+    },
+  );
+
+  app.get(
+    '/v1/settings/discount-accounts',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getDiscountAccounts',
+        summary: 'The org’s early-pay discount-account nominations',
+        description:
+          'The account an early-pay discount debits when this org gives one to a customer, and ' +
+          'the account it credits when a vendor gives one to this org. Either may be null — ' +
+          'the two sides are separately usable. Reading this takes `orgs.read` rather than ' +
+          '`accounts.read`, mirroring `getControlAccounts`: what is being read is a decision ' +
+          'the organization made.',
+        tags: [DISCOUNT_TAG],
+        response: { 200: discountAccountsSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (): Promise<DiscountAccounts> => getDiscountAccounts(getContext()),
+  );
+
+  app.patch(
+    '/v1/settings/discount-accounts',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'updateDiscountAccounts',
+        summary: 'Nominate, repoint or clear a discount account',
+        description:
+          'An omitted side is left as it is; an explicit `null` clears it. A nomination must ' +
+          'be an active account of the right kind — an expense account for the given side, a ' +
+          'revenue account for the received side — refused with ' +
+          '`discount_given_account_wrong_type`, `discount_received_account_wrong_type` or ' +
+          '`account_inactive`. Both nominations land in one transaction. Changing one moves ' +
+          'future discounts only: a discount already posted names the account it posted to and ' +
+          'is never restated.',
+        tags: [DISCOUNT_TAG],
+        headers: idempotencyKeyHeaderSchema,
+        body: updateDiscountAccountsRequestSchema,
+        response: { 200: discountAccountsSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const result = await withIdempotency(
+        { endpoint: 'updateDiscountAccounts', request: request.body, successStatus: 200 },
+        () => updateDiscountAccounts(request.body, ctx),
+      );
+
+      return reply.status(result.status).send(idempotentBody<DiscountAccounts>(result));
     },
   );
 }

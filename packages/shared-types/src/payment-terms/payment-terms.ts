@@ -11,19 +11,23 @@ import { calendarDateSchema } from '../wire';
  * **rich** (with a discount) are both supported; a term is never partially rich
  * (`chk_payment_terms_discount`, `0012_cash_application`).
  *
- * ## No `.meta({ id })` yet
+ * ## `.meta({ id })` arrived with OB-139's routes
  *
- * OB-135's own instruction, following every earlier module's rule
- * (`tax.ts`'s file header explains it at length): a `.meta({ id })` publishes a
- * `components.schemas` entry, and A10 fails the build on one nothing references.
- * The routes arrive with OB-139; the ids arrive in that diff.
+ * Following every earlier module's rule (`tax.ts`'s file header explains it at
+ * length): a `.meta({ id })` publishes a `components.schemas` entry, and A10 fails
+ * the build on one nothing references. `paymentTermSchema`,
+ * `createPaymentTermRequestSchema`, `updatePaymentTermRequestSchema`,
+ * `paymentTermListSchema` and `discountSuggestionSchema` all carry one now because
+ * `/v1/payment-terms` and the discount-suggestion preview reference them.
+ * `computedPaymentTermSchema` still carries none — OB-136's service and OB-138's
+ * suggestion read from it, but no route returns it directly.
  *
  * ## What is not here
  *
  * The service (OB-136: compute a due date and a discount window from a term, with
- * the contact-default-then-document-override resolution) and the routes (OB-139)
- * are later leaves. This file is the shape they will share, shipped now so those
- * leaves compose against a pinned contract rather than each inventing one.
+ * the contact-default-then-document-override resolution) is a later leaf this file
+ * composes against. OB-138's suggestion service reads `computedPaymentTermSchema`'s
+ * shape but is not itself defined here.
  */
 
 /**
@@ -92,22 +96,49 @@ const discountWindowDaysSchema = z
 /**
  * A term as the API returns it.
  */
-export const paymentTermSchema = z.strictObject({
-  id: z.uuid(),
-  name: paymentTermNameSchema,
-  netDays: netDaysSchema,
-  discountRatePpm: discountRatePpmSchema.nullable(),
-  discountWindowDays: discountWindowDaysSchema.nullable(),
-  isActive: z.boolean().meta({
+export const paymentTermSchema = z
+  .strictObject({
+    id: z.uuid(),
+    name: paymentTermNameSchema,
+    netDays: netDaysSchema,
+    discountRatePpm: discountRatePpmSchema.nullable(),
+    discountWindowDays: discountWindowDaysSchema.nullable(),
+    isActive: z.boolean().meta({
+      description:
+        'An archived term stays on every document that used it and cannot be chosen for a new ' +
+        'one — the only form of removal available to a term a contact or a document names.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'PaymentTerm',
     description:
-      'An archived term stays on every document that used it and cannot be chosen for a new one ' +
-      '— the only form of removal available to a term a contact or a document names.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+      'A term in the org’s picker: a net-days figure and, optionally, an early-pay discount. ' +
+      '`discountRatePpm`/`discountWindowDays` are both null on a simple term, both set on a rich ' +
+      'one — never one without the other (`chk_payment_terms_discount`).',
+  });
 
 export type PaymentTerm = z.infer<typeof paymentTermSchema>;
+
+/**
+ * Every term the org has defined, as `listPaymentTerms` returns it — a plain list
+ * rather than a page (D-79's "a picker list"): an org's term catalog is small
+ * enough that paging it would cost a screen a request for no reader benefit,
+ * matching `assignableRoleListSchema`'s own reasoning for a bounded catalog.
+ */
+export const paymentTermListSchema = z
+  .strictObject({
+    paymentTerms: z.array(paymentTermSchema),
+  })
+  .meta({
+    id: 'PaymentTermList',
+    description:
+      'Every term the org has defined, active ones first by name. Not paged — a term catalog ' +
+      'is a small, bounded list, unlike the documents that reference it.',
+  });
+
+export type PaymentTermList = z.infer<typeof paymentTermListSchema>;
 
 /**
  * Creates a term. `discountRatePpm`/`discountWindowDays` are both supplied or both
@@ -127,7 +158,13 @@ export const createPaymentTermRequestSchema = z
       message: 'discountRatePpm and discountWindowDays are supplied together, or not at all.',
       path: ['discountWindowDays'],
     },
-  );
+  )
+  .meta({
+    id: 'CreatePaymentTermRequest',
+    description:
+      'Creates a term, active. `discountRatePpm` and `discountWindowDays` are supplied together, ' +
+      'for a rich term, or omitted together, for a simple one.',
+  });
 
 export type CreatePaymentTermRequest = z.infer<typeof createPaymentTermRequestSchema>;
 
@@ -162,7 +199,15 @@ export const updatePaymentTermRequestSchema = z
       message: 'discountRatePpm and discountWindowDays are supplied together, or not at all.',
       path: ['discountWindowDays'],
     },
-  );
+  )
+  .meta({
+    id: 'UpdatePaymentTermRequest',
+    description:
+      'Partial update. An omitted field is left as it is. There is no way to clear an ' +
+      'existing discount back to a simple term here — a term a document has already used ' +
+      'must not have its arithmetic change retroactively, so a term that should stop ' +
+      'discounting is deactivated and replaced rather than edited.',
+  });
 
 export type UpdatePaymentTermRequest = z.infer<typeof updatePaymentTermRequestSchema>;
 
@@ -203,13 +248,21 @@ export type ComputedPaymentTerm = z.infer<typeof computedPaymentTermSchema>;
  * confirms it as a `discount` clearing entry (`clearing.ts`) — never written by
  * this file, never auto-posted (D-43).
  */
-export const discountSuggestionSchema = z.strictObject({
-  targetId: z.uuid(),
-  discountAmountMinor: z.string(),
-  deadline: calendarDateSchema,
-  accountId: z.uuid().meta({
-    description: "The org's nominated discount-given/received account this would post to.",
-  }),
-});
+export const discountSuggestionSchema = z
+  .strictObject({
+    targetId: z.uuid(),
+    discountAmountMinor: z.string(),
+    deadline: calendarDateSchema,
+    accountId: z.uuid().meta({
+      description: "The org's nominated discount-given/received account this would post to.",
+    }),
+  })
+  .meta({
+    id: 'DiscountSuggestion',
+    description:
+      'A preview of the early-pay discount available on a document, computed against the ' +
+      'date asked for. Never written by this shape and never auto-posted (D-43) — a human ' +
+      'confirms it as a `discount` clearing entry.',
+  });
 
 export type DiscountSuggestion = z.infer<typeof discountSuggestionSchema>;

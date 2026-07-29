@@ -87,11 +87,10 @@ const RESOURCE = AP_DOCUMENT_RESOURCE.bill;
  * (D-40) — leaving it null until approval would make a draft's place in an
  * aging preview unanswerable.
  *
- * The term itself is resolved from the vendor's default only:
- * `createBillRequestSchema` carries no per-document override field yet, so
- * `resolveDocumentTerm` is called with no `documentTermId` — OB-139's routes are
- * what would give a caller a field to pass one, the same gap
- * `CreateArDocumentInput.paymentTermId` notes on the AR side.
+ * The term itself resolves the same way `createArDocument` resolves one for an
+ * invoice (OB-139, D-108): `paymentTermId`, if the caller sent one, overrides the
+ * vendor's default, and `resolveDocumentTerm` is the single place that decides
+ * between them.
  *
  * The transaction is unconditional even when there are no lines: `TenantDatabase`
  * joins an ambient one (`transaction-scope.ts`), so the cost when there is nothing
@@ -110,7 +109,10 @@ export async function createBill(
     const contactId = assertFound(tryUuidToBuffer(request.contactId), 'contact');
     await requireVendor(trx, contactId);
 
-    const term = await resolveDocumentTerm(ctx, { contactId: request.contactId });
+    const term = await resolveDocumentTerm(ctx, {
+      contactId: request.contactId,
+      documentTermId: request.paymentTermId,
+    });
 
     const id = newDocumentId();
     await insertDocument(trx, id, {

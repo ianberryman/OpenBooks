@@ -25,6 +25,7 @@ import { registerJournalRoutes } from './journals';
 import { registerMemberRoutes } from './members';
 import { registerOAuthClientRoutes } from './oauth-clients';
 import { registerOrgRoutes } from './orgs';
+import { registerPaymentTermsRoutes } from './payment-terms';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
 import { registerProcessingRoutes } from './processing';
@@ -334,6 +335,42 @@ import { registerTaxRateRoutes } from './tax-rates';
  * token is the whole authorization. `transport/routes/public-pay-link.ts` registers
  * it directly on `app` in `transport/app.ts`, next to `registerPublicInvoiceRoutes`.
  *
+ * ### Initiative I — Cash application (OB-134…142)
+ *
+ * | Method   | Path                                            | operationId                     | Idempotency-Key | Claim scope |
+ * | -------- | ------------------------------------------------ | -------------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/payment-terms`                              | `createPaymentTerm`              | required        | org         |
+ * | `GET`    | `/v1/payment-terms`                              | `listPaymentTerms`               | —                | —           |
+ * | `GET`    | `/v1/payment-terms/:paymentTermId`               | `getPaymentTerm`                 | —                | —           |
+ * | `PATCH`  | `/v1/payment-terms/:paymentTermId`               | `updatePaymentTerm`              | required        | org         |
+ * | `POST`   | `/v1/payment-terms/:paymentTermId/deactivate`    | `deactivatePaymentTerm`          | required        | org         |
+ * | `GET`    | `/v1/payment-terms/discount-suggestion`          | `suggestDiscount`                | —                | —           |
+ * | `GET`    | `/v1/settings/discount-accounts`                 | `getDiscountAccounts`            | —                | —           |
+ * | `PATCH`  | `/v1/settings/discount-accounts`                 | `updateDiscountAccounts`         | required        | org         |
+ *
+ * Terms CRUD takes `orgs.read`/`orgs.write` (D-107: no new catalog key, exactly
+ * `getControlAccounts`/`updateControlAccounts`'s own reasoning) — `terms.service.ts`
+ * enforces each, not repeated here. `getDiscountAccounts`/`updateDiscountAccounts`
+ * take the same pair, for the same reason, mirroring `control-accounts.ts` beside
+ * them in `org_accounting_settings`; both are registered by `registerSettingsRoutes`
+ * in `settings.ts`, not by `payment-terms.ts` — the resource is a setting, and this
+ * surface already owns the org's other one. `suggestDiscount` takes
+ * `payments_received.read` rather than `banking.match`, argued in full in
+ * `payment-terms.ts`'s own header: it is a read that posts nothing, and it is the
+ * read both the bank-match workbench and the manual money-in screen already hold
+ * before they reach either surface's own write. `updateDiscountAccounts` is a
+ * `PATCH`, not the `PUT` the ticket's own prose named, because
+ * `updateDiscountAccountsRequestSchema` carries `updateControlAccountsRequestSchema`'s
+ * three-valued absent-vs-`null` semantics verbatim (`refine`d "at least one field"),
+ * which a `PUT` cannot express without forcing a client to restate a side it did not
+ * mean to touch — the same argument `settings.ts`'s own header makes for
+ * `updateControlAccounts`.
+ *
+ * `paymentTermId` is also new on `createInvoice`/`createBill` (not its own route):
+ * an optional field on `CreateInvoiceRequest`/`CreateBillRequest` overriding the
+ * contact's default term for that one document, create-only — a term already
+ * resolved onto a document is not reachable through either update shape.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -483,6 +520,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerReportRoutes(app);
   registerSettingsRoutes(app);
   registerTaxRateRoutes(app);
+  registerPaymentTermsRoutes(app);
   registerInvoiceRoutes(app);
   registerRecurringInvoiceRoutes(app);
   registerDunningRoutes(app);

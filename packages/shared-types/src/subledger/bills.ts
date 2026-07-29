@@ -119,12 +119,22 @@ export type BillSummary = z.infer<typeof billSummarySchema>;
  * required and what is not, with one addition: a bill's `issueDate` is the
  * vendor's date and is routinely in the past, which is what makes the open-period
  * check at approval the interesting one rather than a formality.
+ *
+ * `paymentTermId` is `createInvoiceRequestSchema`'s own field, the AP mirror
+ * (OB-136, D-108): it overrides the vendor's default term for this one bill and
+ * is create-only for the same reason.
  */
 export const createBillRequestSchema = z
   .strictObject({
     contactId: z.uuid(),
     issueDate: calendarDateSchema,
     dueDate: calendarDateSchema.optional(),
+    paymentTermId: z.uuid().optional().meta({
+      description:
+        'Overrides the vendor’s default payment term for this bill. Absent falls back to the ' +
+        'contact’s own default, if any. Create-only — not reachable through ' +
+        '`UpdateBillRequest`.',
+    }),
     taxMode: taxModeSchema,
     reference: documentReferenceSchema.nullish(),
     memo: documentMemoSchema.nullish(),
@@ -134,7 +144,8 @@ export const createBillRequestSchema = z
     id: 'CreateBillRequest',
     description:
       'Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the ' +
-      'past, which is what makes the open-period check at approval the interesting one.',
+      'past, which is what makes the open-period check at approval the interesting one. ' +
+      '`paymentTermId` overrides the vendor’s default term and is create-only.',
   });
 
 export type CreateBillRequest = z.infer<typeof createBillRequestSchema>;
