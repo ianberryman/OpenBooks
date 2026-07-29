@@ -18,9 +18,10 @@ import { fromMinorString } from '@openbooks/shared-types/money';
 import { getContext } from '../../context';
 import type { RequestContext } from '../../context';
 import type { TenantDatabase } from '../../db';
-import { resolvePageLimit, tryUuidToBuffer } from '../../db';
+import { resolvePageLimit, tryUuidToBuffer, uuidToBuffer } from '../../db';
 import { InternalError, ValidationError, assertFound, parseInput } from '../../errors';
 import { emitEvent } from '../events';
+import { computePaymentTerm, resolveDocumentTerm } from '../payment-terms';
 import { requirePermission } from '../permissions';
 
 import type { ApDocumentFilters } from './ap-documents.repository';
@@ -77,12 +78,20 @@ const RESOURCE = AP_DOCUMENT_RESOURCE.bill;
  * Creates a draft bill, with or without lines.
  *
  * `dueDate` defaults to the issue date — due on receipt — when the caller omits
- * one. That default exists because the contract requires it: `billSchema.dueDate`
- * is non-nullable while `createBillRequestSchema.dueDate` is optional, so a draft
- * with no due date could be stored and then not serialized. It is also the honest
- * reading of a vendor who printed no terms, and aging measures from this field
- * (D-40) — leaving it null until approval would make a draft's place in an aging
- * preview unanswerable.
+ * one *and* the vendor carries no payment term (OB-136): when it does, the
+ * resolved term computes it instead (`computePaymentTerm`), the AP mirror of
+ * `createArDocument`'s own default. That fallback exists because the contract
+ * requires it either way: `billSchema.dueDate` is non-nullable while
+ * `createBillRequestSchema.dueDate` is optional, so a draft with no due date
+ * could be stored and then not serialized. Aging measures from this field
+ * (D-40) — leaving it null until approval would make a draft's place in an
+ * aging preview unanswerable.
+ *
+ * The term itself is resolved from the vendor's default only:
+ * `createBillRequestSchema` carries no per-document override field yet, so
+ * `resolveDocumentTerm` is called with no `documentTermId` — OB-139's routes are
+ * what would give a caller a field to pass one, the same gap
+ * `CreateArDocumentInput.paymentTermId` notes on the AR side.
  *
  * The transaction is unconditional even when there are no lines: `TenantDatabase`
  * joins an ambient one (`transaction-scope.ts`), so the cost when there is nothing
@@ -101,13 +110,22 @@ export async function createBill(
     const contactId = assertFound(tryUuidToBuffer(request.contactId), 'contact');
     await requireVendor(trx, contactId);
 
+    const term = await resolveDocumentTerm(ctx, { contactId: request.contactId });
+
     const id = newDocumentId();
     await insertDocument(trx, id, {
       documentType: 'bill',
       createdByUserId: author,
       contactId,
       issueDate: request.issueDate,
-      dueDate: request.dueDate ?? request.issueDate,
+      dueDate:
+        request.dueDate ??
+        (term === null
+          ? request.issueDate
+          : computePaymentTerm(term, request.issueDate, '0').dueDate),
+      // Recorded whenever a term was resolved, independent of whether `dueDate`
+      // was given explicitly — matching `createArDocument`'s own reasoning.
+      paymentTermId: term === null ? null : uuidToBuffer(term.id),
       taxMode: request.taxMode,
       reference: request.reference ?? null,
       memo: request.memo ?? null,

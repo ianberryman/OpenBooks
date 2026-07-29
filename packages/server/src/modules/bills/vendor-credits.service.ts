@@ -103,6 +103,9 @@ export async function createVendorCredit(
       contactId,
       issueDate: request.issueDate,
       dueDate: null,
+      // Nothing about a vendor credit falls due or earns an early-pay discount
+      // (OB-136), matching `dueDate` immediately above.
+      paymentTermId: null,
       taxMode: request.taxMode,
       reference: request.reference ?? null,
       memo: request.memo ?? null,

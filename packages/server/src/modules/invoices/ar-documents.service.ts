@@ -17,6 +17,7 @@ import {
 import { resolveTagsForNewLine } from '../dimensions';
 import { emitEvent } from '../events';
 import { postJournal, reverseJournal } from '../ledger';
+import { computePaymentTerm, resolveDocumentTerm } from '../payment-terms';
 import { resolveControlAccount } from '../settings';
 import { requirePermission } from '../permissions';
 
@@ -137,6 +138,12 @@ export interface CreateArDocumentInput {
   readonly issueDate: string;
   /** Invoices only; absent on a credit note, which nothing chases. */
   readonly dueDate?: string | undefined;
+  /**
+   * The document's own term, overriding the contact's default (OB-136, D-108).
+   * Invoices only, matching `dueDate` — not yet reachable from a wire request;
+   * OB-139's routes are what gives a caller a field to put here.
+   */
+  readonly paymentTermId?: string | undefined;
   readonly taxMode: TaxMode;
   readonly reference?: string | null | undefined;
   readonly memo?: string | null | undefined;
@@ -165,15 +172,40 @@ export async function createArDocument(
     const id = newDocumentId();
     const contactId = await resolveContact(trx, request.contactId);
 
+    // A term governs only the documents a business chases for payment (D-79,
+    // D-108): a credit note never falls due and never earns an early-pay
+    // discount, so none is resolved for one — matching `dueDate`'s own
+    // `kind.documentType === 'invoice'` gate below.
+    const term =
+      kind.documentType === 'invoice'
+        ? await resolveDocumentTerm(ctx, {
+            contactId: request.contactId,
+            documentTermId: request.paymentTermId,
+          })
+        : null;
+
     await insertDocument(trx, id, {
       createdByUserId: author,
       documentType: kind.documentType,
       contactId,
       issueDate: request.issueDate,
-      // Due on receipt when none is given, and defaulted rather than left null
-      // because aging measures from the due date (D-40) — a null one would make a
-      // document that ages from nothing. A credit note has none at all.
-      dueDate: kind.documentType === 'invoice' ? (request.dueDate ?? request.issueDate) : null,
+      // An explicit `dueDate` wins; otherwise a resolved term computes it
+      // (`computePaymentTerm`, OB-136), and only a term-less invoice falls back
+      // to due on receipt. Defaulted rather than left null because aging
+      // measures from the due date (D-40) — a null one would make a document
+      // that ages from nothing. A credit note has none at all.
+      dueDate:
+        kind.documentType === 'invoice'
+          ? (request.dueDate ??
+            (term === null
+              ? request.issueDate
+              : computePaymentTerm(term, request.issueDate, '0').dueDate))
+          : null,
+      // The term itself is recorded whenever one was resolved, independent of
+      // whether `dueDate` was given explicitly — this is what lets OB-138 read
+      // back which term's discount window governs the document later, rather
+      // than only its already-computed due date.
+      paymentTermId: term === null ? null : uuidToBuffer(term.id),
       taxMode: request.taxMode,
       reference: request.reference ?? null,
       memo: request.memo ?? null,

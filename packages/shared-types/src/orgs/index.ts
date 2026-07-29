@@ -12,5 +12,15 @@ export {
   orgSummarySchema,
   switchActiveOrgRequestSchema,
 } from './orgs';
-export type { ControlAccounts, UpdateControlAccountsRequest } from './settings';
-export { controlAccountsSchema, updateControlAccountsRequestSchema } from './settings';
+export type {
+  ControlAccounts,
+  DiscountAccounts,
+  UpdateControlAccountsRequest,
+  UpdateDiscountAccountsRequest,
+} from './settings';
+export {
+  controlAccountsSchema,
+  discountAccountsSchema,
+  updateControlAccountsRequestSchema,
+  updateDiscountAccountsRequestSchema,
+} from './settings';

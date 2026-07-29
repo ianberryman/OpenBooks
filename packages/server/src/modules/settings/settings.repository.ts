@@ -37,6 +37,12 @@ export interface ControlAccountsRow {
   readonly payableControlAccountId: Buffer | null;
 }
 
+/** The early-pay discount nominations (OB-136; ROADMAP D-106, D-107). */
+export interface DiscountAccountsRow {
+  readonly discountGivenAccountId: Buffer | null;
+  readonly discountReceivedAccountId: Buffer | null;
+}
+
 /** What validating a nomination needs, and nothing more. */
 export interface NominatedAccountRow {
   readonly type: AccountType;
@@ -54,6 +60,12 @@ export interface NominatedAccountRow {
 export interface ControlAccountsPatch {
   readonly receivableControlAccountId?: Buffer | null;
   readonly payableControlAccountId?: Buffer | null;
+}
+
+/** The discount-nomination twin of `ControlAccountsPatch`, same two rules. */
+export interface DiscountAccountsPatch {
+  readonly discountGivenAccountId?: Buffer | null;
+  readonly discountReceivedAccountId?: Buffer | null;
 }
 
 export function orgScope(ctx: RequestContext): TenantDatabase {
@@ -87,6 +99,23 @@ export async function selectControlAccounts(db: TenantDatabase): Promise<Control
   return {
     receivableControlAccountId: row?.receivable_control_account_id ?? null,
     payableControlAccountId: row?.payable_control_account_id ?? null,
+  };
+}
+
+/**
+ * The org's discount nominations, or both null when it has never made one —
+ * `selectControlAccounts`'s own reasoning, on the two columns beside these in
+ * the same row.
+ */
+export async function selectDiscountAccounts(db: TenantDatabase): Promise<DiscountAccountsRow> {
+  const row = await db
+    .selectFrom('org_accounting_settings')
+    .select(['discount_given_account_id', 'discount_received_account_id'])
+    .executeTakeFirst();
+
+  return {
+    discountGivenAccountId: row?.discount_given_account_id ?? null,
+    discountReceivedAccountId: row?.discount_received_account_id ?? null,
   };
 }
 
@@ -130,6 +159,27 @@ export async function upsertControlAccounts(
     ...(patch.payableControlAccountId === undefined
       ? {}
       : { payable_control_account_id: patch.payableControlAccountId }),
+  };
+
+  await db
+    .insertInto('org_accounting_settings')
+    .values(columns)
+    .onDuplicateKeyUpdate(columns)
+    .execute();
+}
+
+/** `upsertControlAccounts`'s own statement, over the two discount columns. */
+export async function upsertDiscountAccounts(
+  db: TenantDatabase,
+  patch: DiscountAccountsPatch,
+): Promise<void> {
+  const columns = {
+    ...(patch.discountGivenAccountId === undefined
+      ? {}
+      : { discount_given_account_id: patch.discountGivenAccountId }),
+    ...(patch.discountReceivedAccountId === undefined
+      ? {}
+      : { discount_received_account_id: patch.discountReceivedAccountId }),
   };
 
   await db

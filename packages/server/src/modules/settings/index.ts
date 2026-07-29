@@ -95,3 +95,15 @@ export {
   resolveControlAccount,
   updateControlAccounts,
 } from './control-accounts';
+
+/**
+ * The early-pay discount nominations (OB-136; ROADMAP D-106, D-107), added
+ * beside the control accounts above rather than in a module of their own — see
+ * `discount-accounts.ts`'s header for why they are the same *kind* of setting.
+ */
+export type { DiscountSide } from './discount-accounts';
+export {
+  getDiscountAccounts,
+  resolveDiscountAccount,
+  updateDiscountAccounts,
+} from './discount-accounts';

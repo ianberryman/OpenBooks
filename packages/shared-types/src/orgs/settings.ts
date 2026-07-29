@@ -112,3 +112,57 @@ export const updateControlAccountsRequestSchema = z
   });
 
 export type UpdateControlAccountsRequest = z.infer<typeof updateControlAccountsRequestSchema>;
+
+/**
+ * The org's early-pay discount nominations (initiative I, Cash application; ROADMAP
+ * D-106, D-107).
+ *
+ * `discountGivenAccountId`/`discountReceivedAccountId` live in this same
+ * `org_accounting_settings` row, beside the two control accounts above, for the
+ * reason `0005_subledger`'s migration gives: an early-pay discount is real P&L and
+ * posts to an account the org nominates rather than one guessed from a chart
+ * template (D-23), exactly as the control accounts are. `discountGivenAccountId` is
+ * the expense side of a discount this org gives a customer for paying early;
+ * `discountReceivedAccountId` is the income side of a discount a vendor gives this
+ * org — the AP mirror. Separately nullable for `controlAccountsSchema`'s own
+ * reason: an org that only invoices never gives a vendor discount.
+ *
+ * No `.meta({ id })` yet, matching `payment-terms.ts`'s rule: OB-139's routes are
+ * the later leaf that references this shape, and an unreferenced component would
+ * fail A10.
+ */
+export const discountAccountsSchema = z.strictObject({
+  discountGivenAccountId: z
+    .uuid()
+    .nullable()
+    .meta({
+      description:
+        'The account an early-pay discount debits when this org gives one to a customer. Null ' +
+        'until nominated; confirming a discount without it is a `precondition_failed`.',
+    }),
+  discountReceivedAccountId: z
+    .uuid()
+    .nullable()
+    .meta({
+      description:
+        'The account an early-pay discount credits when a vendor gives one to this org. Null until ' +
+        'nominated.',
+    }),
+});
+
+export type DiscountAccounts = z.infer<typeof discountAccountsSchema>;
+
+/**
+ * A partial update, following `updateControlAccountsRequestSchema`'s own two rules:
+ * an omitted field is left as it is, and an explicit `null` clears the nomination.
+ */
+export const updateDiscountAccountsRequestSchema = z
+  .strictObject({
+    discountGivenAccountId: z.uuid().nullable().optional(),
+    discountReceivedAccountId: z.uuid().nullable().optional(),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined), {
+    message: 'Supply at least one field to change.',
+  });
+
+export type UpdateDiscountAccountsRequest = z.infer<typeof updateDiscountAccountsRequestSchema>;

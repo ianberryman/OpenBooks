@@ -53,6 +53,7 @@ const DOCUMENT_COLUMNS = [
   'contact_id',
   'issue_date',
   'due_date',
+  'payment_term_id',
   'tax_mode',
   'reference',
   'memo',
@@ -81,6 +82,8 @@ export interface DocumentRow {
   readonly contact_id: Buffer;
   readonly issue_date: string;
   readonly due_date: string | null;
+  /** The term this document was raised under, contact-default or override (OB-136, D-108). */
+  readonly payment_term_id: Buffer | null;
   readonly tax_mode: 'exclusive' | 'inclusive';
   readonly reference: string | null;
   readonly memo: string | null;
@@ -115,6 +118,8 @@ export interface NewDocumentRow {
   readonly contactId: Buffer;
   readonly issueDate: string;
   readonly dueDate: string | null;
+  /** Null on a credit note (OB-136) — nothing about one falls due or earns a discount. */
+  readonly paymentTermId: Buffer | null;
   readonly taxMode: 'exclusive' | 'inclusive';
   readonly reference: string | null;
   readonly memo: string | null;
@@ -196,6 +201,7 @@ export async function insertDocument(
       contact_id: input.contactId,
       issue_date: input.issueDate,
       due_date: input.dueDate,
+      payment_term_id: input.paymentTermId,
       tax_mode: input.taxMode,
       reference: input.reference,
       memo: input.memo,

@@ -132,6 +132,41 @@ export const createPaymentTermRequestSchema = z
 export type CreatePaymentTermRequest = z.infer<typeof createPaymentTermRequestSchema>;
 
 /**
+ * A partial update, following `updateControlAccountsRequestSchema`'s own two
+ * rules (OB-136).
+ *
+ * An omitted field is left alone, so renaming a term costs no restatement of its
+ * discount. `discountRatePpm`/`discountWindowDays` still pair — supplied
+ * together (to set or change the discount) or omitted together (to leave it
+ * alone); the database's `chk_payment_terms_discount` cannot see a patch, only
+ * the row it produces, so the pairing is enforced here rather than assumed from
+ * the check. Clearing an existing discount back to a simple term is not this
+ * shape's job: a term a document has already used must not have its arithmetic
+ * change retroactively (the same reason `updateTaxRateRequestSchema` excludes
+ * the percentage), so a term that should stop discounting is deactivated and
+ * replaced, not edited into a different kind of term.
+ */
+export const updatePaymentTermRequestSchema = z
+  .strictObject({
+    name: paymentTermNameSchema.optional(),
+    netDays: netDaysSchema.optional(),
+    discountRatePpm: discountRatePpmSchema.optional(),
+    discountWindowDays: discountWindowDaysSchema.optional(),
+  })
+  .refine((input) => Object.values(input).some((value) => value !== undefined), {
+    message: 'Supply at least one field to change.',
+  })
+  .refine(
+    (input) => (input.discountRatePpm === undefined) === (input.discountWindowDays === undefined),
+    {
+      message: 'discountRatePpm and discountWindowDays are supplied together, or not at all.',
+      path: ['discountWindowDays'],
+    },
+  );
+
+export type UpdatePaymentTermRequest = z.infer<typeof updatePaymentTermRequestSchema>;
+
+/**
  * A term computes: the due date, and — when it carries a discount — the amount
  * available within the window and the deadline to take it by.
  *
