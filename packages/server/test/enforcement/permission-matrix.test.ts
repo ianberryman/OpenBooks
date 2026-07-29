@@ -230,6 +230,12 @@ import {
   reactivateProcessorConnection,
 } from '../../src/modules/payments-processing';
 import {
+  buildPendingPayment,
+  issuePendingPayment,
+  listPayableBills,
+  listPendingPayments,
+} from '../../src/modules/pay-bills';
+import {
   getControlAccounts,
   getDiscountAccounts,
   updateControlAccounts,
@@ -542,6 +548,21 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
    */
   'processing.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'processing.write': ['owner'],
+
+  /**
+   * Pay Bills (OB-111, OB-112) — the three codes `modules/pay-bills` enforces, and
+   * the milestone whose whole point is a *real* separation of duties (D-109). Read
+   * straight off `0001_tenancy`'s seeds: `pending_payments.read`/`.write` are the
+   * queue keys, given to `ap_only` explicitly (the clerk builds the queue) on top of
+   * owner and bookkeeper — and read reaches the two read-only roles through `%.read`.
+   * `disbursements.issue` is owner **only**: it is excluded from the bookkeeper
+   * catch-all by name, precisely so the role that builds the queue is not the role
+   * that releases it. `ap_only` holds both queue keys and not `disbursements.issue`,
+   * which is the split made real — a clerk can queue a payment and cannot pay it.
+   */
+  'pending_payments.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'pending_payments.write': ['owner', 'bookkeeper', 'apOnly'],
+  'disbursements.issue': ['owner'],
 };
 
 /**
@@ -2427,6 +2448,53 @@ const OPERATIONS: readonly Operation[] = [
         { discountGivenAccountId: s.expenseId, discountReceivedAccountId: s.revenueId },
         s.ctx,
       ),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Pay Bills (OB-111, OB-112). `operationId` is `null` on all four: the services
+  // enforce their gates now, but the `/v1` routes are OB-115 (Wave 2), so these are
+  // invisible to the coverage check until then — the `getPeriod`/`getAccountBalances`
+  // shape, a service in the matrix before it is on the wire. The queue-vs-issue split
+  // is the headline: `buildPendingPayment` is allowed for `ap_only` (it holds
+  // `pending_payments.write`) and `issuePendingPayment` is refused for it — the same
+  // clerk can queue a payment and cannot release it (D-109). Issue is judged on its
+  // one gate alone: `disbursements.issue` is owner-only, and owner holds the
+  // downstream `payments_made.write`/`journals.post` too, so no role reaches those
+  // second gates without the first — the fixture 404s past the gate rather than
+  // materialising a real payment.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'buildPendingPayment',
+    operationId: null,
+    permission: 'pending_payments.write',
+    call: (s) =>
+      buildPendingPayment(
+        {
+          contactId: s.partyId,
+          bankAccountId: s.bankAccountId,
+          rail: 'check',
+          intents: [{ billId: s.targetBillId, payAmount: '100' }],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listPayableBills',
+    operationId: null,
+    permission: 'pending_payments.read',
+    call: (s) => listPayableBills(s.ctx),
+  },
+  {
+    name: 'listPendingPayments',
+    operationId: null,
+    permission: 'pending_payments.read',
+    call: (s) => listPendingPayments(s.ctx),
+  },
+  {
+    name: 'issuePendingPayment',
+    operationId: null,
+    permission: 'disbursements.issue',
+    call: (s) => issuePendingPayment(newUuid(), { date: s.date }, s.ctx),
   },
 ];
 

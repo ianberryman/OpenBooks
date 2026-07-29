@@ -32,13 +32,12 @@ import {
 } from '../../../errors';
 import { postJournal, reverseJournal } from '../../ledger';
 import {
-  applyAllocations,
   deleteAllocationsForDiscountJournal,
+  postSettlementDiscount,
   recordPayment,
   voidPayment,
 } from '../../payments';
 import { requirePermission } from '../../permissions';
-import { resolveControlAccount } from '../../settings';
 import type { SubledgerSide } from '../../settings';
 
 import type { ClearingEntryRow, ClearingRow, StatementLineRow } from './clearing.repository';
@@ -76,15 +75,18 @@ import {
  *
  * ## Every ledger write goes through the sanctioned service, never around it
  *
- * `post_entry`, `discount`, and the difference journal post through `postJournal`;
+ * `post_entry` and the difference journal post through `postJournal` directly;
  * `allocate_document` records through `recordPayment` (which posts through
  * `postJournal` and allocates through M3's one mechanism, D-39); `discount` posts
- * its own journal directly and applies it through the same `applyAllocations`
- * `recordPayment` uses, with a `'discount'` source kind (D-106) rather than a
- * `payments` row a discount never had; undo reverses through `reverseJournal` and
- * `voidPayment`. Balance validation, the period lock (A4/A9) and actor provenance
- * all live in those services, and this file re-implements none of them —
- * `openbooks/no-journal-writes` is what makes that structural rather than a habit.
+ * through `postSettlementDiscount` (`modules/payments`), which posts its own
+ * journal and applies it through the same `applyAllocations` `recordPayment`
+ * uses, with a `'discount'` source kind (D-106) — shared rather than inlined so
+ * Pay Bills' issue path posts the identical journal from a different caller
+ * without a second implementation of it (D-112); undo reverses through
+ * `reverseJournal` and `voidPayment`. Balance validation, the period lock
+ * (A4/A9) and actor provenance all live in those services, and this file
+ * re-implements none of them — `openbooks/no-journal-writes` is what makes that
+ * structural rather than a habit.
  *
  * ## E4 is an equation, held in the line's own frame — generalised for N entries
  *
@@ -443,6 +445,10 @@ async function computeEntry(
       // debit discount-given / credit the receivables control for an invoice, the
       // mirror on AP — so there is no `bankMovementLine` here, unlike every other
       // entry kind.
+      //
+      // The posting itself is `postSettlementDiscount` (D-112): Pay Bills' issue
+      // path reaches the same journal shape from a different caller, so the two
+      // cannot drift into separate implementations of one settlement.
       const side: SubledgerSide = entry.targetType === 'invoice' ? 'receivable' : 'payable';
       const magnitude = resolveEntryAmount(entry.amount, line.amount_minor, isSole, index);
       const signedAmount = signLikeLine(magnitude, line.amount_minor);
@@ -452,42 +458,21 @@ async function computeEntry(
         await selectDocumentContactId(trx, side, targetId),
         DOCUMENT_RESOURCE,
       );
-      const contactUuid = bufferToUuid(contactId);
-      const controlAccountId = await resolveControlAccount(trx, side);
 
-      const posted = await postJournal(
-        postInput(
-          ctx,
-          line.posted_date,
-          entry.memo,
-          discountLines(
-            side,
-            entry.accountId,
-            bufferToUuid(controlAccountId),
-            magnitude,
-            contactUuid,
-          ),
-        ),
-        ctx,
-      );
-      const discountJournalId = uuidToBuffer(posted.journalId);
-
-      // The same mechanism a payment or a credit note settles through (D-39),
-      // applied with the third source kind D-106 adds: `outstanding` reaches zero
-      // for the discounted amount without a special case in
-      // `documentTotal − allocatedToDocument`.
-      await applyAllocations(
+      const discountJournalId = await postSettlementDiscount(
         trx,
         {
           side,
-          kind: 'discount',
-          id: discountJournalId,
-          contactId,
-          available: magnitude,
-          label: 'discount',
+          targetType: entry.targetType,
+          targetId: entry.targetId,
+          discountAccountId: entry.accountId,
+          amount: magnitude,
+          contactId: bufferToUuid(contactId),
+          date: line.posted_date,
+          memo: entry.memo === undefined ? null : entry.memo,
+          source: 'clearing',
         },
-        [{ targetType: entry.targetType, targetId: entry.targetId, amount: magnitude.toString() }],
-        line.posted_date,
+        ctx,
         author,
       );
 
@@ -623,35 +608,6 @@ function codedLine(
     ...(contactId === undefined || contactId === null ? {} : { contactId }),
     ...(dimensionValueIds === undefined ? {} : { dimensionValueIds: [...dimensionValueIds] }),
   };
-}
-
-/**
- * The discount journal's two lines (D-106): debit the discount account and credit
- * the receivables control for an invoice; debit the payables control and credit the
- * discount account for a bill — the mirror, and exactly the shape `recordPayment`'s
- * `journalLines` builds for a payment, with the discount account standing in for
- * the bank account. Neither line names the bank ledger account: a discount moves no
- * cash, so it never appears here.
- */
-function discountLines(
-  side: SubledgerSide,
-  discountAccountId: string,
-  controlAccountId: string,
-  amount: bigint,
-  contactId: string,
-): readonly JournalLineInput[] {
-  const discount = { accountId: discountAccountId, amount, contactId } as const;
-  const control = { accountId: controlAccountId, amount, contactId } as const;
-
-  return side === 'receivable'
-    ? [
-        { ...discount, side: 'debit' as const },
-        { ...control, side: 'credit' as const },
-      ]
-    : [
-        { ...control, side: 'debit' as const },
-        { ...discount, side: 'credit' as const },
-      ];
 }
 
 function postInput(

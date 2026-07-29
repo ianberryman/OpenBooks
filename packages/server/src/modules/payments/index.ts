@@ -49,6 +49,8 @@
  * - `allocations.service.ts` — apply a payment, a credit note or a vendor credit;
  *   un-apply one
  * - `allocate.ts` — the mechanism, and C3's lock
+ * - `settlement-discount.ts` — the settlement-discount journal + allocation
+ *   (D-106), shared so bank clearing and Pay Bills' issue path cannot drift (D-112)
  * - `payments.repository.ts` / `allocations.repository.ts` — data access
  *
  * ## The control accounts
@@ -97,3 +99,11 @@ export {
 export { applyAllocations } from './allocate';
 export type { AllocationSource } from './allocate';
 export { deleteAllocationsForDiscountJournal } from './allocations.repository';
+
+/**
+ * The settlement-discount posting itself (ROADMAP D-112), exported so Pay Bills'
+ * issue path can reach the same journal shape `modules/banking/clearing`'s
+ * `discount` entry posts, rather than a second implementation of it.
+ */
+export { postSettlementDiscount } from './settlement-discount';
+export type { PostSettlementDiscountInput } from './settlement-discount';
