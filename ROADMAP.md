@@ -8,21 +8,21 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                                   | Status                       |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below** |
-| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Built — see Status below** |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                   |
-| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Scoped — see below**       |
-| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**       |
-| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Scoped — see below**       |
-| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Built — gate-green**       |
-| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**       |
-| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**       |
+| Milestone | Spec phase | Outcome                                                                                                                   | Status                        |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below**  |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below**  |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below**  |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below**  |
+| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Built — see Status below**  |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                    |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                    |
+| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Scoped — see below**        |
+| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**        |
+| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Dev-ready — see execution** |
+| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Built — gate-green**        |
+| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**        |
+| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**        |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
 spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
@@ -2116,6 +2116,98 @@ one of them settled with an in-terms early-pay discount, and the clear balancing
 **Critical path:** 134 → 137 → 138 → 140 → 142. OB-137 (multi-entry clearing) is the load-bearing
 change — it is the generalisation OB-094 was deferred for, now the mechanism for lockbox too.
 
+### CA execution — dev-ready, parallelised
+
+The prose above is criteria + tickets; this is the seam-pinned build plan (the M5/PAY "decide before you
+fan out" discipline). CA is **greenfield** — a grep for `payment_term|discount_given|net_days|write_off`
+returns zero — so almost everything is additive. **Four forks were settled up front**
+([D-105](#d-105)…[D-108](#d-108)): multi-entry clearing is **parent + child** (`bank_line_clearing_entries`),
+the discount is a **discount-kind allocation + a journal line**, terms **reuse `orgs.read`/`orgs.write`**
+(no new catalog key), and CA builds the **AR-side** suggestion (clearing + money-in) with the **Pay-Bills
+side deferred to PB**. The one load-bearing change is OB-137 (single-target clear → array); everything
+else composes on seams that already exist.
+
+#### Seams that already exist — reuse verbatim
+
+| Need                                 | Reuse (symbol @ path)                                                                                                                                                     | How CA uses it                                                                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Multi-target allocation array        | `createAllocationsRequestSchema` @ `shared-types/src/subledger/allocations.ts:119`; `applyAllocations` @ `modules/payments/allocate.ts:85`                                | The N-target allocation shape is **already done**; add a third `AllocationSource` kind `'discount'` ([D-106](#d-106)).             |
+| Discount-account nomination          | `resolveControlAccount` / `getControlAccounts` / `updateControlAccounts` @ `modules/settings/control-accounts.ts`; `upsertControlAccounts` @ `settings.repository.ts:122` | Mirror exactly for `discount_given_account_id`/`discount_received_account_id` on `org_accounting_settings`.                        |
+| The clear entry point (to extend)    | `clearBankStatementLine` @ `modules/banking/clearing/clearing.service.ts:131`; the `method` union @ `shared-types/src/banking/clearing.ts:184`                            | OB-137 turns the single-target request into an **array of entries**; the shared body schema flows to the web client automatically. |
+| E4 invariant + difference            | `assertClearingBalances` @ `clearing.service.ts:448`; `resolveDifference` @ `:402`                                                                                        | Generalise to `Σ(entries) + difference === line.amount`; keep `resolveDifference` for the residual.                                |
+| Reconciliation stamp / undo          | `stampMembership` @ `reconciliation.repository.ts:676`; `removeBankLineClearing` @ `clearing.service.ts:204`                                                              | Both stay on the **parent** `bank_line_clearings` — unchanged ([D-105](#d-105)); undo reverses the child entries as a unit.        |
+| `outstanding` computation            | `documentTotal` − `allocatedToDocument` @ `modules/payments/allocations.repository.ts:164,195`                                                                            | Untouched — the discount-kind allocation makes it net to zero without a special case.                                              |
+| Record a receipt (allocate_document) | `recordPayment` @ `modules/payments/payments.service.ts:132`                                                                                                              | Each `allocate_document` entry still records through it, exactly as today.                                                         |
+| Bank-match workbench                 | `matching-screen.tsx` (`accept` :206), `banking-match/queries.ts` (`proposalToClearRequest` :308, `useClearLine` :241)                                                    | Replace the scalar clear with an add/remove-entries editor + running difference + discount affordance (OB-140).                    |
+| Manual money-in path                 | `screens/money-in.tsx` + `money-in/allocation-editor.tsx` → `POST /v1/payments`                                                                                           | Surface the same discount suggestion here (D-81 receipts-not-in-the-feed).                                                         |
+
+#### Schema — migration `0012_cash_application` (next free prefix; `0011` is the highest before `0999`)
+
+New tables/columns are additive; the `bank_line_clearings` **restructure** edits `0006_banking` **in place**
+([D-15](#d-15) pre-release), so the orchestrator does the full reset + codegen (a schema change is the
+orchestrator's hand, per CLAUDE.md). Money is cents `bigint`; a rate is ppm like `tax_rates.rate_ppm`.
+
+- **`payment_terms`** (new, tenant, **mutable**): `id`, `org_id`, `name`, `net_days INT UNSIGNED NOT NULL`,
+  `discount_rate_ppm INT UNSIGNED NULL`, `discount_window_days INT UNSIGNED NULL` (both null = a **simple**
+  term), `is_active`, timestamps; `uq (org_id, name)`. → `TENANT_TABLES` + `MUTABLE_TABLES` + a `grants.test` row.
+- **`bank_line_clearing_entries`** (new, tenant — belongs to the banking subsystem, so it may live in
+  `0006` alongside its parent): `id`, `org_id`, `clearing_id` (FK `bank_line_clearings`),
+  `entry_type ENUM('allocate_document','post_entry','discount')`, `cleared_journal_id`, `payment_id NULL`,
+  `account_id NULL` (post_entry/discount target), `target_type`/`target_id NULL` (allocate_document),
+  `amount_minor BIGINT` (signed), author, timestamps; `uq_blce_journal (org_id, cleared_journal_id)` (the
+  moved `uq_blc_journal`). The `chk_blc_*` CHECKs move here per `entry_type`.
+- **`bank_line_clearings`** (edit 0006 in place): drop the singular target columns (`method`,
+  `cleared_journal_id`, `payment_id`) and `uq_blc_journal`; keep `statement_line_id`, `uq_blc_line`
+  (still one clearing per line), `reconciliation_session_id`, the total `cleared_amount_minor`,
+  `difference_amount_minor`/`difference_account_id`/`difference_journal_id`.
+- **In-place column adds** ([D-15](#d-15)): `contacts.default_payment_term_id BINARY(16) NULL`
+  (`0002_ledger`), `ar_documents.payment_term_id` + `ap_documents.payment_term_id BINARY(16) NULL`
+  (`0005_subledger`), `org_accounting_settings.discount_given_account_id` +
+  `.discount_received_account_id BINARY(16) NULL` (`0005_subledger`) — all composite FKs.
+- Codegen `generated.ts` overrides: none new needed (no money/DATE columns beyond the existing rules; ppm
+  and day-count INTs map to `number` correctly).
+
+#### Contract-first seams (pin before fan-out)
+
+- **Payment term** (`shared-types`): `paymentTermSchema` `{ id, name, netDays, discountRatePpm: number|null, discountWindowDays: number|null, isActive }`; `createPaymentTermRequestSchema`; a `computedDueDate`/`discountWindow` result type.
+- **Multi-entry clear** — the load-bearing contract change: `clearBankStatementLineRequestSchema`
+  (`banking/clearing.ts:184`) becomes `{ entries: ClearingEntry[] }` where `ClearingEntry` is the existing
+  `post_entry`/`link_entry`/`allocate_document` union **plus** a `discount` member
+  `{ entryType:'discount', accountId, targetType, targetId, amount }`. The set sums to the line (E4).
+  Keep a one-entry array as the common case (the current single-target proposal maps to `entries:[one]`).
+- **Discount suggestion**: a read/preview shape `{ targetId, discountAmountMinor, deadline, accountId }`
+  computed from the term — surfaced by a preview endpoint the workbench/money-in call before the human confirms.
+- **Permissions**: none new (D-107) — terms CRUD gates `orgs.read`/`orgs.write`; the clear gates `banking.match`.
+
+#### Waves (OB-134…142 as scoped)
+
+| Wave                                              | Tickets                                                                                                                                                                                                                                                                                                                 | Deliverable                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **0 — Schema + contracts** (parallel)             | **OB-134** `0012` schema + the `bank_line_clearings` restructure + `TENANT/MUTABLE/grants` + discount-account columns · **OB-135** wire contracts (term, multi-entry clear array, suggestion)                                                                                                                           | Orchestrator owns the 0006 in-place edit + codegen reset.                           |
+| **1 — Terms, multi-entry, suggestion** (parallel) | **OB-136** payment-terms service (compute due date + discount window; contact default → document override) · **OB-137** multi-entry clearing (the load-bearing change: array of entries, E4 = Σ, parent+child, undo-as-unit) · **OB-138** terms-driven discount suggestion (a `'discount'` allocation + journal, D-106) | OB-137 is the expansion risk (reconciliation reads, race test, undo).               |
+| **2 — Transport + screens**                       | **OB-139** `/v1` routes (payment-terms CRUD, extended clear body, suggestion preview) · **OB-140** the multi-entry match row (add/remove entries + running difference) + payment-terms settings + discount affordance, on the workbench and money-in                                                                    | The clear route body extends in place; new term routes trip the coverage tripwires. |
+| **3 — Verification**                              | **OB-141** enforcement + multi-entry property suite (Σ-to-line under generated entry sets; suggestion computes from the term; every clear human-accepted) + mutation testing · **OB-142** E2E: one deposit split across three invoices, one with an in-terms discount, balancing to the deposit                         |                                                                                     |
+
+**Critical path:** OB-134 → OB-137 → OB-138 → OB-140 → OB-142.
+
+#### Tripwire / registry checklist
+
+`db/tenant-tables.ts` (+`payment_terms`, +`bank_line_clearing_entries`, compile-checked) · `0999_app_grants.ts`
+`MUTABLE_TABLES` (+both) + `grants.test.ts` rows · **the `bank_line_clearings` restructure updates the pinned
+banking suites** — `clearing.e4.test.ts`, `clearing.service.test.ts` (the `statement_line_already_cleared`/
+`journal_already_cleared` refusals loosen), `clearing.race.test.ts` (the uniqueness it proves moves to the
+child), `report.property.test.ts` (its one-signed-amount-per-line sum) · `test/transport/routes.test.ts` +
+`test/transport/openapi.test.ts` (regenerate `openapi.json` + web client) + `cross-org.test.ts` /
+`cross-org-references.test.ts` for the new term routes · **no** permission-catalog/permission-matrix change
+(D-107) · `generated.ts` via throwaway-MySQL codegen after the reset.
+
+#### Deliberate deferrals (flagged)
+
+- **The Pay-Bills-side discount suggestion (I5) is deferred to PB** ([D-108](#d-108)) — the primitive is
+  built AP+AR, only the PB call site is missing.
+- **Remittance-advice file ingestion** stays out (per the CA "Explicitly out") — the reference/amount ranking covers the common case.
+- **Multi-currency** unaffected and still out (§13).
+
 ---
 
 ## Payment integration — Stripe & Square
@@ -4060,6 +4152,54 @@ no human-confirm step, because the checkout metadata gives **certain** identity 
 unlike a bank-feed guess. The full D-79 payment-terms feature (net-days, early-pay discount windows,
 human-confirmed suggestion) stays in Cash application; **PAY does not block on it**. If CA later
 generalises the fee/discount-account nomination, PAY's nomination folds into that primitive.
+
+<a id="d-105"></a>
+
+**D-105 — Multi-entry clearing is a parent `bank_line_clearings` + a child `bank_line_clearing_entries`.**
+[D-80](#d-80) turns a line's clear into N entries. Rather than N sibling rows (which would break every
+"one clearing per line" assumption, the undo unit, and the reconciliation stamp), `bank_line_clearings`
+**stays one-per-line** as the parent — it keeps `statement_line_id`, the `reconciliation_session_id`
+stamp (the D-51 freeze), the running total and difference, and remains the undo unit — and a new
+`bank_line_clearing_entries` child holds the N rows (each `entry_type` `allocate_document`/`post_entry`/
+`discount`, its `cleared_journal_id`/`payment_id`/`account_id`/`target`, and a signed `amount_minor`).
+`stampMembership` and every `reconciliation_session_id`-keyed balance read stay on the parent, unchanged
+(`reconciliation.repository.ts:676` et al.). The E4 invariant generalises from
+`cleared + difference === line.amount` to `Σ(entry amounts) + difference === line.amount`. The singular
+target columns move off the parent onto the child; `uq_blc_journal` moves to the child (still one line
+per journal, now per-entry).
+
+<a id="d-106"></a>
+
+**D-106 — An early-pay discount is a discount-kind allocation plus a real journal line.** A confirmed
+discount must both post a journal (debit discount-given / credit AR control — the mirror on AP) **and**
+bring the document's `outstanding` to zero. Since `outstanding = total − Σ(allocation amounts)`
+(`allocations.repository.ts`, never stored — D-34), a bare discount journal would leave a residual. So
+the discount is modelled as a **settlement whose funding source is the discount account, not cash**: it
+writes an allocation row of the discount amount (a third `AllocationSource` kind `'discount'` alongside
+`'payment'`/`'credit_document'`, `allocate.ts:63`) so `outstanding → 0`, and posts the discount journal
+to the nominated account. Symmetric with how a payment settles, greppable, and it keeps the outstanding
+formula untouched. Never auto-posted ([D-43](#d-43)); the human accepts the suggested entry.
+
+<a id="d-107"></a>
+
+**D-107 — Payment terms + discount-account nominations reuse `orgs.read`/`orgs.write`; no new catalog
+keys.** Terms CRUD and the `discount_given_account_id`/`discount_received_account_id` nominations (which
+live in `org_accounting_settings` alongside the control accounts) are settings-like, and the analogous
+control-accounts surface already gates on `orgs.read`/`orgs.write` (there is no `settings.*` key);
+OCR and PAY likewise added routes reusing existing keys where they could. The multi-entry clear reuses
+`banking.match` (the clearing service already gates on it). So CA adds **no** permission key, no
+`AssertCatalogSize` bump, and no `0001_tenancy` re-seed — only the route-table/OpenAPI/cross-org
+coverage tripwires move for the new routes.
+
+<a id="d-108"></a>
+
+**D-108 — CA builds the shared AP+AR terms primitive and the AR-side suggestion; the Pay-Bills side
+defers to PB.** Pay Bills (initiative G, OB-109…119) is **scoped, not built** — there is no AP
+disbursement surface for [I5](#cash-application)'s "and in Pay Bills" to plug into. So CA builds the
+payment-terms primitive as shared AP+AR data (not wasted — PB consumes it), and surfaces the confirmed
+discount in the two AR paths that exist today: the **bank-match workbench** (D-80 multi-entry) and the
+**manual money-in** receipt path (D-81's "the money-in screen remains for receipts not in the feed").
+The Pay-Bills-side suggestion lands with PB. I5 is therefore partially deferred by construction, flagged.
 
 ## Status — Milestone 1
 
