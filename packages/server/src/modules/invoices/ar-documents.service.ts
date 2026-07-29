@@ -15,6 +15,7 @@ import {
   assertFound,
 } from '../../errors';
 import { resolveTagsForNewLine } from '../dimensions';
+import { emitEvent } from '../events';
 import { postJournal, reverseJournal } from '../ledger';
 import { resolveControlAccount } from '../settings';
 import { requirePermission } from '../permissions';
@@ -381,6 +382,51 @@ export async function approveArDocument(
         `Approving a ${kind.resource} updated ${String(updated)} rows while holding its row ` +
           'lock. The document was read FOR UPDATE in this transaction, so it cannot have been ' +
           'approved by another one — the journal is posted and the document may not record it.',
+      );
+    }
+
+    // The outbox append (OB-100, F7): same transaction as the write above, so an
+    // event exists if and only if the approval committed. `total` is recomputed
+    // rather than read back off `posted`, because `PostedJournal` carries per-line
+    // amounts and no aggregate — the same sum `toPostJournalInput` posted as the
+    // control account's line.
+    const total = sumOf(lines, (line) => line.line_amount_minor + line.tax_amount_minor);
+    const actor = {
+      actorType: ctx.actorType,
+      actorId: ctx.actorId,
+      ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
+    };
+    if (kind.documentType === 'invoice') {
+      await emitEvent(
+        {
+          name: 'invoice.approved.v1',
+          orgId: ctx.orgId,
+          actor,
+          payload: {
+            invoiceId: documentId,
+            contactId: bufferToUuid(row.contact_id),
+            journalId: posted.journalId,
+            total,
+            date: posted.date,
+          },
+        },
+        ctx,
+      );
+    } else {
+      await emitEvent(
+        {
+          name: 'credit_note.approved.v1',
+          orgId: ctx.orgId,
+          actor,
+          payload: {
+            creditNoteId: documentId,
+            contactId: bufferToUuid(row.contact_id),
+            journalId: posted.journalId,
+            total,
+            date: posted.date,
+          },
+        },
+        ctx,
       );
     }
 

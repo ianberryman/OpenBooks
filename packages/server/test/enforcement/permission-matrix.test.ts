@@ -76,7 +76,22 @@ import {
   postDraft,
   updateDraft,
 } from '../../src/modules/drafts';
+import { approveProposal, listProposals, rejectProposal } from '../../src/modules/agents';
+import { createApiKey, listApiKeys, revokeApiKey } from '../../src/modules/api-keys';
+import { readChangeFeed } from '../../src/modules/change-feed';
+import {
+  createExternalRef,
+  listExternalRefs,
+  lookupExternalRef,
+} from '../../src/modules/external-refs';
 import { importQuickBooks, previewQuickBooksImport } from '../../src/modules/imports';
+import {
+  deactivateOAuthClient,
+  listConnectedApps,
+  listOAuthClients,
+  registerOAuthClient,
+  revokeConnectedApp,
+} from '../../src/modules/oauth';
 import {
   createDunningPolicy,
   createRecurringInvoiceTemplate,
@@ -278,12 +293,17 @@ import { contextFor } from './support';
  * twice: it gained `orgs.write`, which decides where every future invoice and bill
  * posts, and no migration recorded that either.
  *
- * What is left latent is `agents.review` and `integrations.*` (M5), `workflows.*`
- * (M6), and `api_keys.*`, which have no milestone scoped at all. **No `banking.*` code
- * is latent any longer**: wave 1 took `banking.import` and `banking.read` live, wave 2
- * `banking.match`, and wave 3 `banking.reconcile` and `banking.reopen` — each the
- * moment a service enforced it, exactly as the AR/AP services did to their codes. M4
- * emptied the banking half of this table over three waves without a migration.
+ * What is left latent is `workflows.*` (M6), which has no milestone scoped at all.
+ * **No `banking.*` code is latent any longer**: wave 1 took `banking.import` and
+ * `banking.read` live, wave 2 `banking.match`, and wave 3 `banking.reconcile` and
+ * `banking.reopen` — each the moment a service enforced it, exactly as the AR/AP
+ * services did to their codes. M4 emptied the banking half of this table over three
+ * waves without a migration. **Nor is any M5 code latent any longer**: OB-104 gave
+ * `agents.review`, `api_keys.read`, `api_keys.write`, `integrations.read` and
+ * `integrations.write` their routes in the same commit that moved them into
+ * `GRANTED_TO` below — the platform surface emptied its own half of this table in
+ * one commit rather than the three M4 took, because every one of its five codes
+ * got an enforcement point at once.
  *
  * ## And what OB-072 added to it
  *
@@ -343,10 +363,12 @@ const ROLES = [
  * database by construction can never disagree with it. This table is the claim; the
  * database is what it is checked against.
  *
- * Forty-three rows, because forty-three of the catalog's fifty-one codes are
- * checked by a service. The other eight are `LATENT_GRANTS` below. Eighteen arrived
- * with M3 and are marked, and three with INV (branding + `invoices.send`); every one
- * of them is a role widened by a service rather than by a migration (C11, known gap 6).
+ * Forty-eight rows, because forty-eight of the catalog's fifty-one codes are
+ * checked by a service. The other three are `LATENT_GRANTS` below. Eighteen arrived
+ * with M3 and are marked, three with INV (branding + `invoices.send`), and five with
+ * M5 (OB-104: `agents.review`, `api_keys.read`, `api_keys.write`, `integrations.read`,
+ * `integrations.write`); every one of them is a role widened by a service rather than
+ * by a migration (C11, known gap 6).
  */
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
@@ -458,6 +480,21 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
    */
   'orgs.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'orgs.write': ['owner'],
+
+  /**
+   * M5 (OB-097 … OB-104) — the five codes that waited since M1/M6-scoping with no
+   * enforcement point, wired by the platform surface. Read straight off the
+   * `LATENT_GRANTS` rows they moved out of, not re-derived: `agents.review` was on
+   * owner, bookkeeper and approver; `integrations.read` was on owner, bookkeeper,
+   * readOnly and approver; `api_keys.read`/`api_keys.write`/`integrations.write`
+   * were on owner alone. No migration ran — the widening is this commit, the same
+   * shape C11 recorded for M3.
+   */
+  'agents.review': ['owner', 'bookkeeper', 'approver'],
+  'api_keys.read': ['owner'],
+  'api_keys.write': ['owner'],
+  'integrations.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'integrations.write': ['owner'],
 };
 
 /**
@@ -474,35 +511,36 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  * existed to make the AR/AP half of the catalog meaningful now hold nothing they
  * cannot use. No migration ran.
  *
- * What is left is two milestones' worth. `banking.*` is fully wired now: wave 1 took
- * `banking.import` and `banking.read` off Bookkeeper and Owner (and `banking.read` off
- * each reader), wave 2 took `banking.match`, and wave 3 took `banking.reconcile` and
- * `banking.reopen` — each the moment a service enforced it, so the banking half of
- * this table is empty. `agents.review` and `integrations.*` go at M5; `workflows.*` at
- * M6. That leaves `api_keys.*` on Owner as the only pair with no milestone scoped at
- * all — granted, administrative-looking, and checked by nothing. It is the last of the
- * original gap-6 set that has no plan behind it.
+ * What is left is one milestone's worth, and `workflows.*` is all of it.
+ * `banking.*` is fully wired: wave 1 took `banking.import` and `banking.read` off
+ * Bookkeeper and Owner (and `banking.read` off each reader), wave 2 took
+ * `banking.match`, and wave 3 took `banking.reconcile` and `banking.reopen` — each
+ * the moment a service enforced it, so the banking half of this table is empty.
+ * The platform half is empty too, as of this commit: `agents.review`,
+ * `api_keys.read`, `api_keys.write`, `integrations.read` and `integrations.write`
+ * all got an enforcement point at once (OB-104's routes), so — unlike the M3 and
+ * M4 sets, which each emptied over several commits — the whole M5 set moved to
+ * `GRANTED_TO` together. `workflows.*` is the only code family left with no
+ * milestone scoped at all, on Owner and Bookkeeper (`workflows.read`/`write`) and
+ * Owner alone (`workflows.activate`).
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
-  owner: [
-    'agents.review',
-    'api_keys.read',
-    'api_keys.write',
-    'integrations.read',
-    'integrations.write',
-    'workflows.activate',
-    'workflows.read',
-    'workflows.write',
-  ],
-  bookkeeper: ['agents.review', 'integrations.read', 'workflows.read', 'workflows.write'],
+  // `agents.review`, `api_keys.read`, `api_keys.write`, and `integrations.write`
+  // moved to `GRANTED_TO` this milestone (M5, OB-104) — `workflows.*` is all that
+  // is left latent for owner, and it stays latent until M6.
+  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
+  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone.
+  bookkeeper: ['workflows.read', 'workflows.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
   // code it is missing was never in its bundle to begin with.
   apOnly: [],
   arOnly: [],
-  readOnly: ['integrations.read', 'workflows.read'],
-  approver: ['agents.review', 'integrations.read', 'workflows.read'],
+  // `integrations.read` moved to `GRANTED_TO` this milestone.
+  readOnly: ['workflows.read'],
+  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone.
+  approver: ['workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -2073,6 +2111,137 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'banking.read',
     call: (s) => getReconciliationReport(s.reconciliationSessionId, s.ctx),
   },
+
+  // ---------------------------------------------------------------------------
+  // M5 (OB-097 … OB-104) — the platform surface: API keys, OAuth client
+  // management, the change feed, external refs, and the agent review queue.
+  //
+  // Every id-addressed row below calls with `newUuid()` rather than a fixture the
+  // Scene builds: the matrix only asks "did the gate refuse", and an operation
+  // that gets past `requirePermission` and then 404s on a name nothing in this
+  // org holds is still `allowed` — the same rule the file header states for a
+  // precondition or a missing row. Not building dedicated fixtures for these
+  // fifteen operations keeps this addition from touching `scene()`, which every
+  // other row in this file also reads from.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'createApiKey',
+    operationId: 'createApiKey',
+    permission: 'api_keys.write',
+    call: (s) =>
+      createApiKey({ name: 'Nightly import job', roleId: SYSTEM_ROLE_UUIDS.bookkeeper }, s.ctx),
+  },
+  {
+    name: 'listApiKeys',
+    operationId: 'listApiKeys',
+    permission: 'api_keys.read',
+    call: (s) => listApiKeys({}, s.ctx),
+  },
+  {
+    name: 'revokeApiKey',
+    operationId: 'revokeApiKey',
+    permission: 'api_keys.write',
+    call: (s) => revokeApiKey(newUuid(), s.ctx),
+  },
+  {
+    name: 'registerOAuthClient',
+    operationId: 'registerOAuthClient',
+    permission: 'integrations.write',
+    call: (s) =>
+      registerOAuthClient(
+        { name: 'Zapier', redirectUris: ['https://example.com/oauth/callback'] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listOAuthClients',
+    operationId: 'listOAuthClients',
+    permission: 'integrations.read',
+    call: (s) => listOAuthClients({}, s.ctx),
+  },
+  {
+    name: 'deactivateOAuthClient',
+    operationId: 'deactivateOAuthClient',
+    permission: 'integrations.write',
+    call: (s) => deactivateOAuthClient(newUuid(), s.ctx),
+  },
+  {
+    name: 'listConnectedApps',
+    operationId: 'listConnectedApps',
+    permission: 'integrations.read',
+    call: (s) => listConnectedApps({}, s.ctx),
+  },
+  {
+    // Gated `integrations.read`, matching the service — `oauth.service.ts`'s
+    // `revokeConnectedApp` header explains why: the caller can only ever reach
+    // their own consent, so the code held is advisory rather than a write grant.
+    name: 'revokeConnectedApp',
+    operationId: 'revokeConnectedApp',
+    permission: 'integrations.read',
+    call: (s) => revokeConnectedApp(newUuid(), s.ctx),
+  },
+  {
+    name: 'readChangeFeed',
+    operationId: 'readChangeFeed',
+    permission: 'integrations.read',
+    call: (s) => readChangeFeed({}, s.ctx),
+  },
+  {
+    name: 'createExternalRef',
+    operationId: 'createExternalRef',
+    permission: 'integrations.write',
+    call: (s) =>
+      createExternalRef(
+        {
+          externalSystem: 'quickbooks',
+          entityType: 'contact',
+          externalId: newUuid(),
+          entityId: s.contactId,
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listExternalRefs',
+    operationId: 'listExternalRefs',
+    permission: 'integrations.read',
+    call: (s) => listExternalRefs({}, s.ctx),
+  },
+  {
+    name: 'lookupExternalRef',
+    operationId: 'lookupExternalRef',
+    permission: 'integrations.read',
+    call: (s) =>
+      lookupExternalRef(
+        { externalSystem: 'quickbooks', entityType: 'contact', externalId: newUuid() },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listProposals',
+    operationId: 'listProposals',
+    permission: 'agents.review',
+    call: (s) => listProposals({}, s.ctx),
+  },
+  {
+    // `postDraft` re-checks `journals.post` (D-19); the seeded Approver role holds
+    // both for exactly that reason (`review.service.ts`'s header).
+    name: 'approveProposal',
+    operationId: 'approveProposal',
+    permission: 'agents.review',
+    thenRequires: ['journals.post'],
+    call: (s) => approveProposal(newUuid(), s.ctx),
+  },
+  {
+    // `discardDraft` also re-checks `journals.post`, not just `journals.read` —
+    // `drafts.service.ts`'s `discardDraft` and `review.service.ts`'s header both
+    // state it.
+    name: 'rejectProposal',
+    operationId: 'rejectProposal',
+    permission: 'agents.review',
+    thenRequires: ['journals.post'],
+    call: (s) => rejectProposal(newUuid(), s.ctx),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -2142,6 +2311,12 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   // role. The captures it creates are attributed to the automation actor under the
   // org owner (`runAsAutomation`), not to the caller. See `bill-inbound.ts`.
   'receiveInboundBill',
+  // The OAuth consent screen's data source (M5, OB-104): a logged-in user deciding whether
+  // to delegate their OWN access is not an `integrations.*` admin act, so — like
+  // `getCurrentIdentity` — it carries no permission and the session is its only gate.
+  // `authorizeRequest` resolves the client through the caller's own org, so cross-org holds
+  // without a permission row.
+  'getOAuthAuthorizationDetails',
 ]);
 
 /**
@@ -2981,7 +3156,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the forty-three codes with an enforcement point', async () => {
+  it('is exactly the catalog minus the forty-eight codes with an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -2994,9 +3169,11 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // Thirty-one before M3, thirteen after it. M4 wired the banking codes over three
     // waves — `banking.import`/`banking.read` (eleven), `banking.match` (ten), then
     // `banking.reconcile`/`banking.reopen` (eight) — leaving only the M5/M6 codes and
-    // the unscoped `api_keys.*`. This number is the only place the count is asserted
-    // rather than described, so it moves once per wave that wires a code.
-    expect(latent).toHaveLength(8);
+    // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, leaving only
+    // `workflows.activate`/`workflows.read`/`workflows.write` (M6). This number is
+    // the only place the count is asserted rather than described, so it moves once
+    // per wave that wires a code.
+    expect(latent).toHaveLength(3);
   });
 
   /**

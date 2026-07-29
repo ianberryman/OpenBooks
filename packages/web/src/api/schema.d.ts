@@ -177,6 +177,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/agent-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List pending proposals
+         * @description One page of pending proposals, oldest first — every draft not yet posted or discarded, the same collection `GET /v1/journal-drafts` lists, gated on `agents.review` instead of `journals.read`.
+         */
+        get: operations["listProposals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agent-proposals/{draftId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a proposal, posting it to the ledger
+         * @description Posts the draft and discards it, in one transaction, exactly once (D-19) — the same operation `POST /v1/journal-drafts/{draftId}/post` performs, reached through the review queue instead. Provenance on the resulting journal is the *approver’s*, not the proposing agent’s.
+         */
+        post: operations["approveProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/agent-proposals/{draftId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a proposal, discarding it
+         * @description Discards the proposal outright — the same operation a person discarding their own unfinished draft performs (D-16). Nothing about a rejected proposal is recorded anywhere.
+         */
+        post: operations["rejectProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/allocations/{allocationId}": {
         parameters: {
             query?: never;
@@ -192,6 +252,50 @@ export interface paths {
          * @description Removes the row outright. This restates no financial statement — an allocation posted no journal — and it needs no reversal, because what it changes is what is outstanding and that is computed on read (D-34). The permission taken is the source’s: un-applying is a change to what that payment or credit note has done.
          */
         delete: operations["deleteAllocation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List API keys
+         * @description One page of the org’s keys, revoked ones included — a management view, not a live credential list.
+         */
+        get: operations["listApiKeys"];
+        put?: never;
+        /**
+         * Issue an API key
+         * @description Issues a key bound to `roleId` — not the issuer’s own role (D-55). The full opaque value is returned exactly once, in this response; every later read shows only `keyPrefix`.
+         */
+        post: operations["createApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/api-keys/{apiKeyId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke an API key
+         * @description Effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. Idempotent: an already-revoked key is returned unchanged rather than refused.
+         */
+        post: operations["revokeApiKey"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -785,6 +889,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/change-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the change feed
+         * @description One page of the org’s change feed, oldest first. Send back the previous page’s `nextCursor` verbatim to resume — there is no page number, only forward motion through the log (D-57).
+         */
+        get: operations["readChangeFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/chart-templates": {
         parameters: {
             query?: never;
@@ -819,6 +943,46 @@ export interface paths {
          * @description Takes `accounts.write`. The accounts are written through `createAccount` one at a time in one transaction, so the hierarchy rules, the code-uniqueness conflict and the shared schema apply to a shipped chart exactly as they apply to a hand-typed one — there is no second write path for a template to bypass. A code the org already holds refuses the whole application and names every collision. Nothing records which template was used: the accounts are ordinary accounts from that moment on.
          */
         post: operations["applyChartTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connected-apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s connected apps
+         * @description A user’s own view of what they have authorized — gated `integrations.read` advisorily; the real boundary is that this only ever touches the caller’s own consent and tokens (`oauth.service.ts`).
+         */
+        get: operations["listConnectedApps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connected-apps/{clientId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a connected app
+         * @description Revokes the caller’s own consent and every token it produced. A client never consented to, or already revoked, is a no-op rather than a `not_found` — reporting existence of someone else’s consent is exactly what A7 avoids.
+         */
+        post: operations["revokeConnectedApp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1260,6 +1424,50 @@ export interface paths {
          * @description Removes a policy from the sweep without deleting its history. Idempotent: an already-inactive policy is returned unchanged rather than refused.
          */
         post: operations["deactivateDunningPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/external-refs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List external-id correlations
+         * @description One page of the org’s correlations, optionally narrowed by any combination of `externalSystem`, `entityType`, and `externalId`.
+         */
+        get: operations["listExternalRefs"];
+        put?: never;
+        /**
+         * Create an external-id correlation
+         * @description Idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict. A create whose identity collides with a *different* mapping is refused loudly instead.
+         */
+        post: operations["createExternalRef"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/external-refs/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve one external-id correlation
+         * @description Resolves external id → OpenBooks entity (D-58’s reverse direction): the shape a caller who only has the upstream id needs before it can address the entity through any other endpoint. All three of `externalSystem`, `entityType`, and `externalId` are required together — a `validation_failed` names whichever are missing.
+         */
+        get: operations["lookupExternalRef"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1779,6 +1987,67 @@ export interface paths {
          * @description Takes `members.write`. An org cannot lose its last Owner: demoting the only one is a `precondition_failed`, decided under a lock on the Owner set rather than a count, so two callers each demoting the other’s Owner cannot both succeed.
          */
         patch: operations["changeMemberRole"];
+        trace?: never;
+    };
+    "/v1/oauth-clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List OAuth clients */
+        get: operations["listOAuthClients"];
+        put?: never;
+        /**
+         * Register an OAuth client
+         * @description Admin-registered and never self-service (D-53) — there is no public dynamic client registration. The secret is returned exactly once, in this response.
+         */
+        post: operations["registerOAuthClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/oauth-clients/{oauthClientId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate an OAuth client
+         * @description A deactivated client cannot obtain a new token (D-61). Idempotent: an already-deactivated client is returned unchanged rather than refused.
+         */
+        post: operations["deactivateOAuthClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/oauth/authorization-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The client name and scopes the consent screen renders
+         * @description Backs the consent screen `GET /oauth/authorize` redirects a logged-in user to. Validates the authorize request and returns the client’s display name, the exact scopes requested, and whether the user already consented to a superset.
+         */
+        get: operations["getOAuthAuthorizationDetails"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/orgs": {
@@ -2803,6 +3072,84 @@ export interface components {
             targetId: string;
             /** @enum {string} */
             targetType: "invoice" | "bill";
+        };
+        /** @description A first-party, role-bound API key (D-55, D-61), never carrying its secret. */
+        ApiKey: {
+            /** Format: date-time */
+            createdAt: string;
+            createdByUserId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned. */
+            keyPrefix: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. */
+            revokedAt: string | null;
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description A first-party, role-bound API key (D-55, D-61), never carrying its secret. */
+        ApiKeyInput: {
+            /** Format: date-time */
+            createdAt: string;
+            createdByUserId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned. */
+            keyPrefix: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. */
+            revokedAt: string | null;
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description One page of the org’s API keys, revoked ones included. */
+        ApiKeyPage: {
+            items: components["schemas"]["ApiKey"][];
+            nextCursor: string | null;
+        };
+        /** @description One page of the org’s API keys, revoked ones included. */
+        ApiKeyPageInput: {
+            items: components["schemas"]["ApiKeyInput"][];
+            nextCursor: string | null;
+        };
+        /** @description An API key with its full opaque value, returned exactly once at creation (D-61). */
+        ApiKeyWithSecret: {
+            /** Format: date-time */
+            createdAt: string;
+            createdByUserId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The full opaque key. Not recoverable — losing it means issuing a new one. */
+            key: string;
+            /** @description The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned. */
+            keyPrefix: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. */
+            revokedAt: string | null;
+            /** Format: uuid */
+            roleId: string;
+        };
+        /** @description An API key with its full opaque value, returned exactly once at creation (D-61). */
+        ApiKeyWithSecretInput: {
+            /** Format: date-time */
+            createdAt: string;
+            createdByUserId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @description The full opaque key. Not recoverable — losing it means issuing a new one. */
+            key: string;
+            /** @description The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned. */
+            keyPrefix: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. */
+            revokedAt: string | null;
+            /** Format: uuid */
+            roleId: string;
         };
         /** @description Every account the application created, in the order it created them — the one moment a caller learns their ids without paging the chart back. */
         AppliedChartTemplate: {
@@ -4042,6 +4389,72 @@ export interface components {
             /** @description This org’s cash/bank balance at the close of `asOf` — the accounts registered in `bank_accounts`, plus any account an org has marked with the `cash` basis role that is not separately registered. Read from the same ledger every other report reads (D-13); there is no separate stored balance to drift from it (D-46). */
             openingCash: components["schemas"]["MinorUnitsInput"];
         };
+        /** @description Who or what caused a change-feed event. */
+        ChangeFeedActor: {
+            /** @description The acting user, API key, or agent session. A string rather than `z.uuid()`: an automation actor is not always keyed by a UUID the way a user row is. */
+            actorId: string;
+            /** @enum {string} */
+            actorType: "user" | "automation" | "agent";
+            /**
+             * @description Whether a human was present. Absent for `user`/`automation` actors; set for `agent` callers only, `postedJournalSchema`’s `invocationMode` restated per event rather than as a nullable column read back verbatim.
+             * @enum {string}
+             */
+            invocationMode?: "interactive" | "scheduled";
+        };
+        /** @description Who or what caused a change-feed event. */
+        ChangeFeedActorInput: {
+            /** @description The acting user, API key, or agent session. A string rather than `z.uuid()`: an automation actor is not always keyed by a UUID the way a user row is. */
+            actorId: string;
+            /** @enum {string} */
+            actorType: "user" | "automation" | "agent";
+            /**
+             * @description Whether a human was present. Absent for `user`/`automation` actors; set for `agent` callers only, `postedJournalSchema`’s `invocationMode` restated per event rather than as a nullable column read back verbatim.
+             * @enum {string}
+             */
+            invocationMode?: "interactive" | "scheduled";
+        };
+        /** @description One row of the resumable, tenant-scoped change feed (D-56, D-57). */
+        ChangeFeedEvent: {
+            actor: components["schemas"]["ChangeFeedActor"];
+            /** Format: uuid */
+            eventId: string;
+            /** @description The event name, e.g. `invoice.approved.v1`. Versioned in the name itself. */
+            name: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @description The event’s own body, opaque to this envelope. Narrow it against `name` using the published shape for that event. */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description This event’s position in the org’s total order (D-56). Monotonic and unique within the org; a `BIGINT` carried as a string for the reason `sequenceNumber` is in `journals.ts`. */
+            position: string;
+        };
+        /** @description One row of the resumable, tenant-scoped change feed (D-56, D-57). */
+        ChangeFeedEventInput: {
+            actor: components["schemas"]["ChangeFeedActorInput"];
+            /** Format: uuid */
+            eventId: string;
+            /** @description The event name, e.g. `invoice.approved.v1`. Versioned in the name itself. */
+            name: string;
+            /** Format: date-time */
+            occurredAt: string;
+            /** @description The event’s own body, opaque to this envelope. Narrow it against `name` using the published shape for that event. */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description This event’s position in the org’s total order (D-56). Monotonic and unique within the org; a `BIGINT` carried as a string for the reason `sequenceNumber` is in `journals.ts`. */
+            position: string;
+        };
+        /** @description One page of the org’s change feed, oldest first. */
+        ChangeFeedPage: {
+            events: components["schemas"]["ChangeFeedEvent"][];
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s change feed, oldest first. */
+        ChangeFeedPageInput: {
+            events: components["schemas"]["ChangeFeedEventInput"][];
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description The role the member holds afterwards. Re-roling to the role they already hold succeeds and changes nothing: a client reconciling state should not have to know the current value in order to write the intended one. */
         ChangeMemberRoleRequest: {
             /** Format: uuid */
@@ -4162,6 +4575,36 @@ export interface components {
              */
             targetType: "invoice" | "bill";
         };
+        /** @description A client the caller has authorized, as they see it under `integrations.read`. */
+        ConnectedApp: {
+            clientId: string;
+            /** Format: date-time */
+            consentedAt: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description The permission keys this consent granted (D-54), not the user’s full role. */
+            scope: string[];
+        };
+        /** @description A client the caller has authorized, as they see it under `integrations.read`. */
+        ConnectedAppInput: {
+            clientId: string;
+            /** Format: date-time */
+            consentedAt: string;
+            lastUsedAt: string | null;
+            name: string;
+            /** @description The permission keys this consent granted (D-54), not the user’s full role. */
+            scope: string[];
+        };
+        /** @description One page of the apps the caller has authorized. */
+        ConnectedAppPage: {
+            items: components["schemas"]["ConnectedApp"][];
+            nextCursor: string | null;
+        };
+        /** @description One page of the apps the caller has authorized. */
+        ConnectedAppPageInput: {
+            items: components["schemas"]["ConnectedAppInput"][];
+            nextCursor: string | null;
+        };
         /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
         Contact: {
             code: string | null;
@@ -4281,6 +4724,26 @@ export interface components {
             allocations: components["schemas"]["AllocationRequestInput"][];
             /** @description When this allocation takes effect. Aging as at a date counts only the allocations dated on or before it (D-40), so this is what makes a historical aging report reproducible. Defaults to the date of the payment or credit note being applied. */
             date?: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description Issues a first-party, role-bound key (D-55) — no person behind it. */
+        CreateApiKeyRequest: {
+            /** @description Display name for the key, e.g. `Nightly import job`. */
+            name: string;
+            /**
+             * Format: uuid
+             * @description The role the key authenticates as (D-55). Not the issuer’s own role — a key’s effective permissions are exactly this role’s, and narrowing the role narrows every key issued against it, the same guarantee D-54 gives an OAuth token.
+             */
+            roleId: string;
+        };
+        /** @description Issues a first-party, role-bound key (D-55) — no person behind it. */
+        CreateApiKeyRequestInput: {
+            /** @description Display name for the key, e.g. `Nightly import job`. */
+            name: string;
+            /**
+             * Format: uuid
+             * @description The role the key authenticates as (D-55). Not the issuer’s own role — a key’s effective permissions are exactly this role’s, and narrowing the role narrows every key issued against it, the same guarantee D-54 gives an OAuth token.
+             */
+            roleId: string;
         };
         /** @description Registers an existing ledger account as a bank account. `accountId` names an account the org already has — the chart is the org’s, and a module that invented accounts in it would decide the org’s chart on its behalf (D-23). */
         CreateBankAccountRequest: {
@@ -4561,6 +5024,34 @@ export interface components {
                 /** @description The reminder email’s subject line. */
                 subject: string;
             }[];
+        };
+        /** @description Creates a correlation, idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict. */
+        CreateExternalRefRequest: {
+            /**
+             * Format: uuid
+             * @description The OpenBooks entity this external id names.
+             */
+            entityId: string;
+            /** @enum {string} */
+            entityType: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+            /** @description The record’s id in the external system. */
+            externalId: string;
+            /** @description The integrator’s own name for itself, e.g. `quickbooks` or `shopify`. */
+            externalSystem: string;
+        };
+        /** @description Creates a correlation, idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict. */
+        CreateExternalRefRequestInput: {
+            /**
+             * Format: uuid
+             * @description The OpenBooks entity this external id names.
+             */
+            entityId: string;
+            /** @enum {string} */
+            entityType: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+            /** @description The record’s id in the external system. */
+            externalId: string;
+            /** @description The integrator’s own name for itself, e.g. `quickbooks` or `shopify`. */
+            externalSystem: string;
         };
         /** @description Creates one monthly period. A period is a calendar month, so it is named by year and month rather than by a date range. */
         CreateFiscalPeriodRequest: {
@@ -5312,6 +5803,52 @@ export interface components {
                 message: string;
             };
         };
+        /** @description A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58). */
+        ExternalRef: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            entityId: string;
+            /** @enum {string} */
+            entityType: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+            externalId: string;
+            externalSystem: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Set when a ref is re-pointed to a different entity — the map is mutable for that case (D-58), but never silent: an append-only ref history is out of M5.
+             */
+            updatedAt: string;
+        };
+        /** @description A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58). */
+        ExternalRefInput: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            entityId: string;
+            /** @enum {string} */
+            entityType: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+            externalId: string;
+            externalSystem: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Set when a ref is re-pointed to a different entity — the map is mutable for that case (D-58), but never silent: an append-only ref history is out of M5.
+             */
+            updatedAt: string;
+        };
+        /** @description One page of the org’s external-id correlations. */
+        ExternalRefPage: {
+            items: components["schemas"]["ExternalRef"][];
+            nextCursor: string | null;
+        };
+        /** @description One page of the org’s external-id correlations. */
+        ExternalRefPageInput: {
+            items: components["schemas"]["ExternalRefInput"][];
+            nextCursor: string | null;
+        };
         /** @description One line item as extraction read it off the document, before any review. */
         ExtractedCaptureLine: {
             description: string | null;
@@ -6038,6 +6575,120 @@ export interface components {
          * @example 0
          */
         MinorUnitsInput: string;
+        /** @description The client name and requested scopes the consent screen shows, plus whether the user has already granted a superset of them. */
+        OAuthAuthorizationDetails: {
+            alreadyConsented: boolean;
+            clientName: string;
+            scope: string[];
+        };
+        /** @description The client name and requested scopes the consent screen shows, plus whether the user has already granted a superset of them. */
+        OAuthAuthorizationDetailsInput: {
+            alreadyConsented: boolean;
+            clientName: string;
+            scope: string[];
+        };
+        /** @description A registered third-party OAuth client, never carrying its secret. */
+        OAuthClient: {
+            /** @description The public client identifier presented at `authorize` and `token`. */
+            clientId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row. */
+            deactivatedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            redirectUris: string[];
+        };
+        /** @description A registered third-party OAuth client, never carrying its secret. */
+        OAuthClientInput: {
+            /** @description The public client identifier presented at `authorize` and `token`. */
+            clientId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row. */
+            deactivatedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            redirectUris: string[];
+        };
+        /** @description One page of the org’s registered OAuth clients. */
+        OAuthClientPage: {
+            items: components["schemas"]["OAuthClient"][];
+            nextCursor: string | null;
+        };
+        /** @description One page of the org’s registered OAuth clients. */
+        OAuthClientPageInput: {
+            items: components["schemas"]["OAuthClientInput"][];
+            nextCursor: string | null;
+        };
+        /** @description A registered OAuth client with its secret, returned exactly once (D-61). */
+        OAuthClientWithSecret: {
+            /** @description The public client identifier presented at `authorize` and `token`. */
+            clientId: string;
+            /** @description The client secret, shown exactly once. Not recoverable — losing it means re-registering the client. */
+            clientSecret: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row. */
+            deactivatedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            redirectUris: string[];
+        };
+        /** @description A registered OAuth client with its secret, returned exactly once (D-61). */
+        OAuthClientWithSecretInput: {
+            /** @description The public client identifier presented at `authorize` and `token`. */
+            clientId: string;
+            /** @description The client secret, shown exactly once. Not recoverable — losing it means re-registering the client. */
+            clientSecret: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row. */
+            deactivatedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            redirectUris: string[];
+        };
+        /** @description The user’s decision on the consent screen: the `authorize` request’s own parameters, echoed back so they can be re-validated, plus whether the user approved. */
+        OAuthConsentDecision: {
+            approve: boolean;
+            clientId: string;
+            codeChallenge: string;
+            /**
+             * @description The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53.
+             * @enum {string}
+             */
+            codeChallengeMethod: "S256";
+            /** Format: uri */
+            redirectUri: string;
+            /** @constant */
+            responseType: "code";
+            /** @description Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time. */
+            scope: string;
+            state: string;
+        };
+        /** @description The user’s decision on the consent screen: the `authorize` request’s own parameters, echoed back so they can be re-validated, plus whether the user approved. */
+        OAuthConsentDecisionInput: {
+            approve: boolean;
+            clientId: string;
+            codeChallenge: string;
+            /**
+             * @description The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53.
+             * @enum {string}
+             */
+            codeChallengeMethod: "S256";
+            /** Format: uri */
+            redirectUri: string;
+            /** @constant */
+            responseType: "code";
+            /** @description Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time. */
+            scope: string;
+            state: string;
+        };
         /** @description One person’s membership of this organization, with the role they hold in it. */
         OrgMember: {
             /** Format: date-time */
@@ -7029,6 +7680,20 @@ export interface components {
             items: components["schemas"]["RecurringInvoiceTemplateInput"][];
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description Registers a third-party client, admin-registered and never self-service (D-53). */
+        RegisterOAuthClientRequest: {
+            /** @description Display name for the client, shown to a user on the consent screen. */
+            name: string;
+            /** @description The redirect URIs this client may be sent back to. `authorize` refuses a request naming any URI outside this set — the classic open-redirect the whole flow depends on closing. */
+            redirectUris: string[];
+        };
+        /** @description Registers a third-party client, admin-registered and never self-service (D-53). */
+        RegisterOAuthClientRequestInput: {
+            /** @description Display name for the client, shown to a user on the consent screen. */
+            name: string;
+            /** @description The redirect URIs this client may be sent back to. `authorize` refuses a request naming any URI outside this set — the classic open-redirect the whole flow depends on closing. */
+            redirectUris: string[];
         };
         /** @description Creates a user, their first organization, an Owner membership, and a session — atomically. Reachable without credentials. */
         RegisterRequest: {
@@ -8343,6 +9008,106 @@ export interface operations {
             };
         };
     };
+    listProposals: {
+        parameters: {
+            query?: {
+                /** @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+                createdByUserId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalDraftPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveProposal: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostedJournal"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rejectProposal: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                draftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     deleteAllocation: {
         parameters: {
             query?: never;
@@ -8363,6 +9128,109 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listApiKeys: {
+        parameters: {
+            query?: {
+                /** @description How many API keys to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createApiKey: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApiKeyRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyWithSecret"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeApiKey: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                apiKeyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"];
+                };
             };
             /** @description Default Response */
             default: {
@@ -9768,6 +10636,39 @@ export interface operations {
             };
         };
     };
+    readChangeFeed: {
+        parameters: {
+            query?: {
+                /** @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeFeedPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listChartTemplates: {
         parameters: {
             query?: never;
@@ -9821,6 +10722,71 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AppliedChartTemplate"];
                 };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listConnectedApps: {
+        parameters: {
+            query?: {
+                /** @description How many connected apps to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectedAppPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeConnectedApp: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                clientId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Default Response */
             default: {
@@ -11007,6 +11973,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DunningPolicy"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listExternalRefs: {
+        parameters: {
+            query?: {
+                /** @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+                externalSystem?: string;
+                entityType?: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+                externalId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalRefPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createExternalRef: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExternalRefRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalRef"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    lookupExternalRef: {
+        parameters: {
+            query?: {
+                externalSystem?: string;
+                entityType?: "account" | "contact" | "invoice" | "credit_note" | "bill" | "vendor_credit" | "payment" | "journal";
+                externalId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalRef"];
                 };
             };
             /** @description Default Response */
@@ -12254,6 +13325,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgMember"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listOAuthClients: {
+        parameters: {
+            query?: {
+                /** @description How many OAuth clients to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthClientPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    registerOAuthClient: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterOAuthClientRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthClientWithSecret"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateOAuthClient: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                oauthClientId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthClient"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOAuthAuthorizationDetails: {
+        parameters: {
+            query: {
+                responseType: "code";
+                clientId: string;
+                redirectUri: string;
+                /** @description Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time. */
+                scope: string;
+                state: string;
+                codeChallenge: string;
+                /** @description The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53. */
+                codeChallengeMethod: "S256";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthAuthorizationDetails"];
                 };
             };
             /** @description Default Response */

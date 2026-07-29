@@ -303,6 +303,15 @@ export interface BillAttachments {
   storage_key: string;
 }
 
+export interface ChangeFeedCursors {
+  created_at: Generated<Date>;
+  id: Buffer;
+  org_id: Buffer;
+  position: Generated<bigint>;
+  subscriber: string;
+  updated_at: Generated<Date>;
+}
+
 export interface Contacts {
   code: string | null;
   created_at: Generated<Date>;
@@ -401,6 +410,35 @@ export interface DunningStages {
   policy_id: Buffer;
   stage_number: number;
   subject: string;
+  updated_at: Generated<Date>;
+}
+
+export interface EventLog {
+  actor_id: string;
+  actor_type: string;
+  id: Buffer;
+  invocation_mode: string | null;
+  name: string;
+  occurred_at: Generated<Date>;
+  org_id: Buffer;
+  payload: Json;
+  position: bigint;
+}
+
+export interface EventPositions {
+  next_value: Generated<bigint>;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface ExternalRefs {
+  created_at: Generated<Date>;
+  entity_id: Buffer;
+  entity_type: string;
+  external_id: string;
+  external_system: string;
+  id: Buffer;
+  org_id: Buffer;
   updated_at: Generated<Date>;
 }
 
@@ -521,6 +559,62 @@ export interface JournalSequences {
   next_value: Generated<bigint>;
   org_id: Buffer;
   updated_at: Generated<Date>;
+}
+
+export interface OauthClients {
+  client_id: string;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer | null;
+  deactivated_at: Date | null;
+  id: Buffer;
+  name: string;
+  org_id: Buffer;
+  redirect_uris: Json;
+  secret_hash: string;
+  secret_prefix: string;
+  updated_at: Generated<Date>;
+}
+
+export interface OauthConsents {
+  client_id: Buffer;
+  created_at: Generated<Date>;
+  id: Buffer;
+  org_id: Buffer;
+  revoked_at: Date | null;
+  scope: string;
+  updated_at: Generated<Date>;
+  user_id: Buffer;
+}
+
+export interface OauthGrants {
+  client_id: Buffer;
+  code_challenge: string;
+  code_challenge_method: string;
+  code_hash: string;
+  consumed_at: Date | null;
+  created_at: Generated<Date>;
+  expires_at: Date;
+  id: Buffer;
+  org_id: Buffer;
+  redirect_uri: string;
+  scope: string;
+  user_id: Buffer;
+}
+
+export interface OauthTokens {
+  client_id: Buffer;
+  created_at: Generated<Date>;
+  expires_at: Date;
+  id: Buffer;
+  key_prefix: string;
+  last_used_at: Date | null;
+  org_id: Buffer;
+  refresh_token_id: Buffer | null;
+  revoked_at: Date | null;
+  scope: string;
+  token_hash: string;
+  token_type: "access" | "refresh";
+  user_id: Buffer;
 }
 
 export interface OrgAccountingSettings {
@@ -681,6 +775,17 @@ export interface Roles {
   org_id: Buffer | null;
 }
 
+export interface SecurityEvents {
+  actor_user_id: Buffer | null;
+  created_at: Generated<Date>;
+  credential_id: Buffer | null;
+  credential_type: string | null;
+  detail: Json | null;
+  event_type: string;
+  id: Buffer;
+  org_id: Buffer;
+}
+
 export interface Sessions {
   active_org_id: Buffer | null;
   created_at: Generated<Date>;
@@ -737,6 +842,7 @@ export interface DB {
   bank_statement_imports: BankStatementImports;
   bank_statement_lines: BankStatementLines;
   bill_attachments: BillAttachments;
+  change_feed_cursors: ChangeFeedCursors;
   contacts: Contacts;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
@@ -745,6 +851,9 @@ export interface DB {
   dunning_policies: DunningPolicies;
   dunning_sends: DunningSends;
   dunning_stages: DunningStages;
+  event_log: EventLog;
+  event_positions: EventPositions;
+  external_refs: ExternalRefs;
   fiscal_periods: FiscalPeriods;
   idempotency_keys: IdempotencyKeys;
   invoice_deliveries: InvoiceDeliveries;
@@ -755,6 +864,10 @@ export interface DB {
   journal_lines: JournalLines;
   journal_sequences: JournalSequences;
   journals: Journals;
+  oauth_clients: OauthClients;
+  oauth_consents: OauthConsents;
+  oauth_grants: OauthGrants;
+  oauth_tokens: OauthTokens;
   org_accounting_settings: OrgAccountingSettings;
   org_branding: OrgBranding;
   org_invites: OrgInvites;
@@ -768,6 +881,7 @@ export interface DB {
   recurring_invoice_templates: RecurringInvoiceTemplates;
   role_permissions: RolePermissions;
   roles: Roles;
+  security_events: SecurityEvents;
   sessions: Sessions;
   tax_rates: TaxRates;
   users: Users;

@@ -13,12 +13,14 @@ import {
   updateBillRequestSchema,
   voidDocumentRequestSchema,
 } from '@openbooks/shared-types';
+import { fromMinorString } from '@openbooks/shared-types/money';
 
 import { getContext } from '../../context';
 import type { RequestContext } from '../../context';
 import type { TenantDatabase } from '../../db';
 import { resolvePageLimit, tryUuidToBuffer } from '../../db';
 import { InternalError, ValidationError, assertFound, parseInput } from '../../errors';
+import { emitEvent } from '../events';
 import { requirePermission } from '../permissions';
 
 import type { ApDocumentFilters } from './ap-documents.repository';
@@ -288,13 +290,39 @@ export async function approveBill(
   return orgScope(ctx).transaction(async (trx) => {
     const id = assertFound(documentIdBytes(billId), RESOURCE);
 
-    await approveDocument(trx, id, 'bill', ctx, async (row, lines) => {
+    const outcome = await approveDocument(trx, id, 'bill', ctx, async (row, lines) => {
       if (row.due_date === null) throw missingDueDateAtApproval();
       assertHasValue(lines, 'bill');
       await requireVendor(trx, row.contact_id);
     });
 
-    return readBill(trx, id);
+    const bill = await readBill(trx, id);
+
+    // The outbox append (OB-100, F7): same transaction as `approveDocument`'s
+    // write, so an event exists if and only if the approval committed. `total`
+    // comes off the read-back view rather than `outcome.journal`, which carries
+    // per-line amounts and no aggregate.
+    await emitEvent(
+      {
+        name: 'bill.approved.v1',
+        orgId: ctx.orgId,
+        actor: {
+          actorType: ctx.actorType,
+          actorId: ctx.actorId,
+          ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
+        },
+        payload: {
+          billId,
+          contactId: bill.contactId,
+          journalId: outcome.journal.journalId,
+          total: fromMinorString(bill.totals.gross),
+          date: outcome.journal.date,
+        },
+      },
+      ctx,
+    );
+
+    return bill;
   });
 }
 

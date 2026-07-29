@@ -20,6 +20,7 @@ import type { RequestContext } from '../../context';
 import type { TenantDatabase } from '../../db';
 import { bufferToUuid, resolvePageLimit, tryUuidToBuffer, uuidToBuffer } from '../../db';
 import { PreconditionFailedError, assertFound, parseInput } from '../../errors';
+import { emitEvent } from '../events';
 import { postJournal, reverseJournal } from '../ledger';
 import { resolveControlAccount } from '../settings';
 import { requirePermission } from '../permissions';
@@ -183,6 +184,31 @@ export async function recordPayment(
       journalId: uuidToBuffer(posted.journalId),
       createdByUserId: author,
     });
+
+    // The outbox append (OB-100, F7): same transaction as `insertPayment`'s write
+    // above, so an event exists if and only if the payment committed. Emitted
+    // before allocations are applied — the event is about the payment recorded,
+    // not about what it settles.
+    await emitEvent(
+      {
+        name: 'payment.recorded.v1',
+        orgId: ctx.orgId,
+        actor: {
+          actorType: ctx.actorType,
+          actorId: ctx.actorId,
+          ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
+        },
+        payload: {
+          paymentId: bufferToUuid(id),
+          contactId: request.contactId,
+          direction,
+          journalId: posted.journalId,
+          amount,
+          date: posted.date,
+        },
+      },
+      ctx,
+    );
 
     if (request.allocations !== undefined && request.allocations.length > 0) {
       await applyAllocations(

@@ -1029,6 +1029,374 @@
         ],
         "type": "object"
       },
+      "ApiKey": {
+        "additionalProperties": false,
+        "description": "A first-party, role-bound API key (D-55, D-61), never carrying its secret.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "createdByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "keyPrefix": {
+            "description": "The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token."
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "roleId",
+          "keyPrefix",
+          "createdByUserId",
+          "createdAt",
+          "lastUsedAt",
+          "revokedAt"
+        ],
+        "type": "object"
+      },
+      "ApiKeyInput": {
+        "additionalProperties": false,
+        "description": "A first-party, role-bound API key (D-55, D-61), never carrying its secret.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "createdByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "keyPrefix": {
+            "description": "The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token."
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "roleId",
+          "keyPrefix",
+          "createdByUserId",
+          "createdAt",
+          "lastUsedAt",
+          "revokedAt"
+        ],
+        "type": "object"
+      },
+      "ApiKeyPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s API keys, revoked ones included.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApiKey"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ApiKeyPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s API keys, revoked ones included.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ApiKeyWithSecret": {
+        "additionalProperties": false,
+        "description": "An API key with its full opaque value, returned exactly once at creation (D-61).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "createdByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "key": {
+            "description": "The full opaque key. Not recoverable — losing it means issuing a new one.",
+            "type": "string"
+          },
+          "keyPrefix": {
+            "description": "The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token."
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "roleId",
+          "keyPrefix",
+          "createdByUserId",
+          "createdAt",
+          "lastUsedAt",
+          "revokedAt",
+          "key"
+        ],
+        "type": "object"
+      },
+      "ApiKeyWithSecretInput": {
+        "additionalProperties": false,
+        "description": "An API key with its full opaque value, returned exactly once at creation (D-61).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "createdByUserId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "key": {
+            "description": "The full opaque key. Not recoverable — losing it means issuing a new one.",
+            "type": "string"
+          },
+          "keyPrefix": {
+            "description": "The non-secret prefix of the opaque key, shown so an operator can tell keys apart without holding the secret (D-61). The rest is a SHA-256 hash, never returned.",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a key is revoked. Revocation is instant and effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token."
+          },
+          "roleId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "roleId",
+          "keyPrefix",
+          "createdByUserId",
+          "createdAt",
+          "lastUsedAt",
+          "revokedAt",
+          "key"
+        ],
+        "type": "object"
+      },
       "AppliedChartTemplate": {
         "additionalProperties": false,
         "description": "Every account the application created, in the order it created them — the one moment a caller learns their ids without paging the chart back.",
@@ -5587,6 +5955,210 @@
         ],
         "type": "object"
       },
+      "ChangeFeedActor": {
+        "additionalProperties": false,
+        "description": "Who or what caused a change-feed event.",
+        "properties": {
+          "actorId": {
+            "description": "The acting user, API key, or agent session. A string rather than `z.uuid()`: an automation actor is not always keyed by a UUID the way a user row is.",
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "invocationMode": {
+            "description": "Whether a human was present. Absent for `user`/`automation` actors; set for `agent` callers only, `postedJournalSchema`’s `invocationMode` restated per event rather than as a nullable column read back verbatim.",
+            "enum": [
+              "interactive",
+              "scheduled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "actorType",
+          "actorId"
+        ],
+        "type": "object"
+      },
+      "ChangeFeedActorInput": {
+        "additionalProperties": false,
+        "description": "Who or what caused a change-feed event.",
+        "properties": {
+          "actorId": {
+            "description": "The acting user, API key, or agent session. A string rather than `z.uuid()`: an automation actor is not always keyed by a UUID the way a user row is.",
+            "type": "string"
+          },
+          "actorType": {
+            "enum": [
+              "user",
+              "automation",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "invocationMode": {
+            "description": "Whether a human was present. Absent for `user`/`automation` actors; set for `agent` callers only, `postedJournalSchema`’s `invocationMode` restated per event rather than as a nullable column read back verbatim.",
+            "enum": [
+              "interactive",
+              "scheduled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "actorType",
+          "actorId"
+        ],
+        "type": "object"
+      },
+      "ChangeFeedEvent": {
+        "additionalProperties": false,
+        "description": "One row of the resumable, tenant-scoped change feed (D-56, D-57).",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/ChangeFeedActor"
+          },
+          "eventId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "description": "The event name, e.g. `invoice.approved.v1`. Versioned in the name itself.",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "description": "The event’s own body, opaque to this envelope. Narrow it against `name` using the published shape for that event.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "position": {
+            "description": "This event’s position in the org’s total order (D-56). Monotonic and unique within the org; a `BIGINT` carried as a string for the reason `sequenceNumber` is in `journals.ts`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "position",
+          "name",
+          "occurredAt",
+          "actor",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "ChangeFeedEventInput": {
+        "additionalProperties": false,
+        "description": "One row of the resumable, tenant-scoped change feed (D-56, D-57).",
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/ChangeFeedActorInput"
+          },
+          "eventId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "description": "The event name, e.g. `invoice.approved.v1`. Versioned in the name itself.",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "description": "The event’s own body, opaque to this envelope. Narrow it against `name` using the published shape for that event.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "position": {
+            "description": "This event’s position in the org’s total order (D-56). Monotonic and unique within the org; a `BIGINT` carried as a string for the reason `sequenceNumber` is in `journals.ts`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "position",
+          "name",
+          "occurredAt",
+          "actor",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "ChangeFeedPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s change feed, oldest first.",
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFeedEvent"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "events",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ChangeFeedPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s change feed, oldest first.",
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFeedEventInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "events",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "ChangeMemberRoleRequest": {
         "additionalProperties": false,
         "description": "The role the member holds afterwards. Re-roling to the role they already hold succeeds and changes nothing: a client reconciling state should not have to know the current value in order to write the intended one.",
@@ -6040,6 +6612,148 @@
             "type": "object"
           }
         ]
+      },
+      "ConnectedApp": {
+        "additionalProperties": false,
+        "description": "A client the caller has authorized, as they see it under `integrations.read`.",
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "consentedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "description": "The permission keys this consent granted (D-54), not the user’s full role.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientId",
+          "name",
+          "scope",
+          "consentedAt",
+          "lastUsedAt"
+        ],
+        "type": "object"
+      },
+      "ConnectedAppInput": {
+        "additionalProperties": false,
+        "description": "A client the caller has authorized, as they see it under `integrations.read`.",
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "consentedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "description": "The permission keys this consent granted (D-54), not the user’s full role.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientId",
+          "name",
+          "scope",
+          "consentedAt",
+          "lastUsedAt"
+        ],
+        "type": "object"
+      },
+      "ConnectedAppPage": {
+        "additionalProperties": false,
+        "description": "One page of the apps the caller has authorized.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectedApp"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ConnectedAppPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the apps the caller has authorized.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectedAppInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
       },
       "Contact": {
         "additionalProperties": false,
@@ -6583,6 +7297,52 @@
         },
         "required": [
           "allocations"
+        ],
+        "type": "object"
+      },
+      "CreateApiKeyRequest": {
+        "additionalProperties": false,
+        "description": "Issues a first-party, role-bound key (D-55) — no person behind it.",
+        "properties": {
+          "name": {
+            "description": "Display name for the key, e.g. `Nightly import job`.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "roleId": {
+            "description": "The role the key authenticates as (D-55). Not the issuer’s own role — a key’s effective permissions are exactly this role’s, and narrowing the role narrows every key issued against it, the same guarantee D-54 gives an OAuth token.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "roleId"
+        ],
+        "type": "object"
+      },
+      "CreateApiKeyRequestInput": {
+        "additionalProperties": false,
+        "description": "Issues a first-party, role-bound key (D-55) — no person behind it.",
+        "properties": {
+          "name": {
+            "description": "Display name for the key, e.g. `Nightly import job`.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "roleId": {
+            "description": "The role the key authenticates as (D-55). Not the issuer’s own role — a key’s effective permissions are exactly this role’s, and narrowing the role narrows every key issued against it, the same guarantee D-54 gives an OAuth token.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "roleId"
         ],
         "type": "object"
       },
@@ -7812,6 +8572,94 @@
         "required": [
           "name",
           "stages"
+        ],
+        "type": "object"
+      },
+      "CreateExternalRefRequest": {
+        "additionalProperties": false,
+        "description": "Creates a correlation, idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict.",
+        "properties": {
+          "entityId": {
+            "description": "The OpenBooks entity this external id names.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "entityType": {
+            "enum": [
+              "account",
+              "contact",
+              "invoice",
+              "credit_note",
+              "bill",
+              "vendor_credit",
+              "payment",
+              "journal"
+            ],
+            "type": "string"
+          },
+          "externalId": {
+            "description": "The record’s id in the external system.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "externalSystem": {
+            "description": "The integrator’s own name for itself, e.g. `quickbooks` or `shopify`.",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "externalSystem",
+          "entityType",
+          "externalId",
+          "entityId"
+        ],
+        "type": "object"
+      },
+      "CreateExternalRefRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a correlation, idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict.",
+        "properties": {
+          "entityId": {
+            "description": "The OpenBooks entity this external id names.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "entityType": {
+            "enum": [
+              "account",
+              "contact",
+              "invoice",
+              "credit_note",
+              "bill",
+              "vendor_credit",
+              "payment",
+              "journal"
+            ],
+            "type": "string"
+          },
+          "externalId": {
+            "description": "The record’s id in the external system.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "externalSystem": {
+            "description": "The integrator’s own name for itself, e.g. `quickbooks` or `shopify`.",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "externalSystem",
+          "entityType",
+          "externalId",
+          "entityId"
         ],
         "type": "object"
       },
@@ -10602,6 +11450,172 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "ExternalRef": {
+        "additionalProperties": false,
+        "description": "A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "entityId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "entityType": {
+            "enum": [
+              "account",
+              "contact",
+              "invoice",
+              "credit_note",
+              "bill",
+              "vendor_credit",
+              "payment",
+              "journal"
+            ],
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "externalSystem": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Set when a ref is re-pointed to a different entity — the map is mutable for that case (D-58), but never silent: an append-only ref history is out of M5.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "externalSystem",
+          "entityType",
+          "externalId",
+          "entityId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ExternalRefInput": {
+        "additionalProperties": false,
+        "description": "A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "entityId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "entityType": {
+            "enum": [
+              "account",
+              "contact",
+              "invoice",
+              "credit_note",
+              "bill",
+              "vendor_credit",
+              "payment",
+              "journal"
+            ],
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "externalSystem": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Set when a ref is re-pointed to a different entity — the map is mutable for that case (D-58), but never silent: an append-only ref history is out of M5.",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "externalSystem",
+          "entityType",
+          "externalId",
+          "entityId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ExternalRefPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s external-id correlations.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalRef"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "ExternalRefPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s external-id correlations.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalRefInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -13578,6 +14592,418 @@
         ],
         "pattern": "^-?(?:0|[1-9][0-9]*)$",
         "type": "string"
+      },
+      "OAuthAuthorizationDetails": {
+        "additionalProperties": false,
+        "description": "The client name and requested scopes the consent screen shows, plus whether the user has already granted a superset of them.",
+        "properties": {
+          "alreadyConsented": {
+            "type": "boolean"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientName",
+          "scope",
+          "alreadyConsented"
+        ],
+        "type": "object"
+      },
+      "OAuthAuthorizationDetailsInput": {
+        "additionalProperties": false,
+        "description": "The client name and requested scopes the consent screen shows, plus whether the user has already granted a superset of them.",
+        "properties": {
+          "alreadyConsented": {
+            "type": "boolean"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientName",
+          "scope",
+          "alreadyConsented"
+        ],
+        "type": "object"
+      },
+      "OAuthClient": {
+        "additionalProperties": false,
+        "description": "A registered third-party OAuth client, never carrying its secret.",
+        "properties": {
+          "clientId": {
+            "description": "The public client identifier presented at `authorize` and `token`.",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "deactivatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "redirectUris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "clientId",
+          "redirectUris",
+          "createdAt",
+          "deactivatedAt"
+        ],
+        "type": "object"
+      },
+      "OAuthClientInput": {
+        "additionalProperties": false,
+        "description": "A registered third-party OAuth client, never carrying its secret.",
+        "properties": {
+          "clientId": {
+            "description": "The public client identifier presented at `authorize` and `token`.",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "deactivatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "redirectUris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "clientId",
+          "redirectUris",
+          "createdAt",
+          "deactivatedAt"
+        ],
+        "type": "object"
+      },
+      "OAuthClientPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s registered OAuth clients.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OAuthClient"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "OAuthClientPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s registered OAuth clients.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OAuthClientInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "OAuthClientWithSecret": {
+        "additionalProperties": false,
+        "description": "A registered OAuth client with its secret, returned exactly once (D-61).",
+        "properties": {
+          "clientId": {
+            "description": "The public client identifier presented at `authorize` and `token`.",
+            "type": "string"
+          },
+          "clientSecret": {
+            "description": "The client secret, shown exactly once. Not recoverable — losing it means re-registering the client.",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "deactivatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "redirectUris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "clientId",
+          "redirectUris",
+          "createdAt",
+          "deactivatedAt",
+          "clientSecret"
+        ],
+        "type": "object"
+      },
+      "OAuthClientWithSecretInput": {
+        "additionalProperties": false,
+        "description": "A registered OAuth client with its secret, returned exactly once (D-61).",
+        "properties": {
+          "clientId": {
+            "description": "The public client identifier presented at `authorize` and `token`.",
+            "type": "string"
+          },
+          "clientSecret": {
+            "description": "The client secret, shown exactly once. Not recoverable — losing it means re-registering the client.",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "deactivatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once a client is deactivated. A deactivated client cannot obtain a new token, and D-61 logs the deactivation as a `security_events` row."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "redirectUris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "clientId",
+          "redirectUris",
+          "createdAt",
+          "deactivatedAt",
+          "clientSecret"
+        ],
+        "type": "object"
+      },
+      "OAuthConsentDecision": {
+        "additionalProperties": false,
+        "description": "The user’s decision on the consent screen: the `authorize` request’s own parameters, echoed back so they can be re-validated, plus whether the user approved.",
+        "properties": {
+          "approve": {
+            "type": "boolean"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "codeChallenge": {
+            "type": "string"
+          },
+          "codeChallengeMethod": {
+            "description": "The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53.",
+            "enum": [
+              "S256"
+            ],
+            "type": "string"
+          },
+          "redirectUri": {
+            "format": "uri",
+            "type": "string"
+          },
+          "responseType": {
+            "const": "code",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time.",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "responseType",
+          "clientId",
+          "redirectUri",
+          "scope",
+          "state",
+          "codeChallenge",
+          "codeChallengeMethod",
+          "approve"
+        ],
+        "type": "object"
+      },
+      "OAuthConsentDecisionInput": {
+        "additionalProperties": false,
+        "description": "The user’s decision on the consent screen: the `authorize` request’s own parameters, echoed back so they can be re-validated, plus whether the user approved.",
+        "properties": {
+          "approve": {
+            "type": "boolean"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "codeChallenge": {
+            "type": "string"
+          },
+          "codeChallengeMethod": {
+            "description": "The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53.",
+            "enum": [
+              "S256"
+            ],
+            "type": "string"
+          },
+          "redirectUri": {
+            "format": "uri",
+            "type": "string"
+          },
+          "responseType": {
+            "const": "code",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time.",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "responseType",
+          "clientId",
+          "redirectUri",
+          "scope",
+          "state",
+          "codeChallenge",
+          "codeChallengeMethod",
+          "approve"
+        ],
+        "type": "object"
       },
       "OrgMember": {
         "additionalProperties": false,
@@ -17164,6 +18590,58 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "RegisterOAuthClientRequest": {
+        "additionalProperties": false,
+        "description": "Registers a third-party client, admin-registered and never self-service (D-53).",
+        "properties": {
+          "name": {
+            "description": "Display name for the client, shown to a user on the consent screen.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "redirectUris": {
+            "description": "The redirect URIs this client may be sent back to. `authorize` refuses a request naming any URI outside this set — the classic open-redirect the whole flow depends on closing.",
+            "items": {
+              "format": "uri",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "redirectUris"
+        ],
+        "type": "object"
+      },
+      "RegisterOAuthClientRequestInput": {
+        "additionalProperties": false,
+        "description": "Registers a third-party client, admin-registered and never self-service (D-53).",
+        "properties": {
+          "name": {
+            "description": "Display name for the client, shown to a user on the consent screen.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "redirectUris": {
+            "description": "The redirect URIs this client may be sent back to. `authorize` refuses a request naming any URI outside this set — the classic open-redirect the whole flow depends on closing.",
+            "items": {
+              "format": "uri",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "redirectUris"
         ],
         "type": "object"
       },
@@ -21222,6 +22700,171 @@
         ]
       }
     },
+    "/v1/agent-proposals": {
+      "get": {
+        "description": "One page of pending proposals, oldest first — every draft not yet posted or discarded, the same collection `GET /v1/journal-drafts` lists, gated on `agents.review` instead of `journals.read`.",
+        "operationId": "listProposals",
+        "parameters": [
+          {
+            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          },
+          {
+            "in": "query",
+            "name": "createdByUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalDraftPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List pending proposals",
+        "tags": [
+          "agent-proposals"
+        ]
+      }
+    },
+    "/v1/agent-proposals/{draftId}/approve": {
+      "post": {
+        "description": "Posts the draft and discards it, in one transaction, exactly once (D-19) — the same operation `POST /v1/journal-drafts/{draftId}/post` performs, reached through the review queue instead. Provenance on the resulting journal is the *approver’s*, not the proposing agent’s.",
+        "operationId": "approveProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draftId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostedJournal"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Approve a proposal, posting it to the ledger",
+        "tags": [
+          "agent-proposals"
+        ]
+      }
+    },
+    "/v1/agent-proposals/{draftId}/reject": {
+      "post": {
+        "description": "Discards the proposal outright — the same operation a person discarding their own unfinished draft performs (D-16). Nothing about a rejected proposal is recorded anywhere.",
+        "operationId": "rejectProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draftId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reject a proposal, discarding it",
+        "tags": [
+          "agent-proposals"
+        ]
+      }
+    },
     "/v1/allocations/{allocationId}": {
       "delete": {
         "description": "Removes the row outright. This restates no financial statement — an allocation posted no journal — and it needs no reversal, because what it changes is what is outstanding and that is computed on read (D-34). The permission taken is the source’s: un-applying is a change to what that payment or credit note has done.",
@@ -21266,6 +22909,166 @@
         "summary": "Un-apply an allocation",
         "tags": [
           "allocations"
+        ]
+      }
+    },
+    "/v1/api-keys": {
+      "get": {
+        "description": "One page of the org’s keys, revoked ones included — a management view, not a live credential list.",
+        "operationId": "listApiKeys",
+        "parameters": [
+          {
+            "description": "How many API keys to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List API keys",
+        "tags": [
+          "api-keys"
+        ]
+      },
+      "post": {
+        "description": "Issues a key bound to `roleId` — not the issuer’s own role (D-55). The full opaque value is returned exactly once, in this response; every later read shows only `keyPrefix`.",
+        "operationId": "createApiKey",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyWithSecret"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Issue an API key",
+        "tags": [
+          "api-keys"
+        ]
+      }
+    },
+    "/v1/api-keys/{apiKeyId}/revoke": {
+      "post": {
+        "description": "Effective on the next request (D-61) — there is no blocklist to propagate, because the key is an opaque lookup, not a self-validating token. Idempotent: an already-revoked key is returned unchanged rather than refused.",
+        "operationId": "revokeApiKey",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "apiKeyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKey"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Revoke an API key",
+        "tags": [
+          "api-keys"
         ]
       }
     },
@@ -24142,6 +25945,60 @@
         ]
       }
     },
+    "/v1/change-feed": {
+      "get": {
+        "description": "One page of the org’s change feed, oldest first. Send back the previous page’s `nextCursor` verbatim to resume — there is no page number, only forward motion through the log (D-57).",
+        "operationId": "readChangeFeed",
+        "parameters": [
+          {
+            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeFeedPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Read the change feed",
+        "tags": [
+          "change-feed"
+        ]
+      }
+    },
     "/v1/chart-templates": {
       "get": {
         "description": "Takes `accounts.read`. `accountCount` and not the accounts themselves: the number is what makes the choice, while the full list would invite a client to render a preview — and a preview is the first step towards treating a copied chart as something the org stays related to (D-23).",
@@ -24225,6 +26082,106 @@
         "summary": "Copy a starter chart into this organization",
         "tags": [
           "accounts"
+        ]
+      }
+    },
+    "/v1/connected-apps": {
+      "get": {
+        "description": "A user’s own view of what they have authorized — gated `integrations.read` advisorily; the real boundary is that this only ever touches the caller’s own consent and tokens (`oauth.service.ts`).",
+        "operationId": "listConnectedApps",
+        "parameters": [
+          {
+            "description": "How many connected apps to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectedAppPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List the caller’s connected apps",
+        "tags": [
+          "connected-apps"
+        ]
+      }
+    },
+    "/v1/connected-apps/{clientId}/revoke": {
+      "post": {
+        "description": "Revokes the caller’s own consent and every token it produced. A client never consented to, or already revoked, is a no-op rather than a `not_found` — reporting existence of someone else’s consent is exactly what A7 avoids.",
+        "operationId": "revokeConnectedApp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clientId",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Revoke a connected app",
+        "tags": [
+          "connected-apps"
         ]
       }
     },
@@ -26136,6 +28093,214 @@
         "summary": "Deactivate a dunning policy",
         "tags": [
           "dunning"
+        ]
+      }
+    },
+    "/v1/external-refs": {
+      "get": {
+        "description": "One page of the org’s correlations, optionally narrowed by any combination of `externalSystem`, `entityType`, and `externalId`.",
+        "operationId": "listExternalRefs",
+        "parameters": [
+          {
+            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          },
+          {
+            "in": "query",
+            "name": "externalSystem",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "account",
+                "contact",
+                "invoice",
+                "credit_note",
+                "bill",
+                "vendor_credit",
+                "payment",
+                "journal"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "externalId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRefPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List external-id correlations",
+        "tags": [
+          "external-refs"
+        ]
+      },
+      "post": {
+        "description": "Idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict. A create whose identity collides with a *different* mapping is refused loudly instead.",
+        "operationId": "createExternalRef",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExternalRefRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create an external-id correlation",
+        "tags": [
+          "external-refs"
+        ]
+      }
+    },
+    "/v1/external-refs/lookup": {
+      "get": {
+        "description": "Resolves external id → OpenBooks entity (D-58’s reverse direction): the shape a caller who only has the upstream id needs before it can address the entity through any other endpoint. All three of `externalSystem`, `entityType`, and `externalId` are required together — a `validation_failed` names whichever are missing.",
+        "operationId": "lookupExternalRef",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "externalSystem",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "account",
+                "contact",
+                "invoice",
+                "credit_note",
+                "bill",
+                "vendor_credit",
+                "payment",
+                "journal"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "externalId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Resolve one external-id correlation",
+        "tags": [
+          "external-refs"
         ]
       }
     },
@@ -28111,6 +30276,264 @@
         "summary": "Change what a member may do",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/v1/oauth-clients": {
+      "get": {
+        "operationId": "listOAuthClients",
+        "parameters": [
+          {
+            "description": "How many OAuth clients to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthClientPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List OAuth clients",
+        "tags": [
+          "oauth-clients"
+        ]
+      },
+      "post": {
+        "description": "Admin-registered and never self-service (D-53) — there is no public dynamic client registration. The secret is returned exactly once, in this response.",
+        "operationId": "registerOAuthClient",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterOAuthClientRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthClientWithSecret"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Register an OAuth client",
+        "tags": [
+          "oauth-clients"
+        ]
+      }
+    },
+    "/v1/oauth-clients/{oauthClientId}/deactivate": {
+      "post": {
+        "description": "A deactivated client cannot obtain a new token (D-61). Idempotent: an already-deactivated client is returned unchanged rather than refused.",
+        "operationId": "deactivateOAuthClient",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "oauthClientId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthClient"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Deactivate an OAuth client",
+        "tags": [
+          "oauth-clients"
+        ]
+      }
+    },
+    "/v1/oauth/authorization-details": {
+      "get": {
+        "description": "Backs the consent screen `GET /oauth/authorize` redirects a logged-in user to. Validates the authorize request and returns the client’s display name, the exact scopes requested, and whether the user already consented to a superset.",
+        "operationId": "getOAuthAuthorizationDetails",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "responseType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "code"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clientId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "redirectUri",
+            "required": true,
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Space-separated permission keys (D-54): the scope catalog is the permission catalog, not a second vocabulary. A key outside the 48-key catalog is refused at grant time.",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codeChallenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The PKCE code-challenge method. `S256` only — `plain` is a downgrade from the property PKCE exists for and is never accepted, mandatory since D-53.",
+            "in": "query",
+            "name": "codeChallengeMethod",
+            "required": true,
+            "schema": {
+              "enum": [
+                "S256"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthAuthorizationDetails"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The client name and scopes the consent screen renders",
+        "tags": [
+          "connected-apps"
         ]
       }
     },

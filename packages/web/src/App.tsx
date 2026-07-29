@@ -7,13 +7,18 @@ import { OrgSelectionScreen } from './auth/org-selection';
 import { SignOutButton } from './auth/sign-out';
 import { ErrorBanner } from './components';
 import { AccountsScreen } from './screens/accounts';
+import { AgentProposalsScreen } from './screens/agent-proposals';
+import { ApiKeysScreen } from './screens/api-keys';
 import { AuthScreen } from './screens/auth';
 import { BankingScreen } from './screens/banking';
 import { BillCapturesScreen } from './screens/bill-captures';
+import { ConnectedAppsScreen } from './screens/connected-apps';
 import { ContactsScreen } from './screens/contacts';
 import { DunningScreen } from './screens/dunning';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
+import { OAuthClientsScreen } from './screens/oauth-clients';
+import { OAuthConsentScreen } from './screens/oauth-consent';
 import { PublicInvoiceScreen } from './screens/public-invoice';
 import { PurchasesScreen } from './screens/purchases';
 import { QuickBooksImportScreen } from './screens/quickbooks-import';
@@ -192,6 +197,13 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />
+        <Route path="/api-keys" element={<ApiKeysScreen />} />
+        <Route path="/oauth-clients" element={<OAuthClientsScreen />} />
+        <Route path="/connected-apps" element={<ConnectedAppsScreen />} />
+        <Route path="/agent-proposals" element={<AgentProposalsScreen />} />
+        {/* No nav entry (OB-105): reached only by the 302 `GET /oauth/authorize`
+            (`oauth-flow.ts`) sends a logged-in user to, never typed or linked. */}
+        <Route path="/oauth/consent" element={<OAuthConsentScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

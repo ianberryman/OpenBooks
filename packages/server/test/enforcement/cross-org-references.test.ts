@@ -18,6 +18,7 @@ import {
   listChartTemplates,
   updateAccount,
 } from '../../src/modules/accounts';
+import { createApiKey } from '../../src/modules/api-keys';
 import {
   approveBill,
   approveVendorCredit,
@@ -35,6 +36,7 @@ import {
   createDimensionValue,
   setJournalLineDimensions,
 } from '../../src/modules/dimensions';
+import { listProposals } from '../../src/modules/agents';
 import { createDraft, listDrafts, updateDraft } from '../../src/modules/drafts';
 import {
   approveCreditNote,
@@ -624,6 +626,11 @@ async function dropCustomRoles(scene: Scene): Promise<void> {
   // an invitation naming a deleted role could not be accepted.
   await db.migrator.deleteFrom('org_invites').where('role_id', 'in', ids).execute();
 
+  // The `createApiKey` reference row binds a key to the caller's custom role, and
+  // `fk_api_keys_role` is `ON DELETE RESTRICT` for the same reason `org_invites` is — a
+  // key naming a deleted role would authenticate as nothing. Drop the keys first.
+  await db.migrator.deleteFrom('api_keys').where('role_id', 'in', ids).execute();
+
   await db.migrator.deleteFrom('roles').where('id', 'in', ids).execute();
 }
 
@@ -849,6 +856,16 @@ const REFERENCES: readonly Reference[] = [
     subject: (o) => o.customRoleId,
     reach: (id, s, nonce) =>
       inviteMember({ email: `x${nonce}@openbooks.test`, roleId: id }, s.caller.ctx),
+  },
+  {
+    // `api-keys.service.ts`'s own commentary: "a role from another org is the same
+    // 404 a role id that names no row at all produces (A7)" — `selectAssignableRoleId`
+    // is the third copy of `roleVisibleTo`'s predicate this file's own header names.
+    operationId: 'createApiKey',
+    field: 'roleId',
+    subject: (o) => o.customRoleId,
+    reach: (id, s, nonce) =>
+      createApiKey({ name: `Cross-org key ${nonce}`, roleId: id }, s.caller.ctx),
   },
   {
     operationId: 'getGeneralLedger',
@@ -2223,6 +2240,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
   // A filter, not a lookup: see `answers a cross-org filter value exactly as it
   // answers an unknown one` below.
   'listDrafts.createdByUserId': 'a filter over the caller’s own org, asserted separately',
+  'listProposals.createdByUserId': 'a filter over the caller’s own org, asserted separately',
   /**
    * M3's five list filters, exempt for `listDrafts.createdByUserId`'s reason and
    * asserted with it.
@@ -2264,6 +2282,39 @@ const EXEMPT: Readonly<Record<string, string>> = {
    */
   'createBankAccount.externalAccountId': 'a free-text bank identifier, not a tenant row',
   'updateBankAccount.externalAccountId': 'a free-text bank identifier, not a tenant row',
+  /**
+   * M5's platform surface (OB-097…104).
+   *
+   * `entity_id` is `external-refs.service.ts`'s own deliberate exception, stated in
+   * its file header: "`entity_id` is never checked against `entity_type`. This
+   * module is a correlation record, not a foreign key… validating it here would
+   * couple this seam to every other module for a check the integrator is already
+   * asserting by calling this endpoint at all." There is no lookup to make cross-org
+   * — `createExternalRef` writes whatever uuid-shaped value it is given, org or no
+   * org, entity or no entity.
+   */
+  'createExternalRef.entityId':
+    'a deliberately-unconstrained correlation target, not a validated FK',
+  // `externalId` is id-*shaped* by the `Ids?$` heuristic but is the integrator's own
+  // record id in *their* system (`quickbooks`, `shopify`, …) — a free string this
+  // project never resolves against any row of its own, `externalAccountId`'s reason
+  // above applied to the platform surface. True on both the create and the two reads.
+  'createExternalRef.externalId': 'the integrator’s own free-text id, not an OpenBooks row',
+  'listExternalRefs.externalId': 'the integrator’s own free-text id, not an OpenBooks row',
+  'lookupExternalRef.externalId': 'the integrator’s own free-text id, not an OpenBooks row',
+  /**
+   * The `authorize` request's own `clientId` — the OAuth client's *public* id, not
+   * a REST resource id (`oauthClientId` on `deactivateOAuthClient` is that; see
+   * `oauth-clients.ts`'s file header for the asymmetry). It is resolved through
+   * `resolveActiveClient` inside the caller's own org before anything else in
+   * `authorizeRequest` runs, so a cross-org value already 404s by construction —
+   * that file's own comment calls it out: "Cross-org holds for free." Asserted
+   * directly, as a row rather than a claim, in `platform-security.test.ts` (F10),
+   * because this file's own mechanism (a service call plus a stranger's real id)
+   * would need a second OAuth client fixture per org for a property this file's
+   * sibling already proves.
+   */
+  'getOAuthAuthorizationDetails.clientId': 'proven directly in platform-security.test.ts (F10)',
 };
 
 /** What every row must report. Anything else is the leak. */
@@ -2397,6 +2448,10 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
           list: (id) => listDrafts({ createdByUserId: id }, s.caller.ctx),
         },
         {
+          field: 'listProposals.createdByUserId',
+          list: (id) => listProposals({ createdByUserId: id }, s.caller.ctx),
+        },
+        {
           field: 'listInvoices.contactId',
           list: (id) => listInvoices({ contactId: id }, s.caller.ctx),
         },
@@ -2419,7 +2474,9 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
       // contact": `listDrafts` filters on who composed a draft, so the cross-org
       // value has to be a user.
       const strangerValue = (field: string): string =>
-        field === 'listDrafts.createdByUserId' ? s.stranger.userUuid : s.stranger.partyId;
+        field === 'listDrafts.createdByUserId' || field === 'listProposals.createdByUserId'
+          ? s.stranger.userUuid
+          : s.stranger.partyId;
 
       const verdicts: Record<string, unknown> = {};
       for (const { field, list } of filters) {

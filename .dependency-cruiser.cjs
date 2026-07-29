@@ -45,10 +45,33 @@ module.exports = {
       name: 'services-do-not-import-transport',
       comment:
         'Spec §2.4: one service layer, many transports. A service that imports from transport ' +
-        'has coupled itself to HTTP and cannot be called from MCP or the workflow engine.',
+        'has coupled itself to HTTP and cannot be called from MCP or the workflow engine. ' +
+        '`modules/mcp/host.ts` is the one sanctioned exception, carved out narrowly by the ' +
+        'paired rule below: D-59 makes it a second transport in its own right, not a service, ' +
+        "and it needs the Fastify `App` alias to mount `POST /mcp` on the api role's instance.",
       severity: 'error',
-      from: { path: '^packages/server/src/modules/' },
+      from: {
+        path: '^packages/server/src/modules/',
+        pathNot: '^packages/server/src/modules/mcp/host\\.ts$',
+      },
       to: { path: '^packages/server/src/transport/' },
+    },
+    {
+      name: 'mcp-host-reaches-only-the-app-type',
+      comment:
+        'The exception the rule above carves out is narrow on purpose: `host.ts` may take the ' +
+        'Fastify `App` alias (`transport/types.ts`) and nothing else from `src/transport/` — no ' +
+        'route, no error handler, no schema helper. Enforcement still happens inside each tool ' +
+        "handler, exactly as it happens inside each REST route's service call " +
+        '(`modules/permissions/index.ts`: "a route that reached for `requirePermission`... would ' +
+        'be a second enforcement point, which is the whole thing the rule prevents"); this file ' +
+        'only dispatches to that handler and holds no enforcement of its own.',
+      severity: 'error',
+      from: { path: '^packages/server/src/modules/mcp/host\\.ts$' },
+      to: {
+        path: '^packages/server/src/transport/',
+        pathNot: '^packages/server/src/transport/types\\.ts$',
+      },
     },
     {
       name: 'plugin-api-is-a-leaf',

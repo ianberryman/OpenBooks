@@ -12,13 +12,18 @@ import { sql } from 'kysely';
 import { getConfig } from '../config';
 import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
-import { resolveSessionIdentity } from '../modules/auth';
+import {
+  resolveApiKeyIdentity,
+  resolveOAuthIdentity,
+  resolveSessionIdentity,
+} from '../modules/auth';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
 import { buildApp } from '../transport';
+import type { IdentityResolver } from '../transport';
 
 /** SIGTERM is what Fargate and `docker stop` send; SIGINT is Ctrl-C in development. */
 const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT'] as const;
@@ -68,8 +73,24 @@ export async function startApi(): Promise<void> {
    * `requirePermission` answers `401` for every tenant route — the API would be
    * reachable and useless. The transport tests build instances with and without a
    * resolver deliberately; production always has one.
+   *
+   * The three resolvers compose here (M5), in the one layer allowed to see both sides
+   * of the seam. A bearer credential is an explicit act and takes precedence over an
+   * ambient session cookie; each resolver returns `null` for a request that is not its
+   * kind — no `Authorization` header, or a token whose prefix is not its own — and
+   * throws only for a credential of its kind that it rejects. That null-versus-throw
+   * contract is what makes this a total order rather than a best-effort race:
+   * OB-098 (OAuth bearer, `oba_`) → OB-099 (API key, `obk_`) → OB-015 (session cookie).
    */
-  const app = await buildApp({ config, logger, resolveIdentity: resolveSessionIdentity });
+  const resolveIdentity: IdentityResolver = async (request) => {
+    const oauth = await resolveOAuthIdentity(request);
+    if (oauth) return oauth;
+    const apiKey = await resolveApiKeyIdentity(request);
+    if (apiKey) return apiKey;
+    return resolveSessionIdentity(request);
+  };
+
+  const app = await buildApp({ config, logger, resolveIdentity });
 
   /**
    * With the in-process queue, the API consumes the jobs it enqueues.

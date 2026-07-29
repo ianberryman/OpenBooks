@@ -32,10 +32,16 @@ export type {
 } from './posting';
 
 export type {
+  BillApprovedV1,
+  BillApprovedV1Payload,
+  CreditNoteApprovedV1,
+  CreditNoteApprovedV1Payload,
   EventBus,
   EventEnvelope,
   EventHandler,
   EventOf,
+  InvoiceApprovedV1,
+  InvoiceApprovedV1Payload,
   JournalPostedV1,
   JournalPostedV1Payload,
   JournalReversedV1,
@@ -43,6 +49,10 @@ export type {
   OpenBooksEvent,
   OpenBooksEventInput,
   OpenBooksEventName,
+  PaymentRecordedV1,
+  PaymentRecordedV1Payload,
+  ReconciliationFinalisedV1,
+  ReconciliationFinalisedV1Payload,
 } from './events';
 
 export type { ServiceRegistry, ServiceToken } from './registry';

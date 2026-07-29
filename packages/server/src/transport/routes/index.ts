@@ -1,6 +1,8 @@
 import type { Config } from '../../config';
 import type { App } from '../types';
 import { registerAccountRoutes } from './accounts';
+import { registerAgentProposalRoutes } from './agent-proposals';
+import { registerApiKeyRoutes } from './api-keys';
 import { registerAuthRoutes } from './auth';
 import { registerBankAccountRoutes } from './bank-accounts';
 import { registerBankImportRoutes } from './bank-imports';
@@ -9,16 +11,19 @@ import { registerBillCaptureRoutes } from './bill-captures';
 import { registerBillInboundRoutes } from './bill-inbound';
 import { registerBillRoutes } from './bills';
 import { registerBrandingRoutes } from './branding';
+import { registerChangeFeedRoutes } from './change-feed';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
 import { registerDunningRoutes } from './dunning';
+import { registerExternalRefRoutes } from './external-refs';
 import { registerImportRoutes } from './imports';
 import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
 import { registerJournalRoutes } from './journals';
 import { registerMemberRoutes } from './members';
+import { registerOAuthClientRoutes } from './oauth-clients';
 import { registerOrgRoutes } from './orgs';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
@@ -264,6 +269,51 @@ import { registerTaxRateRoutes } from './tax-rates';
  * unlike the bank statement import above, because the whole cutover is bounded and
  * synchronous — see `@openbooks/shared-types/imports/quickbooks`.
  *
+ * ### M5 — the platform surface (OB-097 … OB-104): management routes, OAuth, MCP
+ *
+ * | Method   | Path                                            | operationId                    | Idempotency-Key | Claim scope |
+ * | -------- | ------------------------------------------------ | ------------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/api-keys`                                   | `createApiKey`                  | required        | org         |
+ * | `GET`    | `/v1/api-keys`                                   | `listApiKeys`                   | —                | —           |
+ * | `POST`   | `/v1/api-keys/:apiKeyId/revoke`                  | `revokeApiKey`                  | required        | org         |
+ * | `POST`   | `/v1/oauth-clients`                              | `registerOAuthClient`           | required        | org         |
+ * | `GET`    | `/v1/oauth-clients`                              | `listOAuthClients`              | —                | —           |
+ * | `POST`   | `/v1/oauth-clients/:oauthClientId/deactivate`    | `deactivateOAuthClient`         | required        | org         |
+ * | `GET`    | `/v1/connected-apps`                             | `listConnectedApps`             | —                | —           |
+ * | `POST`   | `/v1/connected-apps/:clientId/revoke`            | `revokeConnectedApp`            | required        | org         |
+ * | `GET`    | `/v1/change-feed`                                | `readChangeFeed`                | —                | —           |
+ * | `POST`   | `/v1/external-refs`                              | `createExternalRef`             | required        | org         |
+ * | `GET`    | `/v1/external-refs`                              | `listExternalRefs`              | —                | —           |
+ * | `GET`    | `/v1/external-refs/lookup`                       | `lookupExternalRef`             | —                | —           |
+ * | `GET`    | `/v1/agent-proposals`                            | `listProposals`                 | —                | —           |
+ * | `POST`   | `/v1/agent-proposals/:draftId/approve`           | `approveProposal`               | required        | org         |
+ * | `POST`   | `/v1/agent-proposals/:draftId/reject`            | `rejectProposal`                | required        | org         |
+ *
+ * `createApiKey`/`listApiKeys`/`revokeApiKey` take `api_keys.write`/`api_keys.read`;
+ * `registerOAuthClient`/`deactivateOAuthClient`/`createExternalRef` take
+ * `integrations.write`; `listOAuthClients`/`readChangeFeed`/`listExternalRefs`/
+ * `lookupExternalRef` take `integrations.read`; `listConnectedApps` and
+ * `revokeConnectedApp` also take `integrations.read` — the service's own gate, not
+ * `integrations.write`, because both only ever touch the caller's own consent
+ * (`oauth.service.ts`'s commentary on `revokeConnectedApp`). `listProposals`/
+ * `approveProposal`/`rejectProposal` take `agents.review`, and the latter two reach a
+ * *second* gate after it — `journals.post`, through `postDraft`/`discardDraft` — so
+ * turning a proposal into a posting takes both permissions together (the seeded
+ * Approver role holds both for exactly that reason).
+ *
+ * `deactivateOAuthClient` addresses the client by its REST resource id
+ * (`oauthClientId`, a UUID); `revokeConnectedApp` addresses it by the public OAuth
+ * `client_id` string (`clientId` in the path) — the asymmetry OB-098 flagged, restated
+ * in `oauth-clients.ts`'s file header.
+ *
+ * The RFC 6749/7009 OAuth flow itself — `GET /oauth/authorize`, `POST /oauth/consent`,
+ * `POST /oauth/token`, `POST /oauth/revoke` — is **not** on this table: like the two
+ * `/public/invoices/*` routes, `oauth-flow.ts` registers them directly on `app` in
+ * `transport/app.ts`, outside `registerV1Routes` and outside `/v1` entirely, because
+ * they are form-encoded and RFC-status-coded rather than this project's typed JSON
+ * envelope. Nor is `POST /mcp` (OB-103's tool-calling surface, mounted by
+ * `registerMcpServer` alongside them) — it carries no REST operation at all.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -427,4 +477,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerBankRuleRoutes(app);
   registerReconciliationRoutes(app);
   registerImportRoutes(app);
+  registerApiKeyRoutes(app);
+  registerOAuthClientRoutes(app);
+  registerChangeFeedRoutes(app);
+  registerExternalRefRoutes(app);
+  registerAgentProposalRoutes(app);
 }

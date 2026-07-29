@@ -97,7 +97,22 @@ async function resolveContextPermissions(ctx: RequestContext): Promise<ReadonlyS
     );
   }
 
-  return new Set(await selectRolePermissionKeys(ctx.roleId, ctx.orgId));
+  const rolePermissions = await selectRolePermissionKeys(ctx.roleId, ctx.orgId);
+
+  // OB-098's scope∩role seam (ROADMAP D-54/F2/F5), and the only place it has to
+  // live: every `requirePermission` call resolves through here, so narrowing the
+  // effective set at the source narrows every check downstream without touching
+  // any of them. `ctx.scopeLimit` is absent for a session or an API key — both
+  // trust the role alone, exactly today's behaviour — and present only for an
+  // OAuth token (`modules/auth/oauth-identity.ts`), where it is the *granted*
+  // scope from consent. Intersecting rather than replacing is what makes a
+  // delegated token unable to exceed its granting user even if the token's own
+  // stored scope were somehow broader than the role — the role, re-resolved above
+  // on every request from the *live* `org_members` row, is still the outer bound.
+  if (ctx.scopeLimit === undefined) return new Set(rolePermissions);
+
+  const limit = new Set(ctx.scopeLimit);
+  return new Set(rolePermissions.filter((key) => limit.has(key)));
 }
 
 /**

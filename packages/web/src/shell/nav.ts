@@ -82,6 +82,20 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
    * QuickBooks migration gate).
    */
   { to: '/quickbooks-import', label: 'Import from QuickBooks', permission: 'accounts.write' },
+  /**
+   * `api_keys.read`, `integrations.read` (twice) and `agents.review` — OB-105's four
+   * management screens, each gated on the read half of the permission its own writes sit
+   * under, the same D-25 reasoning as everything above: a caller who can view keys,
+   * clients or connected apps but not mint or revoke one still gets the link, and the
+   * service refuses the write. `/oauth/consent` (`oauth-consent.tsx`) gets no entry here at
+   * all — it is reached only by the 302 `GET /oauth/authorize` sends a logged-in user to,
+   * never typed or linked, so a nav item for it would offer a page with no meaning to
+   * arrive at cold.
+   */
+  { to: '/api-keys', label: 'API keys', permission: 'api_keys.read' },
+  { to: '/oauth-clients', label: 'OAuth clients', permission: 'integrations.read' },
+  { to: '/connected-apps', label: 'Connected apps', permission: 'integrations.read' },
+  { to: '/agent-proposals', label: 'Agent proposals', permission: 'agents.review' },
 ];
 
 export function visibleNav(permissions: ReadonlySet<string>): readonly NavItem[] {

@@ -80,6 +80,16 @@ export { orgScope } from './org-scope';
 // See `delivery-lookup.ts` for why this cannot go through `tenantDb`.
 export { selectDeliveryCredentialByKeyPrefix } from './delivery-lookup';
 export type { DeliveryCredentialRow } from './delivery-lookup';
+// The second such read (OB-099, D-55, D-61): resolves a presented API key to its
+// `api_keys` row before any org is known. See `api-key-lookup.ts` for why this,
+// too, cannot go through `tenantDb`.
+export { selectApiKeyByHash } from './api-key-lookup';
+export type { ApiKeyCredentialRow } from './api-key-lookup';
+// The OAuth authorization server's own pair of these (OB-098, D-53/D-54): the token
+// and revocation endpoints resolve a code or a bearer token to its org before any
+// session exists, for `delivery-lookup.ts`'s exact reason. See `oauth-lookup.ts`.
+export { selectOAuthGrantByCodeHash, selectOAuthTokenByHash } from './oauth-lookup';
+export type { OAuthGrantCredentialRow, OAuthTokenCredentialRow } from './oauth-lookup';
 // Driver-error predicates. A unique key or a grant is the real guarantee for several
 // rules while the application pre-check races it; these turn the losing race into the
 // same answer rather than an opaque 500.

@@ -131,6 +131,21 @@ interface Scene {
   readonly dismissibleBillCaptureId: string;
   readonly draftableBillCaptureId: string;
   readonly billAttachmentId: string;
+
+  /**
+   * M5 (OB-097…104): the platform surface's own id-addressed resources.
+   * `oauthClientPublicId` is the `client_id` OAuth string `revokeConnectedApp`
+   * addresses by — `deactivateOAuthClient`'s row below still uses the REST `id`
+   * (`oauthClientId`) — the same asymmetry `oauth-clients.ts`'s file header states.
+   * `approvableProposalId`/`rejectableProposalId` are two drafts rather than one,
+   * `draftId`/`discardableDraftId`'s reason: approving posts one and consumes it,
+   * rejecting discards the other, and the control pass runs both.
+   */
+  readonly apiKeyId: string;
+  readonly oauthClientId: string;
+  readonly oauthClientPublicId: string;
+  readonly approvableProposalId: string;
+  readonly rejectableProposalId: string;
 }
 
 /**
@@ -270,6 +285,39 @@ async function scene(app: App): Promise<Scene> {
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
   const captures = await captureScene(owner, subledger.targetBillId);
 
+  // M5 (OB-097…104): a key and a client, so `revokeApiKey`/`deactivateOAuthClient`/
+  // `revokeConnectedApp` have a resource to answer about across orgs, and two more
+  // proposal drafts for the review-queue rows — `draftId`/`discardableDraftId`'s
+  // reason, one subsystem over: approving posts and consumes one, rejecting
+  // discards the other, and the control pass runs both.
+  const apiKeyId = await created('api-key', '/v1/api-keys', {
+    name: 'A7 fixture key',
+    roleId: OWNER_ROLE_ID,
+  });
+
+  const oauthClientResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/oauth-clients',
+    headers: authorizedWrite(owner, 'a7-setup-oauth-client'),
+    payload: { name: 'A7 Fixture Client', redirectUris: ['https://example.invalid/callback'] },
+  });
+  if (oauthClientResponse.statusCode !== 201) {
+    throw new Error(`oauth client setup failed: ${oauthClientResponse.body}`);
+  }
+  const oauthClientBody = oauthClientResponse.json<{ id: string; clientId: string }>();
+  const oauthClientId = oauthClientBody.id;
+  const oauthClientPublicId = oauthClientBody.clientId;
+
+  const proposal = {
+    entryDate: '2026-03-31',
+    lines: [
+      { accountId, side: 'debit', amount: '100' },
+      { accountId: revenueId, side: 'credit', amount: '100' },
+    ],
+  };
+  const approvableProposalId = await created('proposal-approve', '/v1/journal-drafts', proposal);
+  const rejectableProposalId = await created('proposal-reject', '/v1/journal-drafts', proposal);
+
   return {
     owner,
     stranger,
@@ -285,6 +333,11 @@ async function scene(app: App): Promise<Scene> {
     inviteId,
     recurringTemplateId,
     dunningPolicyId,
+    apiKeyId,
+    oauthClientId,
+    oauthClientPublicId,
+    approvableProposalId,
+    rejectableProposalId,
     ...subledger,
     ...banking,
     ...captures,
@@ -784,7 +837,31 @@ interface Surface {
    * path segment over rather than one body field.
    */
   readonly otherId?: (scene: Scene) => string;
+  /**
+   * Overrides `SEALED` for a row whose "does not leak existence" shape is not a
+   * `404` pair — only `revokeConnectedApp`, whose own no-op design answers `204`
+   * both times. Absent means `SEALED`, every other row's claim.
+   */
+  readonly expected?: Verdict;
 }
+
+/**
+ * `revokeConnectedApp`'s own verdict, `SEALED`'s claim one status code over: the
+ * stranger's answer is byte-identical whether the public client id names another
+ * org's client or nothing at all, because the operation is a no-op for either —
+ * `oauth.service.ts`'s own header states it plainly ("a client never consented to,
+ * or already revoked, is a no-op rather than a `not_found`"), for A7's reason
+ * exactly: reporting the existence of *someone else's* consent is what a `404`
+ * here would do.
+ */
+const NO_OP: Verdict = {
+  crossOrg: 204,
+  nonexistent: 204,
+  identicalBody: true,
+  identicalContentType: true,
+  echoesId: false,
+  ownerGetsNotFound: false,
+};
 
 /**
  * Ordered so the control pass — the owner calling each of these on their own
@@ -1530,6 +1607,49 @@ const SURFACES: readonly Surface[] = [
     id: (s) => s.billAttachmentId,
     otherId: (s) => s.targetBillId,
   },
+
+  // ---------------------------------------------------------------------------
+  // M5 (OB-097…104): the platform surface's own id-addressed operations — a key,
+  // an OAuth client, a client's public id, and the two proposal-review actions.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'revokeApiKey',
+    method: 'POST',
+    path: '/v1/api-keys/%s/revoke',
+    id: (s) => s.apiKeyId,
+  },
+  {
+    operationId: 'deactivateOAuthClient',
+    method: 'POST',
+    path: '/v1/oauth-clients/%s/deactivate',
+    id: (s) => s.oauthClientId,
+  },
+  {
+    // `NO_OP`, not `SEALED`: see the constant's own comment. The id under test is
+    // the public `client_id`, not the REST id `deactivateOAuthClient` above uses —
+    // `oauth-clients.ts`'s file header states why the two differ.
+    operationId: 'revokeConnectedApp',
+    method: 'POST',
+    path: '/v1/connected-apps/%s/revoke',
+    id: (s) => s.oauthClientPublicId,
+    expected: NO_OP,
+  },
+  {
+    operationId: 'approveProposal',
+    method: 'POST',
+    path: '/v1/agent-proposals/%s/approve',
+    id: (s) => s.approvableProposalId,
+  },
+  {
+    // Its own draft, `discardDraft`'s reason above: `approveProposal` consumes
+    // `approvableProposalId` by posting it, so a shared draft would leave this row
+    // 404ing for the *owner* too.
+    operationId: 'rejectProposal',
+    method: 'POST',
+    path: '/v1/agent-proposals/%s/reject',
+    id: (s) => s.rejectableProposalId,
+  },
 ];
 
 /** What every row must report. Deviations are the leak. */
@@ -1636,8 +1756,12 @@ describe('A7 across every surface that takes a resource id', () => {
 
     // One assertion over the whole matrix: a failure names the operation that leaks and
     // shows that the others do not, which is the information needed to fix it.
+    // `surface.expected` overrides `SEALED` for the one row (`revokeConnectedApp`)
+    // whose own no-op design answers something other than `404`.
     expect(verdicts).toEqual(
-      Object.fromEntries(SURFACES.map((surface) => [surface.operationId, SEALED])),
+      Object.fromEntries(
+        SURFACES.map((surface) => [surface.operationId, surface.expected ?? SEALED]),
+      ),
     );
   });
 

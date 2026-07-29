@@ -257,6 +257,23 @@ describe('the /v1 route table', () => {
         'finaliseReconciliationSession',
         'reopenReconciliationSession',
         'getReconciliationReport',
+        // M5 — the platform surface (OB-104).
+        'listApiKeys',
+        'createApiKey',
+        'revokeApiKey',
+        'listOAuthClients',
+        'registerOAuthClient',
+        'deactivateOAuthClient',
+        'listConnectedApps',
+        'revokeConnectedApp',
+        'getOAuthAuthorizationDetails',
+        'readChangeFeed',
+        'createExternalRef',
+        'listExternalRefs',
+        'lookupExternalRef',
+        'listProposals',
+        'approveProposal',
+        'rejectProposal',
       ]),
     );
   });

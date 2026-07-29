@@ -3,6 +3,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { RequestContext } from './context';
 import { createRequestContext } from './context';
 import { ContextUnavailableError } from './errors';
+// Same acyclic import `context.ts` takes, for the same reason: the
+// `modules/permissions` barrel pulls in `permissions.service.ts`, which imports
+// `../../context`.
+import type { PermissionKey } from '../modules/permissions/catalog';
 
 /**
  * Request-scoped context, spec §4.
@@ -95,6 +99,8 @@ export interface ContextOverrides {
   readonly actorId?: string;
   readonly invocationMode?: InvocationMode;
   readonly idempotencyKey?: string | null;
+  /** See `RequestContext.scopeLimit`. Inherited like every other field here. */
+  readonly scopeLimit?: readonly PermissionKey[];
 }
 
 function inherit<T>(override: T | undefined, parent: T): T {
@@ -112,6 +118,7 @@ export function deriveContext(overrides: ContextOverrides): RequestContext {
   const parent = getContext('deriveContext()');
 
   const invocationMode = inherit(overrides.invocationMode, parent.invocationMode);
+  const scopeLimit = inherit(overrides.scopeLimit, parent.scopeLimit);
 
   return createRequestContext({
     requestId: inherit(overrides.requestId, parent.requestId),
@@ -122,6 +129,7 @@ export function deriveContext(overrides: ContextOverrides): RequestContext {
     actorId: inherit(overrides.actorId, parent.actorId),
     idempotencyKey: inherit(overrides.idempotencyKey, parent.idempotencyKey),
     ...(invocationMode === undefined ? {} : { invocationMode }),
+    ...(scopeLimit === undefined ? {} : { scopeLimit }),
   });
 }
 

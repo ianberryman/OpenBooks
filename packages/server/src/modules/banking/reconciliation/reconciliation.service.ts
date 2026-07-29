@@ -34,6 +34,7 @@ import {
   PreconditionFailedError,
   ValidationError,
 } from '../../../errors';
+import { emitEvent } from '../../events';
 import { requirePermission } from '../../permissions';
 
 import {
@@ -352,6 +353,28 @@ export async function finaliseReconciliationSession(
       reason: null,
       createdByUserId: author,
     });
+
+    // The outbox append (OB-100, F7): same transaction as `markFinalised`'s write
+    // above, so an event exists if and only if the finalisation committed. No
+    // `journalId` — finalising posts nothing; it is an assertion about a window
+    // already posted (D-50).
+    await emitEvent(
+      {
+        name: 'reconciliation.finalised.v1',
+        orgId: ctx.orgId,
+        actor: {
+          actorType: ctx.actorType,
+          actorId: ctx.actorId,
+          ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
+        },
+        payload: {
+          sessionId: bufferToUuid(session.id),
+          bankAccountId: bufferToUuid(session.bank_account_id),
+          clearedThrough: session.end_date,
+        },
+      },
+      ctx,
+    );
 
     return readSession(trx, assertFoundAfterWrite(await selectSessionById(trx, session.id)));
   });

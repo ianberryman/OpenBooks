@@ -128,6 +128,19 @@ const APPEND_ONLY_TABLES = [
   // `invoice_deliveries`' append-only argument applied to a chase. Its policy and stage
   // siblings are settings and are mutable, below.
   'dunning_sends',
+  // ── M5 platform (0010_platform) ────────────────────────────────────────────
+  //
+  // `event_log` is the transactional outbox (D-56): a subscriber's "at-least-once,
+  // must be idempotent" guarantee only holds if a row it already read can never be
+  // rewritten out from under it — `reconciliation_session_events`' argument applied
+  // to the event stream every other M5 surface is built on. `security_events` is
+  // D-61's issuance-and-revocation audit trail; a log the app could edit would
+  // attest to nothing, which is `invoice_deliveries`' argument again. Both are new
+  // reasons for the same rule this file has enforced since M1, not an exception to
+  // it — the working state each produces (`oauth_tokens`, `change_feed_cursors`,
+  // …) is mutable, below.
+  'event_log',
+  'security_events',
 ] as const;
 
 /**
@@ -295,6 +308,35 @@ const MUTABLE_TABLES = [
   // attached to is.
   'document_captures',
   'bill_attachments',
+  // ── M5 platform (0010_platform) ────────────────────────────────────────────
+  //
+  // The working-state half of D-53 through D-58, none of which posts a journal.
+  // `oauth_clients`, `oauth_tokens`, and `oauth_consents` need UPDATE for the
+  // reason `bank_statement_imports` moved here (OB-078): a token's `revoked_at`
+  // and `last_used_at`, a client's `deactivated_at`, and a consent re-granted on
+  // a later authorization are all ordinary lifecycle writes to a credential's own
+  // row, not a rewrite of anything that happened — the fact that a credential was
+  // *issued* is what `security_events` above records, immutably, beside it.
+  // `oauth_grants` is mutable so `consumed_at` can mark an authorization code
+  // redeemed, which is the single-use guard D-53 requires.
+  //
+  // `external_refs` is mutable by D-58's own design: a ref is re-pointed when two
+  // upstream records merge, and re-pointing a correlation map restates nothing
+  // financial about the entity it names.
+  //
+  // `event_positions` needs UPDATE for `journal_sequences`' reason exactly: it is
+  // the counter row the event relay takes `FOR UPDATE` to allocate
+  // `event_log.position`, and the table it numbers cannot itself be locked for a
+  // read (D-56). `change_feed_cursors` is a subscriber's own bookmark, advanced
+  // forward as it reads — the least consequential kind of mutable state in this
+  // file, on a par with `dunning_policies`.
+  'oauth_clients',
+  'oauth_grants',
+  'oauth_tokens',
+  'oauth_consents',
+  'external_refs',
+  'event_positions',
+  'change_feed_cursors',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

@@ -11,6 +11,7 @@ import type { FastifyRequest } from 'fastify';
 
 import type { ContextOverrides, RequestContext } from '../context';
 import { createRequestContext, UNAUTHENTICATED_ID } from '../context';
+import type { PermissionKey } from '../modules/permissions';
 import { readIdempotencyKey } from './idempotency';
 
 /**
@@ -65,6 +66,12 @@ export interface RequestIdentity {
   readonly actorId: string;
   /** Absent means unrecorded. plugin-api is explicit that it must not default to `interactive`. */
   readonly invocationMode?: InvocationMode;
+  /**
+   * The OAuth scope∩role ceiling (OB-098; D-54/F2) — see `ResolvedIdentity`'s own
+   * comment in `modules/auth/identity.ts`, which this mirrors structurally for the
+   * boundary reason at the top of this file. Absent for a session or an API key.
+   */
+  readonly scopeLimit?: readonly PermissionKey[];
 }
 
 /**
@@ -170,5 +177,6 @@ export function identityOverrides(identity: RequestIdentity): ContextOverrides {
     actorType: identity.actorType,
     actorId: identity.actorId,
     ...(identity.invocationMode === undefined ? {} : { invocationMode: identity.invocationMode }),
+    ...(identity.scopeLimit === undefined ? {} : { scopeLimit: identity.scopeLimit }),
   };
 }

@@ -62,6 +62,19 @@ export default defineConfig({
         target: API_TARGET,
         changeOrigin: true,
       },
+      // `/oauth` (the RFC 6749/7009 authorize/consent/token/revoke endpoints, M5) and
+      // `/mcp` (the JSON-RPC tool host) for the same reason as the rules above: these are
+      // API surfaces served outside `/v1` (`transport/routes/oauth-flow.ts`, `modules/mcp`),
+      // and the consent screen (`/oauth/consent`) posts a native form the browser follows a
+      // 302 out of — without a rule Vite's SPA fallback would swallow it as index.html + 200.
+      '/oauth': {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
+      '/mcp': {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
     },
   },
   /**

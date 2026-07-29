@@ -2,6 +2,7 @@ import type { ActorType, InvocationMode } from '@openbooks/plugin-api';
 
 import { UNAUTHENTICATED_ID } from '../../context';
 import { UnauthenticatedError } from '../../errors';
+import type { PermissionKey } from '../permissions';
 import { resolveMembership } from '../permissions';
 import { selectDefaultMemberOrgId } from '../orgs';
 import type { CookieCarrier } from './cookie';
@@ -35,6 +36,14 @@ export interface ResolvedIdentity {
   readonly actorId: string;
   /** Absent means unrecorded. plugin-api is explicit that it must not default. */
   readonly invocationMode?: InvocationMode;
+  /**
+   * The ceiling an OAuth token imposes on top of its granting user's role (OB-098;
+   * ROADMAP D-54/F2). Absent for a session or an API key — both trust the role
+   * alone, unchanged — so `permissionsForContext` treats an absent `scopeLimit` as
+   * "no narrowing" rather than as an empty grant. Set by
+   * `modules/auth/oauth-identity.ts` and nothing else.
+   */
+  readonly scopeLimit?: readonly PermissionKey[];
 }
 
 /**

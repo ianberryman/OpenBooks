@@ -214,6 +214,22 @@ const OVERRIDES = {
     'document_captures.extracted_total_minor': 'bigint | null',
     'document_captures.extracted_issue_date': 'string | null',
     'bill_attachments.byte_size': 'bigint',
+
+    // ── M5 platform (0010_platform) ───────────────────────────────────────────
+    //
+    // `position` is BIGINT UNSIGNED wherever it appears, so it needs the same
+    // override `journals.sequence_number` does — the driver returns every BIGINT
+    // as a bigint regardless of signedness. `event_log.position` is assigned by
+    // the relay from `event_positions` and always supplied on insert (D-56), so
+    // it stays plain `bigint`, exactly as `journals.sequence_number` does for the
+    // same reason: the relay's whole job is to supply it, and a column that could
+    // silently default to zero is the append-only log gaining an unnumbered row.
+    // `event_positions.next_value` and `change_feed_cursors.position` are the
+    // counters, each `Generated<>` for `journal_sequences.next_value`'s reason —
+    // both carry a DEFAULT and an insert must be able to omit them.
+    'event_log.position': 'bigint',
+    'event_positions.next_value': 'Generated<bigint>',
+    'change_feed_cursors.position': 'Generated<bigint>',
   },
 };
 

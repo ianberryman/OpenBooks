@@ -339,6 +339,10 @@ describe('the grant lists and the live server agree', () => {
     // UPDATE. The evidence argument survives the move because a re-import creates a new
     // row rather than editing an old one — so the line, not the import record, is where
     // E2's immutability lives.
+    // `event_log` and `security_events` (OB-096) are the M5 additions: the
+    // transactional outbox (D-56) and the credential issuance/revocation audit
+    // (D-61), each append-only for the reason `reconciliation_session_events` is —
+    // a row a subscriber or an auditor already read must never be rewritten.
     expect(APPEND_ONLY_TABLES).toEqual([
       'journals',
       'journal_lines',
@@ -347,6 +351,8 @@ describe('the grant lists and the live server agree', () => {
       'reconciliation_session_events',
       'invoice_deliveries',
       'dunning_sends',
+      'event_log',
+      'security_events',
     ]);
     expect(MUTABLE_TABLES).toContain('bank_statement_imports');
     expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');

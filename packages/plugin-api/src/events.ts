@@ -41,6 +41,71 @@ export interface JournalReversedV1Payload {
 export type JournalReversedV1 = EventEnvelope<'journal.reversed.v1', JournalReversedV1Payload>;
 
 /**
+ * The four subledger writes and one banking assertion the outbox (OB-100, D-56)
+ * carries beside the two journal events above. Each names the journal it posted
+ * to — a subscriber that only cares about money moving can key off `journalId`
+ * and ignore which subledger produced it — except `ReconciliationFinalisedV1`,
+ * which posts nothing: finalising is an assertion about a window already posted,
+ * not a new entry (D-50).
+ */
+export interface InvoiceApprovedV1Payload {
+  readonly invoiceId: string;
+  readonly contactId: string;
+  readonly journalId: string;
+  readonly total: MinorUnits;
+  readonly date: CalendarDate;
+}
+
+export type InvoiceApprovedV1 = EventEnvelope<'invoice.approved.v1', InvoiceApprovedV1Payload>;
+
+export interface CreditNoteApprovedV1Payload {
+  readonly creditNoteId: string;
+  readonly contactId: string;
+  readonly journalId: string;
+  readonly total: MinorUnits;
+  readonly date: CalendarDate;
+}
+
+export type CreditNoteApprovedV1 = EventEnvelope<
+  'credit_note.approved.v1',
+  CreditNoteApprovedV1Payload
+>;
+
+export interface BillApprovedV1Payload {
+  readonly billId: string;
+  readonly contactId: string;
+  readonly journalId: string;
+  readonly total: MinorUnits;
+  readonly date: CalendarDate;
+}
+
+export type BillApprovedV1 = EventEnvelope<'bill.approved.v1', BillApprovedV1Payload>;
+
+export interface PaymentRecordedV1Payload {
+  readonly paymentId: string;
+  readonly contactId: string;
+  /** Which way the money moved (D-37): a receipt or a disbursement. */
+  readonly direction: 'received' | 'made';
+  readonly journalId: string;
+  readonly amount: MinorUnits;
+  readonly date: CalendarDate;
+}
+
+export type PaymentRecordedV1 = EventEnvelope<'payment.recorded.v1', PaymentRecordedV1Payload>;
+
+export interface ReconciliationFinalisedV1Payload {
+  readonly sessionId: string;
+  readonly bankAccountId: string;
+  /** The session's `end_date` (D-51): the window this assertion covers, through this date. */
+  readonly clearedThrough: CalendarDate;
+}
+
+export type ReconciliationFinalisedV1 = EventEnvelope<
+  'reconciliation.finalised.v1',
+  ReconciliationFinalisedV1Payload
+>;
+
+/**
  * Additive only.
  *
  * A new event is a new member of this union. A semantic change to an existing
@@ -53,7 +118,14 @@ export type JournalReversedV1 = EventEnvelope<'journal.reversed.v1', JournalReve
  * `name` yields the payload type for free, and so that a subscriber left behind
  * by a `.v2` fails to compile instead of receiving a payload it misreads.
  */
-export type OpenBooksEvent = JournalPostedV1 | JournalReversedV1;
+export type OpenBooksEvent =
+  | JournalPostedV1
+  | JournalReversedV1
+  | InvoiceApprovedV1
+  | CreditNoteApprovedV1
+  | BillApprovedV1
+  | PaymentRecordedV1
+  | ReconciliationFinalisedV1;
 
 export type OpenBooksEventName = OpenBooksEvent['name'];
 

@@ -20,6 +20,7 @@ import type { Config } from '../config';
 import { runInContext, runInDerivedContext } from '../context';
 import type { Logger } from '../logging';
 import { createLogger } from '../logging';
+import { registerMcpServer } from '../modules/mcp/host';
 import type { IdentityResolver } from './context';
 import {
   REQUEST_ID_RESPONSE_HEADER,
@@ -34,6 +35,7 @@ import { registerHealthRoute } from './health';
 import { registerOpenApi } from './openapi';
 import { registerV1Routes } from './routes';
 import { registerArtifactRoutes } from './routes/artifacts';
+import { registerOAuthFlowRoutes } from './routes/oauth-flow';
 import { registerPublicInvoiceRoutes } from './routes/public-invoices';
 import type { App } from './types';
 
@@ -272,6 +274,17 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   // Local-adapter only, and hidden from `openapi.json`: the retrieval path the local
   // StorageProvider's `signedUrl` points at. Registers nothing under s3 (`artifacts.ts`).
   registerArtifactRoutes(app, config);
+  // OAuth 2.1's own RFC 6749/7009 wire endpoints (OB-098, OB-104; D-53, D-54, D-61):
+  // `authorize`, `consent`, `token`, `revoke`. Outside `/v1` and outside the typed
+  // envelope, for the same shape of reason as the two routes above — see
+  // `oauth-flow.ts`'s file header. `/v1/oauth-clients` and `/v1/connected-apps`
+  // (this project's own JSON management routes over the same service) register
+  // inside `registerV1Routes` below, as usual.
+  registerOAuthFlowRoutes(app);
+  // The MCP host (OB-103, OB-104; D-59): `POST /mcp`, mounted in-process on the same
+  // `api` role rather than a fourth process. Hidden from `openapi.json` — `tools/list`
+  // is this surface's own documentation, `mcp/host.ts`'s file header explains why.
+  registerMcpServer(app);
   // Registration order is not load-bearing: `canonicalize` sorts the document's keys,
   // so moving a route or splitting a file cannot change `openapi.json` (see
   // `./openapi.ts`). It is alphabetical inside `registerV1Routes` for readers only.
