@@ -255,6 +255,13 @@ export const publicInvoiceViewSchema = z
       description:
         'The `/public/invoices/{token}/pdf` link, carrying the same capability token as this page.',
     }),
+    payable: z.boolean().meta({
+      description:
+        'Whether the org has an active payment-processor connection (OB-150). `false` means ' +
+        'the "Pay now" button has nowhere to send a customer — the hosted page hides it ' +
+        'rather than opening a checkout session `POST /public/invoices/{token}/pay-link` ' +
+        'would refuse.',
+    }),
   })
   .meta({
     description:

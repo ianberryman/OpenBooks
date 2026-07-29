@@ -27,6 +27,7 @@ import { registerOAuthClientRoutes } from './oauth-clients';
 import { registerOrgRoutes } from './orgs';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
+import { registerProcessingRoutes } from './processing';
 import { registerReconciliationRoutes } from './reconciliation';
 import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerReportRoutes } from './reports';
@@ -314,6 +315,25 @@ import { registerTaxRateRoutes } from './tax-rates';
  * envelope. Nor is `POST /mcp` (OB-103's tool-calling surface, mounted by
  * `registerMcpServer` alongside them) — it carries no REST operation at all.
  *
+ * ### Initiative J — payment-processor integration (OB-150)
+ *
+ * | Method   | Path                                                | operationId                     | Idempotency-Key | Claim scope |
+ * | -------- | ----------------------------------------------------- | -------------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/processing/connections`                          | `connectProcessor`               | required        | org         |
+ * | `GET`    | `/v1/processing/connections`                          | `listProcessorConnections`       | —                | —           |
+ * | `GET`    | `/v1/processing/connections/:connectionId`            | `getProcessorConnection`         | —                | —           |
+ * | `POST`   | `/v1/processing/connections/:connectionId/deactivate` | `deactivateProcessorConnection`  | required        | org         |
+ * | `POST`   | `/v1/processing/connections/:connectionId/reactivate` | `reactivateProcessorConnection`  | required        | org         |
+ *
+ * `connectProcessor`/`deactivateProcessorConnection`/`reactivateProcessorConnection`
+ * take `processing.write`; `listProcessorConnections`/`getProcessorConnection` take
+ * `processing.read` — `connections.service.ts` enforces each, not repeated here.
+ * `POST /public/invoices/{token}/pay-link` — the customer-facing checkout link this
+ * initiative also adds — is **not** on this table, for the same reason the two
+ * `/public/invoices/*` reads above are not: no session, no permission, the delivery
+ * token is the whole authorization. `transport/routes/public-pay-link.ts` registers
+ * it directly on `app` in `transport/app.ts`, next to `registerPublicInvoiceRoutes`.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -482,4 +502,5 @@ export function registerV1Routes(app: App, config: Config): void {
   registerChangeFeedRoutes(app);
   registerExternalRefRoutes(app);
   registerAgentProposalRoutes(app);
+  registerProcessingRoutes(app);
 }

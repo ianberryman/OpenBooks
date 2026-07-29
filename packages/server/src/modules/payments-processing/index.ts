@@ -13,6 +13,7 @@
  * | `getProcessorConnection(id, ctx)`            | `processing.read`     |
  * | `deactivateProcessorConnection(id, ctx)`     | `processing.write`    |
  * | `reactivateProcessorConnection(id, ctx)`     | `processing.write`    |
+ * | `resolveActiveConnectionForOrg(ctx)`         | `processing.read`     |
  * | `createCheckoutLink(input, ctx)`             | `processing.read` + `invoices.read` |
  * | `loadConnectionProvider(connectionId, ctx)`  | `processing.read`     |
  * | `recordProcessorCharge(input, ctx)`          | composed (see below)  |
@@ -54,6 +55,7 @@ export {
   listProcessorConnections,
   loadConnectionProvider,
   reactivateProcessorConnection,
+  resolveActiveConnectionForOrg,
 } from './connections.service';
 
 export type {

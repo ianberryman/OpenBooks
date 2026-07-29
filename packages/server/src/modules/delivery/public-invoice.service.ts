@@ -1,7 +1,7 @@
 import type { PublicInvoiceView } from '@openbooks/shared-types';
 
 import type { OrgId, TenantDatabase } from '../../db';
-import { systemDb, tenantDb } from '../../db';
+import { bufferToUuid, systemDb, tenantDb } from '../../db';
 import { InternalError } from '../../errors';
 import { storageProvider } from '../../providers';
 import { selectContactById } from '../contacts/contacts.repository';
@@ -13,6 +13,7 @@ import {
 } from '../invoices/ar-documents.repository';
 import { INVOICE_KIND } from '../invoices/kinds';
 import { toDocumentLine, toTaxSummary, toTotals } from '../invoices/projection';
+import { selectAllConnections } from '../payments-processing/connections.repository';
 
 import { verifyDeliveryToken } from './token';
 
@@ -74,6 +75,38 @@ export async function getPublicInvoiceView(token: string): Promise<PublicInvoice
   return buildInvoiceView(db, match.orgId, delivery.invoice_id, token);
 }
 
+/** What a hosted-invoice capability token names, with no view built around it yet. */
+export interface PublicInvoiceIdentity {
+  readonly orgId: string;
+  readonly invoiceId: string;
+}
+
+/**
+ * The org and invoice a token names, for the one caller besides the hosted page
+ * itself that needs to act on the invoice rather than render it:
+ * `transport/routes/public-pay-link.ts` (OB-150), which opens a processor
+ * checkout session for this invoice with no session of its own. The same
+ * token → delivery lookup `getPublicInvoiceView` performs, stopping short of
+ * assembling the customer-facing view — the pay-link route has no use for the
+ * lines, the totals, or the branding, only the two ids `createCheckoutLink`
+ * (`modules/payments-processing`) and `runAsAutomation` need.
+ */
+export async function resolvePublicInvoiceIdentity(
+  token: string,
+): Promise<PublicInvoiceIdentity | null> {
+  const match = await verifyDeliveryToken(token);
+  if (match === null) return null;
+
+  const delivery = await tenantDb(match.orgId)
+    .selectFrom('invoice_deliveries')
+    .select(['invoice_id'])
+    .where('id', '=', match.deliveryId)
+    .executeTakeFirst();
+  if (delivery === undefined) return null;
+
+  return { orgId: bufferToUuid(match.orgId), invoiceId: bufferToUuid(delivery.invoice_id) };
+}
+
 /**
  * Assembles the customer-safe view of one invoice — shared by the hosted page
  * (`getPublicInvoiceView`, which reaches it through a token) and `sendInvoice` (C1,
@@ -126,7 +159,23 @@ export async function buildInvoiceView(
     customerName: contact.display_name,
     branding: await publicBranding(db, orgId),
     pdfUrl: `/public/invoices/${token}/pdf`,
+    payable: await isOrgPayable(db),
   };
+}
+
+/**
+ * Whether the org has anywhere to send a payment right now (OB-150) — an active
+ * `processor_connections` row, checked the same way `resolveActiveConnectionForOrg`
+ * does, but with no `RequestContext` to check a permission against: this is a
+ * public, unauthenticated read the same way the rest of this file is, so it goes
+ * straight to `selectAllConnections` rather than through the ctx-gated service
+ * function `modules/payments-processing` exports for its own authenticated
+ * callers. Only a boolean crosses that boundary — never a connection id or which
+ * processor it is, which the hosted page has no business knowing.
+ */
+async function isOrgPayable(db: TenantDatabase): Promise<boolean> {
+  const connections = await selectAllConnections(db);
+  return connections.some((connection) => connection.is_active !== 0);
 }
 
 /**

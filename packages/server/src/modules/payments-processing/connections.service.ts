@@ -199,6 +199,32 @@ export async function reactivateProcessorConnection(
   return toProcessorConnection(assertFound(await selectConnectionById(db, bytes), RESOURCE));
 }
 
+/**
+ * The single connection the pay-link route (OB-150) charges an invoice through.
+ *
+ * `uq_processor_connections_org_processor` bounds an org to at most one row per
+ * processor, so "more than one active" only arises once a second processor is
+ * connected — this picks the most recently created of them so a newly-connected
+ * processor wins over one added earlier, the same tie-break `selectAllConnections`'s
+ * oldest-first order makes available for free (the last element of an active
+ * filter over that order is the most recent).
+ *
+ * `null` when the org has connected nothing active: `public-pay-link.ts` turns
+ * that into `no_processor_connected` rather than reaching for a connection that
+ * is not there.
+ */
+// TODO(v1): org designates a default processor, rather than this most-recently-connected guess.
+export async function resolveActiveConnectionForOrg(
+  ctx: RequestContext,
+): Promise<ProcessorConnection | null> {
+  await requirePermission(ctx, 'processing.read');
+
+  const rows = await selectAllConnections(orgScope(ctx));
+  const active = rows.filter((row) => row.is_active !== 0);
+  const mostRecent = active[active.length - 1];
+  return mostRecent === undefined ? null : toProcessorConnection(mostRecent);
+}
+
 export interface CreateCheckoutLinkInput {
   readonly connectionId: string;
   readonly invoiceId: string;
