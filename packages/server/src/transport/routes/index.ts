@@ -5,6 +5,8 @@ import { registerAuthRoutes } from './auth';
 import { registerBankAccountRoutes } from './bank-accounts';
 import { registerBankImportRoutes } from './bank-imports';
 import { registerBankRuleRoutes } from './bank-rules';
+import { registerBillCaptureRoutes } from './bill-captures';
+import { registerBillInboundRoutes } from './bill-inbound';
 import { registerBillRoutes } from './bills';
 import { registerBrandingRoutes } from './branding';
 import { registerChartTemplateRoutes } from './chart-templates';
@@ -212,6 +214,40 @@ import { registerTaxRateRoutes } from './tax-rates';
  * `banking.reopen`; and `banking.read` for `getReconciliationReport`. The list, get and
  * report reads on a session are `banking.reconcile`, because the service gates them so.
  *
+ * ### Initiative O — OCR bill capture (OB-186…190)
+ *
+ * | Method   | Path                                            | operationId                    | Idempotency-Key | Claim scope |
+ * | -------- | ------------------------------------------------ | ------------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/bills/captures`                             | `createBillCapture`             | required        | org         |
+ * | `GET`    | `/v1/bills/captures`                             | `listBillCaptures`              | —               | —           |
+ * | `GET`    | `/v1/bills/captures/:captureId`                  | `getBillCapture`                | —               | —           |
+ * | `POST`   | `/v1/bills/captures/:captureId/dismiss`          | `dismissBillCapture`            | required        | org         |
+ * | `POST`   | `/v1/bills/captures/:captureId/draft`            | `createDraftFromBillCapture`    | required        | org         |
+ * | `GET`    | `/v1/bills/:billId/attachments/:attachmentId`    | `getBillAttachment`             | —               | —           |
+ * | `GET`    | `/v1/bills/inbound-address`                      | `getInboundBillEmailAddress`    | —               | —           |
+ * | `POST`   | `/v1/bills/inbound/:token`                       | `receiveInboundBill`            | —               | **none**    |
+ *
+ * Every operation but the last enforces `bills.write` or `bills.read` — no new
+ * permission keys (the pinned OCR contract's locked decisions: capturing a bill
+ * is writing a bill, D-25). `POST /v1/bills/inbound/:token` is the one route on
+ * this whole surface with **no session and no `Idempotency-Key`**: it is
+ * registered inside `registerV1Routes` (unlike the two `/public/invoices/*`
+ * routes) because it still lives under `/v1`, but it carries no permission
+ * check — the `:token` path segment is the entire authorization, resolved by
+ * `resolveOrgIdForInboundToken` (`modules/orgs/inbound-email.ts`), the same
+ * capability-token shape D-74 gives the hosted invoice page. No idempotency
+ * claim guards it either: a mail relay has no `Idempotency-Key` to send, and a
+ * retried delivery producing a second capture is the acceptable failure mode
+ * D-49 already accepts for a re-uploaded bank statement — a human reviews every
+ * capture before it becomes a bill, so a duplicate capture costs a dismiss, not
+ * a duplicate bill.
+ *
+ * `createDraftFromBillCapture` is the one operation that creates a financial
+ * document, and even that only a **draft** (`journal_id IS NULL`) via the
+ * existing `createBill` — approving it is the ordinary `POST /v1/bills/{billId}/approve`,
+ * unchanged. `getBillAttachment` streams raw bytes and declares no `200` schema,
+ * `getPublicInvoicePdf`'s shape.
+ *
  * ### Phase 3 — the QuickBooks CSV migration importer (the launch gate)
  *
  * | Method   | Path                              | operationId                | Idempotency-Key | Claim scope |
@@ -382,6 +418,8 @@ export function registerV1Routes(app: App, config: Config): void {
   registerDunningRoutes(app);
   registerSchedulingRoutes(app);
   registerBillRoutes(app);
+  registerBillCaptureRoutes(app);
+  registerBillInboundRoutes(app);
   registerPaymentRoutes(app);
   registerBankAccountRoutes(app);
   registerBankImportRoutes(app);

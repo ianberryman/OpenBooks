@@ -282,6 +282,19 @@ const MUTABLE_TABLES = [
   'recurring_invoice_template_lines',
   'dunning_policies',
   'dunning_stages',
+  // ── OCR bill capture (0009_bill_capture) ──────────────────────────────────
+  //
+  // Both are working state, `bank_match_proposals`' argument again: nothing
+  // downstream depends on an extraction being *right*, only on it being a fair
+  // starting point for a human to correct or dismiss, and neither table posts a
+  // journal. The record of what actually happened is the draft bill a capture
+  // produces (`ap_documents`, already above) and, once approved, `journals` — not
+  // this staging row. `bill_attachments` is the retained-original counterpart of
+  // `invoice_deliveries.artifact_storage_key`, but unlike a sent invoice the file
+  // it names was never itself evidence that something happened; the bill it is
+  // attached to is.
+  'document_captures',
+  'bill_attachments',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

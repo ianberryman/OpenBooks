@@ -9,6 +9,7 @@ import { ErrorBanner } from './components';
 import { AccountsScreen } from './screens/accounts';
 import { AuthScreen } from './screens/auth';
 import { BankingScreen } from './screens/banking';
+import { BillCapturesScreen } from './screens/bill-captures';
 import { ContactsScreen } from './screens/contacts';
 import { DunningScreen } from './screens/dunning';
 import { JournalEntryScreen } from './screens/journal-entry';
@@ -185,6 +186,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/recurring-invoices" element={<RecurringInvoicesScreen />} />
         <Route path="/dunning" element={<DunningScreen />} />
         <Route path="/purchases" element={<PurchasesScreen />} />
+        <Route path="/bill-captures" element={<BillCapturesScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/banking/*" element={<BankingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />

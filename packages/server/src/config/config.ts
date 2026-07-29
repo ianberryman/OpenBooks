@@ -44,6 +44,21 @@ export type EmailConfig =
 export type BankFeedConfig = { readonly provider: 'csv-ofx' };
 
 /**
+ * Document extraction (initiative O). `anthropic` carries the two settings the
+ * hosted adapter needs once it is written — a model id and a region — even though
+ * the adapter itself throws at construction today (see `providers/extraction/
+ * anthropic.ts`): the config shape is what a future implementation reads, and
+ * inventing it then would mean widening a union that already shipped.
+ */
+export type DocumentExtractionConfig =
+  | { readonly provider: 'deterministic' }
+  | { readonly provider: 'anthropic'; readonly model: string; readonly region: string };
+
+/** Inbound mail (initiative O). `ses-inbound` carries the region its adapter needs. */
+export type InboundMailConfig =
+  { readonly provider: 'dev' } | { readonly provider: 'ses-inbound'; readonly region: string };
+
+/**
  * A discriminated union for the same reason the providers are (see the file
  * header): `enabled: true` carries a non-empty, already-validated allowlist, so
  * `src/transport/cors.ts` registers hooks against a guarantee instead of
@@ -111,6 +126,8 @@ export interface Config {
     readonly secrets: SecretsConfig;
     readonly email: EmailConfig;
     readonly bankFeed: BankFeedConfig;
+    readonly documentExtraction: DocumentExtractionConfig;
+    readonly inboundMail: InboundMailConfig;
   };
 }
 
@@ -182,6 +199,28 @@ function selectEmail(env: Env): EmailConfig {
   }
 }
 
+function selectDocumentExtraction(env: Env): DocumentExtractionConfig {
+  switch (env.EXTRACTION_PROVIDER) {
+    case 'deterministic':
+      return { provider: 'deterministic' };
+    case 'anthropic':
+      return {
+        provider: 'anthropic',
+        model: demand(env, 'EXTRACTION_MODEL'),
+        region: demand(env, 'AWS_REGION'),
+      };
+  }
+}
+
+function selectInboundMail(env: Env): InboundMailConfig {
+  switch (env.INBOUND_MAIL_PROVIDER) {
+    case 'dev':
+      return { provider: 'dev' };
+    case 'ses-inbound':
+      return { provider: 'ses-inbound', region: demand(env, 'AWS_REGION') };
+  }
+}
+
 function selectCors(env: Env): CorsConfig {
   const raw = env.CORS_ALLOWED_ORIGINS;
   if (raw === undefined) return { enabled: false };
@@ -232,6 +271,8 @@ function shape(role: ProcessRole, env: Env): Config {
       secrets: selectSecrets(env),
       email: selectEmail(env),
       bankFeed: { provider: env.BANK_FEED_PROVIDER },
+      documentExtraction: selectDocumentExtraction(env),
+      inboundMail: selectInboundMail(env),
     },
   };
 }

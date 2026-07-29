@@ -44,17 +44,31 @@ export async function up(db: MigrationDb): Promise<void> {
   // fiscal year frequently does not start in January — April, July, and October
   // are all common — but the periods within it are ordinary calendar months, so
   // the only thing that varies per org is where the year begins.
+  //
+  // `inbound_email_token` (initiative O, OB-185…191) is the org's half of its
+  // inbound bill-capture address — `POST /v1/bills/inbound/:token` resolves this
+  // column to an org before any session exists, which is why it is a bare token
+  // rather than something requiring one. Nullable and minted lazily by the
+  // inbound-address service on first use, not backfilled: an org that never wires
+  // up email capture never gets one. `UNIQUE` makes the token the whole lookup —
+  // the same shape `invoice_deliveries.key_prefix` uses to resolve an org from a
+  // public link with no other context, except here there is no split-credential
+  // pair: the inbound route runs `runAsAutomation` under the resolved org exactly
+  // as any other scheduled write does, and the harm in a guessed token is a
+  // spurious capture, not an authenticated session.
   await sql`
     CREATE TABLE orgs (
       id                      BINARY(16)   NOT NULL,
       name                    VARCHAR(255) NOT NULL,
       slug                    VARCHAR(120) NOT NULL,
       fiscal_year_start_month TINYINT UNSIGNED NOT NULL DEFAULT 1,
+      inbound_email_token     BINARY(16)   NULL,
       created_at              DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at              DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
                                            ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_orgs_slug (slug),
+      UNIQUE KEY uq_orgs_inbound_email_token (inbound_email_token),
       CONSTRAINT chk_orgs_fiscal_year_start_month
         CHECK (fiscal_year_start_month BETWEEN 1 AND 12)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

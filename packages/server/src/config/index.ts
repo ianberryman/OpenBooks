@@ -10,7 +10,9 @@ export type {
   BankFeedConfig,
   Config,
   CorsConfig,
+  DocumentExtractionConfig,
   EmailConfig,
+  InboundMailConfig,
   QueueConfig,
   SecretsConfig,
   StorageConfig,
@@ -25,7 +27,9 @@ export { ConfigValidationError, formatConfigIssues } from './errors';
 
 export type {
   BankFeedProviderId,
+  DocumentExtractionProviderId,
   EmailProviderId,
+  InboundMailProviderId,
   ProviderSelection,
   QueueProviderId,
   SecretsProviderId,
@@ -33,8 +37,10 @@ export type {
 } from './providers';
 export {
   BANK_FEED_PROVIDERS,
+  DOCUMENT_EXTRACTION_PROVIDERS,
   EMAIL_PROVIDERS,
   HOSTED_PROVIDERS,
+  INBOUND_MAIL_PROVIDERS,
   QUEUE_PROVIDERS,
   SECRETS_PROVIDERS,
   SELF_HOST_PROVIDERS,

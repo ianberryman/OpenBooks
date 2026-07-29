@@ -7457,6 +7457,130 @@
         ],
         "type": "object"
       },
+      "CreateDraftFromCaptureRequest": {
+        "additionalProperties": false,
+        "description": "Confirms a reviewed capture into a draft bill. The same shape as `CreateBillRequest`, because that is exactly what this becomes — the vendor extraction could not resolve on its own (D-25) is what `contactId` supplies here.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateDraftFromCaptureRequestInput": {
+        "additionalProperties": false,
+        "description": "Confirms a reviewed capture into a draft bill. The same shape as `CreateBillRequest`, because that is exactly what this becomes — the vendor extraction could not resolve on its own (D-25) is what `contactId` supplies here.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
       "CreateDraftRequest": {
         "additionalProperties": false,
         "description": "Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted.",
@@ -9363,6 +9487,358 @@
         ],
         "type": "object"
       },
+      "DocumentCapture": {
+        "additionalProperties": false,
+        "description": "An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`.",
+        "properties": {
+          "byteSize": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "draftedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The draft bill this capture became, set once review has acted (D-34)."
+          },
+          "extractedIssueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractedReference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vendor’s own invoice number, where extraction found one (D-36’s field)."
+          },
+          "extractedTotalMinor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractedVendorName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractionError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extraction failed, set only when `status` is `failed`."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractedCaptureLine"
+            },
+            "type": "array"
+          },
+          "matchedContactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when exactly one active vendor contact matches the extracted name (no name lookup exists yet — see the capture service contract); null otherwise, for a human to resolve."
+          },
+          "source": {
+            "description": "How the document arrived: a direct upload, or an attachment on an inbound email.",
+            "enum": [
+              "upload",
+              "email"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38).",
+            "enum": [
+              "extracting",
+              "extracted",
+              "failed",
+              "drafted",
+              "dismissed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "status",
+          "filename",
+          "contentType",
+          "byteSize",
+          "extractedVendorName",
+          "matchedContactId",
+          "extractedIssueDate",
+          "extractedReference",
+          "extractedTotalMinor",
+          "lines",
+          "extractionError",
+          "draftedBillId",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "DocumentCaptureInput": {
+        "additionalProperties": false,
+        "description": "An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`.",
+        "properties": {
+          "byteSize": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "draftedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The draft bill this capture became, set once review has acted (D-34)."
+          },
+          "extractedIssueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractedReference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vendor’s own invoice number, where extraction found one (D-36’s field)."
+          },
+          "extractedTotalMinor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractedVendorName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractionError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why extraction failed, set only when `status` is `failed`."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractedCaptureLineInput"
+            },
+            "type": "array"
+          },
+          "matchedContactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when exactly one active vendor contact matches the extracted name (no name lookup exists yet — see the capture service contract); null otherwise, for a human to resolve."
+          },
+          "source": {
+            "description": "How the document arrived: a direct upload, or an attachment on an inbound email.",
+            "enum": [
+              "upload",
+              "email"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38).",
+            "enum": [
+              "extracting",
+              "extracted",
+              "failed",
+              "drafted",
+              "dismissed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "status",
+          "filename",
+          "contentType",
+          "byteSize",
+          "extractedVendorName",
+          "matchedContactId",
+          "extractedIssueDate",
+          "extractedReference",
+          "extractedTotalMinor",
+          "lines",
+          "extractionError",
+          "draftedBillId",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "DocumentCapturePage": {
+        "additionalProperties": false,
+        "description": "One page of captures, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCapture"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "DocumentCapturePageInput": {
+        "additionalProperties": false,
+        "description": "One page of captures, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCaptureInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "DocumentLine": {
         "additionalProperties": false,
         "description": "One line as the API returns it: what was entered, and what the arithmetic made of it. `netAmount + taxAmount === grossAmount` holds exactly, per line, and the document’s totals are the sums of these rather than the rate applied to a sum (D-35).",
@@ -10126,6 +10602,62 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "ExtractedCaptureLine": {
+        "additionalProperties": false,
+        "description": "One line item as extraction read it off the document, before any review.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnits"
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unitAmount"
+        ],
+        "type": "object"
+      },
+      "ExtractedCaptureLineInput": {
+        "additionalProperties": false,
+        "description": "One line item as extraction read it off the document, before any review.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/QuantityInput"
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unitAmount"
         ],
         "type": "object"
       },
@@ -11068,6 +11600,66 @@
           "user",
           "memberships",
           "activeOrgId"
+        ],
+        "type": "object"
+      },
+      "InboundCaptureResult": {
+        "additionalProperties": false,
+        "properties": {
+          "captureIds": {
+            "description": "One id per eligible attachment. An email with no eligible attachment yields none.",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "captureIds"
+        ],
+        "type": "object"
+      },
+      "InboundCaptureResultInput": {
+        "properties": {
+          "captureIds": {
+            "description": "One id per eligible attachment. An email with no eligible attachment yields none.",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "captureIds"
+        ],
+        "type": "object"
+      },
+      "InboundEmailAddress": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "The mailbox address that, once real inbound receiving is wired to it, becomes captures (D-25’s \"real MX/receipt-rule receiving is out of scope this wave\" — this address is stable now so the UI can show it before that lands).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "InboundEmailAddressInput": {
+        "properties": {
+          "address": {
+            "description": "The mailbox address that, once real inbound receiving is wired to it, becomes captures (D-25’s \"real MX/receipt-rule receiving is out of scope this wave\" — this address is stable now so the UI can show it before that lands).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
         ],
         "type": "object"
       },
@@ -19128,6 +19720,76 @@
         },
         "type": "object"
       },
+      "UploadCaptureRequest": {
+        "additionalProperties": false,
+        "description": "Uploads a document to be extracted. Creates a `document_captures` row in status `extracting` and enqueues the extraction job; the bytes are stored, never returned.",
+        "properties": {
+          "content": {
+            "contentEncoding": "base64",
+            "description": "The document, base64-encoded. Decodes to at most 10485760 bytes (10 MiB).",
+            "format": "base64",
+            "maxLength": 13981016,
+            "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+            "type": "string"
+          },
+          "contentType": {
+            "description": "The document format. Anything else is refused before the bytes are read.",
+            "enum": [
+              "application/pdf",
+              "image/png",
+              "image/jpeg"
+            ],
+            "type": "string"
+          },
+          "filename": {
+            "description": "What the file was called at upload. Recorded and shown back at review.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "contentType",
+          "content"
+        ],
+        "type": "object"
+      },
+      "UploadCaptureRequestInput": {
+        "additionalProperties": false,
+        "description": "Uploads a document to be extracted. Creates a `document_captures` row in status `extracting` and enqueues the extraction job; the bytes are stored, never returned.",
+        "properties": {
+          "content": {
+            "contentEncoding": "base64",
+            "description": "The document, base64-encoded. Decodes to at most 10485760 bytes (10 MiB).",
+            "format": "base64",
+            "maxLength": 13981016,
+            "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+            "type": "string"
+          },
+          "contentType": {
+            "description": "The document format. Anything else is refused before the bytes are read.",
+            "enum": [
+              "application/pdf",
+              "image/png",
+              "image/jpeg"
+            ],
+            "type": "string"
+          },
+          "filename": {
+            "description": "What the file was called at upload. Recorded and shown back at review.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "contentType",
+          "content"
+        ],
+        "type": "object"
+      },
       "VendorCredit": {
         "additionalProperties": false,
         "description": "A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due.",
@@ -21840,6 +22502,375 @@
         ]
       }
     },
+    "/v1/bills/captures": {
+      "get": {
+        "description": "One page of captures, oldest first by creation (D-21). Filter by `status` to see the review queue (`extracted`/`failed`) or the settled ones (`drafted`/`dismissed`).",
+        "operationId": "listBillCaptures",
+        "parameters": [
+          {
+            "description": "Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "extracting",
+                "extracted",
+                "failed",
+                "drafted",
+                "dismissed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many captures to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCapturePage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List captures",
+        "tags": [
+          "bill-captures"
+        ]
+      },
+      "post": {
+        "description": "Stores the original, writes a `document_captures` row at status `extracting`, and enqueues extraction (event-driven, not the daily tick). The bytes are never returned; only the row.",
+        "operationId": "createBillCapture",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadCaptureRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCapture"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Upload a document to be extracted",
+        "tags": [
+          "bill-captures"
+        ]
+      }
+    },
+    "/v1/bills/captures/{captureId}": {
+      "get": {
+        "operationId": "getBillCapture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "captureId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCapture"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One capture, with its extracted lines",
+        "tags": [
+          "bill-captures"
+        ]
+      }
+    },
+    "/v1/bills/captures/{captureId}/dismiss": {
+      "post": {
+        "description": "Only from `extracted` or `failed` — a capture still `extracting` has nothing to review yet, and one already `drafted`/`dismissed` has been reviewed once already.",
+        "operationId": "dismissBillCapture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "captureId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCapture"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Dismiss a capture that is not a bill",
+        "tags": [
+          "bill-captures"
+        ]
+      }
+    },
+    "/v1/bills/captures/{captureId}/draft": {
+      "post": {
+        "description": "The review-edited payload — the same shape as `CreateBillRequest`, because it becomes one via the existing `createBill`. Attaches the captured original to the new bill and moves the capture to `drafted`. The result is a **draft** (`journal_id` null); approve it with `POST /v1/bills/{billId}/approve` as any other bill.",
+        "operationId": "createDraftFromBillCapture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "captureId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftFromCaptureRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bill"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Confirm a reviewed capture into a draft bill",
+        "tags": [
+          "bill-captures"
+        ]
+      }
+    },
+    "/v1/bills/inbound-address": {
+      "get": {
+        "description": "Mints one on first read if the org has none yet. Real inbound receiving (MX / SES receipt rules) is out of scope this wave — the address is stable now so the UI can show it — and the webhook a mail relay posts to is `POST /v1/bills/inbound/{token}`.",
+        "operationId": "getInboundBillEmailAddress",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundEmailAddress"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The org’s inbound bill-capture mailbox",
+        "tags": [
+          "bill-captures"
+        ]
+      }
+    },
+    "/v1/bills/inbound/{token}": {
+      "post": {
+        "description": "No session: the `:token` path segment resolves the org and is the entire authorization (D-74’s shape, applied to a mailbox). Requires an `Idempotency-Key` like every write (spec §12) — a redelivering relay sends the same key and captures once. Creates one `document_captures` row per eligible attachment and enqueues extraction for each. An unknown or malformed token is a `404`, indistinguishable from a token never issued.",
+        "operationId": "receiveInboundBill",
+        "parameters": [
+          {
+            "description": "The org’s inbound-capture token (`GET /v1/bills/inbound-address`’s local-part). The whole authorization for this request — no session, no permission.",
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundCaptureResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Inbound email webhook for bill capture",
+        "tags": [
+          "bill-inbound"
+        ]
+      }
+    },
     "/v1/bills/{billId}": {
       "delete": {
         "description": "Deletes a draft and its lines. Nothing reached the ledger and no number was allocated, so nothing is restated and no gap is left.",
@@ -22041,6 +23072,50 @@
         "summary": "Approve a bill and post its journal",
         "tags": [
           "bills"
+        ]
+      }
+    },
+    "/v1/bills/{billId}/attachments/{attachmentId}": {
+      "get": {
+        "description": "Streams the stored bytes of one attachment on a bill — ordinarily the document a capture became, but a bill may carry more than the one its capture produced.",
+        "operationId": "getBillAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "billId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The retained original behind a bill, streamed",
+        "tags": [
+          "bill-captures"
         ]
       }
     },

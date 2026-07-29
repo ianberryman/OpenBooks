@@ -22,6 +22,7 @@ import {
   approveBill,
   approveVendorCredit,
   createBill,
+  createDraftFromCapture,
   createVendorCredit,
   listBills,
   listVendorCredits,
@@ -184,6 +185,38 @@ interface Org {
 function clearable(o: Org, index: number): string {
   const id = o.clearableLineIds[index];
   if (id === undefined) throw new Error(`the scene has no clearable line ${String(index)}`);
+  return id;
+}
+
+/**
+ * A fresh `extracted` `document_captures` row in `o`'s org (initiative O, OB-186…190),
+ * inserted directly for `insertCapture`'s reason (`captureRow`'s neighbour in
+ * `test/bills/capture/support.ts`): a row already `extracted` is what
+ * `createDraftFromCapture` requires, and `createCaptureFromUpload` only ever leaves
+ * one `extracting`.
+ *
+ * Called fresh per `createDraftFromBillCapture` reference row rather than shared: a
+ * successful "own id" pass moves its capture to `drafted` (review happens once,
+ * D-38's rule one layer back), and a second row reusing that capture would find it
+ * already reviewed and refuse with `capture_already_drafted` — a `412`, not the
+ * `404` the next row's cross-org id is supposed to produce.
+ */
+async function extractedCaptureIn(o: Org, nonce: string): Promise<string> {
+  const id = newUuid();
+  await db.app
+    .insertInto('document_captures')
+    .values({
+      id: uuidToBuffer(id),
+      org_id: o.orgId,
+      source: 'upload',
+      status: 'extracted',
+      storage_key: `org/${o.orgUuid}/captures/b11-${nonce}`,
+      filename: `b11-${nonce}.pdf`,
+      content_type: 'application/pdf',
+      byte_size: 10n,
+      created_by_user_id: uuidToBuffer(o.userUuid),
+    })
+    .execute();
   return id;
 }
 
@@ -2043,6 +2076,106 @@ const REFERENCES: readonly Reference[] = [
       updateBankRule(
         s.caller.bankRuleId,
         { outcome: { accountId: s.caller.accountId, dimensionValueIds: [id] } },
+        s.caller.ctx,
+      ),
+  },
+
+  // ---------------------------------------------------------------------------
+  // OCR bill capture (initiative O, OB-186…190). `createDraftFromCaptureRequestSchema`
+  // is field-for-field `createBillRequestSchema` (the shared-types header explains
+  // why), so it carries the same four id-shaped fields `createBill` does — each row
+  // here mirrors that operation's, only reached through review instead of a direct
+  // create. Every call needs its own fresh capture (`extractedCaptureIn`'s header).
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'createDraftFromBillCapture',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: async (id, s, nonce) =>
+      createDraftFromCapture(
+        await extractedCaptureIn(s.caller, nonce),
+        {
+          contactId: id,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createDraftFromBillCapture',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: async (id, s, nonce) =>
+      createDraftFromCapture(
+        await extractedCaptureIn(s.caller, nonce),
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createDraftFromBillCapture',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: async (id, s, nonce) =>
+      createDraftFromCapture(
+        await extractedCaptureIn(s.caller, nonce),
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createDraftFromBillCapture',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: async (id, s, nonce) =>
+      createDraftFromCapture(
+        await extractedCaptureIn(s.caller, nonce),
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
         s.caller.ctx,
       ),
   },

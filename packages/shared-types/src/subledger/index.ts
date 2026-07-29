@@ -118,6 +118,26 @@ export {
   vendorCreditSummarySchema,
 } from './bills';
 
+export { CAPTURE_SOURCES, CAPTURE_STATUSES, DOCUMENT_CAPTURE_MAX_BYTES } from './captures';
+export type {
+  CaptureSource,
+  CaptureStatus,
+  CreateDraftFromCaptureRequest,
+  DocumentCapture,
+  DocumentCapturePage,
+  ExtractedCaptureLine,
+  UploadCaptureRequest,
+} from './captures';
+export {
+  captureSourceSchema,
+  captureStatusSchema,
+  createDraftFromCaptureRequestSchema,
+  documentCapturePageSchema,
+  documentCaptureSchema,
+  extractedCaptureLineSchema,
+  uploadCaptureRequestSchema,
+} from './captures';
+
 export { PAYMENT_DIRECTIONS, PAYMENT_STATUSES } from './payments';
 export type {
   CreatePaymentRequest,

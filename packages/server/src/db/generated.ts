@@ -291,6 +291,18 @@ export interface BankStatementLines {
   value_date: string | null;
 }
 
+export interface BillAttachments {
+  ap_document_id: Buffer;
+  byte_size: bigint;
+  content_type: string;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  filename: string;
+  id: Buffer;
+  org_id: Buffer;
+  storage_key: string;
+}
+
 export interface Contacts {
   code: string | null;
   created_at: Generated<Date>;
@@ -326,6 +338,28 @@ export interface DimensionValues {
   is_active: Generated<number>;
   name: string;
   org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface DocumentCaptures {
+  byte_size: bigint;
+  content_type: string;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  drafted_bill_id: Buffer | null;
+  extracted_issue_date: string | null;
+  extracted_reference: string | null;
+  extracted_total_minor: bigint | null;
+  extracted_vendor_name: string | null;
+  extraction_error: string | null;
+  extraction_json: Json | null;
+  filename: string;
+  id: Buffer;
+  matched_contact_id: Buffer | null;
+  org_id: Buffer;
+  source: "email" | "upload";
+  status: "dismissed" | "drafted" | "extracted" | "extracting" | "failed";
+  storage_key: string;
   updated_at: Generated<Date>;
 }
 
@@ -545,6 +579,7 @@ export interface Orgs {
   created_at: Generated<Date>;
   fiscal_year_start_month: Generated<number>;
   id: Buffer;
+  inbound_email_token: Buffer | null;
   name: string;
   slug: string;
   updated_at: Generated<Date>;
@@ -701,9 +736,11 @@ export interface DB {
   bank_rules: BankRules;
   bank_statement_imports: BankStatementImports;
   bank_statement_lines: BankStatementLines;
+  bill_attachments: BillAttachments;
   contacts: Contacts;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
+  document_captures: DocumentCaptures;
   document_sequences: DocumentSequences;
   dunning_policies: DunningPolicies;
   dunning_sends: DunningSends;

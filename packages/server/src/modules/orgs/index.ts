@@ -22,3 +22,11 @@ export type { OrgRow } from './orgs.repository';
 // alternative — a second copy of the same two-line query inside `modules/members`
 // — would be a second answer to "what is this org called".
 export { selectDefaultMemberOrgId, selectOrg } from './orgs.repository';
+
+// The inbound bill-capture mailbox (initiative O, OB-186). `getInboundEmailAddress`
+// is the org-scoped read/mint the transport surface exposes;
+// `resolveOrgIdForInboundToken` is the one unauthenticated lookup the inbound
+// webhook route needs before any org context exists — `token.ts`'s shape,
+// applied to a mailbox instead of a hosted invoice link.
+export type { InboundEmailAddress } from './inbound-email';
+export { getInboundEmailAddress, resolveOrgIdForInboundToken } from './inbound-email';

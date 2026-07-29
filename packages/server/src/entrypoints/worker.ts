@@ -33,6 +33,7 @@ import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import type { Logger } from '../logging';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
+import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
@@ -60,6 +61,10 @@ export async function startWorker(): Promise<void> {
   await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
   await registerRecurringJob(queueProvider(), { logger });
   await registerDunningJob(queueProvider(), { logger });
+  // Event-driven, not the daily tick (initiative O, OB-186): a capture enqueues this
+  // the moment it is uploaded or received by email, exactly as the statement import
+  // enqueues off the request rather than waiting for a clock.
+  await registerDocumentExtractionJob(queueProvider(), { logger });
 
   // The daily clock (OB-127) lives with the job handlers: whichever process consumes the
   // queue is the one that should drive the tick, or a sweep is enqueued to a queue this
@@ -69,7 +74,8 @@ export async function startWorker(): Promise<void> {
 
   logger.info(
     { role: 'worker' },
-    'worker: statement, recurring and dunning jobs registered; daily tick started; blocking on the queue',
+    'worker: statement, recurring, dunning and extraction jobs registered; daily tick started; ' +
+      'blocking on the queue',
   );
 
   await blockUntilShutdown(logger, stopDailyTick);

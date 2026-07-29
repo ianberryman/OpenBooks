@@ -8,6 +8,7 @@ import * as m0005 from './0005_subledger';
 import * as m0006 from './0006_banking';
 import * as m0007 from './0007_invoice_delivery';
 import * as m0008 from './0008_recurring_dunning';
+import * as m0009 from './0009_bill_capture';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -54,6 +55,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0006_banking': m0006,
   '0007_invoice_delivery': m0007,
   '0008_recurring_dunning': m0008,
+  '0009_bill_capture': m0009,
   '0999_app_grants': m0999,
 };
 

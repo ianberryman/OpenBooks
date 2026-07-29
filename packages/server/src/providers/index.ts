@@ -1,4 +1,10 @@
-import type { EmailProvider, QueueProvider, StorageProvider } from '@openbooks/plugin-api';
+import type {
+  DocumentExtractionProvider,
+  EmailProvider,
+  InboundMailProvider,
+  QueueProvider,
+  StorageProvider,
+} from '@openbooks/plugin-api';
 
 import type { Config } from '../config';
 import { getConfig } from '../config';
@@ -6,6 +12,8 @@ import type { Logger } from '../logging';
 import { getLogger } from '../logging';
 import { createLogEmailProvider } from './email/log';
 import { createSesEmailProvider } from './email/ses';
+import { createDocumentExtractionProvider } from './extraction';
+import { createInboundMailProvider } from './inbound-mail';
 import { InProcessQueue } from './queue/in-process';
 import { createStorageProvider } from './storage';
 
@@ -213,7 +221,71 @@ export function setStorageProvider(value: StorageProvider | undefined): void {
   resolvedStorage = value;
 }
 
+/**
+ * The process-wide document-extraction dependency, built on first use (initiative
+ * O). The same seam as `storageProvider`, and for the same reasons: a function
+ * rather than an exported `const`, so importing this module builds nothing; lazy,
+ * so `migrate` — which extracts nothing — never constructs an adapter. Its
+ * consumer is the extraction job (`DOCUMENT_EXTRACTION_QUEUE`, feature wave):
+ * `runAsAutomation` resolves it inside the queue handler, never at request time,
+ * because extraction always runs off the request path.
+ *
+ * A single accessor rather than folded into a `Providers` bag, for `storageProvider`'s
+ * reason: one consumer, and a registry now would be the shape spec §8 warns against.
+ */
+let resolvedDocumentExtraction: DocumentExtractionProvider | undefined;
+
+export function documentExtractionProvider(): DocumentExtractionProvider {
+  // `??=` and not a `const config = getConfig()` above it, for `outboundEmail`'s
+  // reason: an installed value must short-circuit the config read entirely.
+  resolvedDocumentExtraction ??= createDocumentExtractionProvider(
+    getConfig().providers.documentExtraction,
+  );
+  return resolvedDocumentExtraction;
+}
+
+/**
+ * Installs the document-extraction adapter for the rest of the process, or clears
+ * it. For hosts and tests, not services — the same seam `setStorageProvider` is. A
+ * suite that exercises the extraction job installs the `deterministic` adapter (or
+ * a fixture-backed one) and reads the fields it wrote back through the same
+ * `document_captures` row a real job would.
+ */
+export function setDocumentExtractionProvider(value: DocumentExtractionProvider | undefined): void {
+  resolvedDocumentExtraction = value;
+}
+
+/**
+ * The process-wide inbound-mail dependency, built on first use (initiative O). The
+ * same seam as `documentExtractionProvider`: lazy, one consumer — the
+ * `POST /v1/bills/inbound/:token` route (feature wave), which resolves the org
+ * from the token first and then calls `parse` on the raw webhook.
+ */
+let resolvedInboundMail: InboundMailProvider | undefined;
+
+export function inboundMailProvider(): InboundMailProvider {
+  // `??=` and not a `const config = getConfig()` above it, for `outboundEmail`'s
+  // reason: an installed value must short-circuit the config read entirely.
+  resolvedInboundMail ??= createInboundMailProvider(getConfig().providers.inboundMail);
+  return resolvedInboundMail;
+}
+
+/**
+ * Installs the inbound-mail adapter for the rest of the process, or clears it. For
+ * hosts and tests, not services — the same seam `setDocumentExtractionProvider` is.
+ * A suite that exercises the inbound route installs the `dev` adapter and posts a
+ * real JSON webhook body at it, rather than mocking `parse`'s return value.
+ */
+export function setInboundMailProvider(value: InboundMailProvider | undefined): void {
+  resolvedInboundMail = value;
+}
+
 export { InProcessQueue } from './queue/in-process';
 export { createLogEmailProvider } from './email/log';
 export { createSesEmailProvider } from './email/ses';
+export {
+  createAnthropicExtractionProvider,
+  createDeterministicExtractionProvider,
+} from './extraction';
+export { createDevInboundMailProvider, createSesInboundMailProvider } from './inbound-mail';
 export { createStorageProvider } from './storage';

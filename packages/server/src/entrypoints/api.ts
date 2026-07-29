@@ -14,6 +14,7 @@ import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import { resolveSessionIdentity } from '../modules/auth';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
+import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
@@ -87,13 +88,17 @@ export async function startApi(): Promise<void> {
     await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
     await registerRecurringJob(queueProvider(), { logger });
     await registerDunningJob(queueProvider(), { logger });
+    // Event-driven (initiative O, OB-186), registered here for the same reason as the
+    // other three: under the in-process adapter, this is the process that consumes what
+    // it enqueues — `createCaptureFromUpload` and the inbound webhook both run here.
+    await registerDocumentExtractionJob(queueProvider(), { logger });
     // The daily tick (OB-127) runs here under the in-process adapter, because this is the
     // process that consumes what it enqueues (the comment above). A stop handle is captured so
     // the shutdown drain clears it before closing the pool.
     stopDailyTick = startDailyTick({ logger });
     logger.info(
       { role: 'api', queue: 'in-process' },
-      'statement, recurring and dunning jobs registered in-process; daily tick started',
+      'statement, recurring, dunning and extraction jobs registered in-process; daily tick started',
     );
   }
 

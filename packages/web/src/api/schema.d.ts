@@ -535,6 +535,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/bills/captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List captures
+         * @description One page of captures, oldest first by creation (D-21). Filter by `status` to see the review queue (`extracted`/`failed`) or the settled ones (`drafted`/`dismissed`).
+         */
+        get: operations["listBillCaptures"];
+        put?: never;
+        /**
+         * Upload a document to be extracted
+         * @description Stores the original, writes a `document_captures` row at status `extracting`, and enqueues extraction (event-driven, not the daily tick). The bytes are never returned; only the row.
+         */
+        post: operations["createBillCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/captures/{captureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One capture, with its extracted lines */
+        get: operations["getBillCapture"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/captures/{captureId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss a capture that is not a bill
+         * @description Only from `extracted` or `failed` — a capture still `extracting` has nothing to review yet, and one already `drafted`/`dismissed` has been reviewed once already.
+         */
+        post: operations["dismissBillCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/captures/{captureId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a reviewed capture into a draft bill
+         * @description The review-edited payload — the same shape as `CreateBillRequest`, because it becomes one via the existing `createBill`. Attaches the captured original to the new bill and moves the capture to `drafted`. The result is a **draft** (`journal_id` null); approve it with `POST /v1/bills/{billId}/approve` as any other bill.
+         */
+        post: operations["createDraftFromBillCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/inbound-address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org’s inbound bill-capture mailbox
+         * @description Mints one on first read if the org has none yet. Real inbound receiving (MX / SES receipt rules) is out of scope this wave — the address is stable now so the UI can show it — and the webhook a mail relay posts to is `POST /v1/bills/inbound/{token}`.
+         */
+        get: operations["getInboundBillEmailAddress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/inbound/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbound email webhook for bill capture
+         * @description No session: the `:token` path segment resolves the org and is the entire authorization (D-74’s shape, applied to a mailbox). Requires an `Idempotency-Key` like every write (spec §12) — a redelivering relay sends the same key and captures once. Creates one `document_captures` row per eligible attachment and enqueues extraction for each. An unknown or malformed token is a `404`, indistinguishable from a token never issued.
+         */
+        post: operations["receiveInboundBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bills/{billId}": {
         parameters: {
             query?: never;
@@ -574,6 +695,26 @@ export interface paths {
          * @description The irreversible step (D-38). In one transaction it allocates the bill’s gapless number, posts a balanced journal debiting what was bought and **crediting** the org’s payables control account, and records both. Refusals worth branching on: `duplicate_vendor_reference` when another approved, un-voided bill from this vendor already quotes this `reference`; `payable_control_account_not_set` and `payable_control_account_unusable` naming the org setting to fix; and `document_already_approved` when it has already happened.
          */
         post: operations["approveBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bills/{billId}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The retained original behind a bill, streamed
+         * @description Streams the stored bytes of one attachment on a bill — ordinarily the document a capture became, but a bill may carry more than the one its capture produced.
+         */
+        get: operations["getBillAttachment"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4341,6 +4482,36 @@ export interface components {
             /** @description Display name, e.g. `Sales team`. */
             name: string;
         };
+        /** @description Confirms a reviewed capture into a draft bill. The same shape as `CreateBillRequest`, because that is exactly what this becomes — the vendor extraction could not resolve on its own (D-25) is what `contactId` supplies here. */
+        CreateDraftFromCaptureRequest: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Confirms a reviewed capture into a draft bill. The same shape as `CreateBillRequest`, because that is exactly what this becomes — the vendor extraction could not resolve on its own (D-25) is what `contactId` supplies here. */
+        CreateDraftFromCaptureRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
         /** @description Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted. */
         CreateDraftRequest: {
             entryDate?: components["schemas"]["CalendarDate"] | null;
@@ -4861,6 +5032,82 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`. */
+        DocumentCapture: {
+            byteSize: number;
+            contentType: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The draft bill this capture became, set once review has acted (D-34). */
+            draftedBillId: string | null;
+            extractedIssueDate: components["schemas"]["CalendarDate"] | null;
+            /** @description The vendor’s own invoice number, where extraction found one (D-36’s field). */
+            extractedReference: string | null;
+            extractedTotalMinor: components["schemas"]["MinorUnits"] | null;
+            extractedVendorName: string | null;
+            /** @description Why extraction failed, set only when `status` is `failed`. */
+            extractionError: string | null;
+            filename: string;
+            /** Format: uuid */
+            id: string;
+            lines: components["schemas"]["ExtractedCaptureLine"][];
+            /** @description Set when exactly one active vendor contact matches the extracted name (no name lookup exists yet — see the capture service contract); null otherwise, for a human to resolve. */
+            matchedContactId: string | null;
+            /**
+             * @description How the document arrived: a direct upload, or an attachment on an inbound email.
+             * @enum {string}
+             */
+            source: "upload" | "email";
+            /**
+             * @description Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38).
+             * @enum {string}
+             */
+            status: "extracting" | "extracted" | "failed" | "drafted" | "dismissed";
+        };
+        /** @description An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`. */
+        DocumentCaptureInput: {
+            byteSize: number;
+            contentType: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The draft bill this capture became, set once review has acted (D-34). */
+            draftedBillId: string | null;
+            extractedIssueDate: components["schemas"]["CalendarDateInput"] | null;
+            /** @description The vendor’s own invoice number, where extraction found one (D-36’s field). */
+            extractedReference: string | null;
+            extractedTotalMinor: components["schemas"]["MinorUnitsInput"] | null;
+            extractedVendorName: string | null;
+            /** @description Why extraction failed, set only when `status` is `failed`. */
+            extractionError: string | null;
+            filename: string;
+            /** Format: uuid */
+            id: string;
+            lines: components["schemas"]["ExtractedCaptureLineInput"][];
+            /** @description Set when exactly one active vendor contact matches the extracted name (no name lookup exists yet — see the capture service contract); null otherwise, for a human to resolve. */
+            matchedContactId: string | null;
+            /**
+             * @description How the document arrived: a direct upload, or an attachment on an inbound email.
+             * @enum {string}
+             */
+            source: "upload" | "email";
+            /**
+             * @description Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38).
+             * @enum {string}
+             */
+            status: "extracting" | "extracted" | "failed" | "drafted" | "dismissed";
+        };
+        /** @description One page of captures, oldest first by creation. */
+        DocumentCapturePage: {
+            items: components["schemas"]["DocumentCapture"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of captures, oldest first by creation. */
+        DocumentCapturePageInput: {
+            items: components["schemas"]["DocumentCaptureInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description One line as the API returns it: what was entered, and what the arithmetic made of it. `netAmount + taxAmount === grossAmount` holds exactly, per line, and the document’s totals are the sums of these rather than the rate applied to a sum (D-35). */
         DocumentLine: {
             /** Format: uuid */
@@ -5064,6 +5311,18 @@ export interface components {
                 };
                 message: string;
             };
+        };
+        /** @description One line item as extraction read it off the document, before any review. */
+        ExtractedCaptureLine: {
+            description: string | null;
+            quantity: components["schemas"]["Quantity"];
+            unitAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description One line item as extraction read it off the document, before any review. */
+        ExtractedCaptureLineInput: {
+            description: string | null;
+            quantity: components["schemas"]["QuantityInput"];
+            unitAmount: components["schemas"]["MinorUnitsInput"];
         };
         /** @description One monthly fiscal period. */
         FiscalPeriod: {
@@ -5298,6 +5557,22 @@ export interface components {
             activeOrgId: string | null;
             memberships: components["schemas"]["OrgMembershipInput"][];
             user: components["schemas"]["AuthenticatedUserInput"];
+        };
+        InboundCaptureResult: {
+            /** @description One id per eligible attachment. An email with no eligible attachment yields none. */
+            captureIds: string[];
+        };
+        InboundCaptureResultInput: {
+            /** @description One id per eligible attachment. An email with no eligible attachment yields none. */
+            captureIds: string[];
+        };
+        InboundEmailAddress: {
+            /** @description The mailbox address that, once real inbound receiving is wired to it, becomes captures (D-25’s "real MX/receipt-rule receiving is out of scope this wave" — this address is stable now so the UI can show it before that lands). */
+            address: string;
+        };
+        InboundEmailAddressInput: {
+            /** @description The mailbox address that, once real inbound receiving is wired to it, becomes captures (D-25’s "real MX/receipt-rule receiving is out of scope this wave" — this address is stable now so the UI can show it before that lands). */
+            address: string;
         };
         /** @description An outstanding or settled invitation. The token is never returned — it is a credential, held only as a hash after the message is sent. */
         Invitation: {
@@ -7461,6 +7736,36 @@ export interface components {
              */
             taxMode?: "exclusive" | "inclusive";
         };
+        /** @description Uploads a document to be extracted. Creates a `document_captures` row in status `extracting` and enqueues the extraction job; the bytes are stored, never returned. */
+        UploadCaptureRequest: {
+            /**
+             * Format: base64
+             * @description The document, base64-encoded. Decodes to at most 10485760 bytes (10 MiB).
+             */
+            content: string;
+            /**
+             * @description The document format. Anything else is refused before the bytes are read.
+             * @enum {string}
+             */
+            contentType: "application/pdf" | "image/png" | "image/jpeg";
+            /** @description What the file was called at upload. Recorded and shown back at review. */
+            filename: string;
+        };
+        /** @description Uploads a document to be extracted. Creates a `document_captures` row in status `extracting` and enqueues the extraction job; the bytes are stored, never returned. */
+        UploadCaptureRequestInput: {
+            /**
+             * Format: base64
+             * @description The document, base64-encoded. Decodes to at most 10485760 bytes (10 MiB).
+             */
+            content: string;
+            /**
+             * @description The document format. Anything else is refused before the bytes are read.
+             * @enum {string}
+             */
+            contentType: "application/pdf" | "image/png" | "image/jpeg";
+            /** @description What the file was called at upload. Recorded and shown back at review. */
+            filename: string;
+        };
         /** @description A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due. */
         VendorCredit: {
             /** @description The bills this credit has been applied to, and for how much. */
@@ -8838,6 +9143,244 @@ export interface operations {
             };
         };
     };
+    listBillCaptures: {
+        parameters: {
+            query?: {
+                /** @description Where a capture sits in its lifecycle. `extracting` on creation, then `extracted` or `failed` once the extraction job finishes, then `drafted` or `dismissed` once a human has reviewed it. There is no state past `drafted` here — once a draft bill exists, its own status carries the truth (D-38). */
+                status?: "extracting" | "extracted" | "failed" | "drafted" | "dismissed";
+                /** @description How many captures to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCapturePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createBillCapture: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadCaptureRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCapture"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBillCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                captureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCapture"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    dismissBillCapture: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                captureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentCapture"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createDraftFromBillCapture: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                captureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDraftFromCaptureRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInboundBillEmailAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundEmailAddress"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    receiveInboundBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                /** @description The org’s inbound-capture token (`GET /v1/bills/inbound-address`’s local-part). The whole authorization for this request — no session, no permission. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundCaptureResult"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getBill: {
         parameters: {
             query?: never;
@@ -8962,6 +9505,29 @@ export interface operations {
                     "application/json": components["schemas"]["Bill"];
                 };
             };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBillAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                billId: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Default Response */
             default: {
                 headers: {

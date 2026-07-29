@@ -12,7 +12,9 @@ import type { ConfigIssue } from './errors';
 import type { ProviderSelection } from './providers';
 import {
   BANK_FEED_PROVIDERS,
+  DOCUMENT_EXTRACTION_PROVIDERS,
   EMAIL_PROVIDERS,
+  INBOUND_MAIL_PROVIDERS,
   QUEUE_PROVIDERS,
   SECRETS_PROVIDERS,
   SELF_HOST_PROVIDERS,
@@ -109,6 +111,15 @@ export const envSchema = z.object({
   SECRETS_PROVIDER: oneOf(SECRETS_PROVIDERS).default(SELF_HOST_PROVIDERS.SECRETS_PROVIDER),
   EMAIL_PROVIDER: oneOf(EMAIL_PROVIDERS).default(SELF_HOST_PROVIDERS.EMAIL_PROVIDER),
   BANK_FEED_PROVIDER: oneOf(BANK_FEED_PROVIDERS).default(SELF_HOST_PROVIDERS.BANK_FEED_PROVIDER),
+  // Initiative O (OB-185…191): document extraction and inbound mail. Same
+  // self-host default reasoning as every selector above — the schema default is
+  // the Compose stack's story, and a hosted deploy states its choice explicitly.
+  EXTRACTION_PROVIDER: oneOf(DOCUMENT_EXTRACTION_PROVIDERS).default(
+    SELF_HOST_PROVIDERS.EXTRACTION_PROVIDER,
+  ),
+  INBOUND_MAIL_PROVIDER: oneOf(INBOUND_MAIL_PROVIDERS).default(
+    SELF_HOST_PROVIDERS.INBOUND_MAIL_PROVIDER,
+  ),
 
   // --- Provider settings --------------------------------------------------
   // Optional here and required conditionally by PROVIDER_REQUIREMENTS. The
@@ -120,6 +131,12 @@ export const envSchema = z.object({
   STORAGE_LOCAL_PATH: z.string().optional(),
   SECRETS_MANAGER_PREFIX: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
+  // The `anthropic` extraction adapter's model id (initiative O). Only ever read
+  // once that adapter is implemented — today it throws at construction regardless
+  // (see `providers/extraction/anthropic.ts`) — but PROVIDER_REQUIREMENTS still
+  // names it, so choosing EXTRACTION_PROVIDER=anthropic fails at startup rather
+  // than at the adapter's throw.
+  EXTRACTION_MODEL: z.string().optional(),
 
   // --- The public origin of the web app (OB-040) --------------------------
   // Only the invite email reads this, and it is optional because the server
@@ -188,6 +205,17 @@ export const PROVIDER_REQUIREMENTS: ProviderRequirements = {
     // Reads an uploaded file; needs nothing from the environment.
     'csv-ofx': [],
   },
+  EXTRACTION_PROVIDER: {
+    anthropic: ['EXTRACTION_MODEL', 'AWS_REGION'],
+    // Parses uploaded bytes as text; needs nothing from the environment.
+    deterministic: [],
+  },
+  INBOUND_MAIL_PROVIDER: {
+    'ses-inbound': ['AWS_REGION'],
+    // Parses a JSON webhook body with no signature verification; needs nothing
+    // from the environment.
+    dev: [],
+  },
 };
 
 function missingFor<S extends keyof ProviderSelection>(
@@ -205,10 +233,10 @@ function missingFor<S extends keyof ProviderSelection>(
 }
 
 /**
- * The five checks are written out rather than looped because a loop over the
+ * The seven checks are written out rather than looped because a loop over the
  * selectors loses the correlation between a selector and its own provider
  * union, and recovering it costs a cast. Adding a *provider* still touches only
- * the table above; only a sixth *selector* touches this function.
+ * the table above; only a new *selector* touches this function.
  */
 export function missingProviderVars(env: Env): ConfigIssue[] {
   return [
@@ -217,6 +245,8 @@ export function missingProviderVars(env: Env): ConfigIssue[] {
     ...missingFor(env, 'SECRETS_PROVIDER', env.SECRETS_PROVIDER),
     ...missingFor(env, 'EMAIL_PROVIDER', env.EMAIL_PROVIDER),
     ...missingFor(env, 'BANK_FEED_PROVIDER', env.BANK_FEED_PROVIDER),
+    ...missingFor(env, 'EXTRACTION_PROVIDER', env.EXTRACTION_PROVIDER),
+    ...missingFor(env, 'INBOUND_MAIL_PROVIDER', env.INBOUND_MAIL_PROVIDER),
   ];
 }
 

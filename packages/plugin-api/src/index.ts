@@ -65,7 +65,13 @@ export type { HttpMethod, RouteDefinition } from './routes';
 
 export type {
   BankFeedProvider,
+  DocumentExtractionProvider,
   EmailProvider,
+  ExtractedBill,
+  ExtractedBillLine,
+  InboundEmailAttachment,
+  InboundEmailMessage,
+  InboundMailProvider,
   Providers,
   QueueProvider,
   SecretsProvider,

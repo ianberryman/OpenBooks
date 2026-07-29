@@ -134,3 +134,27 @@ export {
   updateVendorCredit,
   voidVendorCredit,
 } from './vendor-credits.service';
+
+/**
+ * OCR bill capture (initiative O, OB-186/187/188/190; ROADMAP "the pinned OCR
+ * contract"): the staging area between an uploaded or emailed document and a
+ * bill a human has reviewed. `capture/capture.service.ts` carries the full
+ * surface and permission table; `capture/extraction.job.ts` is the event-driven
+ * job both entrypoints (`api.ts`, `worker.ts`) register.
+ */
+export {
+  createCaptureFromInbound,
+  createCaptureFromUpload,
+  createDraftFromCapture,
+  dismissCapture,
+  getBillAttachment,
+  getCapture,
+  listCaptures,
+} from './capture/capture.service';
+
+export type {
+  DocumentExtractionDeps,
+  DocumentExtractionJob,
+  DocumentExtractionJobContext,
+} from './capture/extraction.job';
+export { DOCUMENT_EXTRACTION_QUEUE, registerDocumentExtractionJob } from './capture/extraction.job';

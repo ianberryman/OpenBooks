@@ -23,12 +23,18 @@ import {
   approveBill,
   approveVendorCredit,
   createBill,
+  createCaptureFromUpload,
+  createDraftFromCapture,
   createVendorCredit,
   discardBill,
   discardVendorCredit,
+  dismissCapture,
   getBill,
+  getBillAttachment,
+  getCapture,
   getVendorCredit,
   listBills,
+  listCaptures,
   listVendorCredits,
   updateBill,
   updateVendorCredit,
@@ -187,6 +193,7 @@ import {
  * OB-072 may not touch `src/`.
  */
 import { getAging } from '../../src/modules/reports/aging.service';
+import { getInboundEmailAddress } from '../../src/modules/orgs';
 import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
 import {
   archiveTaxRate,
@@ -1275,6 +1282,77 @@ const OPERATIONS: readonly Operation[] = [
     thenRequires: ['journals.reverse'],
     call: (s) => voidBill(s.voidableBillId, { date: s.date }, s.ctx),
   },
+  /**
+   * Bill capture (initiative O). Every capture operation reuses the AP document
+   * codes — capturing a bill is writing a bill, so no `captures.*` code exists
+   * (the pinned decision). `bills.write` for the writes, `bills.read` for the reads,
+   * with `requirePermission` the first line of each service function, so a non-holder
+   * is refused at the gate before any capture id is loaded (a holder may 404 past it
+   * on the `newUuid()` ids and still read `allowed`, which is the shape every id-based
+   * row above relies on). `getInboundEmailAddress` takes `bills.write` because it
+   * lazily mints the org's inbound token — a genuine first write. The inbound webhook
+   * itself (`receiveInboundBill`) carries no gate and is in `UNGATED_OPERATIONS`.
+   */
+  {
+    name: 'createBillCapture',
+    operationId: 'createBillCapture',
+    permission: 'bills.write',
+    call: (s) =>
+      createCaptureFromUpload(
+        {
+          filename: 'bill.pdf',
+          contentType: 'application/pdf',
+          content: Buffer.from('vendor: Acme', 'utf8').toString('base64'),
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listBillCaptures',
+    operationId: 'listBillCaptures',
+    permission: 'bills.read',
+    call: (s) => listCaptures({}, s.ctx),
+  },
+  {
+    name: 'getBillCapture',
+    operationId: 'getBillCapture',
+    permission: 'bills.read',
+    call: (s) => getCapture(newUuid(), s.ctx),
+  },
+  {
+    name: 'dismissBillCapture',
+    operationId: 'dismissBillCapture',
+    permission: 'bills.write',
+    call: (s) => dismissCapture(newUuid(), s.ctx),
+  },
+  {
+    name: 'createDraftFromBillCapture',
+    operationId: 'createDraftFromBillCapture',
+    permission: 'bills.write',
+    call: (s) =>
+      createDraftFromCapture(
+        newUuid(),
+        {
+          contactId: s.partyId,
+          issueDate: s.date,
+          taxMode: 'exclusive',
+          lines: [apLine(s)],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getBillAttachment',
+    operationId: 'getBillAttachment',
+    permission: 'bills.read',
+    call: (s) => getBillAttachment(newUuid(), newUuid(), s.ctx),
+  },
+  {
+    name: 'getInboundBillEmailAddress',
+    operationId: 'getInboundBillEmailAddress',
+    permission: 'bills.write',
+    call: (s) => getInboundEmailAddress(s.ctx),
+  },
   {
     name: 'createVendorCredit',
     operationId: 'createVendorCredit',
@@ -2058,6 +2136,12 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   // the one sanctioned unauthenticated read on the API. See `public-invoices.ts`.
   'getPublicInvoiceView',
   'getPublicInvoicePdf',
+  // The bill-capture inbound webhook (initiative O, OB-186): the per-org token in
+  // the path is the whole authorization, exactly as the public-invoice pair above —
+  // an unauthenticated push endpoint a mail relay hits, reaching no session and no
+  // role. The captures it creates are attributed to the automation actor under the
+  // org owner (`runAsAutomation`), not to the caller. See `bill-inbound.ts`.
+  'receiveInboundBill',
 ]);
 
 /**

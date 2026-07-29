@@ -8,6 +8,7 @@ import { getAccount } from '../../src/modules/accounts';
 import { reverseJournal } from '../../src/modules/ledger';
 import { OWNER_ROLE_ID, resolveOrgMembership } from '../../src/modules/orgs';
 import { getPeriod } from '../../src/modules/periods';
+import { storageProvider } from '../../src/providers';
 import { generateOpenApiDocument } from '../../src/transport';
 import type { App } from '../../src/transport';
 import type { Session } from '../transport/v1-support';
@@ -117,6 +118,19 @@ interface Scene {
   readonly statementLineId: string;
   readonly clearedStatementLineId: string;
   readonly reconciliationSessionId: string;
+
+  /**
+   * OCR bill capture (initiative O, OB-186…190). Three `document_captures` rows —
+   * one per row that consumes its capture (`dismissBillCapture` to `dismissed`,
+   * `createDraftFromBillCapture` to `drafted`) — so the control pass for one row
+   * cannot leave the next row's capture already reviewed, `discardableDraftId`'s
+   * reason one subsystem over. `billAttachmentId` is on `targetBillId`, the
+   * already-approved bill `getBill` also reads.
+   */
+  readonly billCaptureId: string;
+  readonly dismissibleBillCaptureId: string;
+  readonly draftableBillCaptureId: string;
+  readonly billAttachmentId: string;
 }
 
 /**
@@ -254,6 +268,7 @@ async function scene(app: App): Promise<Scene> {
 
   const subledger = await subledgerScene(app, owner, created, revenueId);
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
+  const captures = await captureScene(owner, subledger.targetBillId);
 
   return {
     owner,
@@ -272,7 +287,73 @@ async function scene(app: App): Promise<Scene> {
     dunningPolicyId,
     ...subledger,
     ...banking,
+    ...captures,
   };
+}
+
+/** Everything `captureScene` contributes: OCR bill capture's half of the scene. */
+type CaptureScene = Pick<
+  Scene,
+  'billAttachmentId' | 'billCaptureId' | 'dismissibleBillCaptureId' | 'draftableBillCaptureId'
+>;
+
+/**
+ * OCR bill capture's fixtures (initiative O, OB-186…190), inserted directly rather
+ * than through `createCaptureFromUpload`: that call enqueues extraction and returns
+ * a row at `extracting`, and the review routes under test here need one already
+ * `extracted` — `bankingScene`'s reason for writing `bank_statement_lines` by hand
+ * applies the same way, one milestone over.
+ */
+async function captureScene(owner: Session, targetBillId: string): Promise<CaptureScene> {
+  const db = harness.db;
+  const orgId = uuidToBuffer(owner.orgId);
+  const userId = uuidToBuffer(owner.userId);
+
+  const extractedCapture = async (label: string): Promise<string> => {
+    const id = newUuid();
+    await db.app
+      .insertInto('document_captures')
+      .values({
+        id: uuidToBuffer(id),
+        org_id: orgId,
+        source: 'upload',
+        status: 'extracted',
+        storage_key: `org/${owner.orgId}/captures/a7-${label}`,
+        filename: `a7-${label}.pdf`,
+        content_type: 'application/pdf',
+        byte_size: 10n,
+        created_by_user_id: userId,
+      })
+      .execute();
+    return id;
+  };
+
+  const billCaptureId = await extractedCapture('get');
+  const dismissibleBillCaptureId = await extractedCapture('dismiss');
+  const draftableBillCaptureId = await extractedCapture('draft');
+
+  // A real attachment on the owner's own approved bill, so `getBillAttachment`'s
+  // control pass streams actual bytes rather than merely resolving the row.
+  // `storageProvider()` is already installed by `useV1App` — the local adapter
+  // every route in this file reaches through.
+  const attachmentKey = `org/${owner.orgId}/attachments/a7-fixture`;
+  await storageProvider().put(attachmentKey, Buffer.from('%PDF-a7-fixture'), 'application/pdf');
+  const billAttachmentId = newUuid();
+  await db.app
+    .insertInto('bill_attachments')
+    .values({
+      id: uuidToBuffer(billAttachmentId),
+      org_id: orgId,
+      ap_document_id: uuidToBuffer(targetBillId),
+      storage_key: attachmentKey,
+      filename: 'a7-fixture.pdf',
+      content_type: 'application/pdf',
+      byte_size: 15n,
+      created_by_user_id: userId,
+    })
+    .execute();
+
+  return { billCaptureId, dismissibleBillCaptureId, draftableBillCaptureId, billAttachmentId };
 }
 
 /** Everything `bankingScene` contributes: M4's half of the scene. */
@@ -693,6 +774,16 @@ interface Surface {
    * that another org's payment does.
    */
   readonly payload?: (id: string, scene: Scene) => Record<string, unknown>;
+  /**
+   * The second `%s` a two-id path needs, resolved to `%o` — only `getBillAttachment`
+   * (`/v1/bills/{billId}/attachments/{attachmentId}`). The id under test is the
+   * attachment; the bill stays the owner's real one in every pass, which still
+   * proves the whole route across orgs: `selectAttachment` scopes both segments by
+   * `org_id` in one query, so a stranger resolves neither regardless of which one
+   * is theirs to probe — the same reasoning `allocate…`'s fixed target gives, one
+   * path segment over rather than one body field.
+   */
+  readonly otherId?: (scene: Scene) => string;
 }
 
 /**
@@ -1393,6 +1484,52 @@ const SURFACES: readonly Surface[] = [
     id: (s) => s.reconciliationSessionId,
     payload: () => ({ reason: 'A cleared line was miscoded and needs correcting.' }),
   },
+
+  // ---------------------------------------------------------------------------
+  // OCR bill capture (initiative O, OB-186…190). `receiveInboundBill`'s `{token}` is
+  // the auth token itself, not a resource id — it is excluded below with
+  // `getPublicInvoiceView`/`getPublicInvoicePdf`'s reasoning, not given a row here.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getBillCapture',
+    method: 'GET',
+    path: '/v1/bills/captures/%s',
+    id: (s) => s.billCaptureId,
+  },
+  {
+    operationId: 'dismissBillCapture',
+    method: 'POST',
+    path: '/v1/bills/captures/%s/dismiss',
+    id: (s) => s.dismissibleBillCaptureId,
+  },
+  {
+    // `contactId` is the owner's real `partyId` in every pass, `allocate…`'s reason:
+    // a stranger's request 404s on the capture id before the body is ever resolved,
+    // so an unresolvable contact in the body would test the wrong thing.
+    operationId: 'createDraftFromBillCapture',
+    method: 'POST',
+    path: '/v1/bills/captures/%s/draft',
+    id: (s) => s.draftableBillCaptureId,
+    payload: (_id, s) => ({
+      contactId: s.partyId,
+      issueDate: DOCUMENT_DATE,
+      dueDate: DOCUMENT_DATE,
+      taxMode: 'exclusive',
+      lines: [
+        { description: 'Paper', quantity: '1', unitAmount: '100000', accountId: s.accountId },
+      ],
+    }),
+  },
+  {
+    // The id under test is the attachment; see `Surface.otherId`'s header for why a
+    // fixed, owner-real bill id still proves the whole route across orgs.
+    operationId: 'getBillAttachment',
+    method: 'GET',
+    path: '/v1/bills/%o/attachments/%s',
+    id: (s) => s.billAttachmentId,
+    otherId: (s) => s.targetBillId,
+  },
 ];
 
 /** What every row must report. Deviations are the leak. */
@@ -1428,9 +1565,14 @@ async function ask(
   key: string,
   built: Scene,
 ): Promise<LightMyRequestResponse> {
+  const path =
+    surface.otherId === undefined
+      ? surface.path.replace('%s', id)
+      : surface.path.replace('%s', id).replace('%o', surface.otherId(built));
+
   return app.inject({
     method: surface.method,
-    url: surface.path.replace('%s', id),
+    url: path,
     // Every write here is idempotency-guarded, and a distinct key per request is
     // required: the same key with a different body is an `idempotency_key_conflict`,
     // which would replace the answer under test with a different one.
@@ -1519,7 +1661,15 @@ describe('A7 across every surface that takes a resource id', () => {
     // or foreign token is already indistinguishable from an unissued one, proven in
     // `test/delivery`. They are excluded here rather than added to `SURFACES` with an
     // org axis they do not have.
-    const tokenGatedPublicOperations = new Set(['getPublicInvoiceView', 'getPublicInvoicePdf']);
+    //
+    // `receiveInboundBill`'s `{token}` is the same shape one milestone over: the org's
+    // inbound-capture mailbox address, resolved by `resolveOrgIdForInboundToken` before
+    // any org context exists, never a resource id inside one.
+    const tokenGatedPublicOperations = new Set([
+      'getPublicInvoiceView',
+      'getPublicInvoicePdf',
+      'receiveInboundBill',
+    ]);
     const templated = Object.entries(document.paths)
       .filter(([path]) => path.includes('{'))
       .flatMap(([, item]) => Object.values(item).map((operation) => operation.operationId))

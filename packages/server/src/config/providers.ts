@@ -47,19 +47,44 @@ export type EmailProviderId = (typeof EMAIL_PROVIDERS)[number];
 export const BANK_FEED_PROVIDERS = ['csv-ofx'] as const;
 export type BankFeedProviderId = (typeof BANK_FEED_PROVIDERS)[number];
 
-/** The five selector variables, keyed by env var name. */
+/**
+ * Document extraction (initiative O, OB-185…191). `deterministic` is the
+ * self-host default and a real, testable parser (`key: value` / `line:` text, see
+ * `providers/extraction/deterministic.ts`) — not a stub, for `log`'s reason above:
+ * a self-host deployment with no LLM budget still needs a working extraction path
+ * for the E2E and for a real operator to exercise. `anthropic` is the hosted
+ * adapter and a documented DEFERRAL: it throws "not implemented" at construction,
+ * exactly like the `sqs` queue adapter, because a live LLM call is not something
+ * the gate can exercise yet.
+ */
+export const DOCUMENT_EXTRACTION_PROVIDERS = ['anthropic', 'deterministic'] as const;
+export type DocumentExtractionProviderId = (typeof DOCUMENT_EXTRACTION_PROVIDERS)[number];
+
+/**
+ * Inbound mail (initiative O, OB-185…191). `dev` parses the JSON webhook body a
+ * local test harness posts, with no signature verification — there is no real
+ * mail receiver in front of a self-host deployment to spoof. `ses-inbound` is the
+ * hosted adapter and a documented DEFERRAL, throwing exactly as `anthropic` does:
+ * real MX records and SES receipt rules are out of scope this wave.
+ */
+export const INBOUND_MAIL_PROVIDERS = ['ses-inbound', 'dev'] as const;
+export type InboundMailProviderId = (typeof INBOUND_MAIL_PROVIDERS)[number];
+
+/** The seven selector variables, keyed by env var name. */
 export interface ProviderSelection {
   readonly QUEUE_PROVIDER: QueueProviderId;
   readonly STORAGE_PROVIDER: StorageProviderId;
   readonly SECRETS_PROVIDER: SecretsProviderId;
   readonly EMAIL_PROVIDER: EmailProviderId;
   readonly BANK_FEED_PROVIDER: BankFeedProviderId;
+  readonly EXTRACTION_PROVIDER: DocumentExtractionProviderId;
+  readonly INBOUND_MAIL_PROVIDER: InboundMailProviderId;
 }
 
 /**
  * The self-host set is the schema default: the distributed artifact is the
  * Compose stack, and a deployment that says nothing about providers is a
- * self-host one. A hosted deploy states all five explicitly in its task
+ * self-host one. A hosted deploy states all seven explicitly in its task
  * definition rather than inheriting them.
  */
 export const SELF_HOST_PROVIDERS: ProviderSelection = {
@@ -68,6 +93,8 @@ export const SELF_HOST_PROVIDERS: ProviderSelection = {
   SECRETS_PROVIDER: 'env',
   EMAIL_PROVIDER: 'log',
   BANK_FEED_PROVIDER: 'csv-ofx',
+  EXTRACTION_PROVIDER: 'deterministic',
+  INBOUND_MAIL_PROVIDER: 'dev',
 };
 
 export const HOSTED_PROVIDERS: ProviderSelection = {
@@ -76,4 +103,6 @@ export const HOSTED_PROVIDERS: ProviderSelection = {
   SECRETS_PROVIDER: 'aws-secrets-manager',
   EMAIL_PROVIDER: 'ses',
   BANK_FEED_PROVIDER: 'csv-ofx',
+  EXTRACTION_PROVIDER: 'anthropic',
+  INBOUND_MAIL_PROVIDER: 'ses-inbound',
 };

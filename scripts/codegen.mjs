@@ -200,6 +200,20 @@ const OVERRIDES = {
     'recurring_invoice_template_lines.quantity_micros': 'bigint',
     'recurring_invoice_template_lines.unit_amount_minor': 'bigint',
     'dunning_stages.late_fee_minor': 'bigint | null',
+
+    // ── Bill capture / OCR (0009_bill_capture) ───────────────────────────────
+    //
+    // The same corrections one more time. `byte_size` is a BIGINT file size (not
+    // money, but the driver returns every BIGINT as a bigint, so the uniform rule
+    // holds — cf. `ar_document_lines.quantity_micros`). `extracted_total_minor` is
+    // nullable money (a capture may not state a total). `extracted_issue_date` is a
+    // calendar DATE and maps to `string` (nullability spelled out, since an override
+    // replaces the whole mapped type). `extraction_json` needs no entry — MySQL JSON
+    // already maps correctly, as `idempotency_keys.response_body` does.
+    'document_captures.byte_size': 'bigint',
+    'document_captures.extracted_total_minor': 'bigint | null',
+    'document_captures.extracted_issue_date': 'string | null',
+    'bill_attachments.byte_size': 'bigint',
   },
 };
 

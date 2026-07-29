@@ -38,6 +38,7 @@ describe('test database harness', () => {
         '0006_banking',
         '0007_invoice_delivery',
         '0008_recurring_dunning',
+        '0009_bill_capture',
         '0999_app_grants',
       ]);
     });

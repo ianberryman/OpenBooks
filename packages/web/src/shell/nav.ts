@@ -40,6 +40,12 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   { to: '/recurring-invoices', label: 'Recurring invoices', permission: 'invoices.read' },
   { to: '/dunning', label: 'Dunning', permission: 'invoices.read' },
   { to: '/purchases', label: 'Purchases', permission: 'bills.read' },
+  // `bills.read`, the same reasoning as the invoicing surfaces above: the capture
+  // review screen reads on `bills.read`; its writes (upload, create-draft) want
+  // `bills.write`, but naming that would hide the link from a caller who can view
+  // the review queue. D-25 — the filter drops links that always fail, not links
+  // whose every action succeeds; the service enforces the write code (initiative O).
+  { to: '/bill-captures', label: 'Bill capture', permission: 'bills.read' },
   /**
    * `payments_received.read`, and the choice is not arbitrary: the screen opens on the
    * payments list, and an *unfiltered* list spans both subledgers, so the service asks for
