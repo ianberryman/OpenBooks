@@ -13,13 +13,15 @@ import { MatchRefusal } from './refusal';
  * that candidate's own Accept, so this dialog owns the one thing the ranked list cannot
  * offer: an account nothing proposed.
  *
- * ## No split, and the reason is in the schema not the screen
+ * ## Deliberately still a single account, not a table of splits
  *
- * A line clears once (`uq_blc_line`) and the clearing API codes a whole line to one thing, so
- * coding one line across several accounts is not expressible against the current contract.
- * This dialog therefore offers one account, not a table of splits — inventing a split the API
- * cannot honour would be a promise the ledger breaks. (Flagged as a server gap in the ticket
- * report rather than faked here.)
+ * A line clears once (`uq_blc_line`), but a clearing may now hold several entries (D-80,
+ * OB-137) — `multi-entry-dialog.tsx`'s `MultiEntryDialog` is where a split across several
+ * accounts, several documents, or an early-pay discount is built. This dialog stays the
+ * one-account fast path on purpose: most corrections are "code the whole line to the right
+ * account", and offering a full entries editor for that common case would be the multi-step
+ * form D-43's "one accepted keystroke" was written against. "Multiple entries" on the row is
+ * the way to the general editor.
  */
 export interface CorrectDialogProps {
   readonly line: BankStatementLine;

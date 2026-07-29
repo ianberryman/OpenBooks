@@ -1082,9 +1082,9 @@ describe('the AP mirror posts the opposite sides (D-106, D-108)', () => {
     expect(
       lines.some((row) => row.account_id.equals(s.discountReceived.id) && row.debit_minor > 0n),
     ).toBe(false);
-    expect(
-      lines.some((row) => row.account_id.equals(s.payable.id) && row.credit_minor > 0n),
-    ).toBe(false);
+    expect(lines.some((row) => row.account_id.equals(s.payable.id) && row.credit_minor > 0n)).toBe(
+      false,
+    );
 
     const allocated = await discountAllocationAmount(
       db.app,

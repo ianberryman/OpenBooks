@@ -401,6 +401,7 @@ function ApplySection({
             available={credit}
             isPending={allocate.isPending}
             emptyMessage="This contact has nothing open on this side, so the credit stays on account."
+            asOfDate={date}
           />
 
           <DateField

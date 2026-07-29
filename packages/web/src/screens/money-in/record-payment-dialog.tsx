@@ -369,6 +369,7 @@ function RecordPaymentForm({
                 available={values.amount ?? '0'}
                 isPending={record.isPending}
                 emptyMessage="This contact has nothing open on this side. The whole payment becomes credit on them."
+                asOfDate={values.date}
               />
               <div>
                 <Button

@@ -39,6 +39,7 @@ export type AgingAmounts = components['schemas']['AgingAmounts'];
 export type AgingLedger = Aging['ledger'];
 export type Contact = components['schemas']['Contact'];
 export type Account = components['schemas']['Account'];
+export type DiscountSuggestion = components['schemas']['DiscountSuggestion'];
 
 const ROOT = 'money-in';
 
@@ -62,6 +63,8 @@ export const moneyInKeys = {
   openDocumentsScope: [ROOT, 'open-documents'] as const,
   contacts: [ROOT, 'contacts'] as const,
   accounts: [ROOT, 'accounts'] as const,
+  discountSuggestion: (targetId: string, asOfDate: string) =>
+    [ROOT, 'discount-suggestion', targetId, asOfDate] as const,
 };
 
 async function invalidateAfterWrite(queryClient: QueryClient): Promise<void> {
@@ -481,6 +484,39 @@ export function useOpenDocuments(
       return documents;
     },
     enabled: contactId !== null,
+  });
+}
+
+/**
+ * The terms-driven discount preview (OB-138), asked for an invoice a receipt is about to
+ * settle — D-81's "the money-in screen remains for receipts not in the feed" surfaced here
+ * as the same suggestion the bank-match workbench offers (OB-140).
+ *
+ * `204` is not an error (`suggestDiscount`'s own contract): it is the ordinary case for a
+ * document with no term, a simple term, or one whose window has passed relative to
+ * `asOfDate`, so it resolves to `null` rather than throwing through `unwrap`, which refuses
+ * a bodiless 2xx on purpose because it cannot otherwise tell that apart from a broken read.
+ *
+ * Read-only here on purpose (see `allocation-editor.tsx`'s own note on the gap this leaves):
+ * confirming a discount has a write path from the bank-match workbench
+ * (`clearBankStatementLine`'s `discount` entry) but none yet for a manual receipt, so this
+ * screen shows the suggestion and stops short of an "apply" that would have nowhere to post.
+ */
+export function useDiscountSuggestion(
+  targetType: 'invoice' | 'bill',
+  targetId: string | null,
+  asOfDate: string,
+): UseQueryResult<DiscountSuggestion | null, Error> {
+  return useQuery({
+    queryKey: moneyInKeys.discountSuggestion(targetId ?? '', asOfDate),
+    queryFn: async (): Promise<DiscountSuggestion | null> => {
+      const result = await api.GET('/v1/payment-terms/discount-suggestion', {
+        params: { query: { targetType, targetId: targetId ?? '', asOfDate } },
+      });
+      if (result.response.status === 204) return null;
+      return unwrap(result);
+    },
+    enabled: targetId !== null,
   });
 }
 

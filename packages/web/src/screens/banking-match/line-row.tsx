@@ -43,6 +43,7 @@ export interface LineRowProps {
   readonly onFocus: () => void;
   readonly onAccept: (proposal: BankMatchProposal) => void;
   readonly onCorrect: () => void;
+  readonly onSplit: () => void;
   readonly onDefer: () => void;
 }
 
@@ -56,6 +57,7 @@ export function LineRow({
   onFocus,
   onAccept,
   onCorrect,
+  onSplit,
   onDefer,
 }: LineRowProps): ReactElement {
   const negative = isNegative(line.amount);
@@ -134,6 +136,9 @@ export function LineRow({
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={onCorrect}>
           Correct
+        </Button>
+        <Button size="sm" variant="secondary" onClick={onSplit}>
+          Multiple entries
         </Button>
         <Button size="sm" variant="ghost" onClick={onDefer}>
           Defer

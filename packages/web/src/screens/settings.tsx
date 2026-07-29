@@ -2,12 +2,15 @@ import type { ReactElement } from 'react';
 
 import { BrandingSection } from './settings/branding';
 import { DimensionsSection } from './settings/dimensions';
+import { DiscountAccountsSection } from './settings/discount-accounts';
 import { MembersSection } from './settings/members';
+import { PaymentTermsSection } from './settings/payment-terms';
 import { FiscalPeriodsSection } from './settings/periods';
 
 /**
- * Organization settings (OB-050, OB-131): the accounting calendar, the reporting axes,
- * the people, and the letterhead invoices are sent under.
+ * Organization settings (OB-050, OB-131, OB-140): the accounting calendar, the reporting
+ * axes, the people, the letterhead invoices are sent under, the payment-terms catalog
+ * (D-79), and the early-pay discount account nominations (D-106, D-107).
  *
  * ## Why the sections are stacked and not tabbed
  *
@@ -29,7 +32,8 @@ export function SettingsScreen(): ReactElement {
         <h1 className="text-xl font-semibold text-text">Settings</h1>
         <p className="max-w-prose text-sm text-text-muted">
           The calendar the books are closed over, the axes reports are sliced by, who may act in
-          this organization, and the letterhead its invoices are printed under.
+          this organization, the letterhead its invoices are printed under, the payment terms its
+          documents default to, and where an early-pay discount posts.
         </p>
       </div>
 
@@ -37,6 +41,8 @@ export function SettingsScreen(): ReactElement {
       <DimensionsSection />
       <MembersSection />
       <BrandingSection />
+      <PaymentTermsSection />
+      <DiscountAccountsSection />
     </div>
   );
 }

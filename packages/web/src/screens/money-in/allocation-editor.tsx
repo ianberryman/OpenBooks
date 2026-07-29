@@ -1,9 +1,14 @@
 import type { ReactElement } from 'react';
 
-import { Button, ErrorBanner, MoneyInput } from '../../components';
+import { Button, ErrorBanner, MoneyInput, formatMinorUnits } from '../../components';
 import { Amount, exceeds, isZeroAmount, subtractMinorUnits, sumMinorUnits } from './amounts';
 import type { OpenDocument } from './queries';
-import { DOCUMENT_OVER_ALLOCATED, SOURCE_OVER_ALLOCATED, preconditionToken } from './queries';
+import {
+  DOCUMENT_OVER_ALLOCATED,
+  SOURCE_OVER_ALLOCATED,
+  preconditionToken,
+  useDiscountSuggestion,
+} from './queries';
 
 /**
  * Choosing what a payment settles, and how much of it (OB-070; ROADMAP D-37, D-39).
@@ -96,6 +101,13 @@ export interface AllocationEditorProps {
   readonly available: string;
   readonly isPending: boolean;
   readonly emptyMessage: string;
+  /**
+   * The date the early-pay discount window (D-79) is evaluated against — "if this were
+   * settled today". The date this payment moved, not the day someone gets round to
+   * applying it, so a receipt entered late still sees the discount it was actually
+   * eligible for on arrival.
+   */
+  readonly asOfDate: string;
 }
 
 export function AllocationEditor({
@@ -105,6 +117,7 @@ export function AllocationEditor({
   available,
   isPending,
   emptyMessage,
+  asOfDate,
 }: AllocationEditorProps): ReactElement {
   const applied = draftedTotal(drafts);
   const remainder = subtractMinorUnits(available, applied);
@@ -174,6 +187,9 @@ export function AllocationEditor({
                       refuses an over-allocated document; over-paying is fine and lands as credit.
                     </p>
                   )}
+                  {document.targetType === 'invoice' && (
+                    <DiscountHint targetId={document.id} asOfDate={asOfDate} />
+                  )}
                 </td>
               </tr>
             );
@@ -183,6 +199,48 @@ export function AllocationEditor({
 
       <AllocationFooter applied={applied} available={available} remainder={remainder} />
     </div>
+  );
+}
+
+/**
+ * The terms-driven discount suggestion (OB-138; ROADMAP D-79, D-81, D-108), surfaced for
+ * an invoice the way `multi-entry-dialog.tsx` surfaces it on the bank-match workbench —
+ * "the money-in screen remains for receipts not in the feed" is D-81's own words for why
+ * this screen needs the same suggestion the workbench does.
+ *
+ * ## Informational only, and the reason is a real gap rather than a design choice
+ *
+ * Confirming a discount is a `discount`-kind allocation funded by its own posted journal
+ * (D-106) — a write `clearBankStatementLine`'s `discount` entry performs for a line in the
+ * feed. Nothing in this API records that same write for a *manual* receipt yet
+ * (`modules/banking/clearing` is, today, the one caller of `AllocationSource`'s `'discount'`
+ * kind). So this hint states the suggestion — the amount, and the deadline to take it by —
+ * and stops there rather than offering an "Apply discount" button with nowhere to post: a
+ * control that looked actionable and silently did nothing would be worse than no control at
+ * all. Confirming one here is a follow-up once a manual-receipt discount route exists.
+ *
+ * A `204` (no term, a simple term, or the window has passed) renders nothing, which is the
+ * ordinary case and not a failure — most invoices are not mid-discount-window.
+ */
+function DiscountHint({
+  targetId,
+  asOfDate,
+}: {
+  readonly targetId: string;
+  readonly asOfDate: string;
+}): ReactElement | null {
+  const suggestion = useDiscountSuggestion('invoice', targetId, asOfDate);
+
+  if (suggestion.data === null || suggestion.data === undefined) return null;
+
+  return (
+    <p className="pt-1 text-right text-xs text-accent">
+      Eligible for an early-pay discount of{' '}
+      <span className="font-mono tabular-nums">
+        {formatMinorUnits(suggestion.data.discountAmountMinor)}
+      </span>{' '}
+      if settled by {suggestion.data.deadline}.
+    </p>
   );
 }
 

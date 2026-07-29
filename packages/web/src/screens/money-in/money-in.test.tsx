@@ -313,6 +313,69 @@ describe('MoneyInScreen — payments', () => {
   });
 
   /**
+   * The early-pay discount suggestion (OB-138; ROADMAP D-79, D-81), surfaced beside an
+   * eligible invoice the way `multi-entry-dialog.tsx` surfaces it on the bank-match
+   * workbench — "the money-in screen remains for receipts not in the feed" is D-81's own
+   * words for why this screen needs the same suggestion. Read-only here: `allocation-
+   * editor.tsx`'s own note explains the gap this stops short of — there is no write path
+   * yet to confirm a discount on a manual receipt, only on a bank-match clearing entry.
+   */
+  it('shows an early-pay discount suggestion next to an eligible invoice', async () => {
+    const user = userEvent.setup();
+    const existing = payment();
+
+    stubDirectories();
+    stub('GET', '/v1/payments', () =>
+      json(200, { items: [summaryOf(existing)], nextCursor: null }),
+    );
+    stub('GET', `/v1/payments/${PAYMENT}`, () => json(200, existing));
+    stub('GET', '/v1/invoices', (_request, url) =>
+      json(200, {
+        items:
+          url.searchParams.get('status') === 'approved'
+            ? [
+                {
+                  id: INVOICE,
+                  contactId: ACME,
+                  documentNumber: 'INV-1004',
+                  reference: null,
+                  issueDate: '2026-02-01',
+                  dueDate: '2026-03-03',
+                  status: 'approved',
+                  totals: { subtotal: '50000', tax: '0', total: '50000', taxSummary: [] },
+                  settlement: { allocated: '0', outstanding: '50000' },
+                  createdAt: '2026-02-01T09:00:00.000Z',
+                  updatedAt: '2026-02-01T09:00:00.000Z',
+                },
+              ]
+            : [],
+        nextCursor: null,
+      }),
+    );
+    stub('GET', '/v1/payment-terms/discount-suggestion', () =>
+      json(200, {
+        targetId: INVOICE,
+        discountAmountMinor: '1000',
+        deadline: '2026-03-08',
+        accountId: '99999999-9999-4999-8999-999999999999',
+      }),
+    );
+
+    renderScreen();
+    await user.click(
+      await screen.findByRole('button', { name: 'Open the 2026-03-02 payment for Acme Supplies' }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Apply this credit' }));
+
+    const hint = await screen.findByText(/Eligible for an early-pay discount/);
+    expect(hint).toHaveTextContent('10.00');
+    expect(hint).toHaveTextContent('2026-03-08');
+
+    // Informational only: nothing on this row claims to apply it.
+    expect(screen.queryByRole('button', { name: /discount/i })).toBeNull();
+  });
+
+  /**
    * Presence of `nextCursor` is the only signal that another page exists — a full page does
    * not imply one — and the cursor goes back verbatim (D-21).
    */

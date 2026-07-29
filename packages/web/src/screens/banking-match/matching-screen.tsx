@@ -13,6 +13,7 @@ import {
 import { cx } from '../../lib/cx';
 import { CorrectDialog } from './correct-dialog';
 import { LineRow } from './line-row';
+import { MultiEntryDialog } from './multi-entry-dialog';
 import {
   postEntryToAccount,
   proposalToClearRequest,
@@ -23,7 +24,7 @@ import {
   useStatementLines,
   useUndoClearing,
 } from './queries';
-import type { BankMatchProposal, BankStatementLine } from './queries';
+import type { BankMatchProposal, BankStatementLine, ClearRequest } from './queries';
 import { MatchRefusal } from './refusal';
 import { UndoDialog } from './undo-dialog';
 
@@ -33,8 +34,10 @@ import { UndoDialog } from './undo-dialog';
  * A business picks a bank account and works down its uncleared statement lines. Each line
  * shows the bank's own facts and the ranked proposals the server returned, best first, each
  * with the reasons behind it. For each line the user can **accept** the top proposal (or a
- * chosen one), **correct** it to an account nothing proposed, **defer** it (leave it
- * uncleared for now), or — once cleared — **undo**.
+ * chosen one), **correct** it to an account nothing proposed, open **multiple entries**
+ * (settle several documents, split across accounts, or add an early-pay discount — OB-140,
+ * `multi-entry-dialog.tsx`), **defer** it (leave it uncleared for now), or — once cleared —
+ * **undo**.
  *
  * ## Matching proposes; a human posts (E3)
  *
@@ -164,6 +167,8 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [correctFor, setCorrectFor] = useState<BankStatementLine | null>(null);
   const [correctError, setCorrectError] = useState<unknown>(null);
+  const [splitFor, setSplitFor] = useState<BankStatementLine | null>(null);
+  const [splitError, setSplitError] = useState<unknown>(null);
   const [actionError, setActionError] = useState<ActionError | null>(null);
 
   const allLines = useMemo(
@@ -238,6 +243,22 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
       );
     },
     [clear, correctFor],
+  );
+
+  const submitSplit = useCallback(
+    (body: ClearRequest): void => {
+      if (splitFor === null) return;
+      const line = splitFor;
+      setSplitError(null);
+      clear.mutate(
+        { lineId: line.id, body, idempotencyKey: newIdempotencyKey() },
+        {
+          onSuccess: () => setSplitFor(null),
+          onError: (error) => setSplitError(error),
+        },
+      );
+    },
+    [clear, splitFor],
   );
 
   const onKeyDown = useCallback(
@@ -350,6 +371,10 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
               setCorrectError(null);
               setCorrectFor(line);
             }}
+            onSplit={() => {
+              setSplitError(null);
+              setSplitFor(line);
+            }}
             onDefer={() => defer(line.id)}
           />
         ))}
@@ -407,6 +432,29 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
               error={correctError}
               onSubmit={submitCorrection}
               onClose={() => setCorrectFor(null)}
+            />
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={splitFor !== null}
+        onOpenChange={(next) => {
+          if (!next) setSplitFor(null);
+        }}
+      >
+        {splitFor !== null && (
+          <DialogContent
+            title="Multiple entries"
+            description="Settle several documents, split across accounts, or add an early-pay discount — the entries must add up to the line."
+          >
+            <MultiEntryDialog
+              line={splitFor}
+              accounts={accounts}
+              pending={clear.isPending}
+              error={splitError}
+              onSubmit={submitSplit}
+              onClose={() => setSplitFor(null)}
             />
           </DialogContent>
         )}
@@ -533,9 +581,10 @@ const CLEARING_METHOD_LABEL: Readonly<Record<string, string>> = {
 
 /**
  * A clearing is now one or more entries (D-80); this row summarises rather than
- * enumerating them, since the multi-entry editor is OB-140's. A single entry keeps
- * its old one-word summary; more than one just says how many, which is enough
- * until that screen exists.
+ * enumerating them. A single entry keeps its old one-word summary; more than one just says
+ * how many, which is enough for the matched list — the entries themselves were built, and
+ * can be reviewed, in `MultiEntryDialog` (OB-140) before the clear was accepted, not after it
+ * on this read-only row.
  */
 function clearingSummary(entries: readonly { readonly entryType: string }[]): string {
   const [only] = entries;

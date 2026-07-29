@@ -33,6 +33,8 @@ export type BankMatchReason = components['schemas']['BankMatchReason'];
 export type ProposalKind = BankMatchProposal['kind'];
 export type ClearRequest = components['schemas']['ClearBankStatementLineRequestInput'];
 export type Account = components['schemas']['Account'];
+export type Contact = components['schemas']['Contact'];
+export type DiscountSuggestion = components['schemas']['DiscountSuggestion'];
 
 const ROOT = 'banking-match';
 
@@ -45,11 +47,16 @@ const ROOT = 'banking-match';
 export const matchKeys = {
   bankAccounts: [ROOT, 'bank-accounts'] as const,
   accounts: [ROOT, 'accounts'] as const,
+  contacts: [ROOT, 'contacts'] as const,
   lines: (bankAccountId: string, cleared: boolean) =>
     [ROOT, 'lines', bankAccountId, cleared] as const,
   linesScope: [ROOT, 'lines'] as const,
   proposals: (lineIds: readonly string[]) => [ROOT, 'proposals', lineIds] as const,
   proposalsScope: [ROOT, 'proposals'] as const,
+  openDocuments: (targetType: 'invoice' | 'bill', contactId: string) =>
+    [ROOT, 'open-documents', targetType, contactId] as const,
+  discountSuggestion: (targetType: 'invoice' | 'bill', targetId: string, asOfDate: string) =>
+    [ROOT, 'discount-suggestion', targetType, targetId, asOfDate] as const,
 };
 
 async function invalidateAfterClear(queryClient: QueryClient): Promise<void> {
@@ -132,6 +139,128 @@ export function useAccountOptions(): readonly Account[] {
   });
 
   return query.data ?? [];
+}
+
+/**
+ * Every contact, active only — the picker an `allocate_document`/`discount` entry uses to
+ * narrow "which document" down from every open one to one contact's (OB-140). Mirrors
+ * `money-in/queries.ts`'s own `useContactOptions` for the reason `useAccountOptions`
+ * already gives for a second small copy: no screen folder imports another's.
+ */
+export function useContactOptions(): readonly Contact[] {
+  const query = useQuery({
+    queryKey: matchKeys.contacts,
+    queryFn: async (): Promise<readonly Contact[]> => {
+      const items: Contact[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const page = unwrap(
+          await api.GET('/v1/contacts', {
+            params: {
+              query: {
+                isActive: 'true',
+                limit: PICKER_PAGE_LIMIT,
+                ...(cursor === undefined ? {} : { cursor }),
+              },
+            },
+          }),
+        );
+        items.push(...page.items);
+        if (page.nextCursor === null) return items;
+        cursor = page.nextCursor;
+      }
+    },
+  });
+
+  return query.data ?? [];
+}
+
+/**
+ * A document an `allocate_document`/`discount` entry can settle: the number and what is
+ * still owed. `money-in/queries.ts`'s `OpenDocument`/`useOpenDocuments`, generalised from a
+ * payment's `direction` to the `targetType` a line's own sign already fixes
+ * (`naturalTargetType` in `entries.ts`) — a bank line has no `direction` field of its own,
+ * only the sign the target type is derived from.
+ */
+export interface OpenDocument {
+  readonly id: string;
+  readonly number: string;
+  readonly dueDate: string;
+  readonly outstanding: string;
+}
+
+const SETTLEABLE_STATUSES = ['approved', 'part_paid'] as const;
+
+export function useOpenDocuments(
+  targetType: 'invoice' | 'bill',
+  contactId: string | null,
+): UseQueryResult<readonly OpenDocument[], Error> {
+  return useQuery({
+    queryKey: matchKeys.openDocuments(targetType, contactId ?? ''),
+    queryFn: async (): Promise<readonly OpenDocument[]> => {
+      const documents: OpenDocument[] = [];
+
+      for (const status of SETTLEABLE_STATUSES) {
+        let cursor: string | undefined;
+        for (;;) {
+          const query = {
+            contactId: contactId ?? '',
+            status,
+            limit: PICKER_PAGE_LIMIT,
+            ...(cursor === undefined ? {} : { cursor }),
+          };
+          const page =
+            targetType === 'invoice'
+              ? unwrap(await api.GET('/v1/invoices', { params: { query } }))
+              : unwrap(await api.GET('/v1/bills', { params: { query } }));
+
+          for (const item of page.items) {
+            documents.push({
+              id: item.id,
+              number: item.documentNumber ?? '—',
+              dueDate: item.dueDate,
+              outstanding: item.settlement.outstanding,
+            });
+          }
+
+          if (page.nextCursor === null) break;
+          cursor = page.nextCursor;
+        }
+      }
+
+      return documents;
+    },
+    enabled: contactId !== null,
+  });
+}
+
+/**
+ * The terms-driven discount preview (OB-138), asked once a document is chosen for an
+ * `allocate_document` entry — the affordance this screen offers rather than auto-adds
+ * (D-43): a suggestion the operator may turn into its own `discount` entry with one click.
+ *
+ * `204` is not an error (`suggestDiscount`'s own contract) — it is the ordinary case for a
+ * document with no term, a simple term, or one whose window has passed relative to the
+ * line's posted date, so it resolves to `null` rather than throwing through `unwrap`,
+ * which refuses a bodiless 2xx on purpose (`src/api/errors.ts`) because it cannot tell that
+ * apart from a broken read on any *other* route.
+ */
+export function useDiscountSuggestion(
+  targetType: 'invoice' | 'bill',
+  targetId: string | null,
+  asOfDate: string,
+): UseQueryResult<DiscountSuggestion | null, Error> {
+  return useQuery({
+    queryKey: matchKeys.discountSuggestion(targetType, targetId ?? '', asOfDate),
+    queryFn: async (): Promise<DiscountSuggestion | null> => {
+      const result = await api.GET('/v1/payment-terms/discount-suggestion', {
+        params: { query: { targetType, targetId: targetId ?? '', asOfDate } },
+      });
+      if (result.response.status === 204) return null;
+      return unwrap(result);
+    },
+    enabled: targetId !== null,
+  });
 }
 
 const LINE_PAGE_LIMIT = 200;
@@ -305,8 +434,9 @@ export function useUndoClearing(): UseMutationResult<
  * dimensions the rule or history suggested), `link_entry` the journal,
  * `allocate_document` the invoice or bill. Wrapped in a single-element `entries`
  * array — Cash application generalised the clear to an array (D-80), and nothing
- * here builds more than one entry: the add/remove-entries editor that would let an
- * operator split a line is OB-140's, not this screen's yet.
+ * here builds more than one entry: this is the one-click fast path for the top-ranked
+ * proposal, and `multi-entry-dialog.tsx`'s `MultiEntryDialog` (OB-140) is the general
+ * add/remove-entries editor a lockbox or a split-code line reaches for instead.
  */
 export function proposalToClearRequest(proposal: BankMatchProposal): ClearRequest {
   switch (proposal.kind) {

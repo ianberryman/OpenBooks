@@ -437,3 +437,250 @@ describe('MatchingScreen', () => {
     expect(refusal).toHaveTextContent('closed accounting period');
   });
 });
+
+/**
+ * The multi-entry editor (OB-140; ROADMAP I2, I3, I4, I7, D-80, D-81, D-106).
+ *
+ * Two things are worth proving here and nowhere else in this file: several `allocate_document`
+ * entries against different contacts plus a `post_entry`, all in one clear, balancing to the
+ * line (lockbox, I3, and split-coding, I7, are the same mechanism); and a discount suggestion
+ * turning into its own entry with one click, never on its own (D-43).
+ */
+describe('MatchingScreen — multi-entry clearing', () => {
+  function contactRecord(id: string, code: string, displayName: string): unknown {
+    return {
+      id,
+      code,
+      displayName,
+      legalName: null,
+      email: null,
+      phone: null,
+      isCustomer: true,
+      isVendor: false,
+      notes: null,
+      isActive: true,
+      createdAt: '2026-01-05T09:00:00.000Z',
+      updatedAt: '2026-01-05T09:00:00.000Z',
+    };
+  }
+
+  function invoiceRecord(
+    id: string,
+    contactId: string,
+    documentNumber: string,
+    outstanding: string,
+  ): unknown {
+    return {
+      id,
+      contactId,
+      documentNumber,
+      reference: null,
+      issueDate: '2026-02-01',
+      dueDate: '2026-03-15',
+      status: 'approved',
+      totals: { subtotal: outstanding, tax: '0', total: outstanding, taxSummary: [] },
+      settlement: { allocated: '0', outstanding },
+      createdAt: '2026-02-01T09:00:00.000Z',
+      updatedAt: '2026-02-01T09:00:00.000Z',
+    };
+  }
+
+  function stubContacts(contacts: readonly unknown[]): void {
+    stub('GET', '/v1/contacts', () => json(200, { items: contacts, nextCursor: null }));
+  }
+
+  function stubInvoicesByContact(byContact: Readonly<Record<string, readonly unknown[]>>): void {
+    stub('GET', '/v1/invoices', (_request, url) => {
+      const status = url.searchParams.get('status');
+      if (status !== 'approved') return json(200, { items: [], nextCursor: null });
+      const contactId = url.searchParams.get('contactId') ?? '';
+      return json(200, { items: byContact[contactId] ?? [], nextCursor: null });
+    });
+  }
+
+  function stubNoDiscountSuggestion(): void {
+    stub('GET', '/v1/payment-terms/discount-suggestion', () => new Response(null, { status: 204 }));
+  }
+
+  function stubDiscountSuggestion(body: unknown): void {
+    stub('GET', '/v1/payment-terms/discount-suggestion', () => json(200, body));
+  }
+
+  const LOCKBOX_LINE = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const BETA = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  const INVOICE_A = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const INVOICE_B = '10101010-1010-4101-8101-101010101010';
+  const DISCOUNT_ACCOUNT = '20202020-2020-4202-8202-202020202020';
+
+  /**
+   * Lockbox (I3) and split-coding (I7) are one mechanism: two `allocate_document` entries
+   * against two different contacts' invoices, plus a `post_entry` for a bank charge folded
+   * into the same deposit — three entries, one clear, summing exactly to the line (E4).
+   */
+  it('builds a 3-entry clear across two contacts and an account, balancing to the line', async () => {
+    const user = userEvent.setup();
+
+    stubDirectories();
+    stubUncleared([
+      line({
+        id: LOCKBOX_LINE,
+        amount: '50000',
+        description: 'LOCKBOX DEPOSIT',
+        postedDate: '2026-03-05',
+      }),
+    ]);
+    stubProposals();
+    stubContacts([
+      contactRecord(CONTACT, 'C-100', 'Acme Supplies'),
+      contactRecord(BETA, 'C-200', 'Beta Traders'),
+    ]);
+    stubInvoicesByContact({
+      [CONTACT]: [invoiceRecord(INVOICE_A, CONTACT, 'INV-3001', '20000')],
+      [BETA]: [invoiceRecord(INVOICE_B, BETA, 'INV-3002', '25000')],
+    });
+    stubNoDiscountSuggestion();
+    stub('POST', `/v1/statement-lines/${LOCKBOX_LINE}/clearing`, () =>
+      json(201, clearing(LOCKBOX_LINE, 'allocate_document')),
+    );
+
+    renderScreen();
+    await pickBankAccount(user);
+    await screen.findByText('LOCKBOX DEPOSIT');
+
+    const lineGroup = screen.getByRole('group', { name: /LOCKBOX DEPOSIT/ });
+    await user.click(within(lineGroup).getByRole('button', { name: 'Multiple entries' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Multiple entries' });
+
+    // Entry 1: settle Acme's invoice — the amount fills in from what it has outstanding.
+    const entry1 = within(dialog).getByRole('group', { name: 'Entry 1: Settle a document' });
+    await user.click(within(entry1).getByRole('combobox', { name: 'Contact' }));
+    await user.click(await screen.findByRole('option', { name: /Acme Supplies/ }));
+    await user.click(within(entry1).getByRole('combobox', { name: 'Invoice' }));
+    await user.click(await screen.findByRole('option', { name: /INV-3001/ }));
+
+    // Entry 2: add a second target — a different contact's invoice (the lockbox, I3).
+    await user.click(within(dialog).getByRole('button', { name: 'Add: settle a document' }));
+    const entry2 = within(dialog).getByRole('group', { name: 'Entry 2: Settle a document' });
+    await user.click(within(entry2).getByRole('combobox', { name: 'Contact' }));
+    await user.click(await screen.findByRole('option', { name: /Beta Traders/ }));
+    await user.click(within(entry2).getByRole('combobox', { name: 'Invoice' }));
+    await user.click(await screen.findByRole('option', { name: /INV-3002/ }));
+
+    // Entry 3: the remaining 50.00 coded to an account — the split-coding case (I7).
+    await user.click(within(dialog).getByRole('button', { name: 'Add: code to an account' }));
+    const entry3 = within(dialog).getByRole('group', { name: 'Entry 3: Code to an account' });
+    await user.click(within(entry3).getByRole('combobox', { name: 'Account' }));
+    await user.click(await screen.findByRole('option', { name: /Bank charges/ }));
+    await user.type(within(entry3).getByRole('textbox', { name: 'Amount' }), '50');
+
+    expect(await within(dialog).findByText(/Balanced/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Clear line' }));
+
+    const [posted] = requestsTo('POST', `/v1/statement-lines/${LOCKBOX_LINE}/clearing`);
+    expect(posted).toBeDefined();
+    expect(await posted?.clone().json()).toEqual({
+      entries: [
+        {
+          method: 'allocate_document',
+          targetId: INVOICE_A,
+          targetType: 'invoice',
+          amount: '20000',
+        },
+        {
+          method: 'allocate_document',
+          targetId: INVOICE_B,
+          targetType: 'invoice',
+          amount: '25000',
+        },
+        { method: 'post_entry', accountId: FEES, amount: '5000' },
+      ],
+    });
+  });
+
+  /**
+   * The discount suggestion (OB-138) is offered, never added on its own (D-43): it appears
+   * once a document is named, and "Add suggested discount" is the one click that turns it
+   * into a real `discount` entry — excluded from the balance sum (D-106), so the clear still
+   * reaches zero with the cash entry alone.
+   */
+  it('adds a suggested early-pay discount as its own entry, never on its own', async () => {
+    const user = userEvent.setup();
+
+    stubDirectories();
+    stubUncleared([
+      line({
+        id: LOCKBOX_LINE,
+        amount: '47000',
+        description: 'LOCKBOX DEPOSIT',
+        postedDate: '2026-03-05',
+      }),
+    ]);
+    stubProposals();
+    stubContacts([contactRecord(CONTACT, 'C-100', 'Acme Supplies')]);
+    stubInvoicesByContact({
+      [CONTACT]: [invoiceRecord(INVOICE_A, CONTACT, 'INV-3001', '47000')],
+    });
+    stubDiscountSuggestion({
+      targetId: INVOICE_A,
+      discountAmountMinor: '3000',
+      deadline: '2026-03-10',
+      accountId: DISCOUNT_ACCOUNT,
+    });
+    stub('POST', `/v1/statement-lines/${LOCKBOX_LINE}/clearing`, () =>
+      json(201, clearing(LOCKBOX_LINE, 'discount')),
+    );
+
+    renderScreen();
+    await pickBankAccount(user);
+    await screen.findByText('LOCKBOX DEPOSIT');
+
+    const lineGroup = screen.getByRole('group', { name: /LOCKBOX DEPOSIT/ });
+    await user.click(within(lineGroup).getByRole('button', { name: 'Multiple entries' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Multiple entries' });
+    const entry1 = within(dialog).getByRole('group', { name: 'Entry 1: Settle a document' });
+    await user.click(within(entry1).getByRole('combobox', { name: 'Contact' }));
+    await user.click(await screen.findByRole('option', { name: /Acme Supplies/ }));
+    await user.click(within(entry1).getByRole('combobox', { name: 'Invoice' }));
+    await user.click(await screen.findByRole('option', { name: /INV-3001/ }));
+
+    // Never auto-added: the suggestion is offered, not applied, until this click.
+    const hint = await within(dialog).findByText(/Eligible for an early-pay discount/);
+    expect(hint).toHaveTextContent('30.00');
+    expect(hint).toHaveTextContent('2026-03-10');
+    expect(await within(dialog).findByText(/Balanced/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Add suggested discount' }));
+
+    // A second entry now exists — the discount — and the clear is still balanced: it is
+    // excluded from the sum the line must add up to (D-106).
+    expect(
+      within(dialog).getByRole('group', { name: 'Entry 2: Early-pay discount' }),
+    ).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Balanced/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Clear line' }));
+
+    const [posted] = requestsTo('POST', `/v1/statement-lines/${LOCKBOX_LINE}/clearing`);
+    expect(posted).toBeDefined();
+    expect(await posted?.clone().json()).toEqual({
+      entries: [
+        {
+          method: 'allocate_document',
+          targetId: INVOICE_A,
+          targetType: 'invoice',
+          amount: '47000',
+        },
+        {
+          method: 'discount',
+          accountId: DISCOUNT_ACCOUNT,
+          amount: '3000',
+          targetId: INVOICE_A,
+          targetType: 'invoice',
+        },
+      ],
+    });
+  });
+});
