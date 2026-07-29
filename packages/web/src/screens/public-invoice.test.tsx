@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,18 +8,21 @@ import { createQueryClient } from '../query/client';
 import { PublicInvoiceScreen } from './public-invoice';
 
 /**
- * The hosted invoice page (OB-131, Phase 1, S4).
+ * The hosted invoice page (OB-131, Phase 1, S4; the "Pay now" button is OB-150/OB-151).
  *
- * Three things worth a test: it renders a fixture that matches
+ * Five things worth a test: it renders a fixture that matches
  * `publicInvoiceViewSchema`'s shape without needing a session (no `/v1/auth/me` call is
  * made — asserted directly, not inferred), a broken or expired token reads as "not
  * available" rather than a raw error, and the PDF link and the branding accent both come
- * through from the response rather than being computed here.
+ * through from the response rather than being computed here. The last two are the pay
+ * button's own contract: `payable: false` renders nothing extra, and `payable: true`
+ * renders a control that posts to the pay-link route and sends the whole tab to whatever
+ * URL comes back — never a page this app renders itself (D-83).
  *
- * `fetchPublicInvoiceView` goes through `../lib/thin-client.ts`, so the network is
- * stubbed at plain `globalThis.fetch`, the same boundary the sales and settings tests
- * stub at, and nothing above it — the component, the query hook and `formatMinorUnits`
- * are all the real ones.
+ * `fetchPublicInvoiceView` and the pay-link POST both go through `../lib/thin-client.ts`,
+ * so the network is stubbed at plain `globalThis.fetch`, the same boundary the sales and
+ * settings tests stub at, and nothing above it — the component, the query/mutation hooks
+ * and `formatMinorUnits` are all the real ones.
  */
 vi.mock('../env', () => ({ API_BASE_URL: 'http://openbooks.test' }));
 
@@ -55,6 +59,7 @@ const VIEW = {
     invoiceFooter: 'Pay within 30 days.',
   },
   pdfUrl: 'https://openbooks.test/public/invoices/abc123.def456/pdf',
+  payable: false,
 };
 
 function renderAt(path: string, fetchMock: ReturnType<typeof vi.fn>): void {
@@ -132,5 +137,89 @@ describe('the public invoice page', () => {
         screen.getByText(/no longer valid, or the invoice could not be found/i),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe('the "Pay now" button (OB-150/OB-151)', () => {
+  const originalLocation = window.location;
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+  });
+
+  function stubLocation(): { href: string } {
+    // Replaced wholesale rather than assigning `window.location.href` directly: jsdom's
+    // real `Location` attempts an actual navigation on that assignment and logs a
+    // "not implemented" error for every test in this block. A plain object with the one
+    // property this button ever touches lets the redirect assertion below be a value
+    // check rather than a console-noise tolerance.
+    const stub = { href: '' };
+    Object.defineProperty(window, 'location', { configurable: true, value: stub });
+    return stub;
+  }
+
+  it('renders nothing extra when the view is not payable', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(json(200, { ...VIEW, payable: false })));
+    renderAt('/i/abc123.def456', fetchMock);
+
+    await screen.findByText('Invoice INV-0042');
+    expect(screen.queryByRole('button', { name: 'Pay now' })).not.toBeInTheDocument();
+    // The download link is unaffected either way.
+    expect(screen.getByRole('link', { name: 'Download PDF' })).toBeInTheDocument();
+  });
+
+  it('posts to the pay-link route and sends the browser to the returned URL when payable', async () => {
+    const location = stubLocation();
+    const CHECKOUT_URL = 'https://checkout.example.test/session/abc';
+    const calls: string[] = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+      );
+      calls.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+      if (url.pathname === '/public/invoices/abc123.def456/pay-link') {
+        return Promise.resolve(json(200, { url: CHECKOUT_URL }));
+      }
+      return Promise.resolve(json(200, { ...VIEW, payable: true }));
+    });
+    renderAt('/i/abc123.def456', fetchMock);
+
+    const user = userEvent.setup();
+    const payButton = await screen.findByRole('button', { name: 'Pay now' });
+    await user.click(payButton);
+
+    await waitFor(() => {
+      expect(location.href).toBe(CHECKOUT_URL);
+    });
+    expect(calls).toContain('POST /public/invoices/abc123.def456/pay-link');
+  });
+
+  it('shows the refusal in place, without navigating, when the org has connected no processor', async () => {
+    const location = stubLocation();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = new URL(
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+      );
+      if (url.pathname === '/public/invoices/abc123.def456/pay-link') {
+        return Promise.resolve(
+          json(412, {
+            error: {
+              code: 'precondition_failed',
+              message: 'This organization has not connected a payment processor.',
+            },
+          }),
+        );
+      }
+      return Promise.resolve(json(200, { ...VIEW, payable: true }));
+    });
+    renderAt('/i/abc123.def456', fetchMock);
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pay now' }));
+
+    expect(
+      await screen.findByText('This organization has not connected a payment processor.'),
+    ).toBeInTheDocument();
+    expect(location.href).toBe('');
   });
 });

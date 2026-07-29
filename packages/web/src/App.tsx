@@ -19,6 +19,7 @@ import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
 import { OAuthClientsScreen } from './screens/oauth-clients';
 import { OAuthConsentScreen } from './screens/oauth-consent';
+import { ProcessingScreen } from './screens/processing';
 import { PublicInvoiceScreen } from './screens/public-invoice';
 import { PurchasesScreen } from './screens/purchases';
 import { QuickBooksImportScreen } from './screens/quickbooks-import';
@@ -194,6 +195,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/bill-captures" element={<BillCapturesScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/banking/*" element={<BankingScreen />} />
+        <Route path="/processing" element={<ProcessingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />

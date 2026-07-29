@@ -68,6 +68,14 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
    * action succeeds.
    */
   { to: '/banking', label: 'Banking', permission: 'banking.read' },
+  /**
+   * `processing.read`, the read half `connections.service.ts` enforces for every
+   * `GET` on this surface (OB-151). The write actions — connect, deactivate, reactivate
+   * — want `processing.write`, but naming that here would hide the link from a caller
+   * who can legitimately view which processor an org has connected without being able
+   * to change it, the same D-25 reasoning as `/banking` and `/money` above.
+   */
+  { to: '/processing', label: 'Payment processing', permission: 'processing.read' },
   { to: '/reports', label: 'Reports', permission: 'reports.read' },
   // `orgs.read` and not the union of dimensions/members/periods: the settings screen is the
   // organization's own administration, and the seeded roles that hold any of its parts hold

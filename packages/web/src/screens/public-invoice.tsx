@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { presentApiError } from '../api';
 import { cx } from '../lib/cx';
 import { thinRequest } from '../lib/thin-client';
 import { formatMinorUnits } from '../money/format';
@@ -77,6 +78,14 @@ interface PublicInvoiceView {
   readonly customerName: string;
   readonly branding: PublicBranding;
   readonly pdfUrl: string;
+  /**
+   * Whether the org has an active payment-processor connection (OB-150, OB-151;
+   * `publicInvoiceViewSchema`'s own words). `false` means the "Pay now" button has
+   * nowhere to send a customer, so it is not rendered at all rather than rendered and
+   * left to fail against `POST /public/invoices/{token}/pay-link`, which would refuse it
+   * with `no_processor_connected`.
+   */
+  readonly payable: boolean;
 }
 
 async function fetchPublicInvoiceView(token: string): Promise<PublicInvoiceView> {
@@ -85,6 +94,27 @@ async function fetchPublicInvoiceView(token: string): Promise<PublicInvoiceView>
     // No cookie is sent, and none is expected: this page's whole authority is the token
     // in the URL, and a session cookie that happened to be present must not extend it —
     // see the module header.
+    credentials: 'omit',
+  });
+}
+
+interface PayLinkResponse {
+  readonly url: string;
+}
+
+/**
+ * Opens a processor-hosted checkout session for this invoice (`public-pay-link.ts`).
+ *
+ * No `idempotencyKey` — unlike every write under `/v1`, this route takes none: the
+ * server's own header explains why (a customer clicking "Pay now" twice should open two
+ * checkout sessions; the processor's own idempotency governs that, and the *charge*
+ * being recorded exactly once is the webhook/poll's job, not this route's). `thinRequest`
+ * still supports a bodiless, keyless POST, so no second request helper is needed for the
+ * one write this unauthenticated page makes.
+ */
+async function requestPayLink(token: string): Promise<PayLinkResponse> {
+  return thinRequest<PayLinkResponse>(`/public/invoices/${encodeURIComponent(token)}/pay-link`, {
+    method: 'POST',
     credentials: 'omit',
   });
 }
@@ -146,7 +176,7 @@ export function PublicInvoiceScreen(): ReactElement {
     );
   }
 
-  return <PublicInvoiceDocument view={view.data} />;
+  return <PublicInvoiceDocument view={view.data} token={token} />;
 }
 
 function addressLines(branding: PublicBranding): readonly string[] {
@@ -159,7 +189,13 @@ function addressLines(branding: PublicBranding): readonly string[] {
   );
 }
 
-function PublicInvoiceDocument({ view }: { readonly view: PublicInvoiceView }): ReactElement {
+function PublicInvoiceDocument({
+  view,
+  token,
+}: {
+  readonly view: PublicInvoiceView;
+  readonly token: string;
+}): ReactElement {
   const { branding } = view;
   // The org's own colour, inlined as data rather than written as a literal — `CLAUDE.md`'s
   // distinction, and the reason `openbooks/no-raw-color` does not fire on this file: the
@@ -293,19 +329,67 @@ function PublicInvoiceDocument({ view }: { readonly view: PublicInvoiceView }): 
             {branding.invoiceFooter !== null && (
               <p className="max-w-prose text-xs text-text-subtle">{branding.invoiceFooter}</p>
             )}
-            <a
-              href={view.pdfUrl}
-              className={cx(
-                'ml-auto inline-flex items-center gap-1 rounded-md border border-border bg-surface',
-                'px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover',
-              )}
-            >
-              Download PDF
-            </a>
+            <div className="ml-auto flex items-center gap-2">
+              {view.payable && <PayNowButton token={token} />}
+              <a
+                href={view.pdfUrl}
+                className={cx(
+                  'inline-flex items-center gap-1 rounded-md border border-border bg-surface',
+                  'px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-hover',
+                )}
+              >
+                Download PDF
+              </a>
+            </div>
           </div>
         </div>
       </div>
     </PublicInvoiceShell>
+  );
+}
+
+/**
+ * The "Pay now" button — rendered only when `view.payable` is true (the module header's
+ * "the hosted page hides it rather than opening a checkout session … would refuse").
+ *
+ * A click posts to `POST /public/invoices/{token}/pay-link` and, on success, sends the
+ * whole browser to the processor's own hosted checkout — never an OpenBooks page, and
+ * never a fetched page rendered here (D-83: card details are entered on the processor's
+ * own surface). `window.location.href = url` rather than a `<Navigate>` or an anchor's
+ * `href` set ahead of the click, because the URL does not exist until the request
+ * returns — this is a same-tab redirect to a destination this page has to ask for first,
+ * not a link it already knows.
+ */
+function PayNowButton({ token }: { readonly token: string }): ReactElement {
+  const payLink = useMutation({
+    mutationFn: async () => requestPayLink(token),
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+  });
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        disabled={payLink.isPending}
+        onClick={() => {
+          payLink.mutate();
+        }}
+        className={cx(
+          'inline-flex items-center gap-1 rounded-md border border-transparent bg-accent',
+          'px-3 py-1.5 text-sm font-medium text-accent-on hover:bg-accent-hover',
+          'disabled:pointer-events-none disabled:opacity-50',
+        )}
+      >
+        {payLink.isPending ? 'Opening checkout…' : 'Pay now'}
+      </button>
+      {payLink.isError && (
+        <p className="max-w-64 text-right text-xs text-danger-text">
+          {presentApiError(payLink.error).message}
+        </p>
+      )}
+    </div>
   );
 }
 
