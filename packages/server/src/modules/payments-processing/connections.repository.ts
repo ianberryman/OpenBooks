@@ -1,8 +1,10 @@
+import type { Kysely } from 'kysely';
+
 import type { ProcessorKind } from '@openbooks/plugin-api';
 import type { ProcessorConnection } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
-import type { TenantDatabase } from '../../db';
+import type { DB, TenantDatabase } from '../../db';
 import { bufferToUuid, orgScope as toOrgId, tenantDb, tryUuidToBuffer } from '../../db';
 
 /**
@@ -12,6 +14,9 @@ import { bufferToUuid, orgScope as toOrgId, tenantDb, tryUuidToBuffer } from '..
  * Everything goes through `tenantDb`, so `org_id = ctx.orgId` is on every statement
  * before this file adds a predicate — a cross-org connection id matches nothing and
  * the service's `assertFound` turns that into the one 404 a miss may produce (A7).
+ * `selectAllActiveConnectionsAcrossOrgs` is the one exception, for
+ * `selectDueTemplates`'s exact reason (`recurring.repository.ts`): the D-85 daily
+ * poll (OB-148) has no org yet when it asks "which connections need polling."
  *
  * `secret_ref`/`webhook_secret_ref` are the only trace of a credential this file ever
  * writes. The values themselves never pass through here — only the opaque handles the
@@ -205,6 +210,35 @@ export async function selectAllConnections(db: TenantDatabase): Promise<readonly
     .selectFrom('processor_connections')
     .select(CONNECTION_COLUMNS)
     .orderBy('created_at', 'asc')
+    .orderBy('id', 'asc')
+    .execute();
+}
+
+/** `selectAllConnections`' columns plus `org_id`, for the cross-org poll sweep below. */
+const POLL_SWEEP_COLUMNS = ['org_id', 'id'] as const;
+
+export interface ActiveConnectionForPoll {
+  readonly org_id: Buffer;
+  readonly id: Buffer;
+}
+
+/**
+ * Every active connection, across every org — the D-85 daily poll's own worklist
+ * (OB-148), `selectDueTemplates`' exception restated for this table
+ * (`recurring.repository.ts`): the sweep has no org yet, that is the question it is
+ * answering, so it takes `Kysely<DB>` (the `systemDb()` handle) directly rather than
+ * `tenantDb`. Nothing it returns is written back through this handle; `poll.job.ts`
+ * re-enters through `runAsAutomation` once each row's org is known, exactly as the
+ * recurring sweep does.
+ */
+export async function selectAllActiveConnectionsAcrossOrgs(
+  db: Kysely<DB>,
+): Promise<readonly ActiveConnectionForPoll[]> {
+  return db
+    .selectFrom('processor_connections')
+    .select(POLL_SWEEP_COLUMNS)
+    .where('is_active', '=', 1)
+    .orderBy('org_id', 'asc')
     .orderBy('id', 'asc')
     .execute();
 }

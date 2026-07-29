@@ -125,6 +125,7 @@ export {
   saveBankImportMapping,
 } from './csv';
 export {
+  bookBalance,
   createReconciliationSession,
   finaliseReconciliationSession,
   getReconciliationReport,

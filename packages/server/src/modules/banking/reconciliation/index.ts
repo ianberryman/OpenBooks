@@ -51,3 +51,13 @@ export {
 } from './reconciliation.service';
 
 export { getReconciliationReport } from './report.service';
+
+/**
+ * The ledger account balance `bookBalance` computes (D-46) — exported for
+ * initiative J's D-85 polling backstop (`payments-processing/poll.job.ts`,
+ * OB-148), which reconciles a processor's clearing account against the
+ * processor's own reported balance the same way this module reconciles a bank
+ * account against a statement: `SUM(debit) − SUM(credit)` over the account's
+ * journal lines, computed on read rather than stored.
+ */
+export { bookBalance } from './reconciliation.repository';

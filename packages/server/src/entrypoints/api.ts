@@ -20,6 +20,7 @@ import {
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
+import { registerProcessorPollJob } from '../modules/payments-processing';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
 import { buildApp } from '../transport';
@@ -113,13 +114,17 @@ export async function startApi(): Promise<void> {
     // other three: under the in-process adapter, this is the process that consumes what
     // it enqueues — `createCaptureFromUpload` and the inbound webhook both run here.
     await registerDocumentExtractionJob(queueProvider(), { logger });
+    // The D-85 polling backstop (OB-148), same reason as the jobs above: under the
+    // in-process adapter this is the process that consumes what it enqueues.
+    await registerProcessorPollJob(queueProvider(), { logger });
     // The daily tick (OB-127) runs here under the in-process adapter, because this is the
     // process that consumes what it enqueues (the comment above). A stop handle is captured so
     // the shutdown drain clears it before closing the pool.
     stopDailyTick = startDailyTick({ logger });
     logger.info(
       { role: 'api', queue: 'in-process' },
-      'statement, recurring, dunning and extraction jobs registered in-process; daily tick started',
+      'statement, recurring, dunning, extraction and processor-poll jobs registered in-process; ' +
+        'daily tick started',
     );
   }
 

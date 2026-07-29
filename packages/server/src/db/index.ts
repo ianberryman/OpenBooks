@@ -90,6 +90,11 @@ export type { ApiKeyCredentialRow } from './api-key-lookup';
 // session exists, for `delivery-lookup.ts`'s exact reason. See `oauth-lookup.ts`.
 export { selectOAuthGrantByCodeHash, selectOAuthTokenByHash } from './oauth-lookup';
 export type { OAuthGrantCredentialRow, OAuthTokenCredentialRow } from './oauth-lookup';
+// A fourth (OB-148, D-85): resolves a processor webhook's `:connectionId` to the org
+// and processor it belongs to before any session exists — Stripe/Square post with no
+// org header, only the connection id in the path. See `processor-connection-lookup.ts`.
+export { selectProcessorConnectionOrgAndProcessor } from './processor-connection-lookup';
+export type { ProcessorConnectionLookupRow } from './processor-connection-lookup';
 // A different kind of sanctioned exception (initiative J, D-101): `secrets` is
 // infra, not tenant data, keyed by an opaque handle exactly as an external
 // secrets manager namespaces by prefix — there is no org to resolve here, unlike

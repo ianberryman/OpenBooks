@@ -36,6 +36,7 @@ import { registerOpenApi } from './openapi';
 import { registerV1Routes } from './routes';
 import { registerArtifactRoutes } from './routes/artifacts';
 import { registerOAuthFlowRoutes } from './routes/oauth-flow';
+import { registerProcessingWebhookRoutes } from './routes/processing-webhook';
 import { registerPublicInvoiceRoutes } from './routes/public-invoices';
 import { registerPublicPayLinkRoutes } from './routes/public-pay-link';
 import type { App } from './types';
@@ -276,6 +277,11 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   // same unauthenticated shape as the route above, registered alongside it for the
   // reason `public-pay-link.ts`'s file header gives.
   registerPublicPayLinkRoutes(app, config);
+  // A third unauthenticated surface, alongside the two above (OB-148, D-85): the
+  // signed, session-less inbound payment-processor webhook. See
+  // `routes/processing-webhook.ts`'s file header for why it lives here, outside
+  // `/v1`, and why it does not use the global `Idempotency-Key` middleware.
+  registerProcessingWebhookRoutes(app);
   // Local-adapter only, and hidden from `openapi.json`: the retrieval path the local
   // StorageProvider's `signedUrl` points at. Registers nothing under s3 (`artifacts.ts`).
   registerArtifactRoutes(app, config);
