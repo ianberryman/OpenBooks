@@ -240,6 +240,20 @@ const OVERRIDES = {
     'event_log.position': 'bigint',
     'event_positions.next_value': 'Generated<bigint>',
     'change_feed_cursors.position': 'Generated<bigint>',
+
+    // ── Pay Bills (0013_pay_bills) ────────────────────────────────────────────
+    //
+    // The intent's pay and discount amounts are money and get `bigint`, the same
+    // correction every `*_minor` column above takes — plain `bigint` (not
+    // `Generated<>`), because an intent that silently defaulted its pay amount to
+    // zero would queue a payment that pays nothing. The discount amount is nullable
+    // (a line may carry no discount), spelled out because an override replaces the
+    // whole mapped type. `check_number_sequences.next_value` is the register counter,
+    // `Generated<bigint>` for `document_sequences.next_value`'s reason exactly — it
+    // carries a DEFAULT and an insert must be able to omit it.
+    'pending_payment_intents.pay_amount_minor': 'bigint',
+    'pending_payment_intents.discount_amount_minor': 'bigint | null',
+    'check_number_sequences.next_value': 'Generated<bigint>',
   },
 };
 

@@ -155,6 +155,18 @@ export async function up(db: MigrationDb): Promise<void> {
   // adds the composite `(org_id, id)` constraint once `payment_terms` exists — the
   // same split `0002_ledger`/`0999_app_grants` uses for every table the grants
   // migration cannot yet see.
+  //
+  // ## Vendor disbursement details — added in place for Pay Bills (D-15, D-67)
+  //
+  // `preferred_payment_rail` seeds the rail a new pending payment defaults to for
+  // this vendor (D-110), overridable in the queue. The other three are the account
+  // details an external ACH/wire integration needs, and they are *sensitive*: they
+  // are the vendor's real bank coordinates, never seeded (populating them is the
+  // user's), and flagged for log redaction (`logging/redact.ts`). They are plain
+  // nullable strings rather than encrypted-at-rest in v1 because they are account
+  // numbers, not API-key secrets — an encryption-at-rest follow-up is noted in the
+  // ROADMAP. No foreign key, so unlike `default_payment_term_id` no composite
+  // constraint is deferred to `0013_pay_bills`; the enum and the strings stand alone.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE contacts (
@@ -170,6 +182,10 @@ export async function up(db: MigrationDb): Promise<void> {
       notes                  VARCHAR(512) NULL,
       is_active              TINYINT(1)   NOT NULL DEFAULT 1,
       default_payment_term_id BINARY(16)  NULL,
+      preferred_payment_rail ENUM('check','ach','wire') NULL,
+      ach_routing_number     VARCHAR(34)  NULL,
+      ach_account_number     VARCHAR(34)  NULL,
+      wire_instructions      VARCHAR(1024) NULL,
       created_at             DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at             DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
                                           ON UPDATE CURRENT_TIMESTAMP(3),

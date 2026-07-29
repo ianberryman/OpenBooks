@@ -40,6 +40,15 @@ const SECRET_FIELD_SUBSTRINGS = [
   'credential',
   'passphrase',
   'privatekey',
+  // Vendor disbursement details (Pay Bills, D-67). A vendor's real bank
+  // coordinates — `ach_routing_number`, `ach_account_number`, `wire_instructions`
+  // — must never reach a durable log line (spec §12). Matched by their normalized
+  // names (`routingnumber`, `accountnumber`, `wireinstruction`); over-redacting a
+  // field that merely contains one of these is the correct direction to err, as the
+  // header argues.
+  'routingnumber',
+  'accountnumber',
+  'wireinstruction',
 ] as const;
 
 export const SECRET_LOG_FIELD_SUBSTRINGS: readonly string[] = SECRET_FIELD_SUBSTRINGS;

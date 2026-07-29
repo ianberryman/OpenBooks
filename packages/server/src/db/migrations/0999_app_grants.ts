@@ -373,6 +373,20 @@ const MUTABLE_TABLES = [
   // clearing) restates no financial statement.
   'payment_terms',
   'bank_line_clearing_entries',
+  // ── Pay Bills (0013_pay_bills) ─────────────────────────────────────────────
+  //
+  // All three are pencil, not ledger facts (D-64), so all three are mutable and
+  // none is append-only. `pending_payments` and `pending_payment_intents` are the
+  // queued-but-unissued state — built, edited, and cancelled up to issue, which is
+  // an UPDATE/DELETE the append-only grant would refuse; the immutable record of a
+  // disbursement is the `Payment` and its `journals` that issue produces through
+  // `recordPayment`, not these rows. `check_number_sequences` is the register taken
+  // `FOR UPDATE` when a check number is drawn — `document_sequences`'/
+  // `journal_sequences`' own reason for needing UPDATE (D-14): the table it numbers
+  // cannot itself be locked for a read.
+  'pending_payments',
+  'pending_payment_intents',
+  'check_number_sequences',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

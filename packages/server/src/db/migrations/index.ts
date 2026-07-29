@@ -12,6 +12,7 @@ import * as m0009 from './0009_bill_capture';
 import * as m0010 from './0010_platform';
 import * as m0011 from './0011_payment_processing';
 import * as m0012 from './0012_cash_application';
+import * as m0013 from './0013_pay_bills';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -62,6 +63,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0010_platform': m0010,
   '0011_payment_processing': m0011,
   '0012_cash_application': m0012,
+  '0013_pay_bills': m0013,
   '0999_app_grants': m0999,
 };
 

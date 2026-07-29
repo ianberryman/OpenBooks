@@ -94,6 +94,13 @@ export const PERMISSION_KEYS = [
   'workflows.read',
   'workflows.write',
   'workflows.activate',
+  // Pay Bills (initiative G, OB-109…118). The queue/issue split is a real
+  // separation of duties (D-109): `pending_payments.*` build the queue and post no
+  // journal, while `disbursements.issue` releases it — seeded to owner only, so a
+  // clerk who can queue cannot also pay.
+  'pending_payments.read',
+  'pending_payments.write',
+  'disbursements.issue',
 ] as const;
 
 /**
@@ -123,12 +130,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 53 codes and the six system roles are set operations over
+ * Migration `0001` seeds 56 codes and the six system roles are set operations over
  * that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 53> = true;
+type AssertCatalogSize<_N extends 56> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

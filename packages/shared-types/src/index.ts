@@ -23,6 +23,7 @@ export * from './journals';
 export * from './members';
 export * from './money';
 export * from './orgs';
+export * from './pay-bills';
 export * from './payment-terms';
 export * from './payments-processing';
 export * from './periods';

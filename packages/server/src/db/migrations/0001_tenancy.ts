@@ -326,7 +326,10 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('processing.write',       'Connect and manage payment processors (PAY)'),
       ('workflows.read',         'View automations (M6)'),
       ('workflows.write',        'Create and modify automations (M6)'),
-      ('workflows.activate',     'Activate an automation (M6)')
+      ('workflows.activate',     'Activate an automation (M6)'),
+      ('pending_payments.read',  'View the Pay Bills queue (PB)'),
+      ('pending_payments.write', 'Build, edit, and cancel pending payments (PB)'),
+      ('disbursements.issue',    'Release a pending payment — post it and cut the check (PB)')
   `.execute(db);
 }
 
@@ -394,13 +397,21 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
   // exclusion for the same reason: connecting a processor hands its secret
   // key and webhook secret to the secrets provider (D-101, D-83), which is an
   // organization-administration act and not a bookkeeping one.
+  //
+  // `disbursements.issue` is excluded too, and for a different reason than the
+  // others: it is the release half of Pay Bills' separation of duties (D-109),
+  // seeded to *owner only*. The bookkeeper keeps the queue keys (`pending_payments.*`,
+  // which the catch-all grants) — they build the Pay Bills queue — but releasing it,
+  // posting the payment and cutting the check, is the controller's act. Without this
+  // line the catch-all would hand a bookkeeper both halves and collapse the split.
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
     WHERE r.is_system = 1 AND r.code = 'bookkeeper'
       AND p.code NOT IN (
         'orgs.write', 'members.write', 'api_keys.read', 'api_keys.write',
-        'integrations.write', 'processing.write', 'workflows.activate'
+        'integrations.write', 'processing.write', 'workflows.activate',
+        'disbursements.issue'
       )
   `.execute(db);
 
@@ -408,6 +419,13 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
   // `journals.post`/`journals.reverse`, because approving, voiding and paying a
   // bill all post through the ledger kernel, and a role that exists to enter AP
   // that cannot finish what it entered is a role that does nothing (OB-093).
+  //
+  // The Pay Bills queue keys (`pending_payments.read`/`.write`) belong here — the AP
+  // clerk builds the queue — but `disbursements.issue` deliberately does not (D-109):
+  // an `ap_only` user can queue a payment and cannot release it, which is the
+  // separation of duties made real rather than architectural. Issue still needs
+  // `payments_made.write`/`journals.post` transitively (it calls `recordPayment`), so
+  // `disbursements.issue` is the one distinguishing gate the clerk lacks.
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
@@ -416,6 +434,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'bills.read', 'bills.write', 'bills.void',
         'vendor_credits.read', 'vendor_credits.write',
         'payments_made.read', 'payments_made.write',
+        'pending_payments.read', 'pending_payments.write',
         'contacts.read', 'contacts.write',
         'accounts.read', 'periods.read', 'journals.read',
         'journals.post', 'journals.reverse',

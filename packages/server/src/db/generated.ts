@@ -327,7 +327,16 @@ export interface ChangeFeedCursors {
   updated_at: Generated<Date>;
 }
 
+export interface CheckNumberSequences {
+  bank_account_id: Buffer;
+  next_value: Generated<bigint>;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface Contacts {
+  ach_account_number: string | null;
+  ach_routing_number: string | null;
   code: string | null;
   created_at: Generated<Date>;
   default_payment_term_id: Buffer | null;
@@ -341,7 +350,9 @@ export interface Contacts {
   notes: string | null;
   org_id: Buffer;
   phone: string | null;
+  preferred_payment_rail: "ach" | "check" | "wire" | null;
   updated_at: Generated<Date>;
+  wire_instructions: string | null;
 }
 
 export interface Dimensions {
@@ -728,6 +739,33 @@ export interface PaymentTerms {
   updated_at: Generated<Date>;
 }
 
+export interface PendingPaymentIntents {
+  applied_vendor_credit_id: Buffer | null;
+  bill_id: Buffer;
+  created_at: Generated<Date>;
+  discount_account_id: Buffer | null;
+  discount_amount_minor: bigint | null;
+  id: Buffer;
+  org_id: Buffer;
+  pay_amount_minor: bigint;
+  pending_payment_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface PendingPayments {
+  bank_account_id: Buffer;
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  id: Buffer;
+  issued_payment_id: Buffer | null;
+  memo: string | null;
+  org_id: Buffer;
+  rail: "ach" | "check" | "wire";
+  status: Generated<"cancelled" | "issued" | "open">;
+  updated_at: Generated<Date>;
+}
+
 export interface Permissions {
   code: string;
   description: string;
@@ -915,6 +953,7 @@ export interface DB {
   bank_statement_lines: BankStatementLines;
   bill_attachments: BillAttachments;
   change_feed_cursors: ChangeFeedCursors;
+  check_number_sequences: CheckNumberSequences;
   contacts: Contacts;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
@@ -947,6 +986,8 @@ export interface DB {
   orgs: Orgs;
   payment_terms: PaymentTerms;
   payments: Payments;
+  pending_payment_intents: PendingPaymentIntents;
+  pending_payments: PendingPayments;
   permissions: Permissions;
   processor_connections: ProcessorConnections;
   processor_events: ProcessorEvents;
