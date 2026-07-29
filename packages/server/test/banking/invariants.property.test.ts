@@ -112,8 +112,12 @@ async function clearOne(scene: Scene, item: ClearedItem): Promise<void> {
   switch (item.method) {
     case 'post_entry':
       await clearBankStatementLine(line.uuid, {
-        method: 'post_entry',
-        accountId: inbound ? scene.revenue.uuid : scene.expense.uuid,
+        entries: [
+          {
+            method: 'post_entry',
+            accountId: inbound ? scene.revenue.uuid : scene.expense.uuid,
+          },
+        ],
       });
       return;
     case 'link_entry': {
@@ -124,7 +128,9 @@ async function clearOne(scene: Scene, item: ClearedItem): Promise<void> {
         inbound ? scene.revenue : scene.expense,
         POSTED,
       );
-      await clearBankStatementLine(line.uuid, { method: 'link_entry', journalId: journal.uuid });
+      await clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
+      });
       return;
     }
     case 'allocate_document': {
@@ -133,9 +139,13 @@ async function clearOne(scene: Scene, item: ClearedItem): Promise<void> {
         ? await invoiceIn(db, scene, magnitude)
         : await billIn(db, scene, magnitude);
       await clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: inbound ? 'invoice' : 'bill',
-        targetId: document.uuid,
+        entries: [
+          {
+            method: 'allocate_document',
+            targetType: inbound ? 'invoice' : 'bill',
+            targetId: document.uuid,
+          },
+        ],
       });
       return;
     }
@@ -201,10 +211,13 @@ async function ledgerClearedPortion(
   bankLedgerAccountId: Buffer,
   sessionId: Buffer,
 ): Promise<bigint> {
+  // D-105: `cleared_journal_id` moved off `bank_line_clearings` onto its child
+  // `bank_line_clearing_entries`, so the join to a counted journal now goes through it.
   const { rows } = await sql<{ d: string; c: string }>`
     SELECT COALESCE(SUM(jl.debit_minor), 0) AS d, COALESCE(SUM(jl.credit_minor), 0) AS c
     FROM journal_lines jl
-    JOIN bank_line_clearings blc ON blc.cleared_journal_id = jl.journal_id
+    JOIN bank_line_clearing_entries blce ON blce.cleared_journal_id = jl.journal_id
+    JOIN bank_line_clearings blc ON blc.id = blce.clearing_id
     WHERE jl.account_id = ${bankLedgerAccountId}
       AND blc.reconciliation_session_id = ${sessionId}
   `.execute(app);

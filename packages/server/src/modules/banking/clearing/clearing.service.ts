@@ -1,7 +1,9 @@
 import type { JournalLineInput, PostJournalInput } from '@openbooks/plugin-api';
 import type {
+  BankClearingEntryType,
   BankLineClearing,
   ClearBankStatementLineRequest,
+  ClearingEntry,
   RemoveBankLineClearingRequest,
 } from '@openbooks/shared-types';
 import {
@@ -29,18 +31,26 @@ import {
   parseInput,
 } from '../../../errors';
 import { postJournal, reverseJournal } from '../../ledger';
-import { recordPayment, voidPayment } from '../../payments';
+import {
+  applyAllocations,
+  deleteAllocationsForDiscountJournal,
+  recordPayment,
+  voidPayment,
+} from '../../payments';
 import { requirePermission } from '../../permissions';
+import { resolveControlAccount } from '../../settings';
 import type { SubledgerSide } from '../../settings';
 
-import type { ClearingRow, StatementLineRow } from './clearing.repository';
+import type { ClearingEntryRow, ClearingRow, StatementLineRow } from './clearing.repository';
 import {
   BANK_ACCOUNT_RESOURCE,
   DOCUMENT_RESOURCE,
   JOURNAL_RESOURCE,
   STATEMENT_LINE_RESOURCE,
   deleteClearing,
+  deleteEntriesForClearing,
   insertClearing,
+  insertClearingEntries,
   journalBankMovement,
   journalExists,
   orgScope,
@@ -48,85 +58,94 @@ import {
   selectClearingByLine,
   selectClearingIdByJournal,
   selectDocumentContactId,
+  selectEntriesForClearing,
   selectStatementLine,
 } from './clearing.repository';
 
 /**
- * Accepting a match: post, link, or allocate (OB-081; ROADMAP D-43, D-16, D-45;
- * acceptance E3, E4).
+ * Accepting a match: one line, one or more entries (OB-081, generalised by OB-137;
+ * ROADMAP D-43, D-16, D-80, D-105, D-106; acceptance E3, E4).
  *
  * This is where the banking pipeline first writes to the ledger, and it writes
  * because a human asked it to (D-43, E3). Nothing in `matching/` reaches this file;
- * a request carries what it wants done — an account to code to, a journal to link, a
- * document to settle — whether a proposal suggested it or a person typed it. There is
- * no `proposalId` it honours and no batch accept, which is the shape D-43 exists to
- * refuse.
+ * a request carries what it wants done — one or more entries, each an account to
+ * code to, a journal to link, a document to settle or discount — whether a
+ * proposal suggested the first of them or a person typed every one. There is no
+ * `proposalId` it honours and no batch across *lines*, which is the shape D-43
+ * exists to refuse; a batch *within* one line's clear is D-80's, not D-43's.
  *
  * ## Every ledger write goes through the sanctioned service, never around it
  *
- * `post_entry` and the difference journal post through `postJournal`;
+ * `post_entry`, `discount`, and the difference journal post through `postJournal`;
  * `allocate_document` records through `recordPayment` (which posts through
- * `postJournal` and allocates through M3's one mechanism, D-39); undo reverses
- * through `reverseJournal` and `voidPayment`. Balance validation, the period lock
- * (A4/A9) and actor provenance all live in those services, and this file
- * re-implements none of them — `openbooks/no-journal-writes` is what makes that
- * structural rather than a habit.
+ * `postJournal` and allocates through M3's one mechanism, D-39); `discount` posts
+ * its own journal directly and applies it through the same `applyAllocations`
+ * `recordPayment` uses, with a `'discount'` source kind (D-106) rather than a
+ * `payments` row a discount never had; undo reverses through `reverseJournal` and
+ * `voidPayment`. Balance validation, the period lock (A4/A9) and actor provenance
+ * all live in those services, and this file re-implements none of them —
+ * `openbooks/no-journal-writes` is what makes that structural rather than a habit.
  *
- * ## E4 is an equation, held in the line's own frame
+ * ## E4 is an equation, held in the line's own frame — generalised for N entries
  *
  * A statement line carries a **signed** amount (`bank_statement_lines.amount_minor`),
  * and every clearing this file produces satisfies
  *
- *   clearedAmount + differenceAmount === line.amount
+ *   Σ(entry.amount, excluding `discount`) + differenceAmount === line.amount
  *
- * signed, exactly, with no conditional (`assertClearingBalances`). The two agree
- * *because* the difference has been posted, not because it was dropped: a £990 line
- * clearing a £1,000 entry records +£1,000 cleared and −£10 to bank charges, and the
- * bank ledger moves by exactly the £990 the statement shows. A non-zero difference
- * with no account is `clearing_difference_unaccounted`; a `post_entry` cannot have a
- * difference at all, because its journal is created *for* the line (it agrees by
- * construction, `chk_blc_post_entry_exact`).
+ * signed, exactly, with no conditional (`assertClearingBalances`). `discount` is
+ * excluded from the sum deliberately: D-106 funds it from the discount journal, not
+ * from the line's own cash, so counting it toward what the *line* must add up to
+ * would be counting money the bank never saw — it settles the *document* instead,
+ * through its own allocation. A £990 line clearing a £1,000 entry records +£1,000
+ * cleared and −£10 to bank charges, and the bank ledger moves by exactly the £990
+ * the statement shows. A non-zero difference with no account is
+ * `clearing_difference_unaccounted`.
  *
- * ## Why there is no `FOR UPDATE` on the line or the journal
+ * ## Why there is no `FOR UPDATE` on the line or a journal
  *
  * Both are append-only at the grant level, and MySQL will not grant a locking read to
  * an identity without `UPDATE`/`DELETE` on the table (D-14). Two clearings racing the
- * same line or the same entry are serialized instead by `uq_blc_line` and
- * `uq_blc_journal` on insert, and the loser is translated to
+ * same line or the same entry are serialized instead by `uq_blc_line` (the parent
+ * insert) and `uq_blce_journal` (the child insert), and the loser is translated to
  * `statement_line_already_cleared` / `journal_already_cleared` — the shape
  * `reverseJournal` uses for `uq_journals_org_reverses`, proven under two connections
  * in `clearing.race.test.ts`.
  *
  * ## The known role gap (OB-093), not papered over
  *
- * The service gates on `banking.match`. Beyond that, `post_entry` and any difference
- * reach `journals.post`; `allocate_document` reaches `payments_received.write` /
- * `payments_made.write` (by the line's sign) *and* `journals.post`; undo reaches
- * `journals.reverse`, and undo of an allocation reaches the payment write plus
- * `journals.reverse`. So a role holding `banking.match` but not the ledger codes can
- * accept a plain `link_entry` (which posts nothing) and is refused the rest — the
- * same gap OB-093 records for the AR/AP clerks, surfaced here rather than hidden.
+ * The service gates on `banking.match`. Beyond that, `post_entry`/`discount` and any
+ * difference reach `journals.post`; `allocate_document` reaches
+ * `payments_received.write` / `payments_made.write` (by the line's sign) *and*
+ * `journals.post`; undo reaches `journals.reverse`, and undo of an
+ * `allocate_document` entry reaches the payment write plus `journals.reverse`. So a
+ * role holding `banking.match` but not the ledger codes can accept a plain
+ * `link_entry` (which posts nothing) and is refused the rest — the same gap OB-093
+ * records for the AR/AP clerks, surfaced here rather than hidden.
  */
 
-type ClearingComputation = {
-  readonly method: ClearBankStatementLineRequest['method'];
+interface ClearingEntryComputation {
+  readonly entryType: BankClearingEntryType;
   readonly clearedJournalId: Buffer;
   readonly paymentId: Buffer | null;
-  readonly clearedAmount: bigint;
-  readonly differenceAmount: bigint;
-  readonly differenceAccountId: Buffer | null;
-  readonly differenceJournalId: Buffer | null;
-};
+  readonly accountId: Buffer | null;
+  readonly targetType: 'invoice' | 'bill' | null;
+  readonly targetId: Buffer | null;
+  /** Signed, in the line's frame — see the file header on why `discount` is excluded from Σ. */
+  readonly amount: bigint;
+}
 
 /**
- * Accepts a statement line three ways, and writes the one `bank_line_clearings` row.
+ * Accepts a statement line against one or more entries, and writes one parent
+ * `bank_line_clearings` row plus one `bank_line_clearing_entries` row per entry.
  *
  * The order of operations: permission first (before the payload is examined), then
- * the line and its bank account, then the method's own work — which is the only part
- * that touches the ledger — then the E4 invariant, then the insert. Everything after
- * the permission is one transaction, so a journal posted by `post_entry` and the
- * clearing row that names it commit together: if the line turns out already cleared,
- * the journal rolls back with it rather than being orphaned.
+ * the line and its bank account, then each entry's own work in turn — which is the
+ * only part that touches the ledger — then the E4 invariant, then the two inserts.
+ * Everything after the permission is one transaction, so every journal an entry
+ * posted and the rows that name them commit together: if the line turns out
+ * already cleared, or a later entry's journal is already claimed, everything already
+ * done rolls back with it rather than being orphaned.
  */
 export async function clearBankStatementLine(
   lineId: string,
@@ -148,54 +167,90 @@ export async function clearBankStatementLine(
     const existing = await selectClearingByLine(trx, lineBytes);
     if (existing !== undefined) throw statementLineAlreadyCleared();
 
-    const computation = await computeClearing(trx, ctx, request, line, bankLedgerAccountId);
+    const computations: ClearingEntryComputation[] = [];
+    const isSole = request.entries.length === 1;
+    for (const [index, entry] of request.entries.entries()) {
+      computations.push(
+        await computeEntry(trx, ctx, author, entry, index, isSole, line, bankLedgerAccountId),
+      );
+    }
+
+    // D-106: a `discount` entry is funded by its own journal, not by the line's
+    // cash, so it is excluded from what the line has to add up to.
+    const bankMovementTotal = computations
+      .filter((computation) => computation.entryType !== 'discount')
+      .reduce((total, computation) => total + computation.amount, 0n);
+    const differenceAmount = line.amount_minor - bankMovementTotal;
+
+    const difference = await resolveDifference(
+      ctx,
+      line.posted_date,
+      bufferToUuid(bankLedgerAccountId),
+      differenceAmount,
+      request.differenceAccountId,
+    );
 
     // E4 as an invariant, not a check: the amounts are already constructed so this
     // holds, and it is here to refuse any future path that computed them independently.
-    assertClearingBalances(
-      computation.clearedAmount,
-      computation.differenceAmount,
-      line.amount_minor,
-    );
+    assertClearingBalances(bankMovementTotal, differenceAmount, line.amount_minor);
 
-    const id = newUuidBuffer();
+    const clearingId = newUuidBuffer();
     try {
       await insertClearing(trx, {
-        id,
+        id: clearingId,
         statementLineId: lineBytes,
-        method: computation.method,
-        clearedJournalId: computation.clearedJournalId,
-        paymentId: computation.paymentId,
-        clearedAmountMinor: computation.clearedAmount,
-        differenceAmountMinor: computation.differenceAmount,
-        differenceAccountId: computation.differenceAccountId,
-        differenceJournalId: computation.differenceJournalId,
+        clearedAmountMinor: bankMovementTotal,
+        differenceAmountMinor: differenceAmount,
+        differenceAccountId: difference.accountId,
+        differenceJournalId: difference.journalId,
         createdByUserId: author,
       });
+      await insertClearingEntries(
+        trx,
+        computations.map((computation) => ({
+          id: newUuidBuffer(),
+          clearingId,
+          entryType: computation.entryType,
+          clearedJournalId: computation.clearedJournalId,
+          paymentId: computation.paymentId,
+          accountId: computation.accountId,
+          targetType: computation.targetType,
+          targetId: computation.targetId,
+          entryAmountMinor: computation.amount,
+        })),
+      );
     } catch (error: unknown) {
       // The losing side of a race the pre-checks could not see: `uq_blc_line` (this
-      // line, by another clearing committed after our snapshot) or `uq_blc_journal`
-      // (this entry, by a second `link_entry`). Re-derive which, so the answer is the
-      // precondition the client can branch on rather than an opaque `internal_error`.
+      // line, by another clearing committed after our snapshot) or `uq_blce_journal`
+      // (one of these entries' journals, by a second clearing). Re-derive which, so
+      // the answer is the precondition the client can branch on rather than an
+      // opaque `internal_error`.
       if (isDuplicateEntryError(error)) {
-        throw await translateClearingDuplicate(trx, error, lineBytes, computation.clearedJournalId);
+        throw await translateClearingDuplicate(trx, error, lineBytes, computations);
       }
       throw error;
     }
 
-    return toClearing(assertFoundAfterWrite(await selectClearingByLine(trx, lineBytes)));
+    return assembleClearing(
+      assertFoundAfterWrite(await selectClearingByLine(trx, lineBytes)),
+      await selectEntriesForClearing(trx, clearingId),
+    );
   });
 }
 
 /**
- * Undoing a clearing: remove the link, and reverse whatever this clearing posted.
+ * Undoing a clearing: remove every entry and the parent, and reverse whatever each
+ * entry posted.
  *
- * Never a deletion of a journal (D-16). A `post_entry` reverses its journal; an
- * `allocate_document` voids its payment (reversing that journal and deleting its
- * allocations, M3's own undo); a `link_entry` reverses only a difference it posted,
- * and never the entry it linked — that entry existed before the clearing and outlives
- * it. The reversal's date must fall in an open period (`removeBankLineClearingRequest`),
- * which is why undo carries one even for the `link_entry` that reverses nothing.
+ * Never a deletion of a journal (D-16). A `post_entry`/`discount` entry reverses
+ * its own journal; an `allocate_document` entry voids its payment (reversing that
+ * journal and deleting its allocations, M3's own undo); a `discount` entry also
+ * deletes the allocation its journal made (`deleteAllocationsForDiscountJournal`,
+ * the mirror of what voiding a payment does for the fourth); a `link_entry` entry
+ * reverses only a difference it may have contributed to, and never the entry it
+ * linked — that entry existed before the clearing and outlives it. The reversal's
+ * date must fall in an open period (`removeBankLineClearingRequest`), which is why
+ * undo carries one even when every entry is a `link_entry` that reverses nothing.
  *
  * A clearing a finalised session counted is refused: the session asserted a balance
  * at a date, and an assertion whose evidence can be withdrawn afterwards asserts
@@ -241,107 +296,109 @@ export async function removeBankLineClearing(
       );
     }
 
-    if (clearing.method === 'allocate_document' && clearing.payment_id !== null) {
-      // Voids the payment: reverses its journal (which is `cleared_journal_id`) and
-      // deletes the allocations it made, so what it settled is outstanding again.
-      await voidPayment(
-        bufferToUuid(clearing.payment_id),
-        {
-          date: request.date,
-          ...(request.memo === undefined || request.memo === null ? {} : { memo: request.memo }),
-        },
-        ctx,
-      );
-    } else if (clearing.method === 'post_entry') {
-      await reverseClearingJournal(ctx, clearing.cleared_journal_id, request);
+    const entries = await selectEntriesForClearing(trx, clearing.id);
+
+    for (const entry of entries) {
+      if (entry.entry_type === 'allocate_document' && entry.payment_id !== null) {
+        // Voids the payment: reverses its journal (which is `cleared_journal_id`)
+        // and deletes the allocations it made, so what it settled is outstanding
+        // again.
+        await voidPayment(
+          bufferToUuid(entry.payment_id),
+          {
+            date: request.date,
+            ...(request.memo === undefined || request.memo === null ? {} : { memo: request.memo }),
+          },
+          ctx,
+        );
+      } else if (entry.entry_type === 'post_entry') {
+        await reverseClearingJournal(ctx, entry.cleared_journal_id, request);
+      } else if (entry.entry_type === 'discount') {
+        // The mirror of voiding a payment, for the third allocation source: reverse
+        // the discount's own journal, then remove the allocation it made — without
+        // the second step the document's `outstanding` would stay understated by
+        // the discount, even though the journal that funded it was just reversed.
+        await reverseClearingJournal(ctx, entry.cleared_journal_id, request);
+        await deleteAllocationsForDiscountJournal(trx, entry.cleared_journal_id);
+      }
+      // A `link_entry` entry never reverses `cleared_journal_id`: it did not post it.
     }
-    // A `link_entry` never reverses `cleared_journal_id`: it did not post it.
 
     if (clearing.difference_journal_id !== null) {
       await reverseClearingJournal(ctx, clearing.difference_journal_id, request);
     }
 
+    await deleteEntriesForClearing(trx, clearing.id);
     await deleteClearing(trx, clearing.id);
   });
 }
 
 // ---------------------------------------------------------------------------
-// The three methods
+// The four entry kinds
 // ---------------------------------------------------------------------------
 
-async function computeClearing(
+async function computeEntry(
   trx: TenantDatabase,
   ctx: RequestContext,
-  request: ClearBankStatementLineRequest,
+  author: Buffer,
+  entry: ClearingEntry,
+  index: number,
+  isSole: boolean,
   line: StatementLineRow,
   bankLedgerAccountId: Buffer,
-): Promise<ClearingComputation> {
+): Promise<ClearingEntryComputation> {
   const bankLedgerUuid = bufferToUuid(bankLedgerAccountId);
 
-  switch (request.method) {
+  switch (entry.method) {
     case 'post_entry': {
-      // The journal is created for the line, dated the line's own date (D-45), so it
-      // agrees by construction: cleared = line, no difference is possible.
+      const magnitude = resolveEntryAmount(entry.amount, line.amount_minor, isSole, index);
+      const signedAmount = signLikeLine(magnitude, line.amount_minor);
+
       const posted = await postJournal(
-        postInput(ctx, line.posted_date, request.memo, [
-          bankMovementLine(bankLedgerUuid, line.amount_minor),
-          codedLine(
-            request.accountId,
-            line.amount_minor,
-            request.contactId,
-            request.dimensionValueIds,
-          ),
+        postInput(ctx, line.posted_date, entry.memo, [
+          bankMovementLine(bankLedgerUuid, signedAmount),
+          codedLine(entry.accountId, signedAmount, entry.contactId, entry.dimensionValueIds),
         ]),
         ctx,
       );
       return {
-        method: 'post_entry',
+        entryType: 'post_entry',
         clearedJournalId: uuidToBuffer(posted.journalId),
         paymentId: null,
-        clearedAmount: line.amount_minor,
-        differenceAmount: 0n,
-        differenceAccountId: null,
-        differenceJournalId: null,
+        accountId: uuidToBuffer(entry.accountId),
+        targetType: null,
+        targetId: null,
+        amount: signedAmount,
       };
     }
 
     case 'link_entry': {
-      const journalId = assertFound(tryUuidToBuffer(request.journalId), JOURNAL_RESOURCE);
+      const journalId = assertFound(tryUuidToBuffer(entry.journalId), JOURNAL_RESOURCE);
       if (!(await journalExists(trx, journalId))) throw new NotFoundError(JOURNAL_RESOURCE);
 
       const alreadyCleared = await selectClearingIdByJournal(trx, journalId);
       if (alreadyCleared !== undefined) throw journalAlreadyCleared();
 
-      const clearedAmount = await journalBankMovement(trx, journalId, bankLedgerAccountId);
-      const differenceAmount = line.amount_minor - clearedAmount;
-      const difference = await resolveDifference(
-        ctx,
-        line.posted_date,
-        bankLedgerUuid,
-        differenceAmount,
-        request.differenceAccountId,
-      );
-
+      const amount = await journalBankMovement(trx, journalId, bankLedgerAccountId);
       return {
-        method: 'link_entry',
+        entryType: 'link_entry',
         clearedJournalId: journalId,
         paymentId: null,
-        clearedAmount,
-        differenceAmount,
-        differenceAccountId: difference.accountId,
-        differenceJournalId: difference.journalId,
+        accountId: null,
+        targetType: null,
+        targetId: null,
+        amount,
       };
     }
 
     case 'allocate_document': {
-      const side: SubledgerSide = request.targetType === 'invoice' ? 'receivable' : 'payable';
+      const side: SubledgerSide = entry.targetType === 'invoice' ? 'receivable' : 'payable';
       const direction = paymentDirectionFor(line.amount_minor);
 
-      const settle = resolveSettleAmount(request.amount, line.amount_minor);
-      const clearedAmount = direction === 'received' ? settle : -settle;
-      const differenceAmount = line.amount_minor - clearedAmount;
+      const settle = resolveEntryAmount(entry.amount, line.amount_minor, isSole, index);
+      const signedAmount = direction === 'received' ? settle : -settle;
 
-      const targetId = assertFound(tryUuidToBuffer(request.targetId), DOCUMENT_RESOURCE);
+      const targetId = assertFound(tryUuidToBuffer(entry.targetId), DOCUMENT_RESOURCE);
       const contactId = assertFound(
         await selectDocumentContactId(trx, side, targetId),
         DOCUMENT_RESOURCE,
@@ -357,11 +414,11 @@ async function computeClearing(
           date: line.posted_date,
           amount: settle.toString(),
           accountId: bankLedgerUuid,
-          ...(request.memo === undefined || request.memo === null ? {} : { memo: request.memo }),
+          ...(entry.memo === undefined || entry.memo === null ? {} : { memo: entry.memo }),
           allocations: [
             {
-              targetType: request.targetType,
-              targetId: request.targetId,
+              targetType: entry.targetType,
+              targetId: entry.targetId,
               amount: settle.toString(),
             },
           ],
@@ -369,22 +426,79 @@ async function computeClearing(
         ctx,
       );
 
-      const difference = await resolveDifference(
+      return {
+        entryType: 'allocate_document',
+        clearedJournalId: uuidToBuffer(payment.journalId),
+        paymentId: uuidToBuffer(payment.id),
+        accountId: null,
+        targetType: entry.targetType,
+        targetId,
+        amount: signedAmount,
+      };
+    }
+
+    case 'discount': {
+      // D-106: a settlement whose funding source is the discount journal, not
+      // cash. It never touches the bank ledger account at all — the journal is
+      // debit discount-given / credit the receivables control for an invoice, the
+      // mirror on AP — so there is no `bankMovementLine` here, unlike every other
+      // entry kind.
+      const side: SubledgerSide = entry.targetType === 'invoice' ? 'receivable' : 'payable';
+      const magnitude = resolveEntryAmount(entry.amount, line.amount_minor, isSole, index);
+      const signedAmount = signLikeLine(magnitude, line.amount_minor);
+
+      const targetId = assertFound(tryUuidToBuffer(entry.targetId), DOCUMENT_RESOURCE);
+      const contactId = assertFound(
+        await selectDocumentContactId(trx, side, targetId),
+        DOCUMENT_RESOURCE,
+      );
+      const contactUuid = bufferToUuid(contactId);
+      const controlAccountId = await resolveControlAccount(trx, side);
+
+      const posted = await postJournal(
+        postInput(
+          ctx,
+          line.posted_date,
+          entry.memo,
+          discountLines(
+            side,
+            entry.accountId,
+            bufferToUuid(controlAccountId),
+            magnitude,
+            contactUuid,
+          ),
+        ),
         ctx,
+      );
+      const discountJournalId = uuidToBuffer(posted.journalId);
+
+      // The same mechanism a payment or a credit note settles through (D-39),
+      // applied with the third source kind D-106 adds: `outstanding` reaches zero
+      // for the discounted amount without a special case in
+      // `documentTotal − allocatedToDocument`.
+      await applyAllocations(
+        trx,
+        {
+          side,
+          kind: 'discount',
+          id: discountJournalId,
+          contactId,
+          available: magnitude,
+          label: 'discount',
+        },
+        [{ targetType: entry.targetType, targetId: entry.targetId, amount: magnitude.toString() }],
         line.posted_date,
-        bankLedgerUuid,
-        differenceAmount,
-        request.differenceAccountId,
+        author,
       );
 
       return {
-        method: 'allocate_document',
-        clearedJournalId: uuidToBuffer(payment.journalId),
-        paymentId: uuidToBuffer(payment.id),
-        clearedAmount,
-        differenceAmount,
-        differenceAccountId: difference.accountId,
-        differenceJournalId: difference.journalId,
+        entryType: 'discount',
+        clearedJournalId: discountJournalId,
+        paymentId: null,
+        accountId: uuidToBuffer(entry.accountId),
+        targetType: entry.targetType,
+        targetId,
+        amount: signedAmount,
       };
     }
   }
@@ -412,10 +526,10 @@ async function resolveDifference(
     throw new PreconditionFailedError(
       BANKING_PRECONDITIONS.CLEARING_DIFFERENCE_UNACCOUNTED,
       `This clearing leaves a difference of ${differenceAmount.toString()} minor units between ` +
-        'the line and the entry it clears, and no account was given to post it to. E4 requires ' +
-        'the difference to be recorded — a bank charge or a short payment is an entry in the ' +
-        'books, not a number absorbed on a screen. Name an account for it, or clear the whole ' +
-        'of the line against an entry that agrees with it exactly.',
+        'the line and what its entries account for, and no account was given to post it to. E4 ' +
+        'requires the difference to be recorded — a bank charge or a short payment is an entry in ' +
+        'the books, not a number absorbed on a screen. Name a `differenceAccountId`, or make the ' +
+        'entries add up to the whole of the line.',
     );
   }
 
@@ -438,23 +552,27 @@ async function resolveDifference(
 // ---------------------------------------------------------------------------
 
 /**
- * E4, at the write: a cleared line and the entry it clears agree exactly on amount.
+ * E4, at the write: a cleared line and the entries that clear it agree exactly on
+ * amount.
  *
- * `clearedAmount + differenceAmount === line.amount`, signed, in the line's frame.
- * Exported so the property suite can assert it in isolation, including the inputs the
- * service cannot produce — a mismatch here is a coding fault, and this is where it is
- * refused rather than silently written.
+ * `bankMovementTotal + differenceAmount === lineAmount`, signed, in the line's
+ * frame. Exported so the property suite can assert it in isolation, including the
+ * inputs the service cannot produce — a mismatch here is a coding fault, and this
+ * is where it is refused rather than silently written. `bankMovementTotal` is the
+ * caller's Σ over every entry but `discount` (see the file header); this function
+ * takes the pre-summed total rather than the array, exactly as it always has, so a
+ * caller decides what belongs in the sum.
  */
 export function assertClearingBalances(
-  clearedAmount: bigint,
+  bankMovementTotal: bigint,
   differenceAmount: bigint,
   lineAmount: bigint,
 ): void {
-  const accounted = clearedAmount + differenceAmount;
+  const accounted = bankMovementTotal + differenceAmount;
   if (accounted !== lineAmount) {
     throw new PreconditionFailedError(
       BANKING_PRECONDITIONS.CLEARING_AMOUNT_MISMATCH,
-      `A clearing must account for the whole of the line. Cleared ${clearedAmount.toString()} ` +
+      `A clearing must account for the whole of the line. Cleared ${bankMovementTotal.toString()} ` +
         `plus difference ${differenceAmount.toString()} is ${accounted.toString()}, and the line ` +
         `is ${lineAmount.toString()} minor units. The two agree only because the difference is ` +
         'posted (E4).',
@@ -492,19 +610,48 @@ function counterLine(accountId: string, signedBankMovement: bigint): JournalLine
 /** The coded side of a `post_entry` — the account the line is, carrying its analysis. */
 function codedLine(
   accountId: string,
-  lineAmount: bigint,
+  signedAmount: bigint,
   contactId: string | null | undefined,
   dimensionValueIds: readonly string[] | undefined,
 ): JournalLineInput {
   return {
     accountId,
-    // Opposite the bank: money in (line > 0) debits the bank and credits the account
-    // it came from, and money out is the mirror.
-    side: lineAmount > 0n ? 'credit' : 'debit',
-    amount: magnitude(lineAmount),
+    // Opposite the bank: money in (positive) debits the bank and credits the
+    // account it came from, and money out is the mirror.
+    side: signedAmount > 0n ? 'credit' : 'debit',
+    amount: magnitude(signedAmount),
     ...(contactId === undefined || contactId === null ? {} : { contactId }),
     ...(dimensionValueIds === undefined ? {} : { dimensionValueIds: [...dimensionValueIds] }),
   };
+}
+
+/**
+ * The discount journal's two lines (D-106): debit the discount account and credit
+ * the receivables control for an invoice; debit the payables control and credit the
+ * discount account for a bill — the mirror, and exactly the shape `recordPayment`'s
+ * `journalLines` builds for a payment, with the discount account standing in for
+ * the bank account. Neither line names the bank ledger account: a discount moves no
+ * cash, so it never appears here.
+ */
+function discountLines(
+  side: SubledgerSide,
+  discountAccountId: string,
+  controlAccountId: string,
+  amount: bigint,
+  contactId: string,
+): readonly JournalLineInput[] {
+  const discount = { accountId: discountAccountId, amount, contactId } as const;
+  const control = { accountId: controlAccountId, amount, contactId } as const;
+
+  return side === 'receivable'
+    ? [
+        { ...discount, side: 'debit' as const },
+        { ...control, side: 'credit' as const },
+      ]
+    : [
+        { ...control, side: 'debit' as const },
+        { ...discount, side: 'credit' as const },
+      ];
 }
 
 function postInput(
@@ -571,7 +718,7 @@ function paymentDirectionFor(lineAmount: bigint): 'received' | 'made' {
   if (lineAmount === 0n) {
     throw new ValidationError('A zero-amount line has no direction to record a payment in.', [
       {
-        path: 'method',
+        path: 'entries',
         message:
           'This statement line moved no money, so there is no invoice or bill it can settle. ' +
           'A zero-amount line is coded (`post_entry`) or linked (`link_entry`), not allocated.',
@@ -582,28 +729,55 @@ function paymentDirectionFor(lineAmount: bigint): 'received' | 'made' {
 }
 
 /**
- * How much of the document to settle, as a positive magnitude — the request's `amount`
- * or, by default, the whole of the line (the ordinary case, where the payment is
- * exactly what the statement shows).
+ * How much of the line one entry accounts for, as a positive magnitude — the
+ * entry's own `amount` or, when it is the request's only entry, the whole of the
+ * line (the ordinary case, where the clear is exactly what the statement shows).
+ *
+ * Once there is more than one entry, an omitted amount is refused: defaulting a
+ * second or third entry to "the whole line" would double-count it, and a genuine
+ * split (D-80) has to state each entry's own share. A `ValidationError`, not a
+ * precondition — the shape of the request, not the state of anything it names.
  */
-function resolveSettleAmount(amount: string | null | undefined, lineAmount: bigint): bigint {
-  if (amount === undefined || amount === null) return magnitude(lineAmount);
+function resolveEntryAmount(
+  amount: string | null | undefined,
+  lineAmount: bigint,
+  isSoleEntry: boolean,
+  index: number,
+): bigint {
+  if (amount === undefined || amount === null) {
+    if (!isSoleEntry) {
+      throw new ValidationError(
+        'Each entry needs its own amount once the clear has more than one.',
+        [
+          {
+            path: `entries.${String(index)}.amount`,
+            message:
+              'This entry omitted `amount`, which only defaults to the whole of the line when it ' +
+              'is the request’s only entry. Name how much of the line this entry accounts for.',
+          },
+        ],
+      );
+    }
+    return magnitude(lineAmount);
+  }
 
-  // The schema's `minorUnitsSchema` accepts a signed, canonical string; a settlement
-  // is a positive magnitude, so a non-positive one is a client that has confused the
-  // frame — the line's sign is what carries the direction, not this number.
   const parsed = BigInt(amount);
   if (parsed <= 0n) {
-    throw new ValidationError('The settlement amount must be a positive magnitude.', [
+    throw new ValidationError('An entry’s amount must be a positive magnitude.', [
       {
-        path: 'amount',
+        path: `entries.${String(index)}.amount`,
         message:
-          'This is how much of the document to settle, always positive; the line’s own sign ' +
-          'decides whether the money was received or paid.',
+          'This is how much of the line the entry accounts for, always positive; the line’s own ' +
+          'sign decides whether the money was received or paid.',
       },
     ]);
   }
   return parsed;
+}
+
+/** A magnitude, signed to match the line's own direction — every entry's amount is in this frame. */
+function signLikeLine(positiveMagnitude: bigint, lineAmount: bigint): bigint {
+  return lineAmount < 0n ? -positiveMagnitude : positiveMagnitude;
 }
 
 function magnitude(signed: bigint): bigint {
@@ -641,22 +815,24 @@ async function translateClearingDuplicate(
   db: TenantDatabase,
   error: unknown,
   lineId: Buffer,
-  clearedJournalId: Buffer,
+  computations: readonly ClearingEntryComputation[],
 ): Promise<PreconditionFailedError> {
   // The key name is the reliable signal, and the only one under a real race: the
   // winner committed *after* this transaction's snapshot opened, so a re-query here
   // sees neither its clearing row nor the journal it took — REPEATABLE READ hides
-  // both. mysql2 names the violated index in the message (`… for key 'uq_blc_journal'`),
+  // both. mysql2 names the violated index in the message (`… for key 'uq_blce_journal'`),
   // which does not depend on visibility.
   const key = duplicateKeyName(error);
-  if (key.includes('uq_blc_journal')) return journalAlreadyCleared();
+  if (key.includes('uq_blce_journal')) return journalAlreadyCleared();
   if (key.includes('uq_blc_line')) return statementLineAlreadyCleared();
 
   // No key name (an older driver, or a differently-shaped error): fall back to the
   // re-query, which resolves the non-racing case where the conflicting row is visible.
   if ((await selectClearingByLine(db, lineId)) !== undefined) return statementLineAlreadyCleared();
-  if ((await selectClearingIdByJournal(db, clearedJournalId)) !== undefined) {
-    return journalAlreadyCleared();
+  for (const computation of computations) {
+    if ((await selectClearingIdByJournal(db, computation.clearedJournalId)) !== undefined) {
+      return journalAlreadyCleared();
+    }
   }
   return statementLineAlreadyCleared();
 }
@@ -675,7 +851,7 @@ function statementLineAlreadyCleared(): PreconditionFailedError {
   return new PreconditionFailedError(
     BANKING_PRECONDITIONS.STATEMENT_LINE_ALREADY_CLEARED,
     'This statement line has already been cleared. One movement of money is one statement line ' +
-      'and one entry; remove the existing clearing before accepting a different match.',
+      'and one clearing; remove the existing clearing before accepting a different match.',
   );
 }
 
@@ -683,7 +859,7 @@ function journalAlreadyCleared(): PreconditionFailedError {
   return new PreconditionFailedError(
     BANKING_PRECONDITIONS.JOURNAL_ALREADY_CLEARED,
     'This journal is already the entry another statement line was cleared against. One journal ' +
-      'settles one line; a second link would count the same money twice.',
+      'settles one entry; a second link would count the same money twice.',
   );
 }
 
@@ -696,22 +872,38 @@ function assertFoundAfterWrite(row: ClearingRow | undefined): ClearingRow {
   return row;
 }
 
-function toClearing(row: ClearingRow): BankLineClearing {
+/** The clearing as the wire returns it — parent plus its entries (D-105). */
+export function assembleClearing(
+  row: ClearingRow,
+  entries: readonly ClearingEntryRow[],
+): BankLineClearing {
   return {
     id: bufferToUuid(row.id),
     lineId: bufferToUuid(row.statement_line_id),
-    method: row.method,
-    clearedJournalId: bufferToUuid(row.cleared_journal_id),
+    entries: entries.map(toClearingEntry),
     clearedAmount: row.cleared_amount_minor.toString(),
     differenceAmount: row.difference_amount_minor.toString(),
     differenceAccountId:
       row.difference_account_id === null ? null : bufferToUuid(row.difference_account_id),
     differenceJournalId:
       row.difference_journal_id === null ? null : bufferToUuid(row.difference_journal_id),
-    paymentId: row.payment_id === null ? null : bufferToUuid(row.payment_id),
     reconciliationSessionId:
       row.reconciliation_session_id === null ? null : bufferToUuid(row.reconciliation_session_id),
     clearedByUserId: bufferToUuid(row.created_by_user_id),
     clearedAt: row.created_at.toISOString(),
+  };
+}
+
+function toClearingEntry(row: ClearingEntryRow): BankLineClearing['entries'][number] {
+  return {
+    id: bufferToUuid(row.id),
+    entryType: row.entry_type,
+    clearedJournalId: bufferToUuid(row.cleared_journal_id),
+    paymentId: row.payment_id === null ? null : bufferToUuid(row.payment_id),
+    accountId: row.account_id === null ? null : bufferToUuid(row.account_id),
+    targetType: row.target_type,
+    targetId: row.target_id === null ? null : bufferToUuid(row.target_id),
+    amount: row.entry_amount_minor.toString(),
+    createdAt: row.created_at.toISOString(),
   };
 }

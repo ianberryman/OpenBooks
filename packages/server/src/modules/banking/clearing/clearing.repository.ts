@@ -1,4 +1,5 @@
 import { BANKING_RESOURCES } from '@openbooks/shared-types';
+import type { BankClearingEntryType } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../../context';
 import type { TenantDatabase } from '../../../db';
@@ -6,12 +7,22 @@ import { orgScope as toOrgId, tenantDb } from '../../../db';
 import type { SubledgerSide } from '../../settings';
 
 /**
- * Data access for `bank_line_clearings` and the rows a clearing reads to make its
- * decision (OB-081; ROADMAP D-43, D-16, acceptance E3, E4).
+ * Data access for `bank_line_clearings` / `bank_line_clearing_entries` and the rows
+ * a clearing reads to make its decision (OB-081, generalised by OB-137; ROADMAP
+ * D-43, D-16, D-80, D-105, acceptance E3, E4).
  *
  * Everything goes through `tenantDb`, so `org_id = ctx.orgId` is on every statement
  * before this file adds a predicate — a cross-org id is a miss, not a leak (E9), and
  * `assertFound` in the service turns the miss into the one 404 it may produce.
+ *
+ * ## Parent and child — D-105
+ *
+ * A clearing accepted N entries at once (a lockbox deposit across three invoices,
+ * one line split-coded across several accounts) is one `bank_line_clearings` row —
+ * the undo unit, the D-51 reconciliation stamp, the running total and the
+ * difference — and N `bank_line_clearing_entries` rows, one per entry, each naming
+ * the journal it posted or pointed at. See `0006_banking`'s comment on both tables
+ * for the reasoning; this file is only the reads and writes it implies.
  *
  * ## What is append-only here, and why nothing locks it
  *
@@ -19,15 +30,15 @@ import type { SubledgerSide } from '../../settings';
  * user holds no `UPDATE`/`DELETE` on them, and MySQL requires exactly those for a
  * `SELECT … FOR UPDATE` — so there is **no `forUpdate()` anywhere in this file**, and
  * there must not be, for the reason the journal sequence counter is its own table
- * (D-14). Two clearings racing the same line or the same journal are serialized
- * instead by the unique keys `uq_blc_line` and `uq_blc_journal` on insert: the loser
- * blocks on the key until the winner commits, then takes the duplicate-entry error the
- * service translates. That is the same shape `reverseJournal` relies on for
- * `uq_journals_org_reverses`, and it is proven with two real connections in
- * `clearing.race.test.ts`.
+ * (D-14). Two clearings racing the same line are serialized by `uq_blc_line` on the
+ * parent insert; two entries racing the same journal are serialized by
+ * `uq_blce_journal` on the child insert. Both are the same shape `reverseJournal`
+ * relies on for `uq_journals_org_reverses`, and both are proven with two real
+ * connections in `clearing.race.test.ts`.
  *
- * `bank_line_clearings` itself is mutable (wave 0): un-matching is a delete, not a
- * reversing row, because a clearing posts no journal (the argument is `ar_allocations`').
+ * `bank_line_clearings` and `bank_line_clearing_entries` are both mutable (wave 0,
+ * D-105): un-matching is a delete, not a reversing row, because a clearing posts no
+ * journal (the argument is `ar_allocations`').
  */
 
 export const BANK_LINE_CLEARING_RESOURCE = BANKING_RESOURCES.BANK_LINE_CLEARING;
@@ -43,7 +54,7 @@ export const BANK_ACCOUNT_RESOURCE = BANKING_RESOURCES.BANK_ACCOUNT;
  */
 export const JOURNAL_RESOURCE = 'journal';
 
-/** The subledger document a `allocate_document` clearing settles (A7, E9). */
+/** The subledger document a `allocate_document` or `discount` entry settles (A7, E9). */
 export const DOCUMENT_RESOURCE = 'document';
 
 export function orgScope(ctx: RequestContext): TenantDatabase {
@@ -153,15 +164,12 @@ export async function selectDocumentContactId(
 }
 
 // ---------------------------------------------------------------------------
-// The clearing row
+// The clearing row (parent) — D-105
 // ---------------------------------------------------------------------------
 
 export interface ClearingRow {
   readonly id: Buffer;
   readonly statement_line_id: Buffer;
-  readonly method: 'post_entry' | 'link_entry' | 'allocate_document';
-  readonly cleared_journal_id: Buffer;
-  readonly payment_id: Buffer | null;
   readonly reconciliation_session_id: Buffer | null;
   readonly cleared_amount_minor: bigint;
   readonly difference_amount_minor: bigint;
@@ -174,9 +182,6 @@ export interface ClearingRow {
 const CLEARING_COLUMNS = [
   'id',
   'statement_line_id',
-  'method',
-  'cleared_journal_id',
-  'payment_id',
   'reconciliation_session_id',
   'cleared_amount_minor',
   'difference_amount_minor',
@@ -197,25 +202,38 @@ export async function selectClearingByLine(
     .executeTakeFirst();
 }
 
-/** The id of the clearing that already carries this journal, if one does. */
+/** Every parent clearing for a page of lines, keyed by the line's id hex, in one query. */
+export async function selectClearingsForLines(
+  db: TenantDatabase,
+  lineIds: readonly Buffer[],
+): Promise<Map<string, ClearingRow>> {
+  if (lineIds.length === 0) return new Map();
+
+  const rows = await db
+    .selectFrom('bank_line_clearings')
+    .select(CLEARING_COLUMNS)
+    .where('statement_line_id', 'in', lineIds)
+    .execute();
+
+  return new Map(rows.map((row) => [row.statement_line_id.toString('hex'), row]));
+}
+
+/** The id of the parent clearing that already carries this journal, if one does. */
 export async function selectClearingIdByJournal(
   db: TenantDatabase,
   journalId: Buffer,
 ): Promise<Buffer | undefined> {
   const row = await db
-    .selectFrom('bank_line_clearings')
-    .select('id')
+    .selectFrom('bank_line_clearing_entries')
+    .select('clearing_id')
     .where('cleared_journal_id', '=', journalId)
     .executeTakeFirst();
-  return row?.id;
+  return row?.clearing_id;
 }
 
 export interface NewClearingRow {
   readonly id: Buffer;
   readonly statementLineId: Buffer;
-  readonly method: 'post_entry' | 'link_entry' | 'allocate_document';
-  readonly clearedJournalId: Buffer;
-  readonly paymentId: Buffer | null;
   readonly clearedAmountMinor: bigint;
   readonly differenceAmountMinor: bigint;
   readonly differenceAccountId: Buffer | null;
@@ -229,9 +247,6 @@ export async function insertClearing(db: TenantDatabase, row: NewClearingRow): P
     .values({
       id: row.id,
       statement_line_id: row.statementLineId,
-      method: row.method,
-      cleared_journal_id: row.clearedJournalId,
-      payment_id: row.paymentId,
       // Clearing outside a session — the ordinary case on the matching screen. A
       // finalised session counts a clearing by date, not by this column (D-45, the
       // membership note in `0006_banking`), so a NULL here is included by date.
@@ -249,7 +264,133 @@ export async function deleteClearing(db: TenantDatabase, id: Buffer): Promise<vo
   await db.deleteFrom('bank_line_clearings').where('id', '=', id).execute();
 }
 
-// Whether a finalised session counts a clearing is read from the clearing's own
+// ---------------------------------------------------------------------------
+// The clearing entries (child) — D-105, D-106
+// ---------------------------------------------------------------------------
+
+export interface ClearingEntryRow {
+  readonly id: Buffer;
+  readonly clearing_id: Buffer;
+  readonly entry_type: BankClearingEntryType;
+  readonly cleared_journal_id: Buffer;
+  readonly payment_id: Buffer | null;
+  readonly account_id: Buffer | null;
+  readonly target_type: 'invoice' | 'bill' | null;
+  readonly target_id: Buffer | null;
+  readonly entry_amount_minor: bigint;
+  readonly created_at: Date;
+}
+
+const CLEARING_ENTRY_COLUMNS = [
+  'id',
+  'clearing_id',
+  'entry_type',
+  'cleared_journal_id',
+  'payment_id',
+  'account_id',
+  'target_type',
+  'target_id',
+  'entry_amount_minor',
+  'created_at',
+] as const;
+
+/** Every entry belonging to one parent clearing, in the order they were written. */
+export async function selectEntriesForClearing(
+  db: TenantDatabase,
+  clearingId: Buffer,
+): Promise<readonly ClearingEntryRow[]> {
+  return db
+    .selectFrom('bank_line_clearing_entries')
+    .select(CLEARING_ENTRY_COLUMNS)
+    .where('clearing_id', '=', clearingId)
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+}
+
+/**
+ * Every entry for a page of parent clearings, keyed by the parent's id hex — the
+ * batched sibling of `selectClearingsForLines`, so a statement-line list reads its
+ * clearings' entries in one query rather than one per row (E10).
+ */
+export async function selectEntriesForClearings(
+  db: TenantDatabase,
+  clearingIds: readonly Buffer[],
+): Promise<Map<string, ClearingEntryRow[]>> {
+  if (clearingIds.length === 0) return new Map();
+
+  const rows = await db
+    .selectFrom('bank_line_clearing_entries')
+    .select(CLEARING_ENTRY_COLUMNS)
+    .where('clearing_id', 'in', clearingIds)
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+
+  const byClearing = new Map<string, ClearingEntryRow[]>();
+  for (const row of rows) {
+    const key = row.clearing_id.toString('hex');
+    const existing = byClearing.get(key);
+    if (existing === undefined) byClearing.set(key, [row]);
+    else existing.push(row);
+  }
+  return byClearing;
+}
+
+export interface NewClearingEntryRow {
+  readonly id: Buffer;
+  readonly clearingId: Buffer;
+  readonly entryType: BankClearingEntryType;
+  readonly clearedJournalId: Buffer;
+  readonly paymentId: Buffer | null;
+  readonly accountId: Buffer | null;
+  readonly targetType: 'invoice' | 'bill' | null;
+  readonly targetId: Buffer | null;
+  readonly entryAmountMinor: bigint;
+}
+
+/**
+ * Writes every entry of one clear in a single statement.
+ *
+ * One multi-row insert rather than one call per entry: the transaction either
+ * writes the whole set or none of it either way (it is one statement inside one
+ * transaction), and a duplicate-key error from it still names the violated index
+ * (`uq_blce_journal`) in `sqlMessage`, which is all `translateClearingDuplicate`
+ * (`clearing.service.ts`) reads — it does not need to know *which* row in the
+ * batch collided.
+ */
+export async function insertClearingEntries(
+  db: TenantDatabase,
+  rows: readonly NewClearingEntryRow[],
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  await db
+    .insertInto('bank_line_clearing_entries')
+    .values(
+      rows.map((row) => ({
+        id: row.id,
+        clearing_id: row.clearingId,
+        entry_type: row.entryType,
+        cleared_journal_id: row.clearedJournalId,
+        payment_id: row.paymentId,
+        account_id: row.accountId,
+        target_type: row.targetType,
+        target_id: row.targetId,
+        entry_amount_minor: row.entryAmountMinor,
+      })),
+    )
+    .execute();
+}
+
+export async function deleteEntriesForClearing(
+  db: TenantDatabase,
+  clearingId: Buffer,
+): Promise<void> {
+  await db.deleteFrom('bank_line_clearing_entries').where('clearing_id', '=', clearingId).execute();
+}
+
+// Whether a finalised session counts a clearing is read from the parent's own
 // `reconciliation_session_id` stamp (D-51), which `selectClearingByLine` already
 // returns — a finalising session stamps its members and a reopen unstamps them, so
 // the stamp is the membership. There is deliberately no date-range query here: it

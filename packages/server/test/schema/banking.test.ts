@@ -947,6 +947,14 @@ describe('a reconciliation session is a lock, and its history is not (D-45, E6)'
 /**
  * Criterion E4, and the one place this schema deliberately departs from what it
  * looks like it should do.
+ *
+ * D-105 (Cash application) splits what this block tests into a parent
+ * `bank_line_clearings` — one row per line, holding the running total and the
+ * difference — and a child `bank_line_clearing_entries` — one row per entry,
+ * holding the singular target `method` used to carry (`entry_type`,
+ * `cleared_journal_id`, and now `account_id`/`target_type`/`target_id`). `clear()`
+ * below writes both, in that order, so a failure on the parent (`uq_blc_line`,
+ * `chk_blc_difference_accounted`) is reported before a child row is ever attempted.
  */
 describe('a clearing links a line to what cleared it (E4)', () => {
   interface ClearOverrides {
@@ -954,6 +962,7 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     readonly difference?: number;
     readonly method?: string;
     readonly differenceAccountId?: Buffer;
+    readonly accountId?: Buffer;
   }
 
   async function clear(
@@ -962,16 +971,32 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     journalId: Buffer,
     overrides: ClearOverrides,
   ): Promise<number | null> {
-    return errnoOf(
+    const clearingId = newUuidBuffer();
+    const parentErrno = await errnoOf(
       sql`
         INSERT INTO bank_line_clearings
-          (id, org_id, statement_line_id, method, cleared_journal_id,
-           cleared_amount_minor, difference_amount_minor, difference_account_id,
-           created_by_user_id)
+          (id, org_id, statement_line_id, cleared_amount_minor, difference_amount_minor,
+           difference_account_id, created_by_user_id)
         VALUES (
-          ${newUuidBuffer()}, ${s.orgId}, ${lineId}, ${overrides.method ?? 'link_entry'},
-          ${journalId}, ${overrides.cleared}, ${overrides.difference ?? 0},
+          ${clearingId}, ${s.orgId}, ${lineId}, ${overrides.cleared}, ${overrides.difference ?? 0},
           ${overrides.differenceAccountId ?? null}, ${s.userId}
+        )
+      `.execute(db.app),
+    );
+    if (parentErrno !== null) return parentErrno;
+
+    const entryType = overrides.method ?? 'link_entry';
+    // `chk_blce_account_target`: `account_id` is required exactly on `post_entry`
+    // (and `discount`, untested here) and forbidden otherwise.
+    const accountId =
+      entryType === 'post_entry' ? (overrides.accountId ?? s.expenseAccountId) : null;
+    return errnoOf(
+      sql`
+        INSERT INTO bank_line_clearing_entries
+          (id, org_id, clearing_id, entry_type, cleared_journal_id, account_id, entry_amount_minor)
+        VALUES (
+          ${newUuidBuffer()}, ${s.orgId}, ${clearingId}, ${entryType}, ${journalId},
+          ${accountId}, ${overrides.cleared}
         )
       `.execute(db.app),
     );
@@ -988,6 +1013,8 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     const second = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
 
     expect(await clear(s, lineId, first.id, { cleared: -450 })).toBeNull();
+    // `uq_blc_line`, on the parent — still one clearing per line, whatever number
+    // of entries it turns out to have.
     expect(await clear(s, lineId, second.id, { cleared: -450 })).toBe(DUPLICATE_KEY);
   });
 
@@ -998,6 +1025,8 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     await insertLine(s, { id: b, occurrenceIndex: 1 }).execute(db.app);
     const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
 
+    // Both parents insert cleanly — two different lines — so this is `uq_blce_journal`
+    // on the child, the moved `uq_blc_journal`: still one entry per journal.
     expect(await clear(s, a, journal.id, { cleared: -450 })).toBeNull();
     expect(await clear(s, b, journal.id, { cleared: -450 })).toBe(DUPLICATE_KEY);
   });
@@ -1012,7 +1041,7 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     // named in created_by_user_id accepted, recorded where they accepted it and
     // pointed at the account it posts to. `cleared + difference = line.amount` is
     // the invariant, and the schema cannot check it — the other operand is on
-    // another table — so OB-081 owns it and OB-088 asserts it.
+    // another table — so OB-081 (now OB-137) owns it and OB-088 asserts it.
     expect(
       await clear(s, lineId, journal.id, {
         cleared: -430,
@@ -1037,20 +1066,27 @@ describe('a clearing links a line to what cleared it (E4)', () => {
     await insertLine(s, { id: lineId }).execute(db.app);
     const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
 
-    // `clearing_difference_unaccounted`, stated in the schema.
+    // `clearing_difference_unaccounted`, stated in the schema — still on the
+    // parent, a fact about the whole line rather than about any one entry (D-105).
     expect(await clear(s, lineId, journal.id, { cleared: -430, difference: -20 })).toBe(
       CHECK_VIOLATED,
     );
   });
 
-  it('refuses any difference at all on a post_entry clearing', async () => {
+  /**
+   * The generalisation, not a regression: `chk_blc_post_entry_exact` — a lone
+   * `post_entry` clearing agreed with the line by construction, so it could carry
+   * no difference — does not survive D-80. A `post_entry` entry may now cover only
+   * *part* of a multi-entry line (one of several GL codings), so a difference
+   * beside one is the ordinary residual the equation accounts for, not a
+   * contradiction. `0006_banking`'s comment on the parent argues this at length.
+   */
+  it('no longer refuses a difference on a post_entry entry — D-80 generalised that away', async () => {
     const s = await scene();
     const lineId = newUuidBuffer();
     await insertLine(s, { id: lineId }).execute(db.app);
     const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
 
-    // The entry was created *for* the line, so it agrees by construction; a
-    // difference on one would mean it was posted for an amount nobody asked for.
     expect(
       await clear(s, lineId, journal.id, {
         method: 'post_entry',
@@ -1058,7 +1094,7 @@ describe('a clearing links a line to what cleared it (E4)', () => {
         difference: -20,
         differenceAccountId: s.expenseAccountId,
       }),
-    ).toBe(CHECK_VIOLATED);
+    ).toBeNull();
   });
 
   /**
@@ -1067,7 +1103,7 @@ describe('a clearing links a line to what cleared it (E4)', () => {
    * not: it posts no journal. Un-matching a line restates no financial statement,
    * and the journal it named is still in `journals` where nothing may touch it.
    */
-  it('may be deleted, for the reason an allocation may be', async () => {
+  it('may be deleted, for the reason an allocation may be — cascading to its entries', async () => {
     const s = await scene();
     const lineId = newUuidBuffer();
     await insertLine(s, { id: lineId }).execute(db.app);
@@ -1080,12 +1116,117 @@ describe('a clearing links a line to what cleared it (E4)', () => {
       .executeTakeFirst();
     expect(result.numDeletedRows).toBe(1n);
 
-    // And the line it referenced is untouched, which is the point of the split.
+    // The line it referenced is untouched, which is the point of the split.
     const rows = await db.app
       .selectFrom('bank_statement_lines')
       .select('id')
       .where('org_id', '=', s.orgId)
       .execute();
     expect(rows).toHaveLength(1);
+
+    // And its entry went with it — `fk_blce_clearing` is `ON DELETE CASCADE`: an
+    // entry has no meaning without the clearing it belongs to (D-105).
+    const entries = await db.app
+      .selectFrom('bank_line_clearing_entries')
+      .select('id')
+      .where('org_id', '=', s.orgId)
+      .execute();
+    expect(entries).toHaveLength(0);
+  });
+});
+
+/**
+ * The child table's own CHECKs (D-105, D-106) — the discriminant that keeps the
+ * three optional columns from being a bag of fields nothing enforces per kind.
+ */
+describe('a clearing entry names exactly what its kind needs (D-105, D-106)', () => {
+  async function insertEntry(
+    s: Scene,
+    clearingId: Buffer,
+    journalId: Buffer,
+    overrides: {
+      readonly entryType: string;
+      readonly paymentId?: Buffer | null;
+      readonly accountId?: Buffer | null;
+      readonly targetType?: 'invoice' | 'bill' | null;
+      readonly targetId?: Buffer | null;
+    },
+  ): Promise<number | null> {
+    return errnoOf(
+      sql`
+        INSERT INTO bank_line_clearing_entries
+          (id, org_id, clearing_id, entry_type, cleared_journal_id, payment_id,
+           account_id, target_type, target_id, entry_amount_minor)
+        VALUES (
+          ${newUuidBuffer()}, ${s.orgId}, ${clearingId}, ${overrides.entryType}, ${journalId},
+          ${overrides.paymentId ?? null}, ${overrides.accountId ?? null},
+          ${overrides.targetType ?? null}, ${overrides.targetId ?? null}, 100
+        )
+      `.execute(db.app),
+    );
+  }
+
+  async function clearingFor(s: Scene, lineId: Buffer): Promise<Buffer> {
+    const clearingId = newUuidBuffer();
+    await sql`
+      INSERT INTO bank_line_clearings
+        (id, org_id, statement_line_id, cleared_amount_minor, difference_amount_minor,
+         created_by_user_id)
+      VALUES (${clearingId}, ${s.orgId}, ${lineId}, 100, 0, ${s.userId})
+    `.execute(db.app);
+    return clearingId;
+  }
+
+  it('refuses a payment_id on anything but allocate_document', async () => {
+    const s = await scene();
+    const lineId = newUuidBuffer();
+    await insertLine(s, { id: lineId }).execute(db.app);
+    const clearingId = await clearingFor(s, lineId);
+    const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
+
+    expect(
+      await insertEntry(s, clearingId, journal.id, {
+        entryType: 'link_entry',
+        paymentId: newUuidBuffer(),
+      }),
+    ).toBe(CHECK_VIOLATED);
+  });
+
+  it('requires an account_id on post_entry and refuses one on link_entry', async () => {
+    const s = await scene();
+    const lineId = newUuidBuffer();
+    await insertLine(s, { id: lineId }).execute(db.app);
+    const clearingId = await clearingFor(s, lineId);
+    const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
+
+    expect(await insertEntry(s, clearingId, journal.id, { entryType: 'post_entry' })).toBe(
+      CHECK_VIOLATED,
+    );
+    expect(
+      await insertEntry(s, clearingId, journal.id, {
+        entryType: 'link_entry',
+        accountId: s.expenseAccountId,
+      }),
+    ).toBe(CHECK_VIOLATED);
+  });
+
+  it('requires a target on allocate_document/discount and refuses one on post_entry/link_entry', async () => {
+    const s = await scene();
+    const lineId = newUuidBuffer();
+    await insertLine(s, { id: lineId }).execute(db.app);
+    const clearingId = await clearingFor(s, lineId);
+    const journal = await db.factories.journal({ orgId: s.orgId, periodId: s.periodId });
+
+    expect(await insertEntry(s, clearingId, journal.id, { entryType: 'allocate_document' })).toBe(
+      CHECK_VIOLATED,
+    );
+    expect(
+      await insertEntry(s, clearingId, journal.id, {
+        entryType: 'post_entry',
+        accountId: s.expenseAccountId,
+        targetType: 'invoice',
+        targetId: newUuidBuffer(),
+      }),
+    ).toBe(CHECK_VIOLATED);
   });
 });

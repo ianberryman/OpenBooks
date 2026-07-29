@@ -24,11 +24,14 @@ import {
 import { clearBankStatementLine, removeBankLineClearing } from './clearing.service';
 
 /**
- * The clearing service against real MySQL (OB-081; acceptance E3, E4). Never a mock
- * and never SQLite (spec §11): the guarantees are the two unique keys on
- * `bank_line_clearings`, the ledger the difference posts to, and the org scoping
- * `tenantDb` applies — none of which a mock holds.
+ * The clearing service against real MySQL (OB-081, generalised by OB-137; acceptance
+ * E3, E4). Never a mock and never SQLite (spec §11): the guarantees are the two
+ * unique keys — `uq_blc_line` on the parent, `uq_blce_journal` on the child
+ * (D-105) — the ledger the difference posts to, and the org scoping `tenantDb`
+ * applies — none of which a mock holds.
  *
+ * Every clear here is a single-entry `entries: [ ... ]` array — the common case,
+ * and the shape every pre-Cash-application caller used before `entries` existed.
  * E4 as an equation is the subject of `clearing.e4.test.ts`; contention is
  * `clearing.race.test.ts`. This file is the happy paths and the refusals.
  */
@@ -59,15 +62,18 @@ describe('post_entry', () => {
 
     const before = await journalCount(db.app, scene.orgId);
     const result = await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+      }),
     );
 
-    expect(result.method).toBe('post_entry');
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.entryType).toBe('post_entry');
+    expect(result.entries[0]?.paymentId).toBeNull();
     expect(result.clearedAmount).toBe('5000');
     expect(result.differenceAmount).toBe('0');
     expect(result.differenceAccountId).toBeNull();
     expect(result.differenceJournalId).toBeNull();
-    expect(result.paymentId).toBeNull();
     expect(result.reconciliationSessionId).toBeNull();
     expect(result.clearedByUserId).toBe(scene.userUuid);
 
@@ -81,7 +87,9 @@ describe('post_entry', () => {
     const line = await statementLineIn(db, scene, { amountMinor: -5000n });
 
     await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.expense.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.expense.uuid }],
+      }),
     );
 
     expect(await accountBalance(db.app, scene.bankLedger.id)).toBe(-5000n);
@@ -97,13 +105,12 @@ describe('link_entry', () => {
     const before = await journalCount(db.app, scene.orgId);
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'link_entry',
-        journalId: journal.uuid,
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
       }),
     );
 
-    expect(result.method).toBe('link_entry');
-    expect(result.clearedJournalId).toBe(journal.uuid);
+    expect(result.entries[0]?.entryType).toBe('link_entry');
+    expect(result.entries[0]?.clearedJournalId).toBe(journal.uuid);
     expect(result.clearedAmount).toBe('5000');
     expect(result.differenceAmount).toBe('0');
     expect(result.differenceJournalId).toBeNull();
@@ -118,8 +125,7 @@ describe('link_entry', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'link_entry',
-        journalId: journal.uuid,
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
         differenceAccountId: scene.charges.uuid,
       }),
     );
@@ -142,14 +148,12 @@ describe('allocate_document', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'invoice',
-        targetId: invoice.uuid,
+        entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
       }),
     );
 
-    expect(result.method).toBe('allocate_document');
-    expect(result.paymentId).not.toBeNull();
+    expect(result.entries[0]?.entryType).toBe('allocate_document');
+    expect(result.entries[0]?.paymentId).not.toBeNull();
     expect(result.clearedAmount).toBe('5000');
     expect(result.differenceAmount).toBe('0');
     // The invoice's receivable control is back to zero: raised 5000, settled 5000.
@@ -163,9 +167,7 @@ describe('allocate_document', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'bill',
-        targetId: bill.uuid,
+        entries: [{ method: 'allocate_document', targetType: 'bill', targetId: bill.uuid }],
       }),
     );
 
@@ -181,9 +183,7 @@ describe('allocate_document', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'invoice',
-        targetId: invoice.uuid,
+        entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
       }),
     );
 
@@ -199,10 +199,14 @@ describe('allocate_document', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'invoice',
-        targetId: invoice.uuid,
-        amount: '100000',
+        entries: [
+          {
+            method: 'allocate_document',
+            targetType: 'invoice',
+            targetId: invoice.uuid,
+            amount: '100000',
+          },
+        ],
         differenceAccountId: scene.charges.uuid,
       }),
     );
@@ -231,7 +235,9 @@ describe('refusals', () => {
     const before = await journalCount(db.app, scene.orgId);
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+        clearBankStatementLine(line.uuid, {
+          entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+        }),
       ),
     );
 
@@ -246,12 +252,16 @@ describe('refusals', () => {
   it('refuses clearing a line that already carries a clearing', async () => {
     const line = await statementLineIn(db, scene, { amountMinor: 5000n });
     await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+      }),
     );
 
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.expense.uuid }),
+        clearBankStatementLine(line.uuid, {
+          entries: [{ method: 'post_entry', accountId: scene.expense.uuid }],
+        }),
       ),
     );
     expect(toWireError(error)).toMatchObject({
@@ -265,11 +275,15 @@ describe('refusals', () => {
     const second = await statementLineIn(db, scene, { amountMinor: 5000n });
 
     await run(() =>
-      clearBankStatementLine(first.uuid, { method: 'link_entry', journalId: journal.uuid }),
+      clearBankStatementLine(first.uuid, {
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
+      }),
     );
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(second.uuid, { method: 'link_entry', journalId: journal.uuid }),
+        clearBankStatementLine(second.uuid, {
+          entries: [{ method: 'link_entry', journalId: journal.uuid }],
+        }),
       ),
     );
     expect(toWireError(error)).toMatchObject({
@@ -283,7 +297,9 @@ describe('refusals', () => {
 
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(line.uuid, { method: 'link_entry', journalId: journal.uuid }),
+        clearBankStatementLine(line.uuid, {
+          entries: [{ method: 'link_entry', journalId: journal.uuid }],
+        }),
       ),
     );
     expect(toWireError(error)).toMatchObject({
@@ -300,9 +316,7 @@ describe('refusals', () => {
     const error = await caught(() =>
       run(() =>
         clearBankStatementLine(line.uuid, {
-          method: 'allocate_document',
-          targetType: 'invoice',
-          targetId: invoice.uuid,
+          entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
         }),
       ),
     );
@@ -324,7 +338,9 @@ describe('refusals', () => {
 
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+        clearBankStatementLine(line.uuid, {
+          entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+        }),
       ),
     );
     expect(toWireError(error)).toMatchObject({
@@ -338,7 +354,9 @@ describe('refusals', () => {
 
     const error = await caught(() =>
       run(() =>
-        clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+        clearBankStatementLine(line.uuid, {
+          entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+        }),
       ),
     );
     expect(toWireError(error)).toMatchObject({ code: 'not_found', status: 404 });
@@ -349,9 +367,11 @@ describe('undo', () => {
   it('reverses a post_entry journal rather than deleting it', async () => {
     const line = await statementLineIn(db, scene, { amountMinor: 5000n });
     const cleared = await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+      }),
     );
-    const journalId = uuidToBuffer(cleared.clearedJournalId);
+    const journalId = uuidToBuffer(cleared.entries[0]!.clearedJournalId);
 
     await run(() => removeBankLineClearing(line.uuid, { date: scene.date }));
 
@@ -369,8 +389,7 @@ describe('undo', () => {
     const line = await statementLineIn(db, scene, { amountMinor: 99000n });
     const cleared = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'link_entry',
-        journalId: journal.uuid,
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
         differenceAccountId: scene.charges.uuid,
       }),
     );
@@ -391,12 +410,10 @@ describe('undo', () => {
     const line = await statementLineIn(db, scene, { amountMinor: 5000n });
     const cleared = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'invoice',
-        targetId: invoice.uuid,
+        entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
       }),
     );
-    const paymentJournalId = uuidToBuffer(cleared.clearedJournalId);
+    const paymentJournalId = uuidToBuffer(cleared.entries[0]!.clearedJournalId);
 
     await run(() => removeBankLineClearing(line.uuid, { date: scene.date }));
 
@@ -411,7 +428,9 @@ describe('undo', () => {
   it('refuses undo when the reversal date falls in a closed period', async () => {
     const line = await statementLineIn(db, scene, { amountMinor: 5000n });
     await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+      }),
     );
     await db.factories.fiscalPeriod({
       orgId: scene.orgId,
@@ -431,7 +450,9 @@ describe('undo', () => {
   it('refuses undo of a clearing a finalised session counts (E6)', async () => {
     const line = await statementLineIn(db, scene, { amountMinor: 5000n });
     await run(() =>
-      clearBankStatementLine(line.uuid, { method: 'post_entry', accountId: scene.revenue.uuid }),
+      clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
+      }),
     );
     // A session finalised over a window that includes the line's date.
     await finalisedSessionIn(db, scene, scene.date, 5000n);
@@ -470,8 +491,7 @@ describe('permissions', () => {
       run(
         () =>
           clearBankStatementLine(line.uuid, {
-            method: 'post_entry',
-            accountId: scene.revenue.uuid,
+            entries: [{ method: 'post_entry', accountId: scene.revenue.uuid }],
           }),
         readOnly,
       ),
@@ -498,11 +518,9 @@ describe('permissions', () => {
 
     const result = await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'allocate_document',
-        targetType: 'invoice',
-        targetId: invoice.uuid,
+        entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
       }),
     );
-    expect(result.paymentId).not.toBeNull();
+    expect(result.entries[0]?.paymentId).not.toBeNull();
   });
 });

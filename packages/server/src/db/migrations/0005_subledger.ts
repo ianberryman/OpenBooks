@@ -74,6 +74,19 @@ import type { MigrationDb } from './types';
  * app user *can* take a locking read on them, which the ledger tables famously
  * cannot (D-14). Refusing an over-allocation (C3) needs exactly that — the document
  * row taken `FOR UPDATE` while its allocations are summed.
+ *
+ * ## Cash application's in-place additions (D-15, D-79, D-106)
+ *
+ * Four columns and a widened CHECK, added directly to the tables above rather than
+ * appended in a later migration, per D-15's pre-release convention: `ar_documents`/
+ * `ap_documents.payment_term_id` (the term a document was raised under, overriding
+ * the contact's default); `org_accounting_settings.discount_given_account_id` /
+ * `.discount_received_account_id` (where an early-pay discount posts, alongside the
+ * two control accounts they sit beside); and `ar_allocations`/
+ * `ap_allocations.discount_journal_id`, a third allocation source alongside a
+ * payment and a credit document — D-106 models a discount as a settlement funded by
+ * the discount journal rather than by cash, so it needed a column of its own rather
+ * than an ill-fitting reuse of the other two. See each table's own comment.
  */
 export async function up(db: MigrationDb): Promise<void> {
   // ---------------------------------------------------------------------------
@@ -137,11 +150,31 @@ export async function up(db: MigrationDb): Promise<void> {
   // orgs that post to it — the same shape `fk_ar_document_lines_account` takes, and
   // `deleteAccount` already refuses an account with postings for the related reason.
   // ---------------------------------------------------------------------------
+  // ## discount_given_account_id / discount_received_account_id — added in place
+  // for Cash application (D-15, D-79, D-106)
+  //
+  // The early-pay discount is real P&L (D-66) and posts to an account the org
+  // nominates, exactly as the two control accounts above are nominated rather than
+  // guessed from a chart-template code (D-23). `discount_given_account_id` is the
+  // expense side of a discount this org gives a customer for paying early;
+  // `discount_received_account_id` is the income side of a discount a vendor gives
+  // this org — the AP mirror. Both are added here rather than in `0012` because,
+  // unlike `payment_terms`, their target — `accounts` — already exists in this
+  // migration's own predecessor (`0002_ledger`), so the composite foreign key needs
+  // no later `ALTER TABLE`. Nullable and separately so, following
+  // `receivable_control_account_id` / `payable_control_account_id`'s own reasoning
+  // immediately above: an org that only invoices never gives a vendor discount, and
+  // requiring one nomination to record the other would invent a prerequisite. Not
+  // constrained to `expense`/`income` types for the reason `tax_account_id` is not
+  // constrained to a liability one — MySQL cannot express a CHECK that reads
+  // another table.
   await sql`
     CREATE TABLE org_accounting_settings (
       org_id                        BINARY(16)  NOT NULL,
       receivable_control_account_id BINARY(16)  NULL,
       payable_control_account_id    BINARY(16)  NULL,
+      discount_given_account_id     BINARY(16)  NULL,
+      discount_received_account_id  BINARY(16)  NULL,
       -- The basis a report renders on unless the request overrides it (K1, D-87).
       -- Defaults to 'accrual': the ledger is accrual-capable and every M2 report was
       -- accrual (D-22), so an org sees no change until it opts into cash. NOT NULL: there
@@ -155,12 +188,20 @@ export async function up(db: MigrationDb): Promise<void> {
       -- foreign key, so the covering index is visible where the constraint is.
       KEY idx_oas_receivable (org_id, receivable_control_account_id),
       KEY idx_oas_payable (org_id, payable_control_account_id),
+      KEY idx_oas_discount_given (org_id, discount_given_account_id),
+      KEY idx_oas_discount_received (org_id, discount_received_account_id),
       CONSTRAINT fk_oas_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_oas_receivable
         FOREIGN KEY (org_id, receivable_control_account_id) REFERENCES accounts (org_id, id)
         ON DELETE RESTRICT,
       CONSTRAINT fk_oas_payable
         FOREIGN KEY (org_id, payable_control_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_oas_discount_given
+        FOREIGN KEY (org_id, discount_given_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_oas_discount_received
+        FOREIGN KEY (org_id, discount_received_account_id) REFERENCES accounts (org_id, id)
         ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
@@ -353,6 +394,13 @@ export async function up(db: MigrationDb): Promise<void> {
       tax_mode           ENUM('inclusive','exclusive') NOT NULL,
       reference          VARCHAR(120) NULL,
       memo               VARCHAR(512) NULL,
+      -- Cash application (D-15, D-79), added in place: the term this invoice was
+      -- raised under, overriding the contact's default (contacts.default_payment_term_id,
+      -- 0002_ledger) -- NULL means the contact's default applied, or that no term
+      -- was ever nominated. No foreign key here for 0002_ledger's own reason:
+      -- payment_terms does not exist until 0012_cash_application, which adds the
+      -- composite constraint once it does.
+      payment_term_id    BINARY(16)   NULL,
       journal_id         BINARY(16)   NULL,
       void_journal_id    BINARY(16)   NULL,
       created_by_user_id BINARY(16)   NOT NULL,
@@ -371,6 +419,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_ar_documents_org_contact_due (org_id, contact_id, due_date),
       KEY idx_ar_documents_org_type_issue (org_id, document_type, issue_date),
       KEY idx_ar_documents_org_created (org_id, created_at, id),
+      KEY idx_ar_documents_org_payment_term (org_id, payment_term_id),
       CONSTRAINT fk_ar_documents_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_ar_documents_contact
         FOREIGN KEY (org_id, contact_id) REFERENCES contacts (org_id, id) ON DELETE RESTRICT,
@@ -554,6 +603,10 @@ export async function up(db: MigrationDb): Promise<void> {
       tax_mode           ENUM('inclusive','exclusive') NOT NULL,
       reference          VARCHAR(120) NULL,
       memo               VARCHAR(512) NULL,
+      -- The mirror of ar_documents.payment_term_id above: the term this bill was
+      -- entered under, overriding the vendor contact's default. Same reason for no
+      -- foreign key yet.
+      payment_term_id    BINARY(16)   NULL,
       journal_id         BINARY(16)   NULL,
       void_journal_id    BINARY(16)   NULL,
       created_by_user_id BINARY(16)   NOT NULL,
@@ -568,6 +621,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_ap_documents_org_contact_due (org_id, contact_id, due_date),
       KEY idx_ap_documents_org_type_issue (org_id, document_type, issue_date),
       KEY idx_ap_documents_org_created (org_id, created_at, id),
+      KEY idx_ap_documents_org_payment_term (org_id, payment_term_id),
       CONSTRAINT fk_ap_documents_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_ap_documents_contact
         FOREIGN KEY (org_id, contact_id) REFERENCES contacts (org_id, id) ON DELETE RESTRICT,
@@ -779,6 +833,23 @@ export async function up(db: MigrationDb): Promise<void> {
   // historical date. Using today's allocations against a past date's documents
   // produces a report that cannot be reproduced tomorrow, and a date column is the
   // only thing that makes the as-at query expressible at all.
+  //
+  // ## discount_journal_id — a third source, added in place for Cash application (D-106)
+  //
+  // An early-pay discount settles a document without a payment behind it: D-106
+  // models it as "a settlement whose funding source is the discount account, not
+  // cash" — a real journal (debit discount-given, credit the receivables control;
+  // the mirror on AP), and an allocation of the discount amount so `outstanding`
+  // reaches zero without a special case in `documentTotal − allocatedToDocument`.
+  // That allocation cannot be a `payment_id` — `payments` requires a `bank_account_id`
+  // and posts through `recordPayment`, and a discount is neither a receipt nor a
+  // disbursement — and it cannot be a `credit_note_id` either, which names a real,
+  // numbered `ar_documents`/`ap_documents` row a discount is not. So this is a third,
+  // separately-nullable source column, naming the journal the discount itself
+  // posted, and `chk_ar_allocations_one_source` becomes a three-way exclusive-or
+  // below. `bank_line_clearing_entries.entry_type = 'discount'` (`0006_banking`) is
+  // what writes a row here, through `applyAllocations`'s new `'discount'`
+  // `AllocationSource` kind (`modules/payments/allocate.ts`).
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE ar_allocations (
@@ -787,6 +858,7 @@ export async function up(db: MigrationDb): Promise<void> {
       invoice_id         BINARY(16)  NOT NULL,
       payment_id         BINARY(16)  NULL,
       credit_note_id     BINARY(16)  NULL,
+      discount_journal_id BINARY(16) NULL,
       amount_minor       BIGINT      NOT NULL,
       allocated_on       DATE        NOT NULL,
       created_by_user_id BINARY(16)  NOT NULL,
@@ -798,6 +870,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_ar_allocations_org_invoice (org_id, invoice_id, allocated_on),
       KEY idx_ar_allocations_org_payment (org_id, payment_id),
       KEY idx_ar_allocations_org_credit_note (org_id, credit_note_id),
+      KEY idx_ar_allocations_org_discount_journal (org_id, discount_journal_id),
       KEY idx_ar_allocations_org_date (org_id, allocated_on, id),
       CONSTRAINT fk_ar_allocations_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_ar_allocations_invoice
@@ -807,11 +880,16 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT fk_ar_allocations_credit_note
         FOREIGN KEY (org_id, credit_note_id) REFERENCES ar_documents (org_id, id)
         ON DELETE RESTRICT,
+      CONSTRAINT fk_ar_allocations_discount_journal
+        FOREIGN KEY (org_id, discount_journal_id) REFERENCES journals (org_id, id)
+        ON DELETE RESTRICT,
       CONSTRAINT fk_ar_allocations_author
         FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
       CONSTRAINT chk_ar_allocations_amount CHECK (amount_minor > 0),
       CONSTRAINT chk_ar_allocations_one_source CHECK (
-        (payment_id IS NULL) <> (credit_note_id IS NULL)
+        (payment_id IS NOT NULL AND credit_note_id IS NULL AND discount_journal_id IS NULL) OR
+        (payment_id IS NULL AND credit_note_id IS NOT NULL AND discount_journal_id IS NULL) OR
+        (payment_id IS NULL AND credit_note_id IS NULL AND discount_journal_id IS NOT NULL)
       ),
       CONSTRAINT chk_ar_allocations_not_self CHECK (
         credit_note_id IS NULL OR credit_note_id <> invoice_id
@@ -820,9 +898,10 @@ export async function up(db: MigrationDb): Promise<void> {
   `.execute(db);
 
   // ---------------------------------------------------------------------------
-  // ap_allocations — the mirror of `ar_allocations`: a payment or a vendor credit
-  // applied to a bill. See that table for why an allocation posts no journal, why it
-  // is deletable, and what the schema cannot enforce.
+  // ap_allocations — the mirror of `ar_allocations`: a payment, a vendor credit, or
+  // a discount journal applied to a bill. See that table for why an allocation
+  // posts no journal, why it is deletable, what the schema cannot enforce, and why
+  // `discount_journal_id` exists (D-106).
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE ap_allocations (
@@ -831,6 +910,7 @@ export async function up(db: MigrationDb): Promise<void> {
       bill_id            BINARY(16)  NOT NULL,
       payment_id         BINARY(16)  NULL,
       vendor_credit_id   BINARY(16)  NULL,
+      discount_journal_id BINARY(16) NULL,
       amount_minor       BIGINT      NOT NULL,
       allocated_on       DATE        NOT NULL,
       created_by_user_id BINARY(16)  NOT NULL,
@@ -842,6 +922,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_ap_allocations_org_bill (org_id, bill_id, allocated_on),
       KEY idx_ap_allocations_org_payment (org_id, payment_id),
       KEY idx_ap_allocations_org_vendor_credit (org_id, vendor_credit_id),
+      KEY idx_ap_allocations_org_discount_journal (org_id, discount_journal_id),
       KEY idx_ap_allocations_org_date (org_id, allocated_on, id),
       CONSTRAINT fk_ap_allocations_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_ap_allocations_bill
@@ -851,11 +932,16 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT fk_ap_allocations_vendor_credit
         FOREIGN KEY (org_id, vendor_credit_id) REFERENCES ap_documents (org_id, id)
         ON DELETE RESTRICT,
+      CONSTRAINT fk_ap_allocations_discount_journal
+        FOREIGN KEY (org_id, discount_journal_id) REFERENCES journals (org_id, id)
+        ON DELETE RESTRICT,
       CONSTRAINT fk_ap_allocations_author
         FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
       CONSTRAINT chk_ap_allocations_amount CHECK (amount_minor > 0),
       CONSTRAINT chk_ap_allocations_one_source CHECK (
-        (payment_id IS NULL) <> (vendor_credit_id IS NULL)
+        (payment_id IS NOT NULL AND vendor_credit_id IS NULL AND discount_journal_id IS NULL) OR
+        (payment_id IS NULL AND vendor_credit_id IS NOT NULL AND discount_journal_id IS NULL) OR
+        (payment_id IS NULL AND vendor_credit_id IS NULL AND discount_journal_id IS NOT NULL)
       ),
       CONSTRAINT chk_ap_allocations_not_self CHECK (
         vendor_credit_id IS NULL OR vendor_credit_id <> bill_id

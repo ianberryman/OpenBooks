@@ -8,12 +8,15 @@ import { resolvePageLimit, tryUuidToBuffer } from '../../../db';
 import { assertFound, parseInput } from '../../../errors';
 import { requirePermission } from '../../permissions';
 
+import { selectEntriesForClearing } from '../clearing/clearing.repository';
+
 import type { StatementLineFilters } from './repository';
 import {
   STATEMENT_LINE_RESOURCE as RESOURCE,
   lineIdBytes,
   orgScope,
   selectClearingByLine,
+  selectClearingEntriesForClearings,
   selectClearingsForLines,
   selectStatementLineById,
   selectStatementLinesPage,
@@ -45,7 +48,10 @@ export async function getStatementLine(
   const line = assertFound(await selectStatementLineById(db, id), RESOURCE);
 
   const clearing = await selectClearingByLine(db, id);
-  return toStatementLine(line, clearing === undefined ? null : toBankLineClearing(clearing));
+  if (clearing === undefined) return toStatementLine(line, null);
+
+  const entries = await selectEntriesForClearing(db, clearing.id);
+  return toStatementLine(line, toBankLineClearing(clearing, entries));
 }
 
 /**
@@ -91,10 +97,16 @@ export async function listStatementLines(
     db,
     page.rows.map((row) => row.id),
   );
+  const entriesByClearing = await selectClearingEntriesForClearings(
+    db,
+    [...clearings.values()].map((clearing) => clearing.id),
+  );
 
   const items = page.rows.map((row) => {
     const clearing = clearings.get(row.id.toString('hex'));
-    return toStatementLine(row, clearing === undefined ? null : toBankLineClearing(clearing));
+    if (clearing === undefined) return toStatementLine(row, null);
+    const entries = entriesByClearing.get(clearing.id.toString('hex')) ?? [];
+    return toStatementLine(row, toBankLineClearing(clearing, entries));
   });
 
   return { items, nextCursor: page.nextCursor };

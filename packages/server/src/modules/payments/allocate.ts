@@ -62,8 +62,19 @@ import { amountProblem, minorUnits } from './input';
 /** What is being applied, resolved and locked by the caller. */
 export interface AllocationSource {
   readonly side: SubledgerSide;
-  /** A payment, or a credit note / vendor credit. Decides which column is set. */
-  readonly kind: 'payment' | 'credit_document';
+  /**
+   * A payment, a credit note / vendor credit, or a discount journal. Decides which
+   * column `insertAllocation` sets.
+   *
+   * `'discount'` is Cash application's addition (ROADMAP D-106): an early-pay
+   * discount settles a document without a payment behind it — "a settlement whose
+   * funding source is the discount account, not cash" — so `id` here is the
+   * discount's own posted journal, not a `payments` row (which `recordPayment`
+   * requires a bank account for) and not a real, numbered credit document (which a
+   * discount is not). `bank_line_clearing_entries.entry_type = 'discount'`
+   * (`modules/banking/clearing`) is the one caller of this kind today.
+   */
+  readonly kind: 'payment' | 'credit_document' | 'discount';
   readonly id: Buffer;
   /**
    * Whose money this is. An allocation may not cross contacts — see
@@ -73,7 +84,7 @@ export interface AllocationSource {
   /** Amount minus what has already been applied from it, read under its row lock. */
   readonly available: bigint;
   /** What it is called when it runs out. */
-  readonly label: 'payment' | 'credit note' | 'vendor credit';
+  readonly label: 'payment' | 'credit note' | 'vendor credit' | 'discount';
 }
 
 /**
@@ -123,7 +134,8 @@ export async function applyAllocations(
       await insertAllocation(db, source.side, {
         targetId: request.targetId,
         paymentId: source.kind === 'payment' ? source.id : null,
-        creditDocumentId: source.kind === 'payment' ? null : source.id,
+        creditDocumentId: source.kind === 'credit_document' ? source.id : null,
+        discountJournalId: source.kind === 'discount' ? source.id : null,
         amountMinor: request.amount,
         // D-40: the allocation carries its own date so aging as at a past date is
         // reproducible. Using today's allocations against a past date's documents

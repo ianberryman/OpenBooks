@@ -410,17 +410,29 @@ export async function codingHistoryIn(
     date: '2026-02-01',
     contraAccountId: options.codedAccountId,
   });
+  const clearingId = uuidToBuffer(newUuid());
   await db.app
     .insertInto('bank_line_clearings')
     .values({
-      id: uuidToBuffer(newUuid()),
+      id: clearingId,
       org_id: scene.orgId,
       statement_line_id: line.id,
-      method: 'post_entry',
-      cleared_journal_id: journal.id,
       cleared_amount_minor: options.amount,
       difference_amount_minor: 0n,
       created_by_user_id: scene.userId,
+    })
+    .execute();
+  // D-105: `method` and the coded account moved off the parent onto the child.
+  await db.app
+    .insertInto('bank_line_clearing_entries')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: scene.orgId,
+      clearing_id: clearingId,
+      entry_type: 'post_entry',
+      cleared_journal_id: journal.id,
+      account_id: options.codedAccountId,
+      entry_amount_minor: options.amount,
     })
     .execute();
 }

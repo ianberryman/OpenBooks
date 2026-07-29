@@ -41,6 +41,7 @@ describe('test database harness', () => {
         '0009_bill_capture',
         '0010_platform',
         '0011_payment_processing',
+        '0012_cash_application',
         '0999_app_grants',
       ]);
     });

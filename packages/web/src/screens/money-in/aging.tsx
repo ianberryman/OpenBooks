@@ -71,6 +71,10 @@ const DOCUMENT_LABELS: Readonly<Record<AgingDocument['documentType'], string>> =
   payment: 'Payment on account',
   credit_note: 'Credit note',
   vendor_credit: 'Vendor credit',
+  // Cash application (D-106): a discount always fully settles the document it was
+  // written for, so it never actually surfaces here with anything outstanding — the
+  // label exists for the type's sake, not because this row is expected in practice.
+  discount: 'Early-pay discount',
 };
 
 /**

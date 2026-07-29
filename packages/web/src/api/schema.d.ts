@@ -2704,7 +2704,7 @@ export interface paths {
         put?: never;
         /**
          * Clear a statement line
-         * @description Accepting: the one write on the matching path (D-43). `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle an invoice or bill (`allocate_document`). E4 holds by construction: `clearedAmount + differenceAmount === line.amount`, and a difference must have an account to post to (`clearing_difference_unaccounted`). A line already cleared is `statement_line_already_cleared`.
+         * @description Accepting: the one write on the matching path (D-43). `entries` is one or more of `post_entry` (code the line), `link_entry` (link an existing entry), `allocate_document` (settle an invoice or bill), and `discount` (an early-pay discount, D-106) — a single-target clear is `entries` with one element. E4 holds by construction: the non-`discount` entries plus `differenceAmount` sum to `line.amount`, and a difference must have an account to post to (`clearing_difference_unaccounted`). A line already cleared is `statement_line_already_cleared`.
          */
         post: operations["clearBankStatementLine"];
         /**
@@ -3065,7 +3065,7 @@ export interface components {
              * @description What the row is. `invoice` and `bill` carry an amount owed and are positive; `payment`, `credit_note` and `vendor_credit` carry unapplied credit and are negative.
              * @enum {string}
              */
-            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit";
+            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit" | "discount";
             dueDate: components["schemas"]["CalendarDate"] | null;
             issueDate: components["schemas"]["CalendarDate"];
             /** @description Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). Negative on a credit row. */
@@ -3089,7 +3089,7 @@ export interface components {
              * @description What the row is. `invoice` and `bill` carry an amount owed and are positive; `payment`, `credit_note` and `vendor_credit` carry unapplied credit and are negative.
              * @enum {string}
              */
-            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit";
+            documentType: "invoice" | "bill" | "payment" | "credit_note" | "vendor_credit" | "discount";
             dueDate: components["schemas"]["CalendarDateInput"] | null;
             issueDate: components["schemas"]["CalendarDateInput"];
             /** @description Total less the allocations dated on or before `asOf`. Computed, never stored (D-34). Negative on a credit row. */
@@ -3139,7 +3139,7 @@ export interface components {
             /** @description The source document’s own number, or null for a payment — a payment is money moving, not a numbered document (D-36 numbers the four document types and nothing else). */
             sourceNumber: string | null;
             /** @enum {string} */
-            sourceType: "payment" | "credit_note" | "vendor_credit";
+            sourceType: "payment" | "credit_note" | "vendor_credit" | "discount";
             /** Format: uuid */
             targetId: string;
             targetNumber: string | null;
@@ -3161,7 +3161,7 @@ export interface components {
             /** @description The source document’s own number, or null for a payment — a payment is money moving, not a numbered document (D-36 numbers the four document types and nothing else). */
             sourceNumber: string | null;
             /** @enum {string} */
-            sourceType: "payment" | "credit_note" | "vendor_credit";
+            sourceType: "payment" | "credit_note" | "vendor_credit" | "discount";
             /** Format: uuid */
             targetId: string;
             targetNumber: string | null;
@@ -3628,10 +3628,10 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
-        /** @description One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4). */
+        /** @description One clearing, as the API returns it — one or more entries, signed in the line’s frame, summing (the non-`discount` ones) plus `differenceAmount` to the line’s `amount` (E4). */
         BankLineClearing: {
             /**
-             * @description What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.
+             * @description What the entries account for, signed in the line’s frame — the sum of `entries`’ own amounts, excluding any `discount` (D-106). Equal to the line’s `amount` unless a difference was recorded.
              * @example 150000
              * @example -150000
              * @example 0
@@ -3644,11 +3644,6 @@ export interface components {
              * @description Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.
              */
             clearedByUserId: string;
-            /**
-             * Format: uuid
-             * @description The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.
-             */
-            clearedJournalId: string;
             differenceAccountId: string | null;
             /**
              * @description `line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank charge or a short payment, and it has been posted, not absorbed (E4).
@@ -3658,24 +3653,66 @@ export interface components {
              */
             differenceAmount: components["schemas"]["MinorUnits"];
             differenceJournalId: string | null;
+            entries: components["schemas"]["BankLineClearingEntry"][];
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             lineId: string;
-            /**
-             * @description How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.
-             * @enum {string}
-             */
-            method: "post_entry" | "link_entry" | "allocate_document";
-            /** @description The payment recorded by an `allocate_document` clearing. Null for the other two. */
-            paymentId: string | null;
             /** @description The session that counted this clearing, once one has. Null while none has — clearing a line and reconciling a period are separate acts, and a business may code its statement as it goes and reconcile at month end. */
             reconciliationSessionId: string | null;
         };
-        /** @description One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4). */
+        /** @description One entry of a clear. Signed in the line’s frame; `discount` entries are excluded from the sum the parent’s `clearedAmount` records (D-106). */
+        BankLineClearingEntry: {
+            accountId: string | null;
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnits"];
+            /**
+             * Format: uuid
+             * @description The journal that accounts for this entry — created by `post_entry`/`discount`, named by `link_entry`, or the payment’s own under `allocate_document`.
+             */
+            clearedJournalId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description How one entry of a clear was accounted for: the three `BankClearingMethod`s, plus `discount` — an early-pay discount, funded by its own journal rather than by cash (D-106).
+             * @enum {string}
+             */
+            entryType: "post_entry" | "link_entry" | "allocate_document" | "discount";
+            /** Format: uuid */
+            id: string;
+            /** @description The payment this entry recorded. Non-null only on `allocate_document`. */
+            paymentId: string | null;
+            targetId: string | null;
+            targetType: ("invoice" | "bill") | null;
+        };
+        /** @description One entry of a clear. Signed in the line’s frame; `discount` entries are excluded from the sum the parent’s `clearedAmount` records (D-106). */
+        BankLineClearingEntryInput: {
+            accountId: string | null;
+            /** @description What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /**
+             * Format: uuid
+             * @description The journal that accounts for this entry — created by `post_entry`/`discount`, named by `link_entry`, or the payment’s own under `allocate_document`.
+             */
+            clearedJournalId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description How one entry of a clear was accounted for: the three `BankClearingMethod`s, plus `discount` — an early-pay discount, funded by its own journal rather than by cash (D-106).
+             * @enum {string}
+             */
+            entryType: "post_entry" | "link_entry" | "allocate_document" | "discount";
+            /** Format: uuid */
+            id: string;
+            /** @description The payment this entry recorded. Non-null only on `allocate_document`. */
+            paymentId: string | null;
+            targetId: string | null;
+            targetType: ("invoice" | "bill") | null;
+        };
+        /** @description One clearing, as the API returns it — one or more entries, signed in the line’s frame, summing (the non-`discount` ones) plus `differenceAmount` to the line’s `amount` (E4). */
         BankLineClearingInput: {
             /**
-             * @description What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.
+             * @description What the entries account for, signed in the line’s frame — the sum of `entries`’ own amounts, excluding any `discount` (D-106). Equal to the line’s `amount` unless a difference was recorded.
              * @example 150000
              * @example -150000
              * @example 0
@@ -3688,11 +3725,6 @@ export interface components {
              * @description Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.
              */
             clearedByUserId: string;
-            /**
-             * Format: uuid
-             * @description The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.
-             */
-            clearedJournalId: string;
             differenceAccountId: string | null;
             /**
              * @description `line.amount − clearedAmount`, exactly. Zero on almost every clearing; non-zero is a bank charge or a short payment, and it has been posted, not absorbed (E4).
@@ -3702,17 +3734,11 @@ export interface components {
              */
             differenceAmount: components["schemas"]["MinorUnitsInput"];
             differenceJournalId: string | null;
+            entries: components["schemas"]["BankLineClearingEntryInput"][];
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             lineId: string;
-            /**
-             * @description How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.
-             * @enum {string}
-             */
-            method: "post_entry" | "link_entry" | "allocate_document";
-            /** @description The payment recorded by an `allocate_document` clearing. Null for the other two. */
-            paymentId: string | null;
             /** @description The session that counted this clearing, once one has. Null while none has — clearing a line and reconciling a period are separate acts, and a business may code its statement as it goes and reconcile at month end. */
             reconciliationSessionId: string | null;
         };
@@ -4616,85 +4642,127 @@ export interface components {
             id: "general_small_business";
             name: string;
         };
-        /** @description Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43). */
+        /** @description Accepting: the one request that writes to the ledger. `entries` names one or more of `post_entry`, `link_entry`, `allocate_document`, and `discount` (D-80); together they account for the line, up to the recorded `differenceAccountId` residual. No `proposalId`, no `acceptAll`, no cross-line batch (D-43). */
         ClearBankStatementLineRequest: {
-            /**
-             * Format: uuid
-             * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
-             */
-            accountId: string;
-            contactId?: string | null;
-            /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
-            dimensionValueIds?: string[];
-            memo?: string | null;
-            /** @constant */
-            method: "post_entry";
-        } | {
-            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            /** @description Where to post the difference between the line and what the entries account for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
             differenceAccountId?: string | null;
-            /**
-             * Format: uuid
-             * @description The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.
-             */
-            journalId: string;
-            memo?: string | null;
-            /** @constant */
-            method: "link_entry";
-        } | {
-            /** @description How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows. */
-            amount?: components["schemas"]["MinorUnits"] | null;
-            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
-            differenceAccountId?: string | null;
-            memo?: string | null;
-            /** @constant */
-            method: "allocate_document";
-            /** Format: uuid */
-            targetId: string;
-            /**
-             * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
-             * @enum {string}
-             */
-            targetType: "invoice" | "bill";
+            /** @description What clears the line, one entry per target. A single-target clear — OB-081’s original shape — is `entries` with exactly one element. */
+            entries: ({
+                /**
+                 * Format: uuid
+                 * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
+                 */
+                accountId: string;
+                /** @description How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one. */
+                amount?: components["schemas"]["MinorUnits"] | null;
+                contactId?: string | null;
+                /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
+                dimensionValueIds?: string[];
+                memo?: string | null;
+                /** @constant */
+                method: "post_entry";
+            } | {
+                /**
+                 * Format: uuid
+                 * @description The posted journal this entry is evidence for. Its net movement on the bank account is what it accounts for.
+                 */
+                journalId: string;
+                memo?: string | null;
+                /** @constant */
+                method: "link_entry";
+            } | {
+                /** @description How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one. */
+                amount?: components["schemas"]["MinorUnits"] | null;
+                memo?: string | null;
+                /** @constant */
+                method: "allocate_document";
+                /** Format: uuid */
+                targetId: string;
+                /**
+                 * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
+                 * @enum {string}
+                 */
+                targetType: "invoice" | "bill";
+            } | {
+                /**
+                 * Format: uuid
+                 * @description The discount-given (AR) or discount-received (AP) account this posts to — the org’s nomination, or one chosen for this entry.
+                 */
+                accountId: string;
+                /** @description The discount amount, as a positive magnitude. Never defaulted: a discount is never the whole of the line. */
+                amount: components["schemas"]["MinorUnits"];
+                memo?: string | null;
+                /** @constant */
+                method: "discount";
+                /** Format: uuid */
+                targetId: string;
+                /**
+                 * @description The document the discount is against — an invoice or a bill, as `allocate_document`.
+                 * @enum {string}
+                 */
+                targetType: "invoice" | "bill";
+            })[];
         };
-        /** @description Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43). */
+        /** @description Accepting: the one request that writes to the ledger. `entries` names one or more of `post_entry`, `link_entry`, `allocate_document`, and `discount` (D-80); together they account for the line, up to the recorded `differenceAccountId` residual. No `proposalId`, no `acceptAll`, no cross-line batch (D-43). */
         ClearBankStatementLineRequestInput: {
-            /**
-             * Format: uuid
-             * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
-             */
-            accountId: string;
-            contactId?: string | null;
-            /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
-            dimensionValueIds?: string[];
-            memo?: string | null;
-            /** @constant */
-            method: "post_entry";
-        } | {
-            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
+            /** @description Where to post the difference between the line and what the entries account for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
             differenceAccountId?: string | null;
-            /**
-             * Format: uuid
-             * @description The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.
-             */
-            journalId: string;
-            memo?: string | null;
-            /** @constant */
-            method: "link_entry";
-        } | {
-            /** @description How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows. */
-            amount?: components["schemas"]["MinorUnitsInput"] | null;
-            /** @description Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`. */
-            differenceAccountId?: string | null;
-            memo?: string | null;
-            /** @constant */
-            method: "allocate_document";
-            /** Format: uuid */
-            targetId: string;
-            /**
-             * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
-             * @enum {string}
-             */
-            targetType: "invoice" | "bill";
+            /** @description What clears the line, one entry per target. A single-target clear — OB-081’s original shape — is `entries` with exactly one element. */
+            entries: ({
+                /**
+                 * Format: uuid
+                 * @description The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.
+                 */
+                accountId: string;
+                /** @description How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one. */
+                amount?: components["schemas"]["MinorUnitsInput"] | null;
+                contactId?: string | null;
+                /** @description Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses. */
+                dimensionValueIds?: string[];
+                memo?: string | null;
+                /** @constant */
+                method: "post_entry";
+            } | {
+                /**
+                 * Format: uuid
+                 * @description The posted journal this entry is evidence for. Its net movement on the bank account is what it accounts for.
+                 */
+                journalId: string;
+                memo?: string | null;
+                /** @constant */
+                method: "link_entry";
+            } | {
+                /** @description How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one. */
+                amount?: components["schemas"]["MinorUnitsInput"] | null;
+                memo?: string | null;
+                /** @constant */
+                method: "allocate_document";
+                /** Format: uuid */
+                targetId: string;
+                /**
+                 * @description The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.
+                 * @enum {string}
+                 */
+                targetType: "invoice" | "bill";
+            } | {
+                /**
+                 * Format: uuid
+                 * @description The discount-given (AR) or discount-received (AP) account this posts to — the org’s nomination, or one chosen for this entry.
+                 */
+                accountId: string;
+                /** @description The discount amount, as a positive magnitude. Never defaulted: a discount is never the whole of the line. */
+                amount: components["schemas"]["MinorUnitsInput"];
+                memo?: string | null;
+                /** @constant */
+                method: "discount";
+                /** Format: uuid */
+                targetId: string;
+                /**
+                 * @description The document the discount is against — an invoice or a bill, as `allocate_document`.
+                 * @enum {string}
+                 */
+                targetType: "invoice" | "bill";
+            })[];
         };
         /** @description A client the caller has authorized, as they see it under `integrations.read`. */
         ConnectedApp: {
@@ -7844,13 +7912,13 @@ export interface components {
             org: components["schemas"]["CreateOrgRequestInput"];
             password: string;
         };
-        /** @description Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
+        /** @description Undoes a clearing — every entry, as a unit. Where an entry posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
         RemoveBankLineClearingRequest: {
             /** @description The reversal’s own entry date, which must fall in an open fiscal period. */
             date: components["schemas"]["CalendarDate"];
             memo?: string | null;
         };
-        /** @description Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
+        /** @description Undoes a clearing — every entry, as a unit. Where an entry posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period. */
         RemoveBankLineClearingRequestInput: {
             /** @description The reversal’s own entry date, which must fall in an open fiscal period. */
             date: components["schemas"]["CalendarDateInput"];

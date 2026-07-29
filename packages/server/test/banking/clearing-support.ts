@@ -365,15 +365,14 @@ export async function bankJournalIn(
 // ---------------------------------------------------------------------------
 
 export interface StoredClearing {
-  readonly method: string;
-  readonly cleared_journal_id: Buffer;
-  readonly payment_id: Buffer | null;
+  readonly id: Buffer;
   readonly cleared_amount_minor: bigint;
   readonly difference_amount_minor: bigint;
   readonly difference_account_id: Buffer | null;
   readonly difference_journal_id: Buffer | null;
 }
 
+/** The parent `bank_line_clearings` row (D-105) — see `entriesOf` for its children. */
 export async function clearingOf(
   db: Kysely<DB>,
   lineId: Buffer,
@@ -381,9 +380,7 @@ export async function clearingOf(
   return db
     .selectFrom('bank_line_clearings')
     .select([
-      'method',
-      'cleared_journal_id',
-      'payment_id',
+      'id',
       'cleared_amount_minor',
       'difference_amount_minor',
       'difference_account_id',
@@ -391,6 +388,39 @@ export async function clearingOf(
     ])
     .where('statement_line_id', '=', lineId)
     .executeTakeFirst();
+}
+
+export interface StoredClearingEntry {
+  readonly entry_type: string;
+  readonly cleared_journal_id: Buffer;
+  readonly payment_id: Buffer | null;
+  readonly account_id: Buffer | null;
+  readonly target_type: string | null;
+  readonly target_id: Buffer | null;
+  readonly entry_amount_minor: bigint;
+}
+
+/** Every `bank_line_clearing_entries` row belonging to one line's clearing (D-105). */
+export async function entriesOf(
+  db: Kysely<DB>,
+  lineId: Buffer,
+): Promise<readonly StoredClearingEntry[]> {
+  return db
+    .selectFrom('bank_line_clearing_entries')
+    .innerJoin('bank_line_clearings', (join) =>
+      join.onRef('bank_line_clearings.id', '=', 'bank_line_clearing_entries.clearing_id'),
+    )
+    .where('bank_line_clearings.statement_line_id', '=', lineId)
+    .select([
+      'bank_line_clearing_entries.entry_type',
+      'bank_line_clearing_entries.cleared_journal_id',
+      'bank_line_clearing_entries.payment_id',
+      'bank_line_clearing_entries.account_id',
+      'bank_line_clearing_entries.target_type',
+      'bank_line_clearing_entries.target_id',
+      'bank_line_clearing_entries.entry_amount_minor',
+    ])
+    .execute();
 }
 
 /** One account's `debits - credits` across every posted journal in the org. */

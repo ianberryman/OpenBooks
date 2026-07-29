@@ -42,6 +42,7 @@ export interface ApAllocations {
   bill_id: Buffer;
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
+  discount_journal_id: Buffer | null;
   id: Buffer;
   org_id: Buffer;
   payment_id: Buffer | null;
@@ -85,6 +86,7 @@ export interface ApDocuments {
   journal_id: Buffer | null;
   memo: string | null;
   org_id: Buffer;
+  payment_term_id: Buffer | null;
   reference: string | null;
   sequence_number: bigint | null;
   tax_mode: "exclusive" | "inclusive";
@@ -111,6 +113,7 @@ export interface ArAllocations {
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
   credit_note_id: Buffer | null;
+  discount_journal_id: Buffer | null;
   id: Buffer;
   invoice_id: Buffer;
   org_id: Buffer;
@@ -154,6 +157,7 @@ export interface ArDocuments {
   journal_id: Buffer | null;
   memo: string | null;
   org_id: Buffer;
+  payment_term_id: Buffer | null;
   reference: string | null;
   sequence_number: bigint | null;
   tax_mode: "exclusive" | "inclusive";
@@ -195,18 +199,29 @@ export interface BankImportMappings {
   value_date_column: number | null;
 }
 
+export interface BankLineClearingEntries {
+  account_id: Buffer | null;
+  cleared_journal_id: Buffer;
+  clearing_id: Buffer;
+  created_at: Generated<Date>;
+  entry_amount_minor: bigint;
+  entry_type: "allocate_document" | "discount" | "link_entry" | "post_entry";
+  id: Buffer;
+  org_id: Buffer;
+  payment_id: Buffer | null;
+  target_id: Buffer | null;
+  target_type: "bill" | "invoice" | null;
+}
+
 export interface BankLineClearings {
   cleared_amount_minor: bigint;
-  cleared_journal_id: Buffer;
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
   difference_account_id: Buffer | null;
   difference_amount_minor: bigint;
   difference_journal_id: Buffer | null;
   id: Buffer;
-  method: "allocate_document" | "link_entry" | "post_entry";
   org_id: Buffer;
-  payment_id: Buffer | null;
   reconciliation_session_id: Buffer | null;
   statement_line_id: Buffer;
   updated_at: Generated<Date>;
@@ -315,6 +330,7 @@ export interface ChangeFeedCursors {
 export interface Contacts {
   code: string | null;
   created_at: Generated<Date>;
+  default_payment_term_id: Buffer | null;
   display_name: string;
   email: string | null;
   id: Buffer;
@@ -620,6 +636,8 @@ export interface OauthTokens {
 export interface OrgAccountingSettings {
   created_at: Generated<Date>;
   default_reporting_basis: Generated<"accrual" | "cash">;
+  discount_given_account_id: Buffer | null;
+  discount_received_account_id: Buffer | null;
   org_id: Buffer;
   payable_control_account_id: Buffer | null;
   receivable_control_account_id: Buffer | null;
@@ -695,6 +713,19 @@ export interface Payments {
   sequence_number: bigint;
   updated_at: Generated<Date>;
   void_journal_id: Buffer | null;
+}
+
+export interface PaymentTerms {
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  discount_rate_ppm: number | null;
+  discount_window_days: number | null;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  net_days: number;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
 }
 
 export interface Permissions {
@@ -875,6 +906,7 @@ export interface DB {
   ar_documents: ArDocuments;
   bank_accounts: BankAccounts;
   bank_import_mappings: BankImportMappings;
+  bank_line_clearing_entries: BankLineClearingEntries;
   bank_line_clearings: BankLineClearings;
   bank_match_proposals: BankMatchProposals;
   bank_rule_dimensions: BankRuleDimensions;
@@ -913,6 +945,7 @@ export interface DB {
   org_invites: OrgInvites;
   org_members: OrgMembers;
   orgs: Orgs;
+  payment_terms: PaymentTerms;
   payments: Payments;
   permissions: Permissions;
   processor_connections: ProcessorConnections;

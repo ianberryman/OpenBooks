@@ -13,7 +13,9 @@ import {
   tryUuidToBuffer,
   uuidKey,
 } from '../../../db';
-import type { ClearingRow } from '../clearing/clearing.repository';
+import { assembleClearing } from '../clearing';
+import type { ClearingEntryRow, ClearingRow } from '../clearing/clearing.repository';
+import { selectEntriesForClearings } from '../clearing/clearing.repository';
 
 /**
  * Data access for `bank_statement_lines` and the clearing embedded in each (OB-084;
@@ -64,9 +66,6 @@ interface StatementLineRow {
 const CLEARING_COLUMNS = [
   'id',
   'statement_line_id',
-  'method',
-  'cleared_journal_id',
-  'payment_id',
   'reconciliation_session_id',
   'cleared_amount_minor',
   'difference_amount_minor',
@@ -194,29 +193,27 @@ export async function selectClearingsForLines(
 }
 
 /**
- * The clearing as the wire returns it — the sibling of `toClearing` in
- * `clearing.service.ts`, restated here because that one is private to the write path
- * and this is the read path. `clearedAmount`/`differenceAmount` are signed in the
- * line's frame, so `cleared + difference === line.amount` (E4).
+ * Every entry for a page of clearings, keyed by the parent clearing's id hex — the
+ * sibling `selectEntriesForClearings` re-exported so `service.ts` need not reach
+ * into `clearing.repository.ts` directly for the one function it needs from there.
  */
-export function toBankLineClearing(row: ClearingRow): BankLineClearing {
-  return {
-    id: bufferToUuid(row.id),
-    lineId: bufferToUuid(row.statement_line_id),
-    method: row.method,
-    clearedJournalId: bufferToUuid(row.cleared_journal_id),
-    clearedAmount: row.cleared_amount_minor.toString(),
-    differenceAmount: row.difference_amount_minor.toString(),
-    differenceAccountId:
-      row.difference_account_id === null ? null : bufferToUuid(row.difference_account_id),
-    differenceJournalId:
-      row.difference_journal_id === null ? null : bufferToUuid(row.difference_journal_id),
-    paymentId: row.payment_id === null ? null : bufferToUuid(row.payment_id),
-    reconciliationSessionId:
-      row.reconciliation_session_id === null ? null : bufferToUuid(row.reconciliation_session_id),
-    clearedByUserId: bufferToUuid(row.created_by_user_id),
-    clearedAt: row.created_at.toISOString(),
-  };
+export async function selectClearingEntriesForClearings(
+  db: TenantDatabase,
+  clearingIds: readonly Buffer[],
+): Promise<Map<string, ClearingEntryRow[]>> {
+  return selectEntriesForClearings(db, clearingIds);
+}
+
+/**
+ * The clearing as the wire returns it. `assembleClearing` (`clearing.service.ts`,
+ * re-exported from `../clearing`) is the one conversion for both the write path and
+ * this read path — parent plus entries, D-105.
+ */
+export function toBankLineClearing(
+  row: ClearingRow,
+  entries: readonly ClearingEntryRow[],
+): BankLineClearing {
+  return assembleClearing(row, entries);
 }
 
 export function toStatementLine(

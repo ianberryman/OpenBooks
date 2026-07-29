@@ -892,62 +892,85 @@ export async function up(db: MigrationDb): Promise<void> {
   `.execute(db);
 
   // ---------------------------------------------------------------------------
-  // bank_line_clearings — the accepted match (criterion E4).
+  // bank_line_clearings — the accepted match, one row per cleared line (criterion
+  // E4; ROADMAP D-105, for Cash application's multi-entry clear, D-80).
   //
-  // One row per statement line that has been cleared, naming the journal that
-  // cleared it. `uq_blc_line` is one clearing per line — `statement_line_already_cleared`
-  // — and `uq_blc_journal` is one line per journal — `journal_already_cleared`.
-  // Both matter to E5's arithmetic: two lines pointing at one entry would clear the
-  // bank twice for a single movement of money. A batched deposit that settles three
-  // invoices is one bank line, one receipt, one journal, and three rows in
-  // `ar_allocations` — the split lives in the subledger, where it already has a
-  // mechanism.
+  // ## Parent and child, and why the split — D-105
   //
-  // `method` is how the line was accounted for and is the same three OB-081
-  // implements: `post_entry` created a journal for it, `link_entry` pointed it at one
-  // that already existed, `allocate_document` recorded a payment and applied it to an
-  // invoice or a bill. `payment_id` is set on the third and NULL on the other two.
+  // This table used to carry the whole clearing: a `method`, a `cleared_journal_id`,
+  // a `payment_id`. D-80 generalises a clear from one target to **N** — a lockbox
+  // deposit settling three customers' invoices, one line split-coded across several
+  // accounts (the OB-094 case), a document settled partly by cash and partly by an
+  // early-pay discount — and N targets cannot live in three scalar columns on a row
+  // that is one-per-line.
   //
-  // `cleared_journal_id` is NOT NULL because there is no such thing as a cleared line
-  // with no entry behind it.
+  // Rather than N sibling rows here, which would break `uq_blc_line`, the D-51
+  // reconciliation stamp, and "one clearing is the undo unit", this table **stays
+  // one-per-line** and keeps exactly what does not multiply: `statement_line_id`,
+  // the `reconciliation_session_id` stamp, the running total `cleared_amount_minor`,
+  // and the difference — because a difference is a *residual against the whole
+  // line*, not a property of any one entry. The singular target columns move to the
+  // new child below, `bank_line_clearing_entries`, one row per entry — and so does
+  // `uq_blc_journal` (`uq_blce_journal` there), still one entry per journal.
+  //
+  // `uq_blc_line` remains the whole of `statement_line_already_cleared`: a line
+  // clears once, whatever number of entries that clear turns out to have.
+  //
+  // ## The equation generalises, and stays an equation
+  //
+  // E4 was `cleared_amount_minor + difference_amount_minor = line.amount_minor`.
+  // With N entries it is `Σ(entry.entry_amount_minor) + difference_amount_minor =
+  // line.amount_minor` — summed in the service (`assertClearingBalances`,
+  // `clearing.service.ts`) over the entries that correspond to bank movement. A
+  // `discount` entry is the deliberate exception: D-106 funds it from the discount
+  // journal, not from the line's own cash, so it is not part of what the line has
+  // to add up to and is excluded from that sum — see the child table's comment.
   //
   // ## Deletable, for the reason `ar_allocations` is
   //
   // This looks like it should be append-only and it is not, and the argument is the
-  // one 0005 makes about allocations: **a clearing posts no journal**. The journal
-  // was posted separately, by a human, through the ordinary path (D-43, E3). A
-  // clearing states which bank line that journal corresponds to, and removing one
-  // restates no financial statement — it un-matches a line, which is an ordinary
-  // correction of an analysis link and not a rewrite of the ledger. Modelling an
-  // un-match as a reversing row instead would make every cleared-balance sum signed
-  // amounts and every "is this line cleared" query reason about which rows cancel.
+  // one 0005 makes about allocations: **a clearing posts no journal**. Every journal
+  // an entry names was posted separately, by a human, through the ordinary path
+  // (D-43, E3). A clearing states which bank line those journals correspond to, and
+  // removing it — parent and every child entry, as a unit — restates no financial
+  // statement: it un-matches a line, which is an ordinary correction of an analysis
+  // link and not a rewrite of the ledger. Modelling an un-match as a reversing row
+  // instead would make every cleared-balance sum signed amounts and every "is this
+  // line cleared" query reason about which rows cancel.
   //
   // What must not be deletable is a clearing inside a *finalised* session, and no
   // grant can express that: it is a rule about one column's value on another row.
   // It lives in OB-082 with the rest of the session lock, and E6's audit trail is in
   // `reconciliation_session_events`, which *is* append-only.
   //
-  // ## The three amounts, and why the difference is stored
+  // ## The two totals, and why the difference is stored
   //
-  // E4 — a cleared line and the entry it clears agree exactly on amount, and the
-  // difference is recorded. Both are signed, like the line, so the invariant is a
-  // plain equation with no conditional in it:
+  // E4 — a cleared line and the entries that clear it agree exactly on amount, and
+  // the difference is recorded. `cleared_amount_minor` is the running total the
+  // service already validated (`Σ(entry.entry_amount_minor)` over the non-`discount`
+  // entries) before writing this row; both it and the difference are signed, like
+  // the line, so the invariant is a plain equation with no conditional in it:
   //
   //   cleared_amount_minor + difference_amount_minor = line.amount_minor
   //
-  // The difference is stored rather than joined for the reason `ar_document_lines`
-  // stores its rounded amounts: it is not a cache of an aggregate but the record of a
-  // decision — "I accepted a shortfall of 200 here, to this account" — made at a
-  // moment by the person named in `created_by_user_id`. No CHECK can verify the
-  // equation, because one operand is a column on another table and MySQL has no CHECK
-  // that reads one; that is OB-081's, and the property suite asserts it (OB-088).
+  // `cleared_amount_minor` is stored rather than summed from the children on every
+  // read for the reason `ar_document_lines` stores its rounded amounts: it is not a
+  // cache of an aggregate available elsewhere, it is *this row's own* record of what
+  // the service computed and validated at the moment `created_by_user_id` accepted
+  // the clear — the same total `assertClearingBalances` checked. No CHECK can verify
+  // the equation against the children, because a parent-level CHECK cannot read
+  // sibling rows in another table; that is OB-081's (now OB-137's), and the property
+  // suite asserts it (OB-088, OB-141).
   //
   // `difference_account_id` is where the difference posts — bank charges, a short
   // payment — and `chk_blc_difference_accounted` is `clearing_difference_unaccounted`
-  // stated in the schema: a difference with nowhere to go is inexpressible.
-  // `chk_blc_post_entry_exact` is the other half: a `post_entry` clearing created the
-  // journal *for* the line, so it agrees by construction and a difference on one
-  // would mean the entry was posted for an amount nobody asked for.
+  // stated in the schema: a difference with nowhere to go is inexpressible. The old
+  // `chk_blc_post_entry_exact` — a lone `post_entry` clearing agreed with the line by
+  // construction, so it could carry no difference — does not survive the
+  // generalisation and is not replaced: D-80's whole point is that a `post_entry`
+  // may now account for only *part* of the line (one of several GL codings), so a
+  // difference beside one is no longer a contradiction, only the ordinary residual
+  // the equation above already accounts for.
   //
   // ## No proposal id, deliberately
   //
@@ -983,9 +1006,6 @@ export async function up(db: MigrationDb): Promise<void> {
       id                        BINARY(16)  NOT NULL,
       org_id                    BINARY(16)  NOT NULL,
       statement_line_id         BINARY(16)  NOT NULL,
-      method                    ENUM('post_entry','link_entry','allocate_document') NOT NULL,
-      cleared_journal_id        BINARY(16)  NOT NULL,
-      payment_id                BINARY(16)  NULL,
       reconciliation_session_id BINARY(16)  NULL,
       cleared_amount_minor      BIGINT      NOT NULL,
       difference_amount_minor   BIGINT      NOT NULL DEFAULT 0,
@@ -998,15 +1018,10 @@ export async function up(db: MigrationDb): Promise<void> {
       PRIMARY KEY (id),
       UNIQUE KEY uq_blc_org_id (org_id, id),
       UNIQUE KEY uq_blc_line (org_id, statement_line_id),
-      UNIQUE KEY uq_blc_journal (org_id, cleared_journal_id),
       KEY idx_blc_org_session (org_id, reconciliation_session_id),
-      KEY idx_blc_org_payment (org_id, payment_id),
       CONSTRAINT fk_blc_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_blc_line
         FOREIGN KEY (org_id, statement_line_id) REFERENCES bank_statement_lines (org_id, id)
-        ON DELETE RESTRICT,
-      CONSTRAINT fk_blc_journal
-        FOREIGN KEY (org_id, cleared_journal_id) REFERENCES journals (org_id, id)
         ON DELETE RESTRICT,
       CONSTRAINT fk_blc_difference_journal
         FOREIGN KEY (org_id, difference_journal_id) REFERENCES journals (org_id, id)
@@ -1014,8 +1029,6 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT fk_blc_difference_account
         FOREIGN KEY (org_id, difference_account_id) REFERENCES accounts (org_id, id)
         ON DELETE RESTRICT,
-      CONSTRAINT fk_blc_payment
-        FOREIGN KEY (org_id, payment_id) REFERENCES payments (org_id, id) ON DELETE RESTRICT,
       CONSTRAINT fk_blc_session
         FOREIGN KEY (org_id, reconciliation_session_id)
         REFERENCES reconciliation_sessions (org_id, id) ON DELETE RESTRICT,
@@ -1024,12 +1037,107 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT chk_blc_difference_accounted CHECK (
         (difference_amount_minor =  0 AND difference_account_id IS NULL) OR
         (difference_amount_minor <> 0 AND difference_account_id IS NOT NULL)
+      )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `.execute(db);
+
+  // ---------------------------------------------------------------------------
+  // bank_line_clearing_entries — the child D-105 moved the singular target onto,
+  // one row per entry a clear was made of (ROADMAP D-80, D-105, D-106; for Cash
+  // application, OB-137).
+  //
+  // Everything `bank_line_clearings` used to carry alone: `entry_type` is the same
+  // vocabulary `method` was (`post_entry`/`link_entry`/`allocate_document`), plus
+  // the new `discount` (D-106). `cleared_journal_id` is NOT NULL for the reason it
+  // always was — there is no such thing as a cleared entry with no journal behind
+  // it, and every entry posts or names exactly one. `uq_blce_journal` is the moved
+  // `uq_blc_journal`: one *entry* per journal now, which is still one line's worth
+  // of money per journal, because `fk_blce_clearing` ties every entry back to a
+  // single parent.
+  //
+  // ## Which of the three optional columns is set is the discriminant, per entry
+  //
+  // `payment_id` — `allocate_document` recorded a payment (`recordPayment`) and this
+  // names it; every other kind leaves it NULL, `chk_blce_payment_only_allocate`.
+  // `account_id` — the account side of an entry that names one directly:
+  // `post_entry`'s coded account, or `discount`'s nominated discount-given/received
+  // account (D-106); `link_entry` and `allocate_document` leave it NULL, because the
+  // account is implicit in the journal or the document. `target_type`/`target_id` —
+  // the document an entry settles: `allocate_document`'s invoice or bill, or
+  // `discount`'s (a discount is always *against* a document, D-106); `post_entry`
+  // and `link_entry` leave both NULL. `chk_blce_account_target` and
+  // `chk_blce_document_target` state both pairings, so an entry naming the wrong
+  // combination for its own kind does not parse into a row at all.
+  //
+  // ## entry_amount_minor is signed, in the line's frame — with one exception
+  //
+  // Every other kind's amount is what it contributes toward the line
+  // (`assertClearingBalances`'s Σ, `clearing.service.ts`): positive into the account
+  // and negative out of it, the same convention `bank_statement_lines.amount_minor`
+  // and the old `cleared_amount_minor` used. A `discount` entry's amount is recorded
+  // the same way, signed for a consistent read here and on the wire — but it is
+  // **not** part of that Σ. D-106 is explicit that a discount's funding is "the
+  // discount journal, not cash": no bank movement corresponds to it, so counting it
+  // toward what the *line* must add up to would be counting money the bank never
+  // saw. The discount instead brings the *document's* `outstanding` to zero through
+  // its own allocation (`ar_allocations`/`ap_allocations.discount_journal_id`,
+  // `0005_subledger`) — a second, independent equation this table is not party to.
+  //
+  // ## Cascades from a disposable parent
+  //
+  // `fk_blce_clearing` is `ON DELETE CASCADE`: an entry has no meaning without the
+  // clearing it belongs to, so undoing a clearing (deleting the parent) removes its
+  // entries with it — the same shape `bank_rule_dimensions` takes from `bank_rules`.
+  // `removeBankLineClearing` (`clearing.service.ts`) still reverses each entry's own
+  // journal/payment explicitly before either row goes, because D-16 forbids
+  // deleting a journal; the CASCADE only ever fires on the *link* rows, never on a
+  // journal or a payment. `fk_blce_journal` stays RESTRICT, `fk_blc_journal`'s
+  // reason: journals are never deleted (spec §2.2), so the action can only fire on
+  // an org cascade, where it would be masking a bug.
+  // ---------------------------------------------------------------------------
+  await sql`
+    CREATE TABLE bank_line_clearing_entries (
+      id                 BINARY(16)  NOT NULL,
+      org_id             BINARY(16)  NOT NULL,
+      clearing_id        BINARY(16)  NOT NULL,
+      entry_type         ENUM('post_entry','link_entry','allocate_document','discount') NOT NULL,
+      cleared_journal_id BINARY(16)  NOT NULL,
+      payment_id         BINARY(16)  NULL,
+      account_id         BINARY(16)  NULL,
+      target_type        ENUM('invoice','bill') NULL,
+      target_id          BINARY(16)  NULL,
+      entry_amount_minor BIGINT      NOT NULL,
+      created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_blce_org_id (org_id, id),
+      UNIQUE KEY uq_blce_journal (org_id, cleared_journal_id),
+      KEY idx_blce_clearing (org_id, clearing_id),
+      KEY idx_blce_org_payment (org_id, payment_id),
+      KEY idx_blce_org_target (org_id, target_type, target_id),
+      CONSTRAINT fk_blce_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
+      CONSTRAINT fk_blce_clearing
+        FOREIGN KEY (org_id, clearing_id) REFERENCES bank_line_clearings (org_id, id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_blce_journal
+        FOREIGN KEY (org_id, cleared_journal_id) REFERENCES journals (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_blce_payment
+        FOREIGN KEY (org_id, payment_id) REFERENCES payments (org_id, id) ON DELETE RESTRICT,
+      CONSTRAINT fk_blce_account
+        FOREIGN KEY (org_id, account_id) REFERENCES accounts (org_id, id) ON DELETE RESTRICT,
+      CONSTRAINT chk_blce_payment_only_allocate CHECK (
+        (entry_type = 'allocate_document' AND payment_id IS NOT NULL) OR
+        (entry_type <> 'allocate_document' AND payment_id IS NULL)
       ),
-      CONSTRAINT chk_blc_post_entry_exact CHECK (
-        method <> 'post_entry' OR difference_amount_minor = 0
+      CONSTRAINT chk_blce_account_target CHECK (
+        (entry_type IN ('post_entry','discount') AND account_id IS NOT NULL) OR
+        (entry_type NOT IN ('post_entry','discount') AND account_id IS NULL)
       ),
-      CONSTRAINT chk_blc_payment_method CHECK (
-        method = 'allocate_document' OR payment_id IS NULL
+      CONSTRAINT chk_blce_document_target CHECK (
+        (entry_type IN ('allocate_document','discount')
+           AND target_type IS NOT NULL AND target_id IS NOT NULL) OR
+        (entry_type NOT IN ('allocate_document','discount')
+           AND target_type IS NULL AND target_id IS NULL)
       )
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
@@ -1093,6 +1201,7 @@ export async function down(db: MigrationDb): Promise<void> {
   // Reverse creation order: a table cannot be dropped while a foreign key points
   // at it.
   await sql`DROP TABLE IF EXISTS reconciliation_session_events`.execute(db);
+  await sql`DROP TABLE IF EXISTS bank_line_clearing_entries`.execute(db);
   await sql`DROP TABLE IF EXISTS bank_line_clearings`.execute(db);
   await sql`DROP TABLE IF EXISTS reconciliation_sessions`.execute(db);
   await sql`DROP TABLE IF EXISTS bank_match_proposals`.execute(db);

@@ -527,7 +527,8 @@
               "bill",
               "payment",
               "credit_note",
-              "vendor_credit"
+              "vendor_credit",
+              "discount"
             ],
             "type": "string"
           },
@@ -619,7 +620,8 @@
               "bill",
               "payment",
               "credit_note",
-              "vendor_credit"
+              "vendor_credit",
+              "discount"
             ],
             "type": "string"
           },
@@ -817,7 +819,8 @@
             "enum": [
               "payment",
               "credit_note",
-              "vendor_credit"
+              "vendor_credit",
+              "discount"
             ],
             "type": "string"
           },
@@ -900,7 +903,8 @@
             "enum": [
               "payment",
               "credit_note",
-              "vendor_credit"
+              "vendor_credit",
+              "discount"
             ],
             "type": "string"
           },
@@ -2735,11 +2739,11 @@
       },
       "BankLineClearing": {
         "additionalProperties": false,
-        "description": "One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4).",
+        "description": "One clearing, as the API returns it — one or more entries, signed in the line’s frame, summing (the non-`discount` ones) plus `differenceAmount` to the line’s `amount` (E4).",
         "properties": {
           "clearedAmount": {
             "$ref": "#/components/schemas/MinorUnits",
-            "description": "What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.",
+            "description": "What the entries account for, signed in the line’s frame — the sum of `entries`’ own amounts, excluding any `discount` (D-106). Equal to the line’s `amount` unless a difference was recorded.",
             "examples": [
               "150000",
               "-150000",
@@ -2755,12 +2759,6 @@
           },
           "clearedByUserId": {
             "description": "Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "clearedJournalId": {
-            "description": "The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
@@ -2800,6 +2798,13 @@
               }
             ]
           },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/BankLineClearingEntry"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -2809,28 +2814,6 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
-          },
-          "method": {
-            "description": "How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.",
-            "enum": [
-              "post_entry",
-              "link_entry",
-              "allocate_document"
-            ],
-            "type": "string"
-          },
-          "paymentId": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The payment recorded by an `allocate_document` clearing. Null for the other two."
           },
           "reconciliationSessionId": {
             "anyOf": [
@@ -2849,26 +2832,222 @@
         "required": [
           "id",
           "lineId",
-          "method",
-          "clearedJournalId",
+          "entries",
           "clearedAmount",
           "differenceAmount",
           "differenceAccountId",
           "differenceJournalId",
-          "paymentId",
           "reconciliationSessionId",
           "clearedByUserId",
           "clearedAt"
         ],
         "type": "object"
       },
+      "BankLineClearingEntry": {
+        "additionalProperties": false,
+        "description": "One entry of a clear. Signed in the line’s frame; `discount` entries are excluded from the sum the parent’s `clearedAmount` records (D-106).",
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes."
+          },
+          "clearedJournalId": {
+            "description": "The journal that accounts for this entry — created by `post_entry`/`discount`, named by `link_entry`, or the payment’s own under `allocate_document`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "entryType": {
+            "description": "How one entry of a clear was accounted for: the three `BankClearingMethod`s, plus `discount` — an early-pay discount, funded by its own journal rather than by cash (D-106).",
+            "enum": [
+              "post_entry",
+              "link_entry",
+              "allocate_document",
+              "discount"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payment this entry recorded. Non-null only on `allocate_document`."
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invoice",
+                  "bill"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "entryType",
+          "clearedJournalId",
+          "paymentId",
+          "accountId",
+          "targetType",
+          "targetId",
+          "amount",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "BankLineClearingEntryInput": {
+        "additionalProperties": false,
+        "description": "One entry of a clear. Signed in the line’s frame; `discount` entries are excluded from the sum the parent’s `clearedAmount` records (D-106).",
+        "properties": {
+          "accountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "What the bank moved, in minor units, signed — positive into the account, negative out of it. Signed rather than magnitude-plus-direction because E4 is an equation over amounts, and a term whose sign must be looked up is where a sign error goes."
+          },
+          "clearedJournalId": {
+            "description": "The journal that accounts for this entry — created by `post_entry`/`discount`, named by `link_entry`, or the payment’s own under `allocate_document`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "entryType": {
+            "description": "How one entry of a clear was accounted for: the three `BankClearingMethod`s, plus `discount` — an early-pay discount, funded by its own journal rather than by cash (D-106).",
+            "enum": [
+              "post_entry",
+              "link_entry",
+              "allocate_document",
+              "discount"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payment this entry recorded. Non-null only on `allocate_document`."
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invoice",
+                  "bill"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "entryType",
+          "clearedJournalId",
+          "paymentId",
+          "accountId",
+          "targetType",
+          "targetId",
+          "amount",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "BankLineClearingInput": {
         "additionalProperties": false,
-        "description": "One clearing, as the API returns it. `clearedAmount + differenceAmount === line.amount`, exactly, both signed in the line’s frame (E4).",
+        "description": "One clearing, as the API returns it — one or more entries, signed in the line’s frame, summing (the non-`discount` ones) plus `differenceAmount` to the line’s `amount` (E4).",
         "properties": {
           "clearedAmount": {
             "$ref": "#/components/schemas/MinorUnitsInput",
-            "description": "What the entry accounts for, signed in the line’s frame. Equal to the line’s `amount` unless a difference was recorded.",
+            "description": "What the entries account for, signed in the line’s frame — the sum of `entries`’ own amounts, excluding any `discount` (D-106). Equal to the line’s `amount` unless a difference was recorded.",
             "examples": [
               "150000",
               "-150000",
@@ -2884,12 +3063,6 @@
           },
           "clearedByUserId": {
             "description": "Who accepted. The human D-43 requires: every ledger write on this path is a decision somebody made, and this is where it is recorded.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "clearedJournalId": {
-            "description": "The journal that accounts for this line — created by `post_entry`, named by `link_entry`, or the payment’s own under `allocate_document`.",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
@@ -2929,6 +3102,13 @@
               }
             ]
           },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/BankLineClearingEntryInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -2938,28 +3118,6 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
-          },
-          "method": {
-            "description": "How the line was accounted for: `post_entry` created a journal for it, `link_entry` pointed it at one that already existed, `allocate_document` recorded a payment and applied it to an invoice or a bill.",
-            "enum": [
-              "post_entry",
-              "link_entry",
-              "allocate_document"
-            ],
-            "type": "string"
-          },
-          "paymentId": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The payment recorded by an `allocate_document` clearing. Null for the other two."
           },
           "reconciliationSessionId": {
             "anyOf": [
@@ -2978,13 +3136,11 @@
         "required": [
           "id",
           "lineId",
-          "method",
-          "clearedJournalId",
+          "entries",
           "clearedAmount",
           "differenceAmount",
           "differenceAccountId",
           "differenceJournalId",
-          "paymentId",
           "reconciliationSessionId",
           "clearedByUserId",
           "clearedAt"
@@ -6284,334 +6440,460 @@
         "type": "object"
       },
       "ClearBankStatementLineRequest": {
-        "description": "Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43).",
-        "oneOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "accountId": {
-                "description": "The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.",
+        "additionalProperties": false,
+        "description": "Accepting: the one request that writes to the ledger. `entries` names one or more of `post_entry`, `link_entry`, `allocate_document`, and `discount` (D-80); together they account for the line, up to the recorded `differenceAccountId` residual. No `proposalId`, no `acceptAll`, no cross-line batch (D-43).",
+        "properties": {
+          "differenceAccountId": {
+            "anyOf": [
+              {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
               },
-              "contactId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where to post the difference between the line and what the entries account for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
+          },
+          "entries": {
+            "description": "What clears the line, one entry per target. A single-target clear — OB-081’s original shape — is `entries` with exactly one element.",
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "accountId": {
+                      "description": "The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "amount": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MinorUnits"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one."
+                    },
+                    "contactId": {
+                      "anyOf": [
+                        {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dimensionValueIds": {
+                      "description": "Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses.",
+                      "items": {
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "type": "string"
+                      },
+                      "maxItems": 8,
+                      "type": "array"
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "post_entry",
+                      "type": "string"
+                    }
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "dimensionValueIds": {
-                "description": "Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses.",
-                "items": {
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "type": "string"
+                  "required": [
+                    "method",
+                    "accountId"
+                  ],
+                  "type": "object"
                 },
-                "maxItems": 8,
-                "type": "array"
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "journalId": {
+                      "description": "The posted journal this entry is evidence for. Its net movement on the bank account is what it accounts for.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "link_entry",
+                      "type": "string"
+                    }
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "post_entry",
-                "type": "string"
-              }
+                  "required": [
+                    "method",
+                    "journalId"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MinorUnits"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one."
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "allocate_document",
+                      "type": "string"
+                    },
+                    "targetId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "targetType": {
+                      "description": "The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.",
+                      "enum": [
+                        "invoice",
+                        "bill"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "targetType",
+                    "targetId"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "accountId": {
+                      "description": "The discount-given (AR) or discount-received (AP) account this posts to — the org’s nomination, or one chosen for this entry.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "amount": {
+                      "$ref": "#/components/schemas/MinorUnits",
+                      "description": "The discount amount, as a positive magnitude. Never defaulted: a discount is never the whole of the line."
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "discount",
+                      "type": "string"
+                    },
+                    "targetId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "targetType": {
+                      "description": "The document the discount is against — an invoice or a bill, as `allocate_document`.",
+                      "enum": [
+                        "invoice",
+                        "bill"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "accountId",
+                    "targetType",
+                    "targetId",
+                    "amount"
+                  ],
+                  "type": "object"
+                }
+              ]
             },
-            "required": [
-              "method",
-              "accountId"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "differenceAccountId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
-              },
-              "journalId": {
-                "description": "The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "link_entry",
-                "type": "string"
-              }
-            },
-            "required": [
-              "method",
-              "journalId"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "amount": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/MinorUnits"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows."
-              },
-              "differenceAccountId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "allocate_document",
-                "type": "string"
-              },
-              "targetId": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "targetType": {
-                "description": "The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.",
-                "enum": [
-                  "invoice",
-                  "bill"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "method",
-              "targetType",
-              "targetId"
-            ],
-            "type": "object"
+            "minItems": 1,
+            "type": "array"
           }
-        ]
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
       },
       "ClearBankStatementLineRequestInput": {
-        "description": "Accepting: the one request that writes to the ledger. `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle a document (`allocate_document`). No `proposalId`, no `acceptAll`, no batch (D-43).",
-        "oneOf": [
-          {
-            "additionalProperties": false,
-            "properties": {
-              "accountId": {
-                "description": "The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.",
+        "additionalProperties": false,
+        "description": "Accepting: the one request that writes to the ledger. `entries` names one or more of `post_entry`, `link_entry`, `allocate_document`, and `discount` (D-80); together they account for the line, up to the recorded `differenceAccountId` residual. No `proposalId`, no `acceptAll`, no cross-line batch (D-43).",
+        "properties": {
+          "differenceAccountId": {
+            "anyOf": [
+              {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
               },
-              "contactId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where to post the difference between the line and what the entries account for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
+          },
+          "entries": {
+            "description": "What clears the line, one entry per target. A single-target clear — OB-081’s original shape — is `entries` with exactly one element.",
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "accountId": {
+                      "description": "The other side of the entry — the expense, income or balance-sheet account this line is. The bank account’s own ledger account is the near side and is never named here.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "amount": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MinorUnitsInput"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one."
+                    },
+                    "contactId": {
+                      "anyOf": [
+                        {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dimensionValueIds": {
+                      "description": "Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses.",
+                      "items": {
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "type": "string"
+                      },
+                      "maxItems": 8,
+                      "type": "array"
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "post_entry",
+                      "type": "string"
+                    }
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "dimensionValueIds": {
-                "description": "Dimension values to tag the posted line with. A value names its own axis, so an omitted axis is untagged — the shape every other tagged line in this API uses.",
-                "items": {
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "type": "string"
+                  "required": [
+                    "method",
+                    "accountId"
+                  ],
+                  "type": "object"
                 },
-                "maxItems": 8,
-                "type": "array"
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "journalId": {
+                      "description": "The posted journal this entry is evidence for. Its net movement on the bank account is what it accounts for.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "link_entry",
+                      "type": "string"
+                    }
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "post_entry",
-                "type": "string"
-              }
+                  "required": [
+                    "method",
+                    "journalId"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MinorUnitsInput"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "How much of the line this entry accounts for, as a positive magnitude. Defaults to the whole of the line when this is the only entry in the request; required once there is more than one."
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "allocate_document",
+                      "type": "string"
+                    },
+                    "targetId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "targetType": {
+                      "description": "The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.",
+                      "enum": [
+                        "invoice",
+                        "bill"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "targetType",
+                    "targetId"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "accountId": {
+                      "description": "The discount-given (AR) or discount-received (AP) account this posts to — the org’s nomination, or one chosen for this entry.",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "amount": {
+                      "$ref": "#/components/schemas/MinorUnitsInput",
+                      "description": "The discount amount, as a positive magnitude. Never defaulted: a discount is never the whole of the line."
+                    },
+                    "memo": {
+                      "anyOf": [
+                        {
+                          "maxLength": 512,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "method": {
+                      "const": "discount",
+                      "type": "string"
+                    },
+                    "targetId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "targetType": {
+                      "description": "The document the discount is against — an invoice or a bill, as `allocate_document`.",
+                      "enum": [
+                        "invoice",
+                        "bill"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "accountId",
+                    "targetType",
+                    "targetId",
+                    "amount"
+                  ],
+                  "type": "object"
+                }
+              ]
             },
-            "required": [
-              "method",
-              "accountId"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "differenceAccountId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
-              },
-              "journalId": {
-                "description": "The posted journal this line is evidence for. Its net movement on the bank account is what the clearing accounts for; anything left over is the difference.",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "link_entry",
-                "type": "string"
-              }
-            },
-            "required": [
-              "method",
-              "journalId"
-            ],
-            "type": "object"
-          },
-          {
-            "additionalProperties": false,
-            "properties": {
-              "amount": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/MinorUnitsInput"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "How much of the document to settle, as a positive magnitude. Defaults to the whole of the line — the ordinary case, where the payment is exactly what the statement shows."
-              },
-              "differenceAccountId": {
-                "anyOf": [
-                  {
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Where to post the difference between the line and what the entry accounts for — bank charges, a short payment. Required when there is a difference (E4); a difference with nowhere to go is `clearing_difference_unaccounted`."
-              },
-              "memo": {
-                "anyOf": [
-                  {
-                    "maxLength": 512,
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "method": {
-                "const": "allocate_document",
-                "type": "string"
-              },
-              "targetId": {
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "type": "string"
-              },
-              "targetType": {
-                "description": "The two documents that carry an amount owed, from M3’s allocation vocabulary — an inbound line settles an `invoice`, an outbound one a `bill`.",
-                "enum": [
-                  "invoice",
-                  "bill"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "method",
-              "targetType",
-              "targetId"
-            ],
-            "type": "object"
+            "minItems": 1,
+            "type": "array"
           }
-        ]
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
       },
       "ConnectedApp": {
         "additionalProperties": false,
@@ -18734,7 +19016,7 @@
       },
       "RemoveBankLineClearingRequest": {
         "additionalProperties": false,
-        "description": "Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period.",
+        "description": "Undoes a clearing — every entry, as a unit. Where an entry posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period.",
         "properties": {
           "date": {
             "$ref": "#/components/schemas/CalendarDate",
@@ -18759,7 +19041,7 @@
       },
       "RemoveBankLineClearingRequestInput": {
         "additionalProperties": false,
-        "description": "Undoes a clearing. Where it posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period.",
+        "description": "Undoes a clearing — every entry, as a unit. Where an entry posted a journal, that journal is reversed — never deleted (D-16) — so `date` is the reversal’s own entry date and must fall in an open period.",
         "properties": {
           "date": {
             "$ref": "#/components/schemas/CalendarDateInput",
@@ -33456,7 +33738,7 @@
         ]
       },
       "post": {
-        "description": "Accepting: the one write on the matching path (D-43). `method` chooses one of three — code the line (`post_entry`), link an existing entry (`link_entry`), or settle an invoice or bill (`allocate_document`). E4 holds by construction: `clearedAmount + differenceAmount === line.amount`, and a difference must have an account to post to (`clearing_difference_unaccounted`). A line already cleared is `statement_line_already_cleared`.",
+        "description": "Accepting: the one write on the matching path (D-43). `entries` is one or more of `post_entry` (code the line), `link_entry` (link an existing entry), `allocate_document` (settle an invoice or bill), and `discount` (an early-pay discount, D-106) — a single-target clear is `entries` with one element. E4 holds by construction: the non-`discount` entries plus `differenceAmount` sum to `line.amount`, and a difference must have an account to post to (`clearing_difference_unaccounted`). A line already cleared is `statement_line_already_cleared`.",
         "operationId": "clearBankStatementLine",
         "parameters": [
           {

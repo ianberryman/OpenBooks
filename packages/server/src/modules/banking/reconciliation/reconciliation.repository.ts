@@ -505,20 +505,28 @@ export interface LedgerEntryRow {
  * ```
  *   bookBalance            = Σ movement over every bank-account journal ≤ endDate
  *   clearedBalance         = Σ cleared_amount over counted clearings
- *                          = Σ movement over their cleared journals
- *   Σ these items          = bookBalance − Σ movement over counted cleared journals
+ *                          = Σ movement over their entries' cleared journals
+ *   Σ these items          = bookBalance − Σ movement over counted entries' journals
  *                          = bookBalance − clearedBalance = unclearedAmount
  * ```
  *
- * The middle equality is `clearing.repository.ts`'s `journalBankMovement`: a clearing's
- * `cleared_amount_minor` *is* the net movement of `cleared_journal_id` on the bank
- * account, so subtracting the counted journals removes exactly what `clearedBalance`
- * counted. What remains is the reconciling gap, entry by entry: an unpresented cheque, a
+ * The middle equality is `clearing.repository.ts`'s `journalBankMovement` (D-105
+ * generalised: a clearing may now be several entries, but each non-`discount`
+ * entry's own amount *is* the net movement of its `cleared_journal_id` on the bank
+ * account, and `cleared_amount_minor` is their sum). So `countedJournals` here is
+ * every counted clearing's entries' journals — subtracting them removes exactly
+ * what `clearedBalance` counted. A `discount` entry's journal is harmless to
+ * include in that exclusion set even though it is never one of `clearedBalance`'s
+ * addends: its journal never has a line on *this* bank ledger account at all
+ * (D-106 — debit the discount account, credit the control account, neither of
+ * which is a bank), so it can never appear in the candidate rows below regardless.
+ * What remains is the reconciling gap, entry by entry: an unpresented cheque, a
  * deposit in transit, a difference journal (a bank charge posted by a clearing — it
- * moves the account but is not a `cleared_journal_id`, so it is correctly a reconciling
- * item), and a straggler cleared into an already-finalised window (unstamped, so not
- * counted). A journal that nets to zero on the account is dropped: it moves no balance
- * and is not a reconciling item, and dropping a zero changes no sum.
+ * moves the account but is not one of the counted entries, so it is correctly a
+ * reconciling item), and a straggler cleared into an already-finalised window
+ * (unstamped, so not counted). A journal that nets to zero on the account is
+ * dropped: it moves no balance and is not a reconciling item, and dropping a zero
+ * changes no sum.
  *
  * The residual limit, stated rather than found: this equals `unclearedAmount` when every
  * counted cleared journal is itself dated at or before `endDate`, which a `post_entry`
@@ -540,6 +548,11 @@ export async function selectUnclearedLedgerEntries(
         .onRef('bank_statement_lines.id', '=', 'bank_line_clearings.statement_line_id')
         .onRef('bank_statement_lines.org_id', '=', 'bank_line_clearings.org_id'),
     )
+    .innerJoin('bank_line_clearing_entries', (join) =>
+      join
+        .onRef('bank_line_clearing_entries.clearing_id', '=', 'bank_line_clearings.id')
+        .onRef('bank_line_clearing_entries.org_id', '=', 'bank_line_clearings.org_id'),
+    )
     .where('bank_statement_lines.bank_account_id', '=', counted.bankAccountId)
     .where((eb) =>
       eb.or([
@@ -559,7 +572,7 @@ export async function selectUnclearedLedgerEntries(
             ]),
       ]),
     )
-    .select('bank_line_clearings.cleared_journal_id as journal_id');
+    .select('bank_line_clearing_entries.cleared_journal_id as journal_id');
 
   const rows = await db
     .selectFrom('journal_lines')

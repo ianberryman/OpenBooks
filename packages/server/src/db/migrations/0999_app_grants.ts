@@ -357,6 +357,22 @@ const MUTABLE_TABLES = [
   'secrets',
   'processor_connections',
   'processor_events',
+  // ── Cash application (0012_cash_application, plus the 0006_banking restructure) ──
+  //
+  // `payment_terms` is a settings list `org_accounting_settings`'s own reason:
+  // editing a term (its name, its discount window) moves how a *future* document
+  // computes a due date and cannot reach one already raised, because no posted
+  // journal names a term at all. D-107 gates it on `orgs.read`/`orgs.write`, the
+  // same keys the control-account nominations beside it already use — no new
+  // permission for this file to widen a grant around.
+  //
+  // `bank_line_clearing_entries` is the child D-105 moved the singular clearing
+  // target onto. It is deletable for `bank_line_clearings`' own reason, beside it
+  // above: an entry posts no journal of its own creation — the journal it names was
+  // posted separately, through the ordinary path — so removing it (undoing a
+  // clearing) restates no financial statement.
+  'payment_terms',
+  'bank_line_clearing_entries',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

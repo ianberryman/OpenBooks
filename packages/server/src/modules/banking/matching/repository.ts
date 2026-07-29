@@ -143,9 +143,10 @@ export interface LinkCandidateRow {
  * The net movement is `SUM(debit − credit)` on the bank account's own lines: on an
  * asset account a debit is money in, which is the line's own sign convention
  * (positive into the account), so the two are directly comparable without a
- * conditional — the same reason the wire amount is signed (E4). A journal already in
- * `bank_line_clearings` is excluded by the anti-join: a cleared entry is not a
- * candidate to clear a line against, and `uq_blc_journal` makes that at most one row.
+ * conditional — the same reason the wire amount is signed (E4). A journal already
+ * claimed by a `bank_line_clearing_entries` row is excluded by the anti-join: a
+ * cleared entry is not a candidate to clear a line against, and `uq_blce_journal`
+ * (D-105's move of `uq_blc_journal` onto the child) makes that at most one row.
  *
  * The date and amount windows are the page's, pushed into SQL so the candidate set is
  * bounded by what the page could plausibly match rather than by the account's whole
@@ -166,13 +167,13 @@ export async function selectLinkCandidates(
         .onRef('journals.id', '=', 'journal_lines.journal_id')
         .onRef('journals.org_id', '=', 'journal_lines.org_id'),
     )
-    .leftJoin('bank_line_clearings', (join) =>
+    .leftJoin('bank_line_clearing_entries', (join) =>
       join
-        .onRef('bank_line_clearings.cleared_journal_id', '=', 'journals.id')
-        .onRef('bank_line_clearings.org_id', '=', 'journals.org_id'),
+        .onRef('bank_line_clearing_entries.cleared_journal_id', '=', 'journals.id')
+        .onRef('bank_line_clearing_entries.org_id', '=', 'journals.org_id'),
     )
     .where('journal_lines.account_id', 'in', [...spec.ledgerAccountIds])
-    .where('bank_line_clearings.id', 'is', null)
+    .where('bank_line_clearing_entries.id', 'is', null)
     .where('journals.entry_date', '>=', spec.fromDate)
     .where('journals.entry_date', '<=', spec.toDate)
     .groupBy([
@@ -276,13 +277,15 @@ export interface CodingHistoryRow {
  * Every account this org has previously coded a line to via `post_entry`, for lines
  * whose counterparty or description matches one on the page.
  *
- * The record of a coding is a `post_entry` clearing: it created a journal for the
- * line, and that journal's non-bank line names the account the line was coded to. So
- * this reads `bank_line_clearings` (the org's own history) joined to the coded
- * journal's lines, excluding the bank side. The prefilter matches raw counterparty and
- * description strings — a merchant's string is stable across statements — and the
- * likeness that actually decides a proposal is judged in memory, normalised, against
- * each page line. One query for the whole page.
+ * The record of a coding is a `post_entry` **entry** (D-105 moved `method` off the
+ * parent `bank_line_clearings` onto `bank_line_clearing_entries`): it created a
+ * journal for (part of) the line, and that journal's non-bank line names the
+ * account it was coded to. So this reads `bank_line_clearing_entries` (the org's
+ * own history) joined through its parent to the statement line and to the coded
+ * journal's lines, excluding the bank side. The prefilter matches raw counterparty
+ * and description strings — a merchant's string is stable across statements — and
+ * the likeness that actually decides a proposal is judged in memory, normalised,
+ * against each page line. One query for the whole page.
  */
 export async function selectCodingHistory(
   db: TenantDatabase,
@@ -291,7 +294,12 @@ export async function selectCodingHistory(
   if (spec.counterparties.length === 0 && spec.descriptions.length === 0) return [];
 
   let query = db
-    .selectFrom('bank_line_clearings')
+    .selectFrom('bank_line_clearing_entries')
+    .innerJoin('bank_line_clearings', (join) =>
+      join
+        .onRef('bank_line_clearings.id', '=', 'bank_line_clearing_entries.clearing_id')
+        .onRef('bank_line_clearings.org_id', '=', 'bank_line_clearing_entries.org_id'),
+    )
     .innerJoin('bank_statement_lines', (join) =>
       join
         .onRef('bank_statement_lines.id', '=', 'bank_line_clearings.statement_line_id')
@@ -299,10 +307,10 @@ export async function selectCodingHistory(
     )
     .innerJoin('journal_lines', (join) =>
       join
-        .onRef('journal_lines.journal_id', '=', 'bank_line_clearings.cleared_journal_id')
-        .onRef('journal_lines.org_id', '=', 'bank_line_clearings.org_id'),
+        .onRef('journal_lines.journal_id', '=', 'bank_line_clearing_entries.cleared_journal_id')
+        .onRef('journal_lines.org_id', '=', 'bank_line_clearing_entries.org_id'),
     )
-    .where('bank_line_clearings.method', '=', 'post_entry')
+    .where('bank_line_clearing_entries.entry_type', '=', 'post_entry')
     .where((eb) => {
       const clauses: Expression<SqlBool>[] = [];
       if (spec.counterparties.length > 0) {

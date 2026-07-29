@@ -78,3 +78,22 @@ export {
   allocateVendorCredit,
   deleteAllocation,
 } from './allocations.service';
+
+/**
+ * `applyAllocations` and its `AllocationSource` — the mechanism itself, exported
+ * for Cash application's `'discount'` kind (ROADMAP D-106).
+ *
+ * `modules/banking/clearing` reuses it directly for a `discount` clearing entry:
+ * post the discount journal, then apply it as a `'discount'`-kind source, so
+ * `outstanding` reaches zero through the same mechanism a payment or a credit note
+ * uses rather than a second, bespoke settlement path. Everything else in this
+ * module reaches `applyAllocations` from `payments.service.ts` and
+ * `allocations.service.ts`, inside the package; this is the one sanctioned
+ * cross-module caller.
+ *
+ * `deleteAllocationsForDiscountJournal` is the same caller's undo half —
+ * `voidPayment`'s `deleteAllocationsForPayment`, for the third source.
+ */
+export { applyAllocations } from './allocate';
+export type { AllocationSource } from './allocate';
+export { deleteAllocationsForDiscountJournal } from './allocations.repository';

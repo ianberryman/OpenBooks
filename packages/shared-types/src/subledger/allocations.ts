@@ -35,8 +35,18 @@ import { calendarDateSchema, minorUnitsSchema } from '../wire';
 /**
  * What can be applied. Each of these is a document that has already put money — or
  * an obligation — into the ledger.
+ *
+ * `'discount'` is Cash application's addition (ROADMAP D-106): an early-pay
+ * discount settles a document without a payment behind it, funded by the discount
+ * journal it posts rather than by cash — a third `AllocationSource` kind alongside
+ * `'payment'`/`'credit_document'` (`modules/payments/allocate.ts`).
  */
-export const ALLOCATION_SOURCE_TYPES = ['payment', 'credit_note', 'vendor_credit'] as const;
+export const ALLOCATION_SOURCE_TYPES = [
+  'payment',
+  'credit_note',
+  'vendor_credit',
+  'discount',
+] as const;
 
 export type AllocationSourceType = (typeof ALLOCATION_SOURCE_TYPES)[number];
 

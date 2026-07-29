@@ -298,31 +298,42 @@ export function useUndoClearing(): UseMutationResult<
 /**
  * A proposal, turned into the clearing request that accepts it.
  *
- * The three `kind`s map one-to-one onto the three `method`s the clearing endpoint accepts —
- * that correspondence is the contract (`clearing.ts` accepts the same three, D-43). Each
- * proposal already carries what its method needs: `post_entry` the account (and any contact
- * and dimensions the rule or history suggested), `link_entry` the journal, `allocate_document`
- * the invoice or bill. Nothing is invented — a split across several accounts is not
- * expressible against a line that clears once (`uq_blc_line`), so there is no fourth shape.
+ * The three `kind`s map one-to-one onto three of the four `method`s the clearing
+ * endpoint's entries accept — that correspondence is the contract (`clearing.ts`
+ * accepts the same three, plus `discount`, D-43/D-80). Each proposal already
+ * carries what its method needs: `post_entry` the account (and any contact and
+ * dimensions the rule or history suggested), `link_entry` the journal,
+ * `allocate_document` the invoice or bill. Wrapped in a single-element `entries`
+ * array — Cash application generalised the clear to an array (D-80), and nothing
+ * here builds more than one entry: the add/remove-entries editor that would let an
+ * operator split a line is OB-140's, not this screen's yet.
  */
 export function proposalToClearRequest(proposal: BankMatchProposal): ClearRequest {
   switch (proposal.kind) {
     case 'post_entry':
       return {
-        method: 'post_entry',
-        accountId: proposal.accountId,
-        ...(proposal.contactId === null ? {} : { contactId: proposal.contactId }),
-        ...(proposal.dimensionValueIds.length === 0
-          ? {}
-          : { dimensionValueIds: [...proposal.dimensionValueIds] }),
+        entries: [
+          {
+            method: 'post_entry',
+            accountId: proposal.accountId,
+            ...(proposal.contactId === null ? {} : { contactId: proposal.contactId }),
+            ...(proposal.dimensionValueIds.length === 0
+              ? {}
+              : { dimensionValueIds: [...proposal.dimensionValueIds] }),
+          },
+        ],
       };
     case 'link_entry':
-      return { method: 'link_entry', journalId: proposal.journalId };
+      return { entries: [{ method: 'link_entry', journalId: proposal.journalId }] };
     case 'allocate_document':
       return {
-        method: 'allocate_document',
-        targetType: proposal.targetType,
-        targetId: proposal.targetId,
+        entries: [
+          {
+            method: 'allocate_document',
+            targetType: proposal.targetType,
+            targetId: proposal.targetId,
+          },
+        ],
       };
   }
 }
@@ -335,5 +346,5 @@ export function proposalToClearRequest(proposal: BankMatchProposal): ClearReques
  * `post_entry` proposal's is.
  */
 export function postEntryToAccount(accountId: string): ClearRequest {
-  return { method: 'post_entry', accountId };
+  return { entries: [{ method: 'post_entry', accountId }] };
 }

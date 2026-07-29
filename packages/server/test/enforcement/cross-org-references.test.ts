@@ -1944,7 +1944,7 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       clearBankStatementLine(
         clearable(s.caller, 0),
-        { method: 'post_entry', accountId: id },
+        { entries: [{ method: 'post_entry', accountId: id }] },
         s.caller.ctx,
       ),
   },
@@ -1955,7 +1955,7 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       clearBankStatementLine(
         clearable(s.caller, 1),
-        { method: 'post_entry', accountId: s.caller.accountId, contactId: id },
+        { entries: [{ method: 'post_entry', accountId: s.caller.accountId, contactId: id }] },
         s.caller.ctx,
       ),
   },
@@ -1966,7 +1966,11 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       clearBankStatementLine(
         clearable(s.caller, 2),
-        { method: 'post_entry', accountId: s.caller.accountId, dimensionValueIds: [id] },
+        {
+          entries: [
+            { method: 'post_entry', accountId: s.caller.accountId, dimensionValueIds: [id] },
+          ],
+        },
         s.caller.ctx,
       ),
   },
@@ -1977,13 +1981,14 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       clearBankStatementLine(
         clearable(s.caller, 3),
-        { method: 'link_entry', journalId: id },
+        { entries: [{ method: 'link_entry', journalId: id }] },
         s.caller.ctx,
       ),
   },
   // The journal here has no movement on the bank account, so the line's amount is all
   // difference — which is what makes `differenceAccountId` a validated ref rather than
-  // an ignored one at a zero difference.
+  // an ignored one at a zero difference. D-105 moved it off the entry and onto the
+  // request as a whole.
   {
     operationId: 'clearBankStatementLine',
     field: 'differenceAccountId',
@@ -1992,8 +1997,7 @@ const REFERENCES: readonly Reference[] = [
       clearBankStatementLine(
         clearable(s.caller, 4),
         {
-          method: 'link_entry',
-          journalId: s.caller.differenceJournalId,
+          entries: [{ method: 'link_entry', journalId: s.caller.differenceJournalId }],
           differenceAccountId: id,
         },
         s.caller.ctx,
@@ -2006,7 +2010,7 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       clearBankStatementLine(
         clearable(s.caller, 5),
-        { method: 'allocate_document', targetType: 'invoice', targetId: id },
+        { entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: id }] },
         s.caller.ctx,
       ),
   },

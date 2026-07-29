@@ -211,19 +211,29 @@ function stubProposals(): void {
   });
 }
 
-function clearing(lineId: string, method: string): unknown {
+function clearing(lineId: string, entryType: string): unknown {
   return {
     id: `clr-${lineId}`,
     lineId,
-    method,
+    entries: [
+      {
+        id: `clre-${lineId}`,
+        entryType,
+        clearedJournalId: JOURNAL,
+        paymentId: null,
+        accountId: null,
+        targetType: null,
+        targetId: null,
+        amount: '0',
+        createdAt: '2026-03-04T09:00:00.000Z',
+      },
+    ],
     clearedAmount: '0',
     clearedAt: '2026-03-04T09:00:00.000Z',
     clearedByUserId: '99999999-9999-4999-8999-999999999999',
-    clearedJournalId: JOURNAL,
     differenceAccountId: null,
     differenceAmount: '0',
     differenceJournalId: null,
-    paymentId: null,
     reconciliationSessionId: null,
   };
 }
@@ -329,17 +339,13 @@ describe('MatchingScreen', () => {
     }
 
     expect(await acceptTopOf(LINE_POST, 'MONTHLY ACCOUNT FEE')).toEqual({
-      method: 'post_entry',
-      accountId: FEES,
+      entries: [{ method: 'post_entry', accountId: FEES }],
     });
     expect(await acceptTopOf(LINE_LINK, 'FASTER PAYMENT IN')).toEqual({
-      method: 'link_entry',
-      journalId: JOURNAL,
+      entries: [{ method: 'link_entry', journalId: JOURNAL }],
     });
     expect(await acceptTopOf(LINE_ALLOCATE, 'BACS CREDIT ACME')).toEqual({
-      method: 'allocate_document',
-      targetType: 'invoice',
-      targetId: INVOICE,
+      entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: INVOICE }],
     });
   });
 
@@ -371,7 +377,9 @@ describe('MatchingScreen', () => {
 
     const [posted] = requestsTo('POST', `/v1/statement-lines/${LINE_LINK}/clearing`);
     expect(posted).toBeDefined();
-    expect(await posted?.clone().json()).toEqual({ method: 'post_entry', accountId: FEES });
+    expect(await posted?.clone().json()).toEqual({
+      entries: [{ method: 'post_entry', accountId: FEES }],
+    });
   });
 
   /**
@@ -397,7 +405,9 @@ describe('MatchingScreen', () => {
 
     const [posted] = requestsTo('POST', `/v1/statement-lines/${LINE_POST}/clearing`);
     expect(posted).toBeDefined();
-    expect(await posted?.clone().json()).toEqual({ method: 'post_entry', accountId: FEES });
+    expect(await posted?.clone().json()).toEqual({
+      entries: [{ method: 'post_entry', accountId: FEES }],
+    });
   });
 
   /**

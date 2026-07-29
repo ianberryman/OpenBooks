@@ -17,14 +17,16 @@ import { assertClearingBalances, clearBankStatementLine } from './clearing.servi
 import type { ClearBankStatementLineRequest } from '@openbooks/shared-types';
 
 /**
- * E4 as an invariant, not a check (OB-081; acceptance E4).
+ * E4 as an invariant, not a check (OB-081, generalised by OB-137; acceptance E4).
  *
- * > A cleared line and the entry it clears agree exactly on amount, and the
+ * > A cleared line and the entries that clear it agree exactly on amount, and the
  * > difference is recorded.
  *
- * `clearedAmount + differenceAmount === line.amount`, signed, on **every** clearing
- * this system produces — proven here as a property across all three methods, with and
- * without a difference, and asserted in isolation by the invariant `assertClearingBalances`.
+ * `bankMovementTotal + differenceAmount === line.amount`, signed, on **every**
+ * clearing this system produces — proven here as a property across all four entry
+ * kinds (each as the sole entry — a single-entry array is the shape every one of
+ * OB-081's original methods used), with and without a difference, and asserted in
+ * isolation by the invariant `assertClearingBalances`.
  */
 
 const db = useServiceDatabase();
@@ -72,19 +74,21 @@ describe('the equation holds on every stored clearing', () => {
     {
       name: 'post_entry, no difference',
       lineAmount: 5000n,
-      request: (s) => Promise.resolve({ method: 'post_entry', accountId: s.revenue.uuid }),
+      request: (s) =>
+        Promise.resolve({ entries: [{ method: 'post_entry', accountId: s.revenue.uuid }] }),
     },
     {
       name: 'post_entry, outbound',
       lineAmount: -5000n,
-      request: (s) => Promise.resolve({ method: 'post_entry', accountId: s.expense.uuid }),
+      request: (s) =>
+        Promise.resolve({ entries: [{ method: 'post_entry', accountId: s.expense.uuid }] }),
     },
     {
       name: 'link_entry, exact',
       lineAmount: 5000n,
       request: async (s) => {
         const journal = await bankJournalIn(db, s, 5000n, s.revenue);
-        return { method: 'link_entry', journalId: journal.uuid };
+        return { entries: [{ method: 'link_entry', journalId: journal.uuid }] };
       },
     },
     {
@@ -93,8 +97,7 @@ describe('the equation holds on every stored clearing', () => {
       request: async (s) => {
         const journal = await bankJournalIn(db, s, 100000n, s.revenue);
         return {
-          method: 'link_entry',
-          journalId: journal.uuid,
+          entries: [{ method: 'link_entry', journalId: journal.uuid }],
           differenceAccountId: s.charges.uuid,
         };
       },
@@ -104,7 +107,9 @@ describe('the equation holds on every stored clearing', () => {
       lineAmount: 99000n,
       request: async (s) => {
         const invoice = await invoiceIn(db, s, 100000n);
-        return { method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid };
+        return {
+          entries: [{ method: 'allocate_document', targetType: 'invoice', targetId: invoice.uuid }],
+        };
       },
     },
     {
@@ -113,10 +118,14 @@ describe('the equation holds on every stored clearing', () => {
       request: async (s) => {
         const invoice = await invoiceIn(db, s, 100000n);
         return {
-          method: 'allocate_document',
-          targetType: 'invoice',
-          targetId: invoice.uuid,
-          amount: '100000',
+          entries: [
+            {
+              method: 'allocate_document',
+              targetType: 'invoice',
+              targetId: invoice.uuid,
+              amount: '100000',
+            },
+          ],
           differenceAccountId: s.charges.uuid,
         };
       },
@@ -126,7 +135,9 @@ describe('the equation holds on every stored clearing', () => {
       lineAmount: -5000n,
       request: async (s) => {
         const bill = await billIn(db, s, 5000n);
-        return { method: 'allocate_document', targetType: 'bill', targetId: bill.uuid };
+        return {
+          entries: [{ method: 'allocate_document', targetType: 'bill', targetId: bill.uuid }],
+        };
       },
     },
   ];

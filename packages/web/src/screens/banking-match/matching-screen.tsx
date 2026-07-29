@@ -475,7 +475,7 @@ function MatchedView({ bankAccountId }: { readonly bankAccountId: string }): Rea
               <span className="truncate text-sm text-text">{line.description}</span>
               {line.clearing !== null && (
                 <span className="text-xs text-text-muted">
-                  {clearingSummary(line.clearing.method)}
+                  {clearingSummary(line.clearing.entries)}
                 </span>
               )}
             </div>
@@ -528,8 +528,19 @@ const CLEARING_METHOD_LABEL: Readonly<Record<string, string>> = {
   post_entry: 'Coded to an account',
   link_entry: 'Linked to an existing entry',
   allocate_document: 'Settled a document',
+  discount: 'Early-pay discount',
 };
 
-function clearingSummary(method: string): string {
-  return CLEARING_METHOD_LABEL[method] ?? 'Cleared';
+/**
+ * A clearing is now one or more entries (D-80); this row summarises rather than
+ * enumerating them, since the multi-entry editor is OB-140's. A single entry keeps
+ * its old one-word summary; more than one just says how many, which is enough
+ * until that screen exists.
+ */
+function clearingSummary(entries: readonly { readonly entryType: string }[]): string {
+  const [only] = entries;
+  if (entries.length === 1 && only !== undefined) {
+    return CLEARING_METHOD_LABEL[only.entryType] ?? 'Cleared';
+  }
+  return `Cleared — ${String(entries.length)} entries`;
 }

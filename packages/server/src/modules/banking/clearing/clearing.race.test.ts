@@ -63,7 +63,7 @@ describe('two clearings on the same journal', () => {
     const winner = parkedTransactionOn(connA, scene.ctx, () =>
       clearBankStatementLine(
         first.uuid,
-        { method: 'link_entry', journalId: journal.uuid },
+        { entries: [{ method: 'link_entry', journalId: journal.uuid }] },
         scene.ctx,
       ),
     );
@@ -73,7 +73,7 @@ describe('two clearings on the same journal', () => {
     const loser = transactionOn(connB, scene.ctx, () =>
       clearBankStatementLine(
         second.uuid,
-        { method: 'link_entry', journalId: journal.uuid },
+        { entries: [{ method: 'link_entry', journalId: journal.uuid }] },
         scene.ctx,
       ),
     );
@@ -110,7 +110,7 @@ describe('two clearings on the same line', () => {
     const winner = parkedTransactionOn(connA, scene.ctx, () =>
       clearBankStatementLine(
         line.uuid,
-        { method: 'link_entry', journalId: journalA.uuid },
+        { entries: [{ method: 'link_entry', journalId: journalA.uuid }] },
         scene.ctx,
       ),
     );
@@ -119,7 +119,7 @@ describe('two clearings on the same line', () => {
     const loser = transactionOn(connB, scene.ctx, () =>
       clearBankStatementLine(
         line.uuid,
-        { method: 'link_entry', journalId: journalB.uuid },
+        { entries: [{ method: 'link_entry', journalId: journalB.uuid }] },
         scene.ctx,
       ),
     );

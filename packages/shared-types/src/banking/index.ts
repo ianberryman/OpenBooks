@@ -165,16 +165,22 @@ export type {
 } from './matching';
 
 export {
+  BANK_CLEARING_ENTRY_TYPES,
   BANK_CLEARING_METHODS,
+  bankClearingEntryTypeSchema,
   bankClearingMethodSchema,
+  bankLineClearingEntrySchema,
   bankLineClearingSchema,
   clearBankStatementLineRequestSchema,
   removeBankLineClearingRequestSchema,
 } from './clearing';
 export type {
+  BankClearingEntryType,
   BankClearingMethod,
   BankLineClearing,
+  BankLineClearingEntry,
   ClearBankStatementLineRequest,
+  ClearingEntry,
   RemoveBankLineClearingRequest,
 } from './clearing';
 

@@ -285,6 +285,8 @@ export interface NewAllocationRow {
   readonly targetId: Buffer;
   readonly paymentId: Buffer | null;
   readonly creditDocumentId: Buffer | null;
+  /** The discount's own posted journal — the third source, D-106. */
+  readonly discountJournalId: Buffer | null;
   readonly amountMinor: bigint;
   readonly allocatedOn: string;
   readonly createdByUserId: Buffer;
@@ -305,6 +307,7 @@ export async function insertAllocation(
         invoice_id: input.targetId,
         payment_id: input.paymentId,
         credit_note_id: input.creditDocumentId,
+        discount_journal_id: input.discountJournalId,
         amount_minor: input.amountMinor,
         allocated_on: input.allocatedOn,
         created_by_user_id: input.createdByUserId,
@@ -318,6 +321,7 @@ export async function insertAllocation(
         bill_id: input.targetId,
         payment_id: input.paymentId,
         vendor_credit_id: input.creditDocumentId,
+        discount_journal_id: input.discountJournalId,
         amount_minor: input.amountMinor,
         allocated_on: input.allocatedOn,
         created_by_user_id: input.createdByUserId,
@@ -365,6 +369,30 @@ export async function deleteAllocationsForPayment(
   await db.deleteFrom('ap_allocations').where('payment_id', '=', paymentId).execute();
 }
 
+/**
+ * Removes the allocation a discount journal made, both sides — `deleteAllocationsForPayment`'s
+ * mirror for the third source (D-106).
+ *
+ * Called when a `discount` bank-clearing entry is undone (`clearing.service.ts`):
+ * the journal is reversed there, never deleted (D-16), and this is what brings the
+ * document's `outstanding` back up by the discount amount — without it, a reversed
+ * discount journal would leave the allocation that used it still counting toward
+ * `allocatedToDocument`, understating what is actually owed.
+ */
+export async function deleteAllocationsForDiscountJournal(
+  db: TenantDatabase,
+  discountJournalId: Buffer,
+): Promise<void> {
+  await db
+    .deleteFrom('ar_allocations')
+    .where('discount_journal_id', '=', discountJournalId)
+    .execute();
+  await db
+    .deleteFrom('ap_allocations')
+    .where('discount_journal_id', '=', discountJournalId)
+    .execute();
+}
+
 /** Which rows a read of the allocation views wants. */
 export type AllocationFilter =
   | { readonly kind: 'ids'; readonly ids: readonly Buffer[] }
@@ -379,6 +407,8 @@ interface AllocationViewRow {
   readonly payment_id: Buffer | null;
   readonly credit_document_id: Buffer | null;
   readonly credit_document_number: bigint | null;
+  /** The discount's own journal — the third source, D-106. */
+  readonly discount_journal_id: Buffer | null;
   readonly target_id: Buffer;
   readonly target_number: bigint | null;
 }
@@ -433,6 +463,7 @@ async function selectReceivableAllocations(
       'ar_allocations.payment_id',
       'ar_allocations.credit_note_id as credit_document_id',
       'source.sequence_number as credit_document_number',
+      'ar_allocations.discount_journal_id',
       'ar_allocations.invoice_id as target_id',
       'target.sequence_number as target_number',
     ]);
@@ -477,6 +508,7 @@ async function selectPayableAllocations(
       'ap_allocations.payment_id',
       'ap_allocations.vendor_credit_id as credit_document_id',
       'source.sequence_number as credit_document_number',
+      'ap_allocations.discount_journal_id',
       'ap_allocations.bill_id as target_id',
       'target.sequence_number as target_number',
     ]);
@@ -513,13 +545,14 @@ export async function findAllocation(
       readonly side: SubledgerSide;
       readonly paymentId: Buffer | null;
       readonly creditDocumentId: Buffer | null;
+      readonly discountJournalId: Buffer | null;
       readonly targetId: Buffer;
     }
   | undefined
 > {
   const receivable = await db
     .selectFrom('ar_allocations')
-    .select(['payment_id', 'credit_note_id', 'invoice_id'])
+    .select(['payment_id', 'credit_note_id', 'discount_journal_id', 'invoice_id'])
     .where('id', '=', id)
     .executeTakeFirst();
 
@@ -528,13 +561,14 @@ export async function findAllocation(
       side: 'receivable',
       paymentId: receivable.payment_id,
       creditDocumentId: receivable.credit_note_id,
+      discountJournalId: receivable.discount_journal_id,
       targetId: receivable.invoice_id,
     };
   }
 
   const payable = await db
     .selectFrom('ap_allocations')
-    .select(['payment_id', 'vendor_credit_id', 'bill_id'])
+    .select(['payment_id', 'vendor_credit_id', 'discount_journal_id', 'bill_id'])
     .where('id', '=', id)
     .executeTakeFirst();
 
@@ -544,26 +578,37 @@ export async function findAllocation(
     side: 'payable',
     paymentId: payable.payment_id,
     creditDocumentId: payable.vendor_credit_id,
+    discountJournalId: payable.discount_journal_id,
     targetId: payable.bill_id,
   };
 }
 
 function toAllocation(row: AllocationViewRow, side: SubledgerSide): Allocation {
   const fromPayment = row.payment_id !== null;
+  const fromDiscount = row.discount_journal_id !== null;
 
   return {
     id: bufferToUuid(row.id),
-    sourceType: fromPayment ? 'payment' : side === 'receivable' ? 'credit_note' : 'vendor_credit',
-    // `chk_ar_allocations_one_source` makes exactly one of the two non-null, so the
-    // fallback is unreachable rather than defensive — and it is written as the
+    sourceType: fromPayment
+      ? 'payment'
+      : fromDiscount
+        ? 'discount'
+        : side === 'receivable'
+          ? 'credit_note'
+          : 'vendor_credit',
+    // `chk_ar_allocations_one_source` makes exactly one of the three non-null, so
+    // the fallback is unreachable rather than defensive — and it is written as the
     // target's own id rather than as an empty string so a row that somehow broke
     // the constraint is visibly wrong instead of quietly malformed.
-    sourceId: bufferToUuid(row.payment_id ?? row.credit_document_id ?? row.target_id),
-    // Null for a payment, which is the contract: "a payment is money moving, not a
-    // numbered document" (D-36 numbers the four document types and nothing else).
+    sourceId: bufferToUuid(
+      row.payment_id ?? row.discount_journal_id ?? row.credit_document_id ?? row.target_id,
+    ),
+    // Null for a payment or a discount, which is the contract: "a payment is money
+    // moving, not a numbered document" (D-36 numbers the four document types and
+    // nothing else) — a discount's journal is likewise not one of those four.
     // The number the schema does give a payment is internal, so it is not published
     // here.
-    sourceNumber: fromPayment ? null : numberOf(row.credit_document_number),
+    sourceNumber: fromPayment || fromDiscount ? null : numberOf(row.credit_document_number),
     targetType: side === 'receivable' ? 'invoice' : 'bill',
     targetId: bufferToUuid(row.target_id),
     targetNumber: numberOf(row.target_number),

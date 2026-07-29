@@ -59,7 +59,9 @@ async function clearedLine(amountMinor: bigint, postedDate = POSTED): Promise<vo
   const line = await statementLineIn(db, scene, { amountMinor, postedDate });
   const journal = await bankJournalIn(db, scene, amountMinor, scene.revenue, postedDate);
   await run(() =>
-    clearBankStatementLine(line.uuid, { method: 'link_entry', journalId: journal.uuid }),
+    clearBankStatementLine(line.uuid, {
+      entries: [{ method: 'link_entry', journalId: journal.uuid }],
+    }),
   );
 }
 
@@ -121,8 +123,7 @@ describe('the tie-out', () => {
     const journal = await bankJournalIn(db, scene, 1000n, scene.revenue);
     await run(() =>
       clearBankStatementLine(line.uuid, {
-        method: 'link_entry',
-        journalId: journal.uuid,
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
         differenceAccountId: scene.charges.uuid,
       }),
     );

@@ -581,17 +581,29 @@ async function bankingScene(
       occurrence_index: 0,
     })
     .execute();
+  const clearedClearingId = newUuid();
   await db.app
     .insertInto('bank_line_clearings')
     .values({
-      id: uuidToBuffer(newUuid()),
+      id: uuidToBuffer(clearedClearingId),
       org_id: orgId,
       statement_line_id: uuidToBuffer(clearedStatementLineId),
-      method: 'post_entry',
-      cleared_journal_id: uuidToBuffer(journalId),
       cleared_amount_minor: -1000n,
       difference_amount_minor: 0n,
       created_by_user_id: userId,
+    })
+    .execute();
+  // D-105: `method` and the coded journal moved off the parent onto the child.
+  await db.app
+    .insertInto('bank_line_clearing_entries')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: orgId,
+      clearing_id: uuidToBuffer(clearedClearingId),
+      entry_type: 'post_entry',
+      cleared_journal_id: uuidToBuffer(journalId),
+      account_id: uuidToBuffer(revenueId),
+      entry_amount_minor: -1000n,
     })
     .execute();
 
@@ -1546,7 +1558,7 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/statement-lines/%s/clearing',
     id: (s) => s.statementLineId,
-    payload: (_id, s) => ({ method: 'post_entry', accountId: s.accountId }),
+    payload: (_id, s) => ({ entries: [{ method: 'post_entry', accountId: s.accountId }] }),
   },
   {
     operationId: 'removeBankLineClearing',

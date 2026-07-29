@@ -31,6 +31,8 @@ const SOURCE_LABELS: Readonly<Record<Allocation['sourceType'], string>> = {
   payment: 'Payment',
   credit_note: 'Credit note',
   vendor_credit: 'Vendor credit',
+  // Cash application (D-106): an early-pay discount settling this document.
+  discount: 'Early-pay discount',
 };
 
 export function AllocationsPanel({

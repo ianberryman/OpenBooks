@@ -185,6 +185,16 @@ const OVERRIDES = {
     'reconciliation_sessions.open_marker': 'Generated<Buffer | null>',
     'reconciliation_session_events.asserted_balance_minor': 'bigint | null',
 
+    // ── Cash application (0006_banking's restructure, 0012_cash_application) ─
+    //
+    // The child D-105 moved the singular clearing target onto repeats
+    // `bank_line_clearings.cleared_amount_minor`'s own correction: a signed BIGINT,
+    // and a difference that silently defaulted to zero is exactly the discrepancy
+    // E4 exists to record. `payment_terms.net_days`/`discount_rate_ppm`/
+    // `discount_window_days` need no entry — all three are `INT UNSIGNED`, well
+    // inside 2^53, the same reason `tax_rates.rate_ppm` needs none.
+    'bank_line_clearing_entries.entry_amount_minor': 'bigint',
+
     // ── Recurring invoices & dunning (0008_recurring_dunning) ────────────────
     //
     // The same three column kinds one more time. The schedule dates are calendar

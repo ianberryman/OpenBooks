@@ -2047,7 +2047,7 @@ const OPERATIONS: readonly Operation[] = [
     call: (s) =>
       clearBankStatementLine(
         s.statementLineId,
-        { method: 'post_entry', accountId: s.expenseId },
+        { entries: [{ method: 'post_entry', accountId: s.expenseId }] },
         s.ctx,
       ),
   },
@@ -2721,17 +2721,29 @@ async function scene(role: SystemRoleName): Promise<Scene> {
       occurrence_index: 0,
     })
     .execute();
+  const clearedClearingId = newUuid();
   await db.app
     .insertInto('bank_line_clearings')
     .values({
-      id: uuidToBuffer(newUuid()),
+      id: uuidToBuffer(clearedClearingId),
       org_id: org.id,
       statement_line_id: uuidToBuffer(clearedLineUuid),
-      method: 'post_entry',
-      cleared_journal_id: journal.id,
       cleared_amount_minor: -1000n,
       difference_amount_minor: 0n,
       created_by_user_id: user.id,
+    })
+    .execute();
+  // D-105: `method` and the coded journal moved off the parent onto the child.
+  await db.app
+    .insertInto('bank_line_clearing_entries')
+    .values({
+      id: uuidToBuffer(newUuid()),
+      org_id: org.id,
+      clearing_id: uuidToBuffer(clearedClearingId),
+      entry_type: 'post_entry',
+      cleared_journal_id: journal.id,
+      account_id: revenue.id,
+      entry_amount_minor: -1000n,
     })
     .execute();
 

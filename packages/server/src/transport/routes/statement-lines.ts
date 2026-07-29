@@ -58,13 +58,15 @@ import {
  *
  * ## Clearing is a sub-resource of the line, and `DELETE` carries the reversal
  *
- * A line has at most one clearing (`uq_blc_line`), so it reads as one:
- * `POST …/clearing` creates it, `DELETE …/clearing` removes it. The `DELETE` carries a
- * body because undoing is not a plain delete — where the clearing posted a journal,
- * that journal is *reversed*, never deleted (D-16), and the reversal takes its own entry
- * date, which must fall in an open period (by the time a mis-accept is noticed the line's
- * own month is often closed). A `link_entry` that posted nothing leaves `date` unused
- * rather than forbidden, so a client need not look up the method before undoing.
+ * A line has at most one clearing (`uq_blc_line`), so it reads as one: `POST …/clearing`
+ * creates it, `DELETE …/clearing` removes it — still true under Cash application's
+ * generalisation (D-80, D-105), because the parent stays one-per-line even though it may
+ * now be made of several entries. The `DELETE` carries a body because undoing is not a
+ * plain delete — where an entry posted a journal, that journal is *reversed*, never
+ * deleted (D-16), and the reversal takes its own entry date, which must fall in an open
+ * period (by the time a mis-accept is noticed the line's own month is often closed). A
+ * `link_entry` entry that posted nothing leaves `date` unused rather than forbidden, so a
+ * client need not look up every entry's kind before undoing.
  */
 
 const LINE_TAG = 'statement-lines';
@@ -176,12 +178,13 @@ export function registerStatementLineRoutes(app: App): void {
         operationId: 'clearBankStatementLine',
         summary: 'Clear a statement line',
         description:
-          'Accepting: the one write on the matching path (D-43). `method` chooses one of three — ' +
-          'code the line (`post_entry`), link an existing entry (`link_entry`), or settle an ' +
-          'invoice or bill (`allocate_document`). E4 holds by construction: ' +
-          '`clearedAmount + differenceAmount === line.amount`, and a difference must have an ' +
-          'account to post to (`clearing_difference_unaccounted`). A line already cleared is ' +
-          '`statement_line_already_cleared`.',
+          'Accepting: the one write on the matching path (D-43). `entries` is one or more of ' +
+          '`post_entry` (code the line), `link_entry` (link an existing entry), `allocate_document` ' +
+          '(settle an invoice or bill), and `discount` (an early-pay discount, D-106) — a ' +
+          'single-target clear is `entries` with one element. E4 holds by construction: the ' +
+          'non-`discount` entries plus `differenceAmount` sum to `line.amount`, and a difference ' +
+          'must have an account to post to (`clearing_difference_unaccounted`). A line already ' +
+          'cleared is `statement_line_already_cleared`.',
         tags: [LINE_TAG],
         headers: idempotencyKeyHeaderSchema,
         params: lineParamsSchema,

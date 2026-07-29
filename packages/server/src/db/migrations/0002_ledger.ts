@@ -142,23 +142,37 @@ export async function up(db: MigrationDb): Promise<void> {
   // invoice needs (M3), and pre-release adding them costs nothing later (D-15), so
   // the only thing an early column buys is a column nobody has decided the meaning
   // of.
+  //
+  // ## default_payment_term_id — added in place for Cash application (D-15, D-79)
+  //
+  // The column that paragraph said M3 did not need yet. It names the term a new
+  // document defaults to for this contact — Net 30, 2/10 Net 30 — overridable per
+  // document (`ar_documents.payment_term_id` / `ap_documents.payment_term_id`,
+  // `0005_subledger`). It cannot carry its foreign key here: `payment_terms` is
+  // created in `0012_cash_application`, which runs *after* this migration, and
+  // MySQL refuses a `FOREIGN KEY` to a table that does not exist yet. The column is
+  // declared nullable here so the row shape is right from the start, and `0012`
+  // adds the composite `(org_id, id)` constraint once `payment_terms` exists — the
+  // same split `0002_ledger`/`0999_app_grants` uses for every table the grants
+  // migration cannot yet see.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE contacts (
-      id            BINARY(16)   NOT NULL,
-      org_id        BINARY(16)   NOT NULL,
-      code          VARCHAR(32)  NULL,
-      display_name  VARCHAR(255) NOT NULL,
-      legal_name    VARCHAR(255) NULL,
-      email         VARCHAR(320) NULL,
-      phone         VARCHAR(64)  NULL,
-      is_customer   TINYINT(1)   NOT NULL DEFAULT 0,
-      is_vendor     TINYINT(1)   NOT NULL DEFAULT 0,
-      notes         VARCHAR(512) NULL,
-      is_active     TINYINT(1)   NOT NULL DEFAULT 1,
-      created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-      updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
-                                 ON UPDATE CURRENT_TIMESTAMP(3),
+      id                     BINARY(16)   NOT NULL,
+      org_id                 BINARY(16)   NOT NULL,
+      code                   VARCHAR(32)  NULL,
+      display_name           VARCHAR(255) NOT NULL,
+      legal_name             VARCHAR(255) NULL,
+      email                  VARCHAR(320) NULL,
+      phone                  VARCHAR(64)  NULL,
+      is_customer            TINYINT(1)   NOT NULL DEFAULT 0,
+      is_vendor              TINYINT(1)   NOT NULL DEFAULT 0,
+      notes                  VARCHAR(512) NULL,
+      is_active              TINYINT(1)   NOT NULL DEFAULT 1,
+      default_payment_term_id BINARY(16)  NULL,
+      created_at             DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at             DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+                                          ON UPDATE CURRENT_TIMESTAMP(3),
       PRIMARY KEY (id),
       UNIQUE KEY uq_contacts_org_id (org_id, id),
       UNIQUE KEY uq_contacts_org_code (org_id, code),
@@ -171,6 +185,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_contacts_org_name (org_id, display_name),
       KEY idx_contacts_org_customer (org_id, is_customer),
       KEY idx_contacts_org_vendor (org_id, is_vendor),
+      KEY idx_contacts_org_default_term (org_id, default_payment_term_id),
       CONSTRAINT fk_contacts_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);

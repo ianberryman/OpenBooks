@@ -79,7 +79,9 @@ async function build(scene: Scene, plan: Plan): Promise<void> {
     for (const amount of plan.cleared) {
       const line = await statementLineIn(db, scene, { amountMinor: amount, postedDate: POSTED });
       const journal = await bankJournalIn(db, scene, amount, scene.revenue);
-      await clearBankStatementLine(line.uuid, { method: 'link_entry', journalId: journal.uuid });
+      await clearBankStatementLine(line.uuid, {
+        entries: [{ method: 'link_entry', journalId: journal.uuid }],
+      });
     }
     for (const amount of plan.ledger) {
       await bankJournalIn(db, scene, amount, scene.expense);

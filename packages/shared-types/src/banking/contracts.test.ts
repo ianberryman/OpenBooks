@@ -48,16 +48,26 @@ const LINE_FACTS = {
   fingerprint: 'ZmluZ2VycHJpbnQ',
 };
 
+const CLEARING_ENTRY = {
+  id: UUID(1),
+  entryType: 'post_entry',
+  clearedJournalId: UUID(3),
+  paymentId: null,
+  accountId: UUID(7),
+  targetType: null,
+  targetId: null,
+  amount: '-450',
+  createdAt: TIMESTAMP,
+};
+
 const CLEARING = {
   id: UUID(1),
   lineId: UUID(2),
-  method: 'post_entry',
-  clearedJournalId: UUID(3),
+  entries: [CLEARING_ENTRY],
   clearedAmount: '-450',
   differenceAmount: '0',
   differenceAccountId: null,
   differenceJournalId: null,
-  paymentId: null,
   reconciliationSessionId: null,
   clearedByUserId: UUID(4),
   clearedAt: TIMESTAMP,
@@ -304,8 +314,10 @@ const SAMPLES: Readonly<Record<string, unknown>> = {
   bankMatchProposalListSchema: { lines: [{ lineId: UUID(2), proposals: [PROPOSAL] }] },
 
   bankClearingMethodSchema: 'post_entry',
+  bankClearingEntryTypeSchema: 'discount',
+  bankLineClearingEntrySchema: CLEARING_ENTRY,
   bankLineClearingSchema: CLEARING,
-  clearBankStatementLineRequestSchema: { method: 'post_entry', accountId: UUID(9) },
+  clearBankStatementLineRequestSchema: { entries: [{ method: 'post_entry', accountId: UUID(9) }] },
   removeBankLineClearingRequestSchema: { date: DATE },
 
   reconciliationSessionStateSchema: 'open',
@@ -384,6 +396,7 @@ describe('what M4 publishes as an OpenAPI component', () => {
         'BankMatchProposalsRequest',
         'BankMatchProposalList',
         'BankLineClearing',
+        'BankLineClearingEntry',
         'ClearBankStatementLineRequest',
         'RemoveBankLineClearingRequest',
         'ReconciliationBalances',
@@ -614,24 +627,36 @@ describe('the shapes that must be impossible', () => {
     ).toBe(true);
   });
 
-  /** A clearing request names one thing to do, and the other two do not parse into it. */
-  it('makes a clearing that means two things unrepresentable (E4)', () => {
+  /** One entry names one thing to do, and the other two do not parse into it. */
+  it('makes an entry that means two things unrepresentable (E4)', () => {
     expect(
       bankingSchema('clearBankStatementLineRequestSchema').safeParse({
-        method: 'link_entry',
-        journalId: UUID(3),
+        entries: [{ method: 'link_entry', journalId: UUID(3) }],
       }).success,
     ).toBe(true);
     expect(
       bankingSchema('clearBankStatementLineRequestSchema').safeParse({
-        method: 'link_entry',
-        journalId: UUID(3),
-        accountId: UUID(9),
+        entries: [{ method: 'link_entry', journalId: UUID(3), accountId: UUID(9) }],
       }).success,
     ).toBe(false);
+    // `post_entry` may omit `amount` — it defaults to the whole line when it is the
+    // request's only entry (D-80) — but not `accountId`.
     expect(
-      bankingSchema('clearBankStatementLineRequestSchema').safeParse({ method: 'post_entry' })
-        .success,
+      bankingSchema('clearBankStatementLineRequestSchema').safeParse({
+        entries: [{ method: 'post_entry' }],
+      }).success,
+    ).toBe(false);
+    // `entries` must not be empty — there is no clear that does nothing.
+    expect(
+      bankingSchema('clearBankStatementLineRequestSchema').safeParse({ entries: [] }).success,
+    ).toBe(false);
+    // `discount` never defaults its amount, unlike the other three.
+    expect(
+      bankingSchema('clearBankStatementLineRequestSchema').safeParse({
+        entries: [
+          { method: 'discount', accountId: UUID(9), targetType: 'invoice', targetId: UUID(10) },
+        ],
+      }).success,
     ).toBe(false);
   });
 
