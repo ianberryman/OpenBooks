@@ -8,21 +8,21 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                                   | Status                       |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below** |
-| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Built — see Status below** |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                   |
-| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Scoped — see below**       |
-| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**       |
-| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Built — gate-green**       |
-| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Built — gate-green**       |
-| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**       |
-| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**       |
+| Milestone | Spec phase | Outcome                                                                                                                   | Status                        |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below**  |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below**  |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below**  |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below**  |
+| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Built — see Status below**  |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                    |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                    |
+| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Dev-ready — see execution** |
+| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**        |
+| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Built — gate-green**        |
+| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Built — gate-green**        |
+| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**        |
+| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**        |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
 spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
@@ -1815,6 +1815,92 @@ catch what no unit sees, as OB-090 was for M4.
 answer — `ap_only` owns the queue, an issuer role holds post). **OB-119** (reporting snapshots,
 [D-69](#d-69)) gates _scale_, independently, and is tracked as an outstanding ticket, not on this
 path.
+
+### PB execution — dev-ready, parallelised
+
+The prose above is criteria + tickets; this is the seam-pinned build plan (the M5/PAY/CA "decide before
+you fan out" discipline). PB is **greenfield** (no `pending_payments`/`disbursement` code exists) and
+**reuse-heavy** — `recordPayment`, the allocation `FOR UPDATE` lock + C3 guard + `assertSameContact`,
+the `document_sequences` gapless-counter pattern, and CA's already-AP-capable discount primitive all
+carry it. **Four forks settled up front** ([D-109](#d-109)…[D-112](#d-112)): dedicated queue/issue
+permission keys for a real separation of duties; **rails are classification tags, not adapters** (no
+NACHA, no wire logic); **cheque is the only internal rail**, behind a swappable output seam; and the
+settlement discount **reuses CA's primitive** and finishes the deferred AP-side suggestion. The
+load-bearing model is [D-64](#d-64): the queued state is a **separate mutable entity that posts no
+journal**, materialising into a real `Payment` per vendor only at issue.
+
+#### Seams that already exist — reuse verbatim
+
+| Need                                     | Reuse (symbol @ path)                                                                                                                                                                                                                 | How PB uses it                                                                                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Materialise one vendor's payment (issue) | `recordPayment` @ `modules/payments/payments.service.ts:132` (`direction:'made'`, `allocations:[{targetType:'bill', …}]`)                                                                                                             | Posts debit-payables/credit-bank + writes allocations in one txn; the rail id lands on `reference`. Enforces `payments_made.write`+`journals.post`.                                                    |
+| Double-payment guard + same-vendor       | `applyAllocations` @ `modules/payments/allocate.ts:96`; the bill `FOR UPDATE` via `selectDocumentByIdForUpdate` @ `allocations.repository.ts:104`; C3 `overAllocated`; `assertSameContact` @ `allocate.ts:302`                        | `committed = Σ open pending intents on a bill` computed under the **same** bill lock; C3 is the issue-time backstop (D-68); `assertSameContact` is why a batch fans out one payment per vendor (D-63). |
+| Cheque-number register                   | `allocateSequenceNumber` + `document_sequences` @ `modules/payments/payments.repository.ts:163` (`FOR UPDATE`, gapless)                                                                                                               | Copy the pattern into a new counter table keyed `(org_id, bank_account_id)` — journals can't be locked, so the counter is its own table (D-14).                                                        |
+| Settlement discount (reuse, D-112)       | `resolveDiscountAccount(db,'received')` @ `modules/settings/discount-accounts.ts:138`; the `discount` posting shape @ `clearing.service.ts` (debit payables control / credit discount account + `applyAllocations` kind `'discount'`) | Extract a shared `postSettlementDiscount(side,…)` both bank-clearing and PB issue call; the `discount_journal_id` XOR source already exists on `ap_allocations`.                                       |
+| AP discount suggestion (finish D-108)    | `suggestDiscount(ctx,{targetType:'bill',…})` @ `modules/payment-terms/suggestion.service.ts` (already AP-capable)                                                                                                                     | The Pay Bills window surfaces it for bills — no new service, just the surface.                                                                                                                         |
+| Bill `outstanding` / `paid`              | `settlementOf`/`statusOf` @ `modules/bills/ap-documents.service.ts:416,394` (both derived, no stored flag)                                                                                                                            | `available_to_pay = outstanding − committed`; a bill reaches `paid` when allocations (payment + discount) sum to gross — no status write.                                                              |
+| ACH-return-after-issue                   | `voidPayment` @ `modules/payments/payments.service.ts:382` (reversing journal, clears allocations)                                                                                                                                    | An ACH return is a void — the same answer D-38 gives everywhere.                                                                                                                                       |
+| Cheque PDF + artifact                    | `createInvoiceRenderer` @ `modules/delivery/renderer/index.ts:117` → bytes; `storageProvider().put`/`signedUrl` (see `send-invoice.service.ts:109`)                                                                                   | The `ChequeOutput` default renders a cheque+stub and stores it, exactly the invoice-PDF path.                                                                                                          |
+
+#### Schema — migration `0013_pay_bills` (next free prefix)
+
+New tenant tables, all **mutable** (pencil until issue — nothing here is a ledger fact, D-64):
+
+- **`pending_payments`** (one per vendor per batch): `id`, `org_id`, `contact_id` (the vendor, FK
+  contacts RESTRICT), `bank_account_id`, `rail ENUM('cheque','ach','wire')`, `status ENUM('open','issued','cancelled')`,
+  `issued_payment_id BINARY(16) NULL` (set on issue → the real `Payment`), `memo`, author, timestamps.
+- **`pending_payment_intents`** (the bill lines it settles): `id`, `org_id`, `pending_payment_id` (FK,
+  CASCADE), `bill_id` (FK ap_documents RESTRICT), `pay_amount_minor BIGINT`, `discount_amount_minor BIGINT NULL`,
+  `discount_account_id BINARY(16) NULL`, `applied_vendor_credit_id BINARY(16) NULL` (a vendor credit it
+  applies, FK ap_documents). `committed` on a bill = `Σ pay_amount_minor` over intents whose pending
+  payment is `open`.
+- **`cheque_number_sequences`** (the register): `PRIMARY KEY (org_id, bank_account_id)`, `next_value BIGINT UNSIGNED NOT NULL DEFAULT 1` — the `document_sequences` twin.
+- **In-place adds** ([D-15](#d-15)): `contacts.ach_routing_number` / `ach_account_number` / `wire_instructions VARCHAR NULL` (`0002_ledger`) — **sensitive, never seeded**; flag them for log-redaction and a possible encryption-at-rest follow-up (they are account numbers, not API-key secrets, so plain nullable columns in v1, redacted). No new column on `payments` — the rail id reuses `reference` (D-110/D-67).
+- Registries: `TENANT_TABLES` + `MUTABLE_TABLES` (all three) + `grants.test` rows; codegen `generated.ts` (a throwaway-MySQL run — no money override needed beyond the standard BIGINT rule).
+- **Permissions ([D-109](#d-109))**: add `pending_payments.read`, `pending_payments.write`, `disbursements.issue` → bump `AssertCatalogSize<53>`→`<56>`; seed in `0001_tenancy` (queue keys to `ap_only`+owner+bookkeeper; `disbursements.issue` to **owner only**); update the permission-matrix/catalog/grants tripwires.
+
+#### Contract-first seams (pin before fan-out)
+
+- **`ChequeOutput`** (new interface): `emit(cheque): Promise<{ artifactKey?: string }>` — default `pdf`
+  implementation renders + stores; a `handoff` implementation no-ops and relies on the query API
+  ([D-111](#d-111)). (A config selector is optional — `pdf` is the real default; do NOT add the PAY-style
+  fake/provider machinery, [D-110](#d-110).)
+- **Wire contracts** (`shared-types`): `pendingPaymentSchema` + intents; the batch `payBillsRequestSchema`
+  (`{ contactId → bills[] }` fanned out server-side, D-63); `railSchema`; `committed`/`available_to_pay`
+  added to the AP settlement read beside `outstanding` (all computed, none stored — D-34/D-68); a
+  list-by-rail query shape (for external handoff).
+- **The issue is atomic per payment, not per run** (G2/D-63): the `payBills`/issue service loops vendors,
+  each in its **own transaction** — one vendor's failure leaves the others issued and it stays `open`/flagged.
+
+#### Waves (OB-109…118; **OB-119 is explicitly out** — reporting snapshots for scale, D-69)
+
+| Wave                                               | Tickets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Deliverable                                                                         |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **0 — Schema + contracts** (parallel)              | **OB-109** `0013` schema + contacts columns + cheque register + the 3 permission keys + registries · **OB-110** wire contracts                                                                                                                                                                                                                                                                                                                                                                                                          | Orchestrator owns codegen + the 0002 in-place edit + role reseed.                   |
+| **1 — Services** (111→112 spine; 113,114 parallel) | **OB-111** pending-payment queue (build/edit/cancel; `committed`/`available_to_pay` under the bill `FOR UPDATE`; **gated `pending_payments.write`, NOT `journals.post`**) · **OB-112** issue (materialise per vendor via `recordPayment` + `postSettlementDiscount` + cheque number; atomic per payment; **gated `disbursements.issue`**) · **OB-113** the shared `postSettlementDiscount` helper (reuse CA, D-112) · **OB-114** the rail tag + `ChequeOutput` seam + cheque register + list-by-rail read + vendor disbursement columns | OB-112 is the expansion risk (the per-vendor atomicity + the discount/credit legs). |
+| **2 — Transport + screens**                        | **OB-115** `/v1` routes (build/edit/cancel, batch `payBills`, route-to-rail, issue, cheque output, list-by-rail) · **OB-116** the Pay Bills window (owed / in-flight / available, apply credits + the AP discount suggestion) + the disbursements queue screen                                                                                                                                                                                                                                                                          | New keys → permission-matrix moves this time.                                       |
+| **3 — Verification**                               | **OB-117** enforcement matrix (queue vs issue: `ap_only` queues but **cannot** issue) + the D-68 double-payment **contention** property (two builders racing one bill, one parked mid-txn) + mutation testing · **OB-118** E2E: enter bills → queue with a discount + a vendor credit → route part cheque part ACH → issue → follow journals → match a cheque against a bank line                                                                                                                                                       |                                                                                     |
+
+**Critical path:** OB-109 → OB-111 → OB-112 → OB-116 → OB-118. OB-093 (done) already resolved the
+`journals.post` prerequisite; the new `disbursements.issue` key is what makes the queue/issue split real.
+
+#### Tripwire / registry checklist
+
+`db/tenant-tables.ts` (+3) · `0999_app_grants.ts` `MUTABLE_TABLES` (+3) + `grants.test.ts` · `catalog.ts`
+`PERMISSION_KEYS` (+3) with `AssertCatalogSize<53>`→`<56>` + `0001_tenancy` seed (incl. the role split) +
+`catalog.test.ts` · **`permission-matrix.test.ts`** — this milestone genuinely moves it (new keys →
+`GRANTED_TO`, new OPERATIONS rows, the queue-vs-issue split is the headline assertion) · route-table +
+openapi (+ regenerate `openapi.json`/web client) + cross-org A7/B11 · `generated.ts` via throwaway codegen.
+
+#### Deliberate scope edges (flagged)
+
+- **No NACHA, no wire execution** ([D-110](#d-110)) — ACH/wire are tags; an external integration moves
+  the money and writes back the trace/confirmation to `reference`.
+- **Cheque printing behind `ChequeOutput`** ([D-111](#d-111)) — default renders a PDF; positive pay and
+  cheque-printing polish stay fast-follows (the scope's "Explicitly out").
+- **Vendor bank details are schema-only** — the columns ship redacted; real routing/account numbers are
+  the user's to enter, never seeded (D-67).
+- **OB-119 (reporting snapshots, D-69) is out** — it gates scale independently, not PB correctness.
 
 ---
 
@@ -4200,6 +4286,53 @@ payment-terms primitive as shared AP+AR data (not wasted — PB consumes it), an
 discount in the two AR paths that exist today: the **bank-match workbench** (D-80 multi-entry) and the
 **manual money-in** receipt path (D-81's "the money-in screen remains for receipts not in the feed").
 The Pay-Bills-side suggestion lands with PB. I5 is therefore partially deferred by construction, flagged.
+
+<a id="d-109"></a>
+
+**D-109 — PB gets dedicated queue/issue permission keys for a real separation of duties.** [D-65](#d-65)
+wants a clerk who builds the queue but cannot post, and a controller who issues. [OB-093](#follow-up-tickets--phase-0-cleared-the-m3-debt)
+deliberately gave `ap_only` **both** `payments_made.write` and `journals.post`, so reusing those keys
+would let one `ap_only` user queue **and** issue — collapsing the split. So PB adds
+`pending_payments.read`/`pending_payments.write` (queue) and **`disbursements.issue`** (issue). The
+queue keys are seeded to `ap_only` (the clerk builds the queue); `disbursements.issue` is seeded to
+**owner only**, so `ap_only` can build but not release — a genuine v1 separation, not merely an
+architectural one. Issue still transitively needs `payments_made.write`/`journals.post` (it calls
+`recordPayment`), so `disbursements.issue` is the distinguishing gate. Catalog 53 → 56; the six role
+seeds in `0001_tenancy` and the permission-matrix/catalog/grants tripwires move. This departs from
+CA's reuse ([D-107](#d-107)) on purpose: the separation of duties **is** the feature here.
+
+<a id="d-110"></a>
+
+**D-110 — Rails are classification tags for external handoff, not behavioural adapters (refines
+[D-67](#d-67)).** A `rail` (`cheque` | `ach` | `wire`) tags a pending payment and the issued payment
+purely to classify **how the movement will be executed** — for filtering, reporting, and querying by
+another system that actually performs the ACH/wire. OpenBooks runs **no NACHA generation and no wire
+logic**: those are third-party integrations, and the app's job is to record the payment, tag its rail,
+and expose it. A list-by-rail read surface lets an external system pull, say, all `ach` disbursements
+to process. The rail identifier the external system returns (ACH trace, wire confirmation) lands on the
+existing free-text `Payment.reference` ([D-36](#d-36)), user- or integration-supplied — not generated.
+
+<a id="d-111"></a>
+
+**D-111 — Cheque is the only internally-supported rail, behind a swappable output abstraction.** A
+cheque is the one rail with in-app mechanics: at issue it draws its number from a per-bank-account
+cheque-number register (a `document_sequences`-style gapless counter keyed `(org_id, bank_account_id)`,
+taken `FOR UPDATE`). Even the printing sits behind a `ChequeOutput` seam — a default implementation
+renders a cheque + stub PDF through the existing invoice renderer + `StorageProvider`, and a company
+that feeds cheques to an external printer/system swaps the implementation (the `StorageProvider`/
+extraction-provider idiom). No NACHA file, no wire artifact ships ([D-110](#d-110)); ACH/wire produce
+no in-app artifact at all.
+
+<a id="d-112"></a>
+
+**D-112 — PB reuses CA's discount primitive and completes the deferred AP-side suggestion.** The
+settlement discount ([D-66](#d-66), generalised by [D-79](#d-79)/[D-106](#d-106)) is not rebuilt: issue
+posts it through CA's shape — debit the payables control, **credit the nominated
+`discount_received_account_id`**, and write a `discount`-kind allocation so the bill reaches `paid` and
+`outstanding` nets to zero — extracted into a shared `postSettlementDiscount(side, …)` helper that both
+the bank-match `discount` clearing entry and PB issue call, so the AR and AP discount paths cannot
+drift. The Pay Bills window surfaces `suggestDiscount` for `bill` targets (the service is already
+AP-capable), finishing the [D-108](#d-108) deferral.
 
 ## Status — Milestone 1
 
