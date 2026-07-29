@@ -35,6 +35,9 @@ export function testConfig(overrides: NodeJS.ProcessEnv = {}): Config {
     SESSION_SECRET: 's'.repeat(40),
     STORAGE_LOCAL_PATH: '/tmp/openbooks-test',
     EMAIL_FROM_ADDRESS: 'tests@example.invalid',
+    // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101),
+    // which requires an app key to derive its encryption key from.
+    SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
     ...overrides,
   });
 }

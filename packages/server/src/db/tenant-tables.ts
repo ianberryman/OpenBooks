@@ -90,6 +90,8 @@ export const TENANT_TABLES = [
   'org_invites',
   'org_members',
   'payments',
+  'processor_connections',
+  'processor_events',
   'reconciliation_session_events',
   'reconciliation_sessions',
   'recurring_invoice_template_lines',

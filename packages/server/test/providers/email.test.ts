@@ -32,6 +32,8 @@ const baseEnv = {
   SESSION_SECRET: 's'.repeat(40),
   STORAGE_LOCAL_PATH: '/tmp/openbooks-test',
   EMAIL_FROM_ADDRESS: 'invites@openbooks.test',
+  // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101).
+  SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
 } satisfies NodeJS.ProcessEnv;
 
 interface Captured {

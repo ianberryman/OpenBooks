@@ -130,6 +130,15 @@ export const envSchema = z.object({
   S3_BUCKET: z.string().optional(),
   STORAGE_LOCAL_PATH: z.string().optional(),
   SECRETS_MANAGER_PREFIX: z.string().optional(),
+  // The `local` secrets adapter's app key (initiative J, D-101): what
+  // `providers/secrets/local.ts` derives its AES-256-GCM key from. Required
+  // only when SECRETS_PROVIDER=local, enforced by PROVIDER_REQUIREMENTS below,
+  // for `SESSION_SECRET`'s length reason — a short key is a key an attacker
+  // who reads the encrypted blob can brute-force.
+  SECRETS_ENCRYPTION_KEY: z
+    .string()
+    .min(32, { error: 'must be at least 32 characters' })
+    .optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   // The `anthropic` extraction adapter's model id (initiative O). Only ever read
   // once that adapter is implemented — today it throws at construction regardless
@@ -192,7 +201,7 @@ export const PROVIDER_REQUIREMENTS: ProviderRequirements = {
   },
   SECRETS_PROVIDER: {
     'aws-secrets-manager': ['SECRETS_MANAGER_PREFIX', 'AWS_REGION'],
-    env: [],
+    local: ['SECRETS_ENCRYPTION_KEY'],
   },
   EMAIL_PROVIDER: {
     ses: ['EMAIL_FROM_ADDRESS', 'AWS_REGION'],

@@ -15,7 +15,7 @@ import type { Config } from './config';
 
 export const REDACTED = '[redacted]';
 
-const SECRET_FIELD_NAMES = ['password', 'secret'] as const;
+const SECRET_FIELD_NAMES = ['password', 'secret', 'encryptionKey'] as const;
 type SecretField = (typeof SECRET_FIELD_NAMES)[number];
 
 const SECRET_FIELDS: ReadonlySet<string> = new Set<string>(SECRET_FIELD_NAMES);

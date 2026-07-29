@@ -16,7 +16,20 @@ export type QueueProviderId = (typeof QUEUE_PROVIDERS)[number];
 export const STORAGE_PROVIDERS = ['s3', 'local'] as const;
 export type StorageProviderId = (typeof STORAGE_PROVIDERS)[number];
 
-export const SECRETS_PROVIDERS = ['aws-secrets-manager', 'env'] as const;
+/**
+ * `env` was the self-host value until initiative J (PAY) and is deliberately
+ * gone: `SecretsProvider.put` (D-101) is the first write path a secret has
+ * ever had in this codebase, and there is no environment variable to write
+ * one back into — `process.env` is read-only from the process's own
+ * perspective, and writing to it besides would not survive a restart, let
+ * alone reach a second instance. It also had no real consumer: nothing
+ * called `SecretsProvider.get` before a payment-processor connection needed
+ * to. `local` is its replacement and the self-host default — a real,
+ * writable, encrypted-at-rest store (`providers/secrets/local.ts`), not a
+ * stub, for `deterministic`'s reason above: a self-host deployment with no
+ * AWS account still needs somewhere to put a Stripe key.
+ */
+export const SECRETS_PROVIDERS = ['aws-secrets-manager', 'local'] as const;
 export type SecretsProviderId = (typeof SECRETS_PROVIDERS)[number];
 
 /**
@@ -90,7 +103,7 @@ export interface ProviderSelection {
 export const SELF_HOST_PROVIDERS: ProviderSelection = {
   QUEUE_PROVIDER: 'in-process',
   STORAGE_PROVIDER: 'local',
-  SECRETS_PROVIDER: 'env',
+  SECRETS_PROVIDER: 'local',
   EMAIL_PROVIDER: 'log',
   BANK_FEED_PROVIDER: 'csv-ofx',
   EXTRACTION_PROVIDER: 'deterministic',

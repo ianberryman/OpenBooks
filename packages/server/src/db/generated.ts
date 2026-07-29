@@ -702,6 +702,39 @@ export interface Permissions {
   description: string;
 }
 
+export interface ProcessorConnections {
+  clearing_account_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  external_account_id: string | null;
+  fee_account_id: Buffer;
+  id: Buffer;
+  is_active: Generated<number>;
+  last_polled_at: Date | null;
+  org_id: Buffer;
+  processor: "fake" | "square" | "stripe";
+  publishable_key: string | null;
+  reconciled_through: Date | null;
+  secret_ref: string;
+  updated_at: Generated<Date>;
+  webhook_secret_ref: string;
+}
+
+export interface ProcessorEvents {
+  connection_id: Buffer;
+  event_type: "charge" | "dispute" | "fee" | "payout" | "refund";
+  external_event_id: string;
+  external_object_id: string;
+  id: Buffer;
+  org_id: Buffer;
+  payload: Json;
+  processed_at: Date | null;
+  processing_error: string | null;
+  processor: "fake" | "square" | "stripe";
+  received_at: Generated<Date>;
+  status: "failed" | "ignored" | "processed" | "received";
+}
+
 export interface ReconciliationSessionEvents {
   asserted_balance_minor: bigint | null;
   created_at: Generated<Date>;
@@ -773,6 +806,13 @@ export interface Roles {
   is_system: Generated<number>;
   name: string;
   org_id: Buffer | null;
+}
+
+export interface Secrets {
+  ciphertext: Buffer;
+  created_at: Generated<Date>;
+  name: string;
+  updated_at: Generated<Date>;
 }
 
 export interface SecurityEvents {
@@ -875,12 +915,15 @@ export interface DB {
   orgs: Orgs;
   payments: Payments;
   permissions: Permissions;
+  processor_connections: ProcessorConnections;
+  processor_events: ProcessorEvents;
   reconciliation_session_events: ReconciliationSessionEvents;
   reconciliation_sessions: ReconciliationSessions;
   recurring_invoice_template_lines: RecurringInvoiceTemplateLines;
   recurring_invoice_templates: RecurringInvoiceTemplates;
   role_permissions: RolePermissions;
   roles: Roles;
+  secrets: Secrets;
   security_events: SecurityEvents;
   sessions: Sessions;
   tax_rates: TaxRates;

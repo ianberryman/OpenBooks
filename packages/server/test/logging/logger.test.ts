@@ -14,6 +14,8 @@ const baseEnv = {
   SESSION_SECRET: 'x'.repeat(32),
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
+  // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101).
+  SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
 } satisfies NodeJS.ProcessEnv;
 
 const config = (overrides: NodeJS.ProcessEnv = {}): Config =>

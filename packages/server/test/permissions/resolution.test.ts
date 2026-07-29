@@ -30,16 +30,18 @@ import { contextFor, useServiceDatabase } from './support';
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
   // The entire catalog.
-  ['owner', 51],
+  ['owner', 53],
   // Everything except organization administration: orgs.write, members.write,
-  // api_keys.*, integrations.write, workflows.activate — six exclusions. Gains
-  // branding.read, branding.write and invoices.send (INV), none of them excluded.
-  ['bookkeeper', 45],
-  // Every `.read` except api_keys.read (20, now including branding.read), plus
-  // agents.review and journals.post.
-  ['approver', 22],
-  // Every `.read` except api_keys.read (now including branding.read).
-  ['readOnly', 20],
+  // api_keys.*, integrations.write, processing.write, workflows.activate — seven
+  // exclusions. Gains branding.read, branding.write and invoices.send (INV), and
+  // processing.read (PAY), none of them excluded.
+  ['bookkeeper', 46],
+  // Every `.read` except api_keys.read (21, now including branding.read and
+  // processing.read), plus agents.review and journals.post.
+  ['approver', 23],
+  // Every `.read` except api_keys.read (now including branding.read and
+  // processing.read).
+  ['readOnly', 21],
   // 15 document/read codes plus journals.post and journals.reverse (OB-093), so a
   // clerk can finish — approve, void, pay — the documents they enter.
   ['apOnly', 17],
@@ -242,7 +244,9 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    expect(resolution.permissions.size).toBe(22);
+    // 23 since initiative J (PAY): the `%.read` bundle now also picks up
+    // `processing.read` (was 22).
+    expect(resolution.permissions.size).toBe(23);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

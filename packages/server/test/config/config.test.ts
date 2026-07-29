@@ -35,6 +35,9 @@ const baseEnv = {
   ...alwaysRequired,
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
+  // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101),
+  // which requires an app key to derive its encryption key from.
+  SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
 } satisfies NodeJS.ProcessEnv;
 
 const env = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
@@ -89,7 +92,7 @@ describe('loadConfig', () => {
       provider: 'local',
       basePath: '/var/lib/openbooks/storage',
     });
-    expect(config.providers.secrets).toEqual({ provider: 'env' });
+    expect(config.providers.secrets).toEqual({ provider: 'local', encryptionKey: 'k'.repeat(32) });
     expect(config.providers.bankFeed).toEqual({ provider: 'csv-ofx' });
   });
 
@@ -305,6 +308,7 @@ describe('provider fail-fast validation', () => {
     S3_BUCKET: 'bucket',
     STORAGE_LOCAL_PATH: '/data',
     SECRETS_MANAGER_PREFIX: 'openbooks/',
+    SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
     EMAIL_FROM_ADDRESS: 'from@example.test',
   };
 

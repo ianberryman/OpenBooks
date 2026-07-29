@@ -10,6 +10,7 @@ import * as m0007 from './0007_invoice_delivery';
 import * as m0008 from './0008_recurring_dunning';
 import * as m0009 from './0009_bill_capture';
 import * as m0010 from './0010_platform';
+import * as m0011 from './0011_payment_processing';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -58,6 +59,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0008_recurring_dunning': m0008,
   '0009_bill_capture': m0009,
   '0010_platform': m0010,
+  '0011_payment_processing': m0011,
   '0999_app_grants': m0999,
 };
 

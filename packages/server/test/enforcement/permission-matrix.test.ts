@@ -526,21 +526,33 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // `agents.review`, `api_keys.read`, `api_keys.write`, and `integrations.write`
-  // moved to `GRANTED_TO` this milestone (M5, OB-104) — `workflows.*` is all that
-  // is left latent for owner, and it stays latent until M6.
-  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
+  // moved to `GRANTED_TO` this milestone (M5, OB-104). `workflows.*` stays latent
+  // until M6; `processing.*` is seeded now (initiative J, PAY) but latent until the
+  // connect/manage routes stream enforces it — the same catalog-before-enforcement
+  // pattern `agents.review` followed through M5.
+  owner: [
+    'processing.read',
+    'processing.write',
+    'workflows.activate',
+    'workflows.read',
+    'workflows.write',
+  ],
   // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone.
-  bookkeeper: ['workflows.read', 'workflows.write'],
+  // `processing.read` is held (it matches the `%.read` bundle); `processing.write`
+  // is excluded from bookkeeper (org-administration, D-101) so it is not listed.
+  bookkeeper: ['processing.read', 'workflows.read', 'workflows.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
   // code it is missing was never in its bundle to begin with.
   apOnly: [],
   arOnly: [],
-  // `integrations.read` moved to `GRANTED_TO` this milestone.
-  readOnly: ['workflows.read'],
-  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone.
-  approver: ['workflows.read'],
+  // `integrations.read` moved to `GRANTED_TO` this milestone; `processing.read`
+  // arrives latent (the `%.read` bundle picks it up), enforced by PAY's routes.
+  readOnly: ['processing.read', 'workflows.read'],
+  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone;
+  // `processing.read` is latent here for the same reason as `readOnly`.
+  approver: ['processing.read', 'workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -3172,8 +3184,9 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, leaving only
     // `workflows.activate`/`workflows.read`/`workflows.write` (M6). This number is
     // the only place the count is asserted rather than described, so it moves once
-    // per wave that wires a code.
-    expect(latent).toHaveLength(3);
+    // per wave that wires a code. Initiative J (PAY) seeds `processing.read`/
+    // `processing.write` ahead of the routes that enforce them, taking it to five.
+    expect(latent).toHaveLength(5);
   });
 
   /**

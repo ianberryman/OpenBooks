@@ -90,6 +90,12 @@ export type { ApiKeyCredentialRow } from './api-key-lookup';
 // session exists, for `delivery-lookup.ts`'s exact reason. See `oauth-lookup.ts`.
 export { selectOAuthGrantByCodeHash, selectOAuthTokenByHash } from './oauth-lookup';
 export type { OAuthGrantCredentialRow, OAuthTokenCredentialRow } from './oauth-lookup';
+// A different kind of sanctioned exception (initiative J, D-101): `secrets` is
+// infra, not tenant data, keyed by an opaque handle exactly as an external
+// secrets manager namespaces by prefix — there is no org to resolve here, unlike
+// the identity lookups above. See `secrets-store.ts`; `providers/secrets/local.ts`
+// is its only caller.
+export { readSecret, upsertSecret } from './secrets-store';
 // Driver-error predicates. A unique key or a grant is the real guarantee for several
 // rules while the application pre-check races it; these turn the losing race into the
 // same answer rather than an opaque 500.

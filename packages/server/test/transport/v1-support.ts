@@ -77,6 +77,8 @@ export function useV1App(): V1Harness {
       STORAGE_LOCAL_PATH: storageDir,
       EMAIL_FROM_ADDRESS: 'billing@openbooks.test',
       APP_BASE_URL: 'https://app.openbooks.test',
+      // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101).
+      SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
     });
     const emailLogger = createLogger(emailConfig, { write() {} });
     setOutboundEmail({

@@ -53,6 +53,9 @@ function documentOnlyConfig(): Config {
     SESSION_SECRET: 'openapi-generation-does-not-sign-cookies',
     STORAGE_LOCAL_PATH: '/nonexistent',
     EMAIL_FROM_ADDRESS: 'unused@example.invalid',
+    // The self-host secrets default is `local` (D-101), whose only requirement is
+    // this app key; a placeholder because nothing here encrypts a secret.
+    SECRETS_ENCRYPTION_KEY: 'openapi-generation-does-not-encrypt-secrets',
   });
 }
 

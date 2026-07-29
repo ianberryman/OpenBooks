@@ -23,6 +23,19 @@ export interface StorageProvider {
 
 export interface SecretsProvider {
   get(name: string): Promise<string>;
+  /**
+   * The first write path for a secret in this codebase (D-101). A per-org
+   * processor key (PAY, initiative J) is handed straight to this and never
+   * echoed back by any response — `get` is the only read, and only the
+   * service that called `put` has a reason to call it.
+   *
+   * `name` is an opaque, globally-unique handle — an org id and a connection
+   * id folded together, never a value with meaning of its own — so a hosted
+   * adapter that namespaces by prefix (AWS Secrets Manager) and a self-host
+   * adapter that namespaces by table row share the exact same shape: neither
+   * has to be told which org or which processor a name belongs to.
+   */
+  put(name: string, value: string): Promise<void>;
 }
 
 export interface EmailProvider {
@@ -122,6 +135,107 @@ export interface InboundMailProvider {
   }): Promise<InboundEmailMessage>;
 }
 
+/**
+ * Which processor a `processor_connections` row and a `PaymentProcessorProvider`
+ * instance both name (initiative J). `fake` is not a test double bolted onto
+ * the union — it is the third, real, deterministic implementation the gate
+ * exercises in place of a network call to Stripe or Square (D-102); see
+ * `createFakePaymentProcessor` in `packages/server/src/providers/payment/fake.ts`.
+ */
+export type ProcessorKind = 'stripe' | 'square' | 'fake';
+
+/**
+ * One normalized event off a payment processor's webhook or poll feed
+ * (initiative J, ROADMAP D-82…D-86). Stripe and Square each report charges,
+ * fees, refunds, disputes and payouts on their own divergent schemas; this is
+ * the shape every adapter normalises onto, so the clearing-account posting
+ * model (D-82) and the webhook receiver (D-85) are written once, against one
+ * contract, the way `ExtractedBill` is one shape two extraction adapters both
+ * produce.
+ *
+ * Two ids and two reasons, not one: `externalEventId` is the delivery — a
+ * webhook redelivers, so an idempotency check keyed on it collapses a replay
+ * to one write (F9). `externalObjectId` is the charge/refund/payout itself —
+ * a poll and a webhook can both report the *same object*, arriving as two
+ * different deliveries, so the object id is what `external_refs` correlates
+ * to an OpenBooks entity. Money is always a cents string end to end (D-13);
+ * nothing at this boundary is ever a decimal or a float.
+ */
+export interface NormalizedProcessorEvent {
+  readonly kind: 'charge' | 'fee' | 'refund' | 'dispute' | 'payout';
+  /** The processor's own event/delivery id — event-level idempotency (F9). */
+  readonly externalEventId: string;
+  /** The charge/refund/payout object id — object-level idempotency (`external_refs`). */
+  readonly externalObjectId: string;
+  /**
+   * The invoice this event pays, read from the checkout session's own
+   * metadata (D-83) — certain identity, not a guess, which is what makes
+   * auto-allocation legitimate here and nowhere else in the system. `null`
+   * for a payout or a dispute, neither of which names one invoice.
+   */
+  readonly invoiceId: string | null;
+  /** Cents string (D-13). */
+  readonly grossMinor: string;
+  /** Cents string, the processor's per-charge fee (D-104/D-84); `null` where none applies. */
+  readonly feeMinor: string | null;
+  /** Cents string, a payout's net amount; `null` outside a payout event. */
+  readonly netMinor: string | null;
+  /** ISO-8601 instant, when the processor recorded the event. */
+  readonly occurredAt: string;
+}
+
+/** A hosted-checkout link (D-83): where the pay-link on the hosted invoice page redirects. */
+export interface ProcessorCheckoutLink {
+  readonly url: string;
+  readonly sessionId: string;
+}
+
+/**
+ * The AR inbound-rail mirror of the AP disbursement rails (D-67, D-86) — the
+ * new D-07 provider for initiative J. Behind it, Stripe's and Square's
+ * divergent checkout and webhook shapes are normalised to one contract, so
+ * the clearing-account posting model and the webhook receiver are written
+ * against `NormalizedProcessorEvent` and never against a processor SDK.
+ *
+ * Constructed per processor **connection**, not once per process — see the
+ * comment on `Providers` below for why it does not belong in that bag.
+ */
+export interface PaymentProcessorProvider {
+  /**
+   * Opens a hosted-checkout session for one invoice (D-83). The invoice id
+   * travels in `metadata` so the processor hands it back on the resulting
+   * webhook event — the certain identity `NormalizedProcessorEvent.invoiceId`
+   * carries.
+   */
+  createCheckoutLink(input: {
+    readonly invoiceId: string;
+    readonly amountMinor: string;
+    readonly currency: string;
+    readonly returnUrl: string;
+    readonly metadata: Readonly<Record<string, string>>;
+  }): Promise<ProcessorCheckoutLink>;
+  /**
+   * Verifies the inbound webhook's signature and normalises its body.
+   * Throws on a signature that does not verify — the caller has no session to
+   * fall back to, so an unverified webhook is a request failure, not a value
+   * to remember to check (the same contract `InboundMailProvider.parse` keeps).
+   */
+  verifyAndParseWebhook(input: {
+    readonly rawBody: Uint8Array;
+    readonly signatureHeader: string;
+  }): Promise<NormalizedProcessorEvent>;
+  /** The processor's own reported available balance — the D-85 poll's reconciliation target. */
+  fetchBalanceMinor(): Promise<string>;
+  /**
+   * The D-85 polling backstop: events since `cursor` (`null` for the
+   * beginning), and the next cursor.
+   */
+  listEventsSince(cursor: string | null): Promise<{
+    readonly events: readonly NormalizedProcessorEvent[];
+    readonly cursor: string;
+  }>;
+}
+
 export interface Providers {
   readonly queue: QueueProvider;
   readonly storage: StorageProvider;
@@ -133,4 +247,11 @@ export interface Providers {
   readonly documentExtraction?: DocumentExtractionProvider;
   /** Absent before initiative O. */
   readonly inboundMail?: InboundMailProvider;
+  // `PaymentProcessorProvider` is deliberately not a member here (initiative J).
+  // Every provider above is process-wide — one storage adapter, one queue —
+  // but a processor connection carries its own secret key, webhook secret and
+  // clearing/fee accounts, and an org can hold more than one (Stripe and
+  // Square at once). So it is constructed per `processor_connections` row,
+  // not resolved once at process start; see `paymentProcessorFor` in
+  // `packages/server/src/providers/payment/`.
 }

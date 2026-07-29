@@ -3,6 +3,7 @@ import type {
   EmailProvider,
   InboundMailProvider,
   QueueProvider,
+  SecretsProvider,
   StorageProvider,
 } from '@openbooks/plugin-api';
 
@@ -15,6 +16,7 @@ import { createSesEmailProvider } from './email/ses';
 import { createDocumentExtractionProvider } from './extraction';
 import { createInboundMailProvider } from './inbound-mail';
 import { InProcessQueue } from './queue/in-process';
+import { createSecretsProvider } from './secrets';
 import { createStorageProvider } from './storage';
 
 /**
@@ -280,6 +282,41 @@ export function setInboundMailProvider(value: InboundMailProvider | undefined): 
   resolvedInboundMail = value;
 }
 
+/**
+ * The process-wide secrets dependency, built on first use (initiative J,
+ * D-101). The same seam as `storageProvider`, and for the same reasons: a
+ * function rather than an exported `const`, so importing this module builds
+ * nothing; lazy, so a role that never connects a processor never constructs
+ * one. Its first consumer is connecting a payment processor: the service
+ * calls `put` once per credential at connect time and `get` wherever a
+ * `PaymentProcessorProvider` is constructed for a stored connection (see
+ * `providers/payment/`).
+ *
+ * A single accessor rather than folded into a `Providers` bag, for
+ * `storageProvider`'s reason: one consumer, and a registry now would be the
+ * shape spec §8 warns against.
+ */
+let resolvedSecrets: SecretsProvider | undefined;
+
+export function secretsProvider(): SecretsProvider {
+  // `??=` and not a `const config = getConfig()` above it, for `outboundEmail`'s
+  // reason: an installed value must short-circuit the config read entirely.
+  resolvedSecrets ??= createSecretsProvider(getConfig().providers.secrets);
+  return resolvedSecrets;
+}
+
+/**
+ * Installs the secrets adapter for the rest of the process, or clears it. For
+ * hosts and tests, not services — the same seam `setStorageProvider` is. A
+ * suite that exercises connecting a processor installs a `local` adapter
+ * pointed at a throwaway `SECRETS_ENCRYPTION_KEY` and reads a stored key back
+ * through the same `get` the real service would, spec §11's "no mocks"
+ * applied to a secret store.
+ */
+export function setSecretsProvider(value: SecretsProvider | undefined): void {
+  resolvedSecrets = value;
+}
+
 export { InProcessQueue } from './queue/in-process';
 export { createLogEmailProvider } from './email/log';
 export { createSesEmailProvider } from './email/ses';
@@ -288,4 +325,9 @@ export {
   createDeterministicExtractionProvider,
 } from './extraction';
 export { createDevInboundMailProvider, createSesInboundMailProvider } from './inbound-mail';
+export {
+  createAwsSecretsManagerProvider,
+  createLocalSecretsProvider,
+  createSecretsProvider,
+} from './secrets';
 export { createStorageProvider } from './storage';

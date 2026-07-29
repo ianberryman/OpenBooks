@@ -56,7 +56,9 @@ x-app-env: &app-env
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
   QUEUE_PROVIDER: ${QUEUE_PROVIDER:-in-process}
   STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
-  SECRETS_PROVIDER: ${SECRETS_PROVIDER:-env}
+  SECRETS_PROVIDER: ${SECRETS_PROVIDER:-local}
+  # The `local` secrets adapter's app key (initiative J, D-101) — see .env.example.
+  SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-dev-only-change-me-fedcba9876543210fedcba9876543210}
   EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
   BANK_FEED_PROVIDER: ${BANK_FEED_PROVIDER:-csv-ofx}
   STORAGE_LOCAL_PATH: ${STORAGE_LOCAL_PATH:-/var/lib/openbooks/storage}

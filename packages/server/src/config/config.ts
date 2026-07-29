@@ -33,8 +33,14 @@ export type StorageConfig =
   | { readonly provider: 'local'; readonly basePath: string }
   | { readonly provider: 's3'; readonly bucket: string; readonly region: string };
 
+/**
+ * `local` carries the app key its adapter (`providers/secrets/local.ts`) derives
+ * an AES-256-GCM key from (D-101) — the encrypted blob in the `secrets` table
+ * is not the key, only what it protects. `aws-secrets-manager` is unchanged
+ * from before initiative J.
+ */
 export type SecretsConfig =
-  | { readonly provider: 'env' }
+  | { readonly provider: 'local'; readonly encryptionKey: string }
   | { readonly provider: 'aws-secrets-manager'; readonly region: string; readonly prefix: string };
 
 export type EmailConfig =
@@ -175,8 +181,8 @@ function selectStorage(env: Env): StorageConfig {
 
 function selectSecrets(env: Env): SecretsConfig {
   switch (env.SECRETS_PROVIDER) {
-    case 'env':
-      return { provider: 'env' };
+    case 'local':
+      return { provider: 'local', encryptionKey: demand(env, 'SECRETS_ENCRYPTION_KEY') };
     case 'aws-secrets-manager':
       return {
         provider: 'aws-secrets-manager',

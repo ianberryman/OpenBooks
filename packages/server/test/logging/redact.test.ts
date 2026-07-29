@@ -10,6 +10,9 @@ const baseEnv = {
   SESSION_SECRET: 'session-'.repeat(8),
   STORAGE_LOCAL_PATH: '/var/lib/openbooks/storage',
   EMAIL_FROM_ADDRESS: 'openbooks@example.test',
+  // The self-host default SECRETS_PROVIDER is `local` (initiative J, D-101), whose
+  // app key is itself a secret this suite must find redacted — see below.
+  SECRETS_ENCRYPTION_KEY: 'k'.repeat(32),
 } satisfies NodeJS.ProcessEnv;
 
 /** Every path whose value came back redacted, in dotted form. */
@@ -28,10 +31,15 @@ describe('agreement with src/config/redact.ts', () => {
   const viaLog = redactedPaths(redactLogRecord({ ...config }));
 
   it('redacts the secrets the config module knows about', () => {
-    // Two, not three: the email provider carried an SMTP password until OB-040
-    // removed the adapter that needed one. `ses` authenticates with the task role
-    // and `log` authenticates with nothing, so no provider holds a secret today.
-    expect(viaConfig).toEqual(['database.password', 'session.secret']);
+    // Three: the database password and the session secret as before, plus the
+    // `local` secrets adapter's own app key (initiative J, D-101) now that it is
+    // the self-host default. `ses` authenticates with the task role and `log`
+    // authenticates with nothing, so neither email provider holds one.
+    expect(viaConfig).toEqual([
+      'database.password',
+      'session.secret',
+      'providers.secrets.encryptionKey',
+    ]);
   });
 
   /**
@@ -42,7 +50,13 @@ describe('agreement with src/config/redact.ts', () => {
   it('redacts a superset of them', () => {
     expect(viaConfig.length).toBeGreaterThan(0);
     for (const path of viaConfig) {
-      expect(viaLog).toContain(path);
+      // A redacted ancestor covers its descendants: the log side matches on the
+      // field-name substring `secret`, so it blanks the whole `providers.secrets`
+      // subtree, whereas the config side redacts the exact `encryptionKey` leaf.
+      // That is still a superset — the leaf is redacted, via its parent — so the
+      // check accepts an exact path or any redacted prefix of it.
+      const covered = viaLog.some((logged) => path === logged || path.startsWith(`${logged}.`));
+      expect(covered, `${path} is not redacted (nor is any ancestor) in log output`).toBe(true);
     }
   });
 

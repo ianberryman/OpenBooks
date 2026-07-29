@@ -337,6 +337,26 @@ const MUTABLE_TABLES = [
   'external_refs',
   'event_positions',
   'change_feed_cursors',
+  // ── Payment processing (0011_payment_processing) ───────────────────────────
+  //
+  // `secrets` is mutable, not append-only, and that is not a relaxation of D-101:
+  // reconnecting a processor with a rotated key overwrites the same row
+  // (`upsertSecret`'s `ON DUPLICATE KEY UPDATE`), and the value stored there was
+  // never itself a financial fact — it is the ciphertext of a credential, and an
+  // append-only history of past keys would only be a second place a rotated
+  // secret could still be read from. `processor_connections` is a setting for
+  // `bank_accounts`' reason (D-46 applied to a processor): the nomination of a
+  // clearing/fee account and a key reference, changeable without reaching any
+  // payment already recorded. `processor_events` is working state for
+  // `bank_match_proposals`'/`document_captures`' reason: nothing downstream
+  // depends on an event row being edited, only on the payment or fee it produced
+  // — which lives in `journals`, append-only above, or `external_refs`,
+  // mutable above for D-58's own reason — so `status`/`processed_at`/
+  // `processing_error` need UPDATE for the same ordinary lifecycle-write
+  // argument `bank_statement_imports` moved on.
+  'secrets',
+  'processor_connections',
+  'processor_events',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

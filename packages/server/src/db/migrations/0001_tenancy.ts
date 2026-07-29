@@ -322,6 +322,8 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('integrations.read',      'View third-party integrations (M5)'),
       ('integrations.write',     'Authorize and revoke third-party integrations (M5)'),
       ('agents.review',          'Review and approve scheduled agent proposals (M5)'),
+      ('processing.read',        'View payment processor connections and events (PAY)'),
+      ('processing.write',       'Connect and manage payment processors (PAY)'),
       ('workflows.read',         'View automations (M6)'),
       ('workflows.write',        'Create and modify automations (M6)'),
       ('workflows.activate',     'Activate an automation (M6)')
@@ -388,14 +390,17 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
 
   // Bookkeeper: the whole catalog except organization administration. A
   // bookkeeper runs the books; they do not manage who has access or mint
-  // credentials.
+  // credentials. `processing.write` joins `integrations.write` in the
+  // exclusion for the same reason: connecting a processor hands its secret
+  // key and webhook secret to the secrets provider (D-101, D-83), which is an
+  // organization-administration act and not a bookkeeping one.
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
     WHERE r.is_system = 1 AND r.code = 'bookkeeper'
       AND p.code NOT IN (
         'orgs.write', 'members.write', 'api_keys.read', 'api_keys.write',
-        'integrations.write', 'workflows.activate'
+        'integrations.write', 'processing.write', 'workflows.activate'
       )
   `.execute(db);
 
