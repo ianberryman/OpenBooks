@@ -55,6 +55,7 @@ import {
 import { postJournal } from '../../src/modules/ledger';
 import { changeMemberRole, inviteMember } from '../../src/modules/members';
 import { OWNER_ROLE_ID } from '../../src/modules/orgs';
+import { createPaymentTerm, suggestDiscount } from '../../src/modules/payment-terms';
 import {
   allocateCreditNote,
   allocatePayment,
@@ -67,7 +68,7 @@ import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/m
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
 import { connectProcessor } from '../../src/modules/payments-processing';
 import { getAging } from '../../src/modules/reports/aging.service';
-import { updateControlAccounts } from '../../src/modules/settings';
+import { updateControlAccounts, updateDiscountAccounts } from '../../src/modules/settings';
 import { createTaxRate, updateTaxRate } from '../../src/modules/tax';
 import {
   createLocalSecretsProvider,
@@ -167,6 +168,8 @@ interface Org {
   /** Both flags, because the AR services refuse a non-customer and AP a non-vendor. */
   readonly partyId: string;
   readonly taxRateId: string;
+  /** Cash application (OB-139): `createInvoice`/`createBill`'s `paymentTermId` field. */
+  readonly paymentTermId: string;
   /** A draft-mode recurring template, so the `update*` reference rows have one to edit. */
   readonly recurringTemplateId: string;
   /** Approved, so it can be an allocation target and has room for three. */
@@ -492,6 +495,7 @@ type SubledgerFixtures = Pick<
   | 'invoiceId'
   | 'partyId'
   | 'paymentId'
+  | 'paymentTermId'
   | 'recurringTemplateId'
   | 'taxRateId'
   | 'vendorCreditId'
@@ -525,6 +529,9 @@ async function subledgerFixtures(
   const taxRate = await asOwner(() =>
     createTaxRate({ name: 'VAT 20%', percentage: '20', accountId: accounts.taxAccountId }, ctx),
   );
+  // Cash application (OB-139): a term for the `paymentTermId` reference rows on
+  // `createInvoice`/`createBill` to name across orgs.
+  const paymentTerm = await asOwner(() => createPaymentTerm({ name: 'Net 30', netDays: 30 }, ctx));
 
   const arLines = [
     {
@@ -592,6 +599,7 @@ async function subledgerFixtures(
   return {
     partyId: party.id,
     taxRateId: taxRate.id,
+    paymentTermId: paymentTerm.id,
     recurringTemplateId,
     invoiceId,
     billId: await approved(bill, (id) => approveBill(id, ctx)),
@@ -1085,6 +1093,31 @@ const REFERENCES: readonly Reference[] = [
       ),
   },
   {
+    // Cash application (OB-139): the term overriding the contact's default,
+    // `resolveDocumentTerm`'s own `assertFound` on a caller-supplied override.
+    operationId: 'createInvoice',
+    field: 'paymentTermId',
+    subject: (o) => o.paymentTermId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          paymentTermId: id,
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
     operationId: 'updateInvoice',
     field: 'contactId',
     subject: (o) => o.partyId,
@@ -1515,6 +1548,45 @@ const REFERENCES: readonly Reference[] = [
       ),
   },
   {
+    // Cash application (OB-139): `createBill`'s own `paymentTermId`, the AP mirror
+    // of `createInvoice`'s row above.
+    operationId: 'createBill',
+    field: 'paymentTermId',
+    subject: (o) => o.paymentTermId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          paymentTermId: id,
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  /**
+   * The discount-suggestion preview's own document reference (OB-138/OB-139):
+   * `loadDocument` resolves it through the same org-scoped read every other
+   * document lookup here does, so a cross-org invoice 404s before any discount
+   * arithmetic runs.
+   */
+  {
+    operationId: 'suggestDiscount',
+    field: 'targetId',
+    subject: (o) => o.invoiceId,
+    reach: (id, s) =>
+      suggestDiscount(s.caller.ctx, { targetType: 'invoice', targetId: id, asOfDate: DATE }),
+  },
+  {
     operationId: 'updateBill',
     field: 'contactId',
     subject: (o) => o.partyId,
@@ -1844,6 +1916,23 @@ const REFERENCES: readonly Reference[] = [
     field: 'payableControlAccountId',
     subject: (o) => o.payableId,
     reach: (id, s) => updateControlAccounts({ payableControlAccountId: id }, s.caller.ctx),
+  },
+  /**
+   * Cash application (OB-139): the two discount-account nominations,
+   * `resolveNomination`'s own mirror of `resolveControlAccount` above — an
+   * unresolved-in-this-org id is `assertFound`, before the account-type check.
+   */
+  {
+    operationId: 'updateDiscountAccounts',
+    field: 'discountGivenAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) => updateDiscountAccounts({ discountGivenAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateDiscountAccounts',
+    field: 'discountReceivedAccountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) => updateDiscountAccounts({ discountReceivedAccountId: id }, s.caller.ctx),
   },
   /**
    * Aging's one id, and the row that says a *report* is not a way around the rule.

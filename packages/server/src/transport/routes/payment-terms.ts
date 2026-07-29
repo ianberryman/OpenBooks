@@ -61,19 +61,22 @@ import {
  * an ordinary idempotent read rather than inventing an error token for a state
  * that is ordinary.
  *
- * It takes `payments_received.read` rather than `banking.match` — the ticket's
- * own choice of *a* read over the write that gates actually clearing a bank
- * line — because a preview computes and posts nothing, and `payments_received.read`
- * is the permission both call sites already hold: the bank-match workbench reads
- * proposals before it ever reaches `banking.match`'s clearing write, and the
- * manual money-in screen reads the invoice and its payments before recording one.
- * `banking.match` would make the preview unreachable from money-in, which never
- * touches the bank feed at all. **Assumption, flagged for the orchestrator**: CA
- * builds only the AR-side suggestion (D-108), so `payments_received.read` is
- * correct for every `targetType` this route can currently resolve
- * (`suggestDiscount` answers `null` for a `bill` today); the Pay-Bills-side call
- * site landing with PB will need its own gate (`payments_made.read`) alongside
- * this one, not instead of it.
+ * ## Its declared permission is a direction split, not `payments_received.read`
+ *
+ * An earlier draft of this file declared `payments_received.read` here — *a*
+ * read both call sites hold, but not the one `suggestion.service.ts` actually
+ * checks. `suggestDiscount` reads `input.targetType` and enforces
+ * `invoices.read` for an invoice target or `bills.read` for a bill one (D-108's
+ * own AR/AP split, one read code per direction rather than a banking code):
+ * a preview computes and posts nothing, so it takes the read the caller
+ * settling that document already holds, matching `recordPayment`'s own
+ * direction-keyed pair of codes one document type over. This route therefore
+ * carries no single declared permission of its own — `permission-matrix.test.ts`
+ * asserts both directions as two rows sharing this one `operationId`
+ * (`DIRECTION_SPLIT_OPERATIONS`), the same shape `recordPayment`'s four rows
+ * take for `payments_received.*`/`payments_made.*`. The AP branch is reachable
+ * today (`suggestDiscount` resolves a `bill` target and its own account side),
+ * even though the confirm-side write it previews for lands with Pay Bills.
  */
 
 const TAG = 'payment-terms';
@@ -82,12 +85,15 @@ const paymentTermParamsSchema = z.strictObject({ paymentTermId: z.uuid() });
 
 /** Local and carrying no `id`: a querystring is emitted as individual `parameters`. */
 const listPaymentTermsWireQuerySchema = z.strictObject({
-  includeInactive: z.stringbool().optional().meta({
-    description:
-      'Every term, active and archived. Defaults to active-only (`false`) — an archived term ' +
-      'stays on every document that used it and is never offered for a new one, so the ordinary ' +
-      'caller, a document’s term picker, never wants it.',
-  }),
+  includeInactive: z
+    .stringbool()
+    .optional()
+    .meta({
+      description:
+        'Every term, active and archived. Defaults to active-only (`false`) — an archived term ' +
+        'stays on every document that used it and is never offered for a new one, so the ordinary ' +
+        'caller, a document’s term picker, never wants it.',
+    }),
 });
 
 /**

@@ -215,13 +215,26 @@ import {
 import { getAging } from '../../src/modules/reports/aging.service';
 import { getInboundEmailAddress } from '../../src/modules/orgs';
 import {
+  createPaymentTerm,
+  deactivatePaymentTerm,
+  getPaymentTerm,
+  listPaymentTerms,
+  suggestDiscount,
+  updatePaymentTerm,
+} from '../../src/modules/payment-terms';
+import {
   connectProcessor,
   deactivateProcessorConnection,
   getProcessorConnection,
   listProcessorConnections,
   reactivateProcessorConnection,
 } from '../../src/modules/payments-processing';
-import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
+import {
+  getControlAccounts,
+  getDiscountAccounts,
+  updateControlAccounts,
+  updateDiscountAccounts,
+} from '../../src/modules/settings';
 import {
   archiveTaxRate,
   createTaxRate,
@@ -655,6 +668,8 @@ interface Scene {
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
+  /** Cash application (OB-139): `getPaymentTerm`/`updatePaymentTerm`/`deactivatePaymentTerm`. */
+  readonly paymentTermId: string;
   readonly draftInvoiceId: string;
   readonly discardableInvoiceId: string;
   readonly approvableInvoiceId: string;
@@ -2330,6 +2345,89 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'processing.write',
     call: (s) => reactivateProcessorConnection(s.processorConnectionId, s.ctx),
   },
+
+  // ---------------------------------------------------------------------------
+  // Cash application (OB-139) — payment terms, the discount-suggestion preview,
+  // and the discount-account nominations beside `updateControlAccounts`. No new
+  // catalog key: every operation below reuses `orgs.read`/`orgs.write`
+  // (`terms.service.ts`'s own header — a term nomination is settings-like exactly
+  // as the control accounts are) or the AR/AP document codes the suggestion reads
+  // (`invoices.read`/`bills.read`).
+  //
+  // `suggestDiscount` is one route that splits on `targetType` the way
+  // `recordPayment` splits on `direction` — `suggestion.service.ts` checks
+  // `invoices.read` for an invoice target and `bills.read` for a bill one, so it
+  // is two rows here for `recordPayment`'s own reason, and `suggestDiscount` joins
+  // `DIRECTION_SPLIT_OPERATIONS` below rather than picking one side to assert.
+  // ---------------------------------------------------------------------------
+
+  {
+    // A second term: `paymentTermId` in the scene is already named, and
+    // `uq_payment_terms_org_name` refuses a duplicate name in one org.
+    name: 'createPaymentTerm',
+    operationId: 'createPaymentTerm',
+    permission: 'orgs.write',
+    call: (s) => createPaymentTerm({ name: '2/10 Net 30', netDays: 30 }, s.ctx),
+  },
+  {
+    name: 'listPaymentTerms',
+    operationId: 'listPaymentTerms',
+    permission: 'orgs.read',
+    call: (s) => listPaymentTerms(false, s.ctx),
+  },
+  {
+    name: 'getPaymentTerm',
+    operationId: 'getPaymentTerm',
+    permission: 'orgs.read',
+    call: (s) => getPaymentTerm(s.paymentTermId, s.ctx),
+  },
+  {
+    name: 'updatePaymentTerm',
+    operationId: 'updatePaymentTerm',
+    permission: 'orgs.write',
+    call: (s) => updatePaymentTerm(s.paymentTermId, { netDays: 45 }, s.ctx),
+  },
+  // Last of the three, since it archives the term the two rows above still need.
+  {
+    name: 'deactivatePaymentTerm',
+    operationId: 'deactivatePaymentTerm',
+    permission: 'orgs.write',
+    call: (s) => deactivatePaymentTerm(s.paymentTermId, s.ctx),
+  },
+  {
+    name: 'suggestDiscountInvoice',
+    operationId: 'suggestDiscount',
+    permission: 'invoices.read',
+    call: (s) =>
+      suggestDiscount(s.ctx, {
+        targetType: 'invoice',
+        targetId: s.targetInvoiceId,
+        asOfDate: s.date,
+      }),
+  },
+  {
+    name: 'suggestDiscountBill',
+    operationId: 'suggestDiscount',
+    permission: 'bills.read',
+    call: (s) =>
+      suggestDiscount(s.ctx, { targetType: 'bill', targetId: s.targetBillId, asOfDate: s.date }),
+  },
+  {
+    name: 'getDiscountAccounts',
+    operationId: 'getDiscountAccounts',
+    permission: 'orgs.read',
+    call: (s) => getDiscountAccounts(s.ctx),
+  },
+  {
+    name: 'updateDiscountAccounts',
+    operationId: 'updateDiscountAccounts',
+    permission: 'orgs.write',
+    call: (s) =>
+      updateDiscountAccounts(
+        { discountGivenAccountId: s.expenseId, discountReceivedAccountId: s.revenueId },
+        s.ctx,
+      ),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -2432,6 +2530,7 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
 const DIRECTION_SPLIT_OPERATIONS: readonly string[] = [
   'getPayment',
   'recordPayment',
+  'suggestDiscount',
   'updatePayment',
   'voidPayment',
 ];
@@ -2886,6 +2985,7 @@ type SubledgerFixtures = Pick<
   | 'draftVendorCreditId'
   | 'madePaymentId'
   | 'partyId'
+  | 'paymentTermId'
   | 'receivedPaymentId'
   | 'targetBillId'
   | 'targetInvoiceId'
@@ -2935,6 +3035,10 @@ async function subledgerFixtures(
     { name: 'Zero rated', percentage: '0', accountId: accounts.taxAccountId },
     setup,
   );
+
+  // Cash application (OB-139): a simple term for `getPaymentTerm`/`updatePaymentTerm`/
+  // `deactivatePaymentTerm` to be judged against.
+  const paymentTerm = await createPaymentTerm({ name: 'Net 30', netDays: 30 }, setup);
 
   const arLines = [
     {
@@ -3011,6 +3115,7 @@ async function subledgerFixtures(
     partyId: party.id,
     taxRateId: taxRate.id,
     deletableTaxRateId: deletableTaxRate.id,
+    paymentTermId: paymentTerm.id,
     draftInvoiceId: await invoice(),
     discardableInvoiceId: await invoice(),
     approvableInvoiceId: await invoice(),

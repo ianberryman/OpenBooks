@@ -7968,7 +7968,7 @@
       },
       "CreateBillRequest": {
         "additionalProperties": false,
-        "description": "Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one.",
+        "description": "Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. `paymentTermId` overrides the vendor’s default term and is create-only.",
         "properties": {
           "contactId": {
             "format": "uuid",
@@ -8000,6 +8000,12 @@
               }
             ]
           },
+          "paymentTermId": {
+            "description": "Overrides the vendor’s default payment term for this bill. Absent falls back to the contact’s own default, if any. Create-only — not reachable through `UpdateBillRequest`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
           "reference": {
             "anyOf": [
               {
@@ -8030,7 +8036,7 @@
       },
       "CreateBillRequestInput": {
         "additionalProperties": false,
-        "description": "Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one.",
+        "description": "Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. `paymentTermId` overrides the vendor’s default term and is create-only.",
         "properties": {
           "contactId": {
             "format": "uuid",
@@ -8061,6 +8067,12 @@
                 "type": "null"
               }
             ]
+          },
+          "paymentTermId": {
+            "description": "Overrides the vendor’s default payment term for this bill. Absent falls back to the contact’s own default, if any. Create-only — not reachable through `UpdateBillRequest`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
           },
           "reference": {
             "anyOf": [
@@ -8993,7 +9005,7 @@
       },
       "CreateInvoiceRequest": {
         "additionalProperties": false,
-        "description": "Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval.",
+        "description": "Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only.",
         "properties": {
           "contactId": {
             "format": "uuid",
@@ -9025,6 +9037,12 @@
               }
             ]
           },
+          "paymentTermId": {
+            "description": "Overrides the customer’s default payment term for this invoice. Absent falls back to the contact’s own default, if any; there is no term at all if neither names one. Create-only — a term already resolved onto a document is not reachable through `UpdateInvoiceRequest`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
           "reference": {
             "anyOf": [
               {
@@ -9055,7 +9073,7 @@
       },
       "CreateInvoiceRequestInput": {
         "additionalProperties": false,
-        "description": "Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval.",
+        "description": "Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only.",
         "properties": {
           "contactId": {
             "format": "uuid",
@@ -9086,6 +9104,12 @@
                 "type": "null"
               }
             ]
+          },
+          "paymentTermId": {
+            "description": "Overrides the customer’s default payment term for this invoice. Absent falls back to the contact’s own default, if any; there is no term at all if neither names one. Create-only — a term already resolved onto a document is not reachable through `UpdateInvoiceRequest`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
           },
           "reference": {
             "anyOf": [
@@ -9304,6 +9328,76 @@
           "date",
           "amount",
           "accountId"
+        ],
+        "type": "object"
+      },
+      "CreatePaymentTermRequest": {
+        "additionalProperties": false,
+        "description": "Creates a term, active. `discountRatePpm` and `discountWindowDays` are supplied together, for a rich term, or omitted together, for a simple one.",
+        "properties": {
+          "discountRatePpm": {
+            "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discountWindowDays": {
+            "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "netDays"
+        ],
+        "type": "object"
+      },
+      "CreatePaymentTermRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a term, active. `discountRatePpm` and `discountWindowDays` are supplied together, for a rich term, or omitted together, for a simple one.",
+        "properties": {
+          "discountRatePpm": {
+            "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discountWindowDays": {
+            "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "netDays"
         ],
         "type": "object"
       },
@@ -10614,6 +10708,140 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "DiscountAccounts": {
+        "additionalProperties": false,
+        "description": "The org’s early-pay discount nominations. Either may be null — the two sides are separately usable, and an org that only invoices never gives a vendor discount.",
+        "properties": {
+          "discountGivenAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account an early-pay discount debits when this org gives one to a customer. Null until nominated; confirming a discount without it is a `precondition_failed`."
+          },
+          "discountReceivedAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account an early-pay discount credits when a vendor gives one to this org. Null until nominated."
+          }
+        },
+        "required": [
+          "discountGivenAccountId",
+          "discountReceivedAccountId"
+        ],
+        "type": "object"
+      },
+      "DiscountAccountsInput": {
+        "additionalProperties": false,
+        "description": "The org’s early-pay discount nominations. Either may be null — the two sides are separately usable, and an org that only invoices never gives a vendor discount.",
+        "properties": {
+          "discountGivenAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account an early-pay discount debits when this org gives one to a customer. Null until nominated; confirming a discount without it is a `precondition_failed`."
+          },
+          "discountReceivedAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account an early-pay discount credits when a vendor gives one to this org. Null until nominated."
+          }
+        },
+        "required": [
+          "discountGivenAccountId",
+          "discountReceivedAccountId"
+        ],
+        "type": "object"
+      },
+      "DiscountSuggestion": {
+        "additionalProperties": false,
+        "description": "A preview of the early-pay discount available on a document, computed against the date asked for. Never written by this shape and never auto-posted (D-43) — a human confirms it as a `discount` clearing entry.",
+        "properties": {
+          "accountId": {
+            "description": "The org's nominated discount-given/received account this would post to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "discountAmountMinor": {
+            "type": "string"
+          },
+          "targetId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "targetId",
+          "discountAmountMinor",
+          "deadline",
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "DiscountSuggestionInput": {
+        "additionalProperties": false,
+        "description": "A preview of the early-pay discount available on a document, computed against the date asked for. Never written by this shape and never auto-posted (D-43) — a human confirms it as a `discount` clearing entry.",
+        "properties": {
+          "accountId": {
+            "description": "The org's nominated discount-given/received account this would post to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "discountAmountMinor": {
+            "type": "string"
+          },
+          "targetId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "targetId",
+          "discountAmountMinor",
+          "deadline",
+          "accountId"
         ],
         "type": "object"
       },
@@ -16059,6 +16287,186 @@
         ],
         "type": "object"
       },
+      "PaymentTerm": {
+        "additionalProperties": false,
+        "description": "A term in the org’s picker: a net-days figure and, optionally, an early-pay discount. `discountRatePpm`/`discountWindowDays` are both null on a simple term, both set on a rich one — never one without the other (`chk_payment_terms_discount`).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "discountRatePpm": {
+            "anyOf": [
+              {
+                "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discountWindowDays": {
+            "anyOf": [
+              {
+                "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "An archived term stays on every document that used it and cannot be chosen for a new one — the only form of removal available to a term a contact or a document names.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "netDays",
+          "discountRatePpm",
+          "discountWindowDays",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PaymentTermInput": {
+        "additionalProperties": false,
+        "description": "A term in the org’s picker: a net-days figure and, optionally, an early-pay discount. `discountRatePpm`/`discountWindowDays` are both null on a simple term, both set on a rich one — never one without the other (`chk_payment_terms_discount`).",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "discountRatePpm": {
+            "anyOf": [
+              {
+                "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discountWindowDays": {
+            "anyOf": [
+              {
+                "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "An archived term stays on every document that used it and cannot be chosen for a new one — the only form of removal available to a term a contact or a document names.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "netDays",
+          "discountRatePpm",
+          "discountWindowDays",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PaymentTermList": {
+        "additionalProperties": false,
+        "description": "Every term the org has defined, active ones first by name. Not paged — a term catalog is a small, bounded list, unlike the documents that reference it.",
+        "properties": {
+          "paymentTerms": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "paymentTerms"
+        ],
+        "type": "object"
+      },
+      "PaymentTermListInput": {
+        "additionalProperties": false,
+        "description": "Every term the org has defined, active ones first by name. Not paged — a term catalog is a small, bounded list, unlike the documents that reference it.",
+        "properties": {
+          "paymentTerms": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentTermInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "paymentTerms"
+        ],
+        "type": "object"
+      },
       "PostJournalRequest": {
         "additionalProperties": false,
         "description": "Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb.",
@@ -20751,6 +21159,68 @@
         ],
         "type": "object"
       },
+      "UpdateDiscountAccountsRequest": {
+        "additionalProperties": false,
+        "description": "Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Both land in one transaction. Changing one moves future postings only — a discount already posted names the account it posted to and is never restated.",
+        "properties": {
+          "discountGivenAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discountReceivedAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateDiscountAccountsRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Both land in one transaction. Changing one moves future postings only — a discount already posted names the account it posted to and is never restated.",
+        "properties": {
+          "discountGivenAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "discountReceivedAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateDraftRequest": {
         "additionalProperties": false,
         "description": "Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones.",
@@ -21153,6 +21623,68 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePaymentTermRequest": {
+        "additionalProperties": false,
+        "description": "Partial update. An omitted field is left as it is. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively, so a term that should stop discounting is deactivated and replaced rather than edited.",
+        "properties": {
+          "discountRatePpm": {
+            "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discountWindowDays": {
+            "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePaymentTermRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update. An omitted field is left as it is. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively, so a term that should stop discounting is deactivated and replaced rather than edited.",
+        "properties": {
+          "discountRatePpm": {
+            "description": "The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "discountWindowDays": {
+            "description": "Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "What this term is called in the picker, e.g. \"Net 30\" or \"2/10 Net 30\". Unique within the org.",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "netDays": {
+            "description": "Days from issue to due. Zero is \"due on receipt\".",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -31099,6 +31631,329 @@
         ]
       }
     },
+    "/v1/payment-terms": {
+      "get": {
+        "description": "Every term the org has defined, active ones first by name — a picker list, not paged (the catalog is small and bounded, unlike the documents that reference it).",
+        "operationId": "listPaymentTerms",
+        "parameters": [
+          {
+            "description": "Every term, active and archived. Defaults to active-only (`false`) — an archived term stays on every document that used it and is never offered for a new one, so the ordinary caller, a document’s term picker, never wants it.",
+            "in": "query",
+            "name": "includeInactive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTermList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List the org’s payment terms",
+        "tags": [
+          "payment-terms"
+        ]
+      },
+      "post": {
+        "description": "A net-days figure and, optionally, a paired early-pay discount (`discountRatePpm`/`discountWindowDays` — both or neither). Created active.",
+        "operationId": "createPaymentTerm",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentTermRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerm"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a payment term",
+        "tags": [
+          "payment-terms"
+        ]
+      }
+    },
+    "/v1/payment-terms/discount-suggestion": {
+      "get": {
+        "description": "Computed from the document’s resolved term against `asOfDate` — never written by this read and never auto-posted (D-43); a human confirms it as a `discount` clearing entry (`clearBankStatementLine`) or a discount allocation on a manual receipt. `204` (not an error) when the document carries no term, a simple term, or a rich term whose window has already passed relative to `asOfDate`.",
+        "operationId": "suggestDiscount",
+        "parameters": [
+          {
+            "description": "Which kind of document `targetId` names.",
+            "in": "query",
+            "name": "targetType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "invoice",
+                "bill"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The invoice or bill a human is about to settle.",
+            "in": "query",
+            "name": "targetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOfDate",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountSuggestion"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Preview the early-pay discount available on a document",
+        "tags": [
+          "payment-terms"
+        ]
+      }
+    },
+    "/v1/payment-terms/{paymentTermId}": {
+      "get": {
+        "operationId": "getPaymentTerm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paymentTermId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerm"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One payment term",
+        "tags": [
+          "payment-terms"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is unchanged. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively; deactivate it and create a replacement instead.",
+        "operationId": "updatePaymentTerm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paymentTermId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePaymentTermRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerm"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update a payment term",
+        "tags": [
+          "payment-terms"
+        ]
+      }
+    },
+    "/v1/payment-terms/{paymentTermId}/deactivate": {
+      "post": {
+        "description": "The term stays on every document that already used it and is never offered again. Not a delete — `fk_ar_documents_payment_term`/`fk_ap_documents_payment_term`/`fk_contacts_default_payment_term` are all `ON DELETE RESTRICT`, so a term any document or contact still names could not be removed regardless. Idempotent: an already-inactive term is returned unchanged rather than refused.",
+        "operationId": "deactivatePaymentTerm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paymentTermId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerm"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Archive a payment term",
+        "tags": [
+          "payment-terms"
+        ]
+      }
+    },
     "/v1/payments": {
       "get": {
         "description": "One page, ordered by `(created_at, id)` and not by `date`: payments are recorded in whatever order the paperwork surfaces, so a back-dated one would land behind a cursor that had already passed its date and appear on no page at all. Omitting `direction` spans both subledgers and therefore requires both read permissions.",
@@ -33522,6 +34377,90 @@
         "summary": "Run due background work now",
         "tags": [
           "scheduling"
+        ]
+      }
+    },
+    "/v1/settings/discount-accounts": {
+      "get": {
+        "description": "The account an early-pay discount debits when this org gives one to a customer, and the account it credits when a vendor gives one to this org. Either may be null — the two sides are separately usable. Reading this takes `orgs.read` rather than `accounts.read`, mirroring `getControlAccounts`: what is being read is a decision the organization made.",
+        "operationId": "getDiscountAccounts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountAccounts"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The org’s early-pay discount-account nominations",
+        "tags": [
+          "discount-accounts"
+        ]
+      },
+      "patch": {
+        "description": "An omitted side is left as it is; an explicit `null` clears it. A nomination must be an active account of the right kind — an expense account for the given side, a revenue account for the received side — refused with `discount_given_account_wrong_type`, `discount_received_account_wrong_type` or `account_inactive`. Both nominations land in one transaction. Changing one moves future discounts only: a discount already posted names the account it posted to and is never restated.",
+        "operationId": "updateDiscountAccounts",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDiscountAccountsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountAccounts"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Nominate, repoint or clear a discount account",
+        "tags": [
+          "discount-accounts"
         ]
       }
     },

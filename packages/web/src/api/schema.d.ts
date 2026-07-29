@@ -2134,6 +2134,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/payment-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the org’s payment terms
+         * @description Every term the org has defined, active ones first by name — a picker list, not paged (the catalog is small and bounded, unlike the documents that reference it).
+         */
+        get: operations["listPaymentTerms"];
+        put?: never;
+        /**
+         * Create a payment term
+         * @description A net-days figure and, optionally, a paired early-pay discount (`discountRatePpm`/`discountWindowDays` — both or neither). Created active.
+         */
+        post: operations["createPaymentTerm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment-terms/discount-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview the early-pay discount available on a document
+         * @description Computed from the document’s resolved term against `asOfDate` — never written by this read and never auto-posted (D-43); a human confirms it as a `discount` clearing entry (`clearBankStatementLine`) or a discount allocation on a manual receipt. `204` (not an error) when the document carries no term, a simple term, or a rich term whose window has already passed relative to `asOfDate`.
+         */
+        get: operations["suggestDiscount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment-terms/{paymentTermId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One payment term */
+        get: operations["getPaymentTerm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a payment term
+         * @description An absent field is unchanged. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively; deactivate it and create a replacement instead.
+         */
+        patch: operations["updatePaymentTerm"];
+        trace?: never;
+    };
+    "/v1/payment-terms/{paymentTermId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a payment term
+         * @description The term stays on every document that already used it and is never offered again. Not a delete — `fk_ar_documents_payment_term`/`fk_ap_documents_payment_term`/`fk_contacts_default_payment_term` are all `ON DELETE RESTRICT`, so a term any document or contact still names could not be removed regardless. Idempotent: an already-inactive term is returned unchanged rather than refused.
+         */
+        post: operations["deactivatePaymentTerm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/payments": {
         parameters: {
             query?: never;
@@ -2651,6 +2736,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/discount-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org’s early-pay discount-account nominations
+         * @description The account an early-pay discount debits when this org gives one to a customer, and the account it credits when a vendor gives one to this org. Either may be null — the two sides are separately usable. Reading this takes `orgs.read` rather than `accounts.read`, mirroring `getControlAccounts`: what is being read is a decision the organization made.
+         */
+        get: operations["getDiscountAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Nominate, repoint or clear a discount account
+         * @description An omitted side is left as it is; an explicit `null` clears it. A nomination must be an active account of the right kind — an expense account for the given side, a revenue account for the received side — refused with `discount_given_account_wrong_type`, `discount_received_account_wrong_type` or `account_inactive`. Both nominations land in one transaction. Changing one moves future discounts only: a discount already posted names the account it posted to and is never restated.
+         */
+        patch: operations["updateDiscountAccounts"];
         trace?: never;
     };
     "/v1/statement-lines": {
@@ -5018,7 +5127,7 @@ export interface components {
             /** @description Save the inline `mapping` under this name and use it for this import. Only meaningful alongside `mapping`. */
             saveMappingAs?: string | null;
         };
-        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. */
+        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. `paymentTermId` overrides the vendor’s default term and is create-only. */
         CreateBillRequest: {
             /** Format: uuid */
             contactId: string;
@@ -5026,6 +5135,11 @@ export interface components {
             issueDate: components["schemas"]["CalendarDate"];
             lines?: components["schemas"]["DocumentLineRequest"][];
             memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the vendor’s default payment term for this bill. Absent falls back to the contact’s own default, if any. Create-only — not reachable through `UpdateBillRequest`.
+             */
+            paymentTermId?: string;
             reference?: string | null;
             /**
              * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
@@ -5033,7 +5147,7 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
-        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. */
+        /** @description Creates a **draft** bill. A bill’s `issueDate` is the vendor’s date and is routinely in the past, which is what makes the open-period check at approval the interesting one. `paymentTermId` overrides the vendor’s default term and is create-only. */
         CreateBillRequestInput: {
             /** Format: uuid */
             contactId: string;
@@ -5041,6 +5155,11 @@ export interface components {
             issueDate: components["schemas"]["CalendarDateInput"];
             lines?: components["schemas"]["DocumentLineRequestInput"][];
             memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the vendor’s default payment term for this bill. Absent falls back to the contact’s own default, if any. Create-only — not reachable through `UpdateBillRequest`.
+             */
+            paymentTermId?: string;
             reference?: string | null;
             /**
              * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
@@ -5256,7 +5375,7 @@ export interface components {
             /** @description The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026. */
             year: number;
         };
-        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. */
+        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only. */
         CreateInvoiceRequest: {
             /** Format: uuid */
             contactId: string;
@@ -5264,6 +5383,11 @@ export interface components {
             issueDate: components["schemas"]["CalendarDate"];
             lines?: components["schemas"]["DocumentLineRequest"][];
             memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the customer’s default payment term for this invoice. Absent falls back to the contact’s own default, if any; there is no term at all if neither names one. Create-only — a term already resolved onto a document is not reachable through `UpdateInvoiceRequest`.
+             */
+            paymentTermId?: string;
             reference?: string | null;
             /**
              * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
@@ -5271,7 +5395,7 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
-        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. */
+        /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only. */
         CreateInvoiceRequestInput: {
             /** Format: uuid */
             contactId: string;
@@ -5279,6 +5403,11 @@ export interface components {
             issueDate: components["schemas"]["CalendarDateInput"];
             lines?: components["schemas"]["DocumentLineRequestInput"][];
             memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the customer’s default payment term for this invoice. Absent falls back to the contact’s own default, if any; there is no term at all if neither names one. Create-only — a term already resolved onto a document is not reachable through `UpdateInvoiceRequest`.
+             */
+            paymentTermId?: string;
             reference?: string | null;
             /**
              * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
@@ -5345,6 +5474,28 @@ export interface components {
             direction: "received" | "made";
             memo?: string | null;
             reference?: string | null;
+        };
+        /** @description Creates a term, active. `discountRatePpm` and `discountWindowDays` are supplied together, for a rich term, or omitted together, for a simple one. */
+        CreatePaymentTermRequest: {
+            /** @description The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set. */
+            discountRatePpm?: number;
+            /** @description Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`. */
+            discountWindowDays?: number;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays: number;
+        };
+        /** @description Creates a term, active. `discountRatePpm` and `discountWindowDays` are supplied together, for a rich term, or omitted together, for a simple one. */
+        CreatePaymentTermRequestInput: {
+            /** @description The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set. */
+            discountRatePpm?: number;
+            /** @description Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`. */
+            discountWindowDays?: number;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays: number;
         };
         /** @description Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. */
         CreateReconciliationSessionRequest: {
@@ -5711,6 +5862,44 @@ export interface components {
             items: components["schemas"]["DimensionValueInput"][];
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description The org’s early-pay discount nominations. Either may be null — the two sides are separately usable, and an org that only invoices never gives a vendor discount. */
+        DiscountAccounts: {
+            /** @description The account an early-pay discount debits when this org gives one to a customer. Null until nominated; confirming a discount without it is a `precondition_failed`. */
+            discountGivenAccountId: string | null;
+            /** @description The account an early-pay discount credits when a vendor gives one to this org. Null until nominated. */
+            discountReceivedAccountId: string | null;
+        };
+        /** @description The org’s early-pay discount nominations. Either may be null — the two sides are separately usable, and an org that only invoices never gives a vendor discount. */
+        DiscountAccountsInput: {
+            /** @description The account an early-pay discount debits when this org gives one to a customer. Null until nominated; confirming a discount without it is a `precondition_failed`. */
+            discountGivenAccountId: string | null;
+            /** @description The account an early-pay discount credits when a vendor gives one to this org. Null until nominated. */
+            discountReceivedAccountId: string | null;
+        };
+        /** @description A preview of the early-pay discount available on a document, computed against the date asked for. Never written by this shape and never auto-posted (D-43) — a human confirms it as a `discount` clearing entry. */
+        DiscountSuggestion: {
+            /**
+             * Format: uuid
+             * @description The org's nominated discount-given/received account this would post to.
+             */
+            accountId: string;
+            deadline: components["schemas"]["CalendarDate"];
+            discountAmountMinor: string;
+            /** Format: uuid */
+            targetId: string;
+        };
+        /** @description A preview of the early-pay discount available on a document, computed against the date asked for. Never written by this shape and never auto-posted (D-43) — a human confirms it as a `discount` clearing entry. */
+        DiscountSuggestionInput: {
+            /**
+             * Format: uuid
+             * @description The org's nominated discount-given/received account this would post to.
+             */
+            accountId: string;
+            deadline: components["schemas"]["CalendarDateInput"];
+            discountAmountMinor: string;
+            /** Format: uuid */
+            targetId: string;
         };
         /** @description An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`. */
         DocumentCapture: {
@@ -7120,6 +7309,48 @@ export interface components {
              */
             status: "recorded" | "void";
         };
+        /** @description A term in the org’s picker: a net-days figure and, optionally, an early-pay discount. `discountRatePpm`/`discountWindowDays` are both null on a simple term, both set on a rich one — never one without the other (`chk_payment_terms_discount`). */
+        PaymentTerm: {
+            /** Format: date-time */
+            createdAt: string;
+            discountRatePpm: number | null;
+            discountWindowDays: number | null;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived term stays on every document that used it and cannot be chosen for a new one — the only form of removal available to a term a contact or a document names. */
+            isActive: boolean;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A term in the org’s picker: a net-days figure and, optionally, an early-pay discount. `discountRatePpm`/`discountWindowDays` are both null on a simple term, both set on a rich one — never one without the other (`chk_payment_terms_discount`). */
+        PaymentTermInput: {
+            /** Format: date-time */
+            createdAt: string;
+            discountRatePpm: number | null;
+            discountWindowDays: number | null;
+            /** Format: uuid */
+            id: string;
+            /** @description An archived term stays on every document that used it and cannot be chosen for a new one — the only form of removal available to a term a contact or a document names. */
+            isActive: boolean;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Every term the org has defined, active ones first by name. Not paged — a term catalog is a small, bounded list, unlike the documents that reference it. */
+        PaymentTermList: {
+            paymentTerms: components["schemas"]["PaymentTerm"][];
+        };
+        /** @description Every term the org has defined, active ones first by name. Not paged — a term catalog is a small, bounded list, unlike the documents that reference it. */
+        PaymentTermListInput: {
+            paymentTerms: components["schemas"]["PaymentTermInput"][];
+        };
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
@@ -8392,6 +8623,16 @@ export interface components {
             /** @description Display name, e.g. `Sales team`. */
             name: string;
         };
+        /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Both land in one transaction. Changing one moves future postings only — a discount already posted names the account it posted to and is never restated. */
+        UpdateDiscountAccountsRequest: {
+            discountGivenAccountId?: string | null;
+            discountReceivedAccountId?: string | null;
+        };
+        /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Both land in one transaction. Changing one moves future postings only — a discount already posted names the account it posted to and is never restated. */
+        UpdateDiscountAccountsRequestInput: {
+            discountGivenAccountId?: string | null;
+            discountReceivedAccountId?: string | null;
+        };
         /** @description Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones. */
         UpdateDraftRequest: {
             entryDate?: components["schemas"]["CalendarDate"] | null;
@@ -8481,6 +8722,28 @@ export interface components {
         UpdatePaymentRequestInput: {
             memo?: string | null;
             reference?: string | null;
+        };
+        /** @description Partial update. An omitted field is left as it is. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively, so a term that should stop discounting is deactivated and replaced rather than edited. */
+        UpdatePaymentTermRequest: {
+            /** @description The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set. */
+            discountRatePpm?: number;
+            /** @description Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`. */
+            discountWindowDays?: number;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name?: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays?: number;
+        };
+        /** @description Partial update. An omitted field is left as it is. There is no way to clear an existing discount back to a simple term here — a term a document has already used must not have its arithmetic change retroactively, so a term that should stop discounting is deactivated and replaced rather than edited. */
+        UpdatePaymentTermRequestInput: {
+            /** @description The early-pay discount, in parts per million of the amount — 20000 is 2%. Null on a simple term. Paired with `discountWindowDays`: both null, or both set. */
+            discountRatePpm?: number;
+            /** @description Days from issue in which the discount may be taken. Null on a simple term. Paired with `discountRatePpm`. */
+            discountWindowDays?: number;
+            /** @description What this term is called in the picker, e.g. "Net 30" or "2/10 Net 30". Unique within the org. */
+            name?: string;
+            /** @description Days from issue to due. Zero is "due on receipt". */
+            netDays?: number;
         };
         /** @description Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen. */
         UpdateReconciliationSessionRequest: {
@@ -13856,6 +14119,219 @@ export interface operations {
             };
         };
     };
+    listPaymentTerms: {
+        parameters: {
+            query?: {
+                /** @description Every term, active and archived. Defaults to active-only (`false`) — an archived term stays on every document that used it and is never offered for a new one, so the ordinary caller, a document’s term picker, never wants it. */
+                includeInactive?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentTermList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createPaymentTerm: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePaymentTermRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentTerm"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    suggestDiscount: {
+        parameters: {
+            query: {
+                /** @description Which kind of document `targetId` names. */
+                targetType: "invoice" | "bill";
+                /** @description The invoice or bill a human is about to settle. */
+                targetId: string;
+                asOfDate: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountSuggestion"];
+                };
+            };
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPaymentTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paymentTermId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentTerm"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePaymentTerm: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                paymentTermId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePaymentTermRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentTerm"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivatePaymentTerm: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                paymentTermId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentTerm"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listPayments: {
         parameters: {
             query?: {
@@ -15092,6 +15568,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDueWorkResult"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDiscountAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAccounts"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDiscountAccounts: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDiscountAccountsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountAccounts"];
                 };
             };
             /** @description Default Response */

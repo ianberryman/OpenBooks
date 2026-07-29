@@ -129,12 +129,15 @@ export const createBillRequestSchema = z
     contactId: z.uuid(),
     issueDate: calendarDateSchema,
     dueDate: calendarDateSchema.optional(),
-    paymentTermId: z.uuid().optional().meta({
-      description:
-        'Overrides the vendor’s default payment term for this bill. Absent falls back to the ' +
-        'contact’s own default, if any. Create-only — not reachable through ' +
-        '`UpdateBillRequest`.',
-    }),
+    paymentTermId: z
+      .uuid()
+      .optional()
+      .meta({
+        description:
+          'Overrides the vendor’s default payment term for this bill. Absent falls back to the ' +
+          'contact’s own default, if any. Create-only — not reachable through ' +
+          '`UpdateBillRequest`.',
+      }),
     taxMode: taxModeSchema,
     reference: documentReferenceSchema.nullish(),
     memo: documentMemoSchema.nullish(),

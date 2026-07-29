@@ -280,6 +280,15 @@ describe('the /v1 route table', () => {
         'getProcessorConnection',
         'deactivateProcessorConnection',
         'reactivateProcessorConnection',
+        // Cash application (OB-139).
+        'createPaymentTerm',
+        'listPaymentTerms',
+        'getPaymentTerm',
+        'updatePaymentTerm',
+        'deactivatePaymentTerm',
+        'suggestDiscount',
+        'getDiscountAccounts',
+        'updateDiscountAccounts',
       ]),
     );
   });

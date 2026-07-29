@@ -184,13 +184,16 @@ export const createInvoiceRequestSchema = z
     contactId: z.uuid(),
     issueDate: calendarDateSchema,
     dueDate: calendarDateSchema.optional(),
-    paymentTermId: z.uuid().optional().meta({
-      description:
-        'Overrides the customer’s default payment term for this invoice. Absent falls back to ' +
-        'the contact’s own default, if any; there is no term at all if neither names one. ' +
-        'Create-only — a term already resolved onto a document is not reachable through ' +
-        '`UpdateInvoiceRequest`.',
-    }),
+    paymentTermId: z
+      .uuid()
+      .optional()
+      .meta({
+        description:
+          'Overrides the customer’s default payment term for this invoice. Absent falls back to ' +
+          'the contact’s own default, if any; there is no term at all if neither names one. ' +
+          'Create-only — a term already resolved onto a document is not reachable through ' +
+          '`UpdateInvoiceRequest`.',
+      }),
     taxMode: taxModeSchema,
     reference: documentReferenceSchema.nullish(),
     memo: documentMemoSchema.nullish(),

@@ -103,7 +103,15 @@ export async function suggestDiscount(
   ctx: RequestContext,
   input: SuggestDiscountInput,
 ): Promise<DiscountSuggestion | null> {
-  await requirePermission(ctx, input.targetType === 'invoice' ? 'invoices.read' : 'bills.read');
+  // Two literal `requirePermission` calls rather than one on a computed key, so
+  // the enforcement points stay greppable — `payments.service.ts`'s own
+  // `requirePaymentRead` argues this at length: a key assembled at runtime is an
+  // enforcement point `permission-matrix.test.ts`'s source scan cannot see.
+  if (input.targetType === 'invoice') {
+    await requirePermission(ctx, 'invoices.read');
+  } else {
+    await requirePermission(ctx, 'bills.read');
+  }
   const asOfDate = parseInput(calendarDateSchema, input.asOfDate);
 
   const db = orgScope(ctx);

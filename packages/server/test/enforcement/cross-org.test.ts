@@ -98,6 +98,8 @@ interface Scene {
    */
   readonly partyId: string;
   readonly taxRateId: string;
+  /** Cash application (OB-139): `getPaymentTerm`/`updatePaymentTerm`/`deactivatePaymentTerm`. */
+  readonly paymentTermId: string;
   readonly targetInvoiceId: string;
   readonly draftInvoiceId: string;
   readonly approvableInvoiceId: string;
@@ -673,6 +675,7 @@ type SubledgerScene = Pick<
   | 'draftVendorCreditId'
   | 'partyId'
   | 'paymentId'
+  | 'paymentTermId'
   | 'targetBillId'
   | 'targetInvoiceId'
   | 'taxRateId'
@@ -741,6 +744,14 @@ async function subledgerScene(
     name: 'VAT 20%',
     percentage: '20',
     accountId: taxAccountId,
+  });
+
+  // Cash application (OB-139): a simple term, cited by no document, so the get/
+  // update/deactivate rows below can run against it in sequence without one
+  // leaving it in a state the next cannot resolve.
+  const paymentTermId = await created('payment-term', '/v1/payment-terms', {
+    name: 'Net 30',
+    netDays: 30,
   });
 
   const arBody = {
@@ -831,6 +842,7 @@ async function subledgerScene(
   return {
     partyId,
     taxRateId,
+    paymentTermId,
     allocationId,
     targetInvoiceId,
     draftInvoiceId: await draft('invoices'),
@@ -1463,6 +1475,34 @@ const SURFACES: readonly Surface[] = [
     method: 'DELETE',
     path: '/v1/tax-rates/%s',
     id: (s) => s.taxRateId,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Cash application (OB-139): the payment-term id-addressed routes.
+  // `createPaymentTerm`/`listPaymentTerms`/`suggestDiscount` carry no resource id
+  // in the path and are not surfaces here, `createReconciliationSession`'s reason
+  // above. Deactivate is last: it leaves the term itself in place (not a delete —
+  // `ON DELETE RESTRICT`), so it does not disturb a row after it.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getPaymentTerm',
+    method: 'GET',
+    path: '/v1/payment-terms/%s',
+    id: (s) => s.paymentTermId,
+  },
+  {
+    operationId: 'updatePaymentTerm',
+    method: 'PATCH',
+    path: '/v1/payment-terms/%s',
+    id: (s) => s.paymentTermId,
+    payload: () => ({ name: 'Net 45' }),
+  },
+  {
+    operationId: 'deactivatePaymentTerm',
+    method: 'POST',
+    path: '/v1/payment-terms/%s/deactivate',
+    id: (s) => s.paymentTermId,
   },
 
   // ---------------------------------------------------------------------------
