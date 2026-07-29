@@ -3492,7 +3492,7 @@ describe('gap 6 — the grants that nothing checks yet', () => {
    * codes each clerk *holds* is asserted alongside it.
    */
   it.each([
-    ['apOnly', 17],
+    ['apOnly', 19],
     ['arOnly', 18],
   ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
     const rows = await db.app

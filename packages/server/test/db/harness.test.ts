@@ -42,6 +42,7 @@ describe('test database harness', () => {
         '0010_platform',
         '0011_payment_processing',
         '0012_cash_application',
+        '0013_pay_bills',
         '0999_app_grants',
       ]);
     });
@@ -83,14 +84,14 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 53-permission catalog', async () => {
+    it('has the fixed 56-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
         .executeTakeFirstOrThrow();
 
-      // 53 since initiative J (PAY) added processing.read/processing.write.
-      expect(Number(row.count)).toBe(53);
+      // 56 since PB (D-109) added pending_payments.read/write and disbursements.issue.
+      expect(Number(row.count)).toBe(56);
     });
 
     it('has the six system roles at their reserved ids', async () => {

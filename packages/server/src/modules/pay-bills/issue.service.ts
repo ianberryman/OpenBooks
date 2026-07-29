@@ -223,9 +223,7 @@ export async function issuePendingPayments(
 
   for (const pendingPaymentId of request.pendingPaymentIds) {
     try {
-      outcomes.push(
-        await issuePendingPayment(pendingPaymentId, { date: request.date }, ctx),
-      );
+      outcomes.push(await issuePendingPayment(pendingPaymentId, { date: request.date }, ctx));
     } catch (error) {
       outcomes.push({
         pendingPaymentId,

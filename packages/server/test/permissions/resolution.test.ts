@@ -30,23 +30,27 @@ import { contextFor, useServiceDatabase } from './support';
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
   // The entire catalog.
-  ['owner', 53],
+  ['owner', 56],
   // Everything except organization administration: orgs.write, members.write,
-  // api_keys.*, integrations.write, processing.write, workflows.activate — seven
-  // exclusions. Gains branding.read, branding.write and invoices.send (INV), and
-  // processing.read (PAY), none of them excluded.
-  ['bookkeeper', 46],
-  // Every `.read` except api_keys.read (21, now including branding.read and
-  // processing.read), plus agents.review and journals.post.
-  ['approver', 23],
-  // Every `.read` except api_keys.read (now including branding.read and
-  // processing.read).
-  ['readOnly', 21],
-  // 15 document/read codes plus journals.post and journals.reverse (OB-093), so a
-  // clerk can finish — approve, void, pay — the documents they enter.
-  ['apOnly', 17],
+  // api_keys.*, integrations.write, processing.write, workflows.activate, and now
+  // disbursements.issue (D-109 — the Pay Bills release key is owner-only) — eight
+  // exclusions. Gains branding.read, branding.write and invoices.send (INV),
+  // processing.read (PAY), and pending_payments.read/write (PB — the queue keys),
+  // none of them excluded.
+  ['bookkeeper', 48],
+  // Every `.read` except api_keys.read (22, now including branding.read,
+  // processing.read and pending_payments.read), plus agents.review and journals.post.
+  ['approver', 24],
+  // Every `.read` except api_keys.read (now including branding.read,
+  // processing.read and pending_payments.read).
+  ['readOnly', 22],
+  // 15 document/read codes plus journals.post and journals.reverse (OB-093), plus
+  // the Pay Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds
+  // the queue but cannot issue), so a clerk can finish — approve, void, pay, queue —
+  // the documents they enter.
+  ['apOnly', 19],
   // The AR mirror of apOnly, plus invoices.send (INV) so a clerk can send the
-  // invoices they raise.
+  // invoices they raise. Unchanged by PB — the pay-bills keys are payables-side.
   ['arOnly', 18],
 ];
 
@@ -244,9 +248,9 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 23 since initiative J (PAY): the `%.read` bundle now also picks up
-    // `processing.read` (was 22).
-    expect(resolution.permissions.size).toBe(23);
+    // 24 since PB: the `%.read` bundle now also picks up `pending_payments.read`
+    // (was 23 after PAY added `processing.read`).
+    expect(resolution.permissions.size).toBe(24);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

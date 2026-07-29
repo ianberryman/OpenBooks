@@ -88,7 +88,7 @@ function fontBuffer(fileName: string): Buffer {
   if (base64 === undefined) {
     throw new Error(
       `pdfmake's bundled vfs_fonts.js has no entry for "${fileName}" — see the note in ` +
-        'delivery/renderer/fonts.ts for the same assumption on the invoice renderer\'s side.',
+        "delivery/renderer/fonts.ts for the same assumption on the invoice renderer's side.",
     );
   }
   return Buffer.from(base64, 'base64');

@@ -218,7 +218,8 @@ export const issueOutcomeSchema = z.strictObject({
   status: z.enum(['issued', 'failed']),
   paymentId: z.uuid().nullable(),
   checkNumber: z.string().nullable().meta({
-    description: 'The number drawn from the bank account’s register when the rail is `check`; null otherwise.',
+    description:
+      'The number drawn from the bank account’s register when the rail is `check`; null otherwise.',
   }),
   error: z.string().nullable().meta({
     description: 'The refusal token when `status` is `failed`; null on success.',
