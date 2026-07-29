@@ -32,6 +32,13 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   { to: '/journal-entry', label: 'Journal entry', permission: 'journals.read' },
   { to: '/contacts', label: 'Contacts', permission: 'contacts.read' },
   { to: '/sales', label: 'Sales', permission: 'invoices.read' },
+  // Both recurring templates and dunning policies read on `invoices.read`; their writes want
+  // `invoices.write`/`invoices.send`, but naming those would hide the link from a caller who
+  // can legitimately view the schedule or the ladder — the same D-25 reasoning as `/money`
+  // and `/banking` above: this filter drops links that always fail, not links whose every
+  // action succeeds. The service enforces the write codes and the screen surfaces the refusal.
+  { to: '/recurring-invoices', label: 'Recurring invoices', permission: 'invoices.read' },
+  { to: '/dunning', label: 'Dunning', permission: 'invoices.read' },
   { to: '/purchases', label: 'Purchases', permission: 'bills.read' },
   /**
    * `payments_received.read`, and the choice is not arbitrary: the screen opens on the

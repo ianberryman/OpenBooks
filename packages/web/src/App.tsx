@@ -10,11 +10,13 @@ import { AccountsScreen } from './screens/accounts';
 import { AuthScreen } from './screens/auth';
 import { BankingScreen } from './screens/banking';
 import { ContactsScreen } from './screens/contacts';
+import { DunningScreen } from './screens/dunning';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
 import { PublicInvoiceScreen } from './screens/public-invoice';
 import { PurchasesScreen } from './screens/purchases';
 import { QuickBooksImportScreen } from './screens/quickbooks-import';
+import { RecurringInvoicesScreen } from './screens/recurring-invoices';
 import { ReportsScreen } from './screens/reports';
 import { SalesScreen } from './screens/sales';
 import { SettingsScreen } from './screens/settings';
@@ -180,6 +182,8 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/journal-entry" element={<JournalEntryScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
         <Route path="/sales" element={<SalesScreen />} />
+        <Route path="/recurring-invoices" element={<RecurringInvoicesScreen />} />
+        <Route path="/dunning" element={<DunningScreen />} />
         <Route path="/purchases" element={<PurchasesScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/banking/*" element={<BankingScreen />} />
