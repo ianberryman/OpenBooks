@@ -231,9 +231,17 @@ import {
 } from '../../src/modules/payments-processing';
 import {
   buildPendingPayment,
+  cancelPendingPayment,
+  getPendingPayment,
+  getVendorDisbursementDetails,
   issuePendingPayment,
+  issuePendingPayments,
+  listDisbursementsByRail,
   listPayableBills,
   listPendingPayments,
+  payBills,
+  updatePendingPayment,
+  updateVendorDisbursementDetails,
 } from '../../src/modules/pay-bills';
 import {
   getControlAccounts,
@@ -2451,21 +2459,18 @@ const OPERATIONS: readonly Operation[] = [
   },
 
   // ---------------------------------------------------------------------------
-  // Pay Bills (OB-111, OB-112). `operationId` is `null` on all four: the services
-  // enforce their gates now, but the `/v1` routes are OB-115 (Wave 2), so these are
-  // invisible to the coverage check until then — the `getPeriod`/`getAccountBalances`
-  // shape, a service in the matrix before it is on the wire. The queue-vs-issue split
-  // is the headline: `buildPendingPayment` is allowed for `ap_only` (it holds
-  // `pending_payments.write`) and `issuePendingPayment` is refused for it — the same
-  // clerk can queue a payment and cannot release it (D-109). Issue is judged on its
-  // one gate alone: `disbursements.issue` is owner-only, and owner holds the
-  // downstream `payments_made.write`/`journals.post` too, so no role reaches those
-  // second gates without the first — the fixture 404s past the gate rather than
-  // materialising a real payment.
+  // Pay Bills (OB-111, OB-112, OB-115). The milestone whose whole point is a *real*
+  // separation of duties (D-109). The headline: `buildPendingPayment` is allowed for
+  // `ap_only` (it holds `pending_payments.write`) and `issuePendingPayment` is
+  // refused for it — the same clerk can queue a payment and cannot release it. Issue
+  // is judged on its one gate alone: `disbursements.issue` is owner-only, and owner
+  // holds the downstream `payments_made.write`/`journals.post` too, so no role reaches
+  // those second gates without the first — the id-based rows 404 past the gate rather
+  // than materialising a payment, the `getBillCapture` shape every other id row uses.
   // ---------------------------------------------------------------------------
   {
     name: 'buildPendingPayment',
-    operationId: null,
+    operationId: 'buildPendingPayment',
     permission: 'pending_payments.write',
     call: (s) =>
       buildPendingPayment(
@@ -2479,22 +2484,84 @@ const OPERATIONS: readonly Operation[] = [
       ),
   },
   {
-    name: 'listPayableBills',
-    operationId: null,
-    permission: 'pending_payments.read',
-    call: (s) => listPayableBills(s.ctx),
+    name: 'payBills',
+    operationId: 'payBills',
+    permission: 'pending_payments.write',
+    call: (s) =>
+      payBills(
+        {
+          payments: [
+            {
+              contactId: s.partyId,
+              bankAccountId: s.bankAccountId,
+              rail: 'check',
+              intents: [{ billId: s.targetBillId, payAmount: '100' }],
+            },
+          ],
+        },
+        s.ctx,
+      ),
   },
   {
     name: 'listPendingPayments',
-    operationId: null,
+    operationId: 'listPendingPayments',
     permission: 'pending_payments.read',
     call: (s) => listPendingPayments(s.ctx),
   },
   {
+    name: 'getPendingPayment',
+    operationId: 'getPendingPayment',
+    permission: 'pending_payments.read',
+    call: (s) => getPendingPayment(newUuid(), s.ctx),
+  },
+  {
+    name: 'updatePendingPayment',
+    operationId: 'updatePendingPayment',
+    permission: 'pending_payments.write',
+    call: (s) => updatePendingPayment(newUuid(), { memo: 'edited' }, s.ctx),
+  },
+  {
+    name: 'cancelPendingPayment',
+    operationId: 'cancelPendingPayment',
+    permission: 'pending_payments.write',
+    call: (s) => cancelPendingPayment(newUuid(), s.ctx),
+  },
+  {
+    name: 'listPayableBills',
+    operationId: 'listPayableBills',
+    permission: 'pending_payments.read',
+    call: (s) => listPayableBills(s.ctx),
+  },
+  {
     name: 'issuePendingPayment',
-    operationId: null,
+    operationId: 'issuePendingPayment',
     permission: 'disbursements.issue',
     call: (s) => issuePendingPayment(newUuid(), { date: s.date }, s.ctx),
+  },
+  {
+    name: 'issuePendingPayments',
+    operationId: 'issuePendingPayments',
+    permission: 'disbursements.issue',
+    call: (s) => issuePendingPayments({ pendingPaymentIds: [newUuid()], date: s.date }, s.ctx),
+  },
+  {
+    name: 'listDisbursementsByRail',
+    operationId: 'listDisbursementsByRail',
+    permission: 'disbursements.issue',
+    call: (s) => listDisbursementsByRail('check', s.ctx),
+  },
+  {
+    name: 'getVendorDisbursementDetails',
+    operationId: 'getVendorDisbursementDetails',
+    permission: 'contacts.read',
+    call: (s) => getVendorDisbursementDetails(s.contactId, s.ctx),
+  },
+  {
+    name: 'updateVendorDisbursementDetails',
+    operationId: 'updateVendorDisbursementDetails',
+    permission: 'contacts.write',
+    call: (s) =>
+      updateVendorDisbursementDetails(s.contactId, { preferredPaymentRail: 'check' }, s.ctx),
   },
 ];
 

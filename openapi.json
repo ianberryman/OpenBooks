@@ -9401,6 +9401,166 @@
         ],
         "type": "object"
       },
+      "CreatePendingPaymentRequest": {
+        "additionalProperties": false,
+        "description": "Builds one pending payment for one vendor — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64).",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAmount": {
+                  "$ref": "#/components/schemas/MinorUnits"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnits",
+                  "description": "How much of this bill this payment covers, in minor units."
+                }
+              },
+              "required": [
+                "billId",
+                "payAmount"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "bankAccountId",
+          "rail",
+          "intents"
+        ],
+        "type": "object"
+      },
+      "CreatePendingPaymentRequestInput": {
+        "additionalProperties": false,
+        "description": "Builds one pending payment for one vendor — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64).",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAmount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput",
+                  "description": "How much of this bill this payment covers, in minor units."
+                }
+              },
+              "required": [
+                "billId",
+                "payAmount"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "bankAccountId",
+          "rail",
+          "intents"
+        ],
+        "type": "object"
+      },
       "CreateReconciliationSessionRequest": {
         "additionalProperties": false,
         "description": "Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`.",
@@ -13971,6 +14131,254 @@
         ],
         "type": "object"
       },
+      "IssueOutcome": {
+        "additionalProperties": false,
+        "description": "One pending payment’s issue outcome — success carries the Payment it became.",
+        "properties": {
+          "checkNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number drawn from the bank account’s register when the rail is `check`; null otherwise."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The refusal token when `status` is `failed`; null on success."
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingPaymentId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "issued",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pendingPaymentId",
+          "status",
+          "paymentId",
+          "checkNumber",
+          "error"
+        ],
+        "type": "object"
+      },
+      "IssueOutcomeInput": {
+        "additionalProperties": false,
+        "description": "One pending payment’s issue outcome — success carries the Payment it became.",
+        "properties": {
+          "checkNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number drawn from the bank account’s register when the rail is `check`; null otherwise."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The refusal token when `status` is `failed`; null on success."
+          },
+          "paymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingPaymentId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "issued",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pendingPaymentId",
+          "status",
+          "paymentId",
+          "checkNumber",
+          "error"
+        ],
+        "type": "object"
+      },
+      "IssuePendingPaymentRequest": {
+        "additionalProperties": false,
+        "description": "Materialises one pending payment into a real Payment (D-65). `reference` is the rail’s own trace/confirmation for `ach`/`wire`; left null for `check`, which draws its number from the register instead.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "type": "object"
+      },
+      "IssuePendingPaymentRequestInput": {
+        "additionalProperties": false,
+        "description": "Materialises one pending payment into a real Payment (D-65). `reference` is the rail’s own trace/confirmation for `ach`/`wire`; left null for `check`, which draws its number from the register instead.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "type": "object"
+      },
+      "IssuePendingPaymentsRequest": {
+        "additionalProperties": false,
+        "description": "Issues several pending payments in one call. Atomic per payment, not per run (D-63): one bad ACH detail leaves the others issued.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "pendingPaymentIds": {
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "pendingPaymentIds",
+          "date"
+        ],
+        "type": "object"
+      },
+      "IssuePendingPaymentsRequestInput": {
+        "additionalProperties": false,
+        "description": "Issues several pending payments in one call. Atomic per payment, not per run (D-63): one bad ACH detail leaves the others issued.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "pendingPaymentIds": {
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "pendingPaymentIds",
+          "date"
+        ],
+        "type": "object"
+      },
+      "IssueResult": {
+        "additionalProperties": false,
+        "description": "The result of issuing a batch of pending payments, one outcome per payment.",
+        "properties": {
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOutcome"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "outcomes"
+        ],
+        "type": "object"
+      },
+      "IssueResultInput": {
+        "additionalProperties": false,
+        "description": "The result of issuing a batch of pending payments, one outcome per payment.",
+        "properties": {
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOutcomeInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "outcomes"
+        ],
+        "type": "object"
+      },
       "IssuedInvitation": {
         "additionalProperties": false,
         "description": "A newly created invitation and its send outcome.",
@@ -15833,6 +16241,210 @@
         "minLength": 1,
         "type": "string"
       },
+      "PayBillsRequest": {
+        "additionalProperties": false,
+        "description": "A batch Pay Bills run: one pending payment per vendor, built independently (D-63) — a refusal on one does not lose the rest.",
+        "properties": {
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/CreatePendingPaymentRequest"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "payments"
+        ],
+        "type": "object"
+      },
+      "PayBillsRequestInput": {
+        "additionalProperties": false,
+        "description": "A batch Pay Bills run: one pending payment per vendor, built independently (D-63) — a refusal on one does not lose the rest.",
+        "properties": {
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/CreatePendingPaymentRequestInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "payments"
+        ],
+        "type": "object"
+      },
+      "PayableBill": {
+        "additionalProperties": false,
+        "description": "A bill on the Pay Bills window, with its payability computed on read (D-34, D-68). All four money fields are computed and stored nowhere.",
+        "properties": {
+          "availableToPay": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "outstanding − committed — what a new pending payment may still queue. Computed."
+          },
+          "billId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Σ payAmount over open pending intents targeting this bill (D-68). Computed."
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gross": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "billId",
+          "contactId",
+          "vendorName",
+          "reference",
+          "issueDate",
+          "dueDate",
+          "gross",
+          "outstanding",
+          "committed",
+          "availableToPay"
+        ],
+        "type": "object"
+      },
+      "PayableBillInput": {
+        "additionalProperties": false,
+        "description": "A bill on the Pay Bills window, with its payability computed on read (D-34, D-68). All four money fields are computed and stored nowhere.",
+        "properties": {
+          "availableToPay": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "outstanding − committed — what a new pending payment may still queue. Computed."
+          },
+          "billId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Σ payAmount over open pending intents targeting this bill (D-68). Computed."
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gross": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "billId",
+          "contactId",
+          "vendorName",
+          "reference",
+          "issueDate",
+          "dueDate",
+          "gross",
+          "outstanding",
+          "committed",
+          "availableToPay"
+        ],
+        "type": "object"
+      },
+      "PayableBillList": {
+        "additionalProperties": false,
+        "description": "Every approved, non-void, not-fully-paid bill, with its payability computed.",
+        "properties": {
+          "bills": {
+            "items": {
+              "$ref": "#/components/schemas/PayableBill"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bills"
+        ],
+        "type": "object"
+      },
+      "PayableBillListInput": {
+        "additionalProperties": false,
+        "description": "Every approved, non-void, not-fully-paid bill, with its payability computed.",
+        "properties": {
+          "bills": {
+            "items": {
+              "$ref": "#/components/schemas/PayableBillInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bills"
+        ],
+        "type": "object"
+      },
       "Payment": {
         "additionalProperties": false,
         "description": "Money that moved, and the documents it has been applied to. A payment is not a numbered document (D-36) and it has no draft state — money either moved or it did not — so `journalId` is never null. `settlement.outstanding` is the credit still available on the contact (D-37), computed on read.",
@@ -16464,6 +17076,356 @@
         },
         "required": [
           "paymentTerms"
+        ],
+        "type": "object"
+      },
+      "PendingPayment": {
+        "additionalProperties": false,
+        "description": "A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "discountAmount": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnits"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnits"
+                }
+              },
+              "required": [
+                "id",
+                "billId",
+                "payAmount",
+                "discountAmount",
+                "discountAccountId",
+                "appliedVendorCreditId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "issuedPaymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The real Payment this materialised into, once issued; null while open."
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Pencil lifecycle: `open` while built and edited, `issued` once released into a real Payment, `cancelled` if abandoned. Only `open` intents count toward a bill’s `committed`.",
+            "enum": [
+              "open",
+              "issued",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "totalAmount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Σ of the intents’ payAmount — what the check or transfer is for. Computed."
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "vendorName": {
+            "description": "The vendor’s display name, denormalized for the queue screen.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "vendorName",
+          "bankAccountId",
+          "rail",
+          "status",
+          "issuedPaymentId",
+          "memo",
+          "intents",
+          "totalAmount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PendingPaymentInput": {
+        "additionalProperties": false,
+        "description": "A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "discountAmount": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MinorUnitsInput"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput"
+                }
+              },
+              "required": [
+                "id",
+                "billId",
+                "payAmount",
+                "discountAmount",
+                "discountAccountId",
+                "appliedVendorCreditId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "issuedPaymentId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The real Payment this materialised into, once issued; null while open."
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Pencil lifecycle: `open` while built and edited, `issued` once released into a real Payment, `cancelled` if abandoned. Only `open` intents count toward a bill’s `committed`.",
+            "enum": [
+              "open",
+              "issued",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "totalAmount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Σ of the intents’ payAmount — what the check or transfer is for. Computed."
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "vendorName": {
+            "description": "The vendor’s display name, denormalized for the queue screen.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contactId",
+          "vendorName",
+          "bankAccountId",
+          "rail",
+          "status",
+          "issuedPaymentId",
+          "memo",
+          "intents",
+          "totalAmount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PendingPaymentList": {
+        "additionalProperties": false,
+        "description": "The pending-payment queue. Not paged — bounded per org.",
+        "properties": {
+          "pendingPayments": {
+            "items": {
+              "$ref": "#/components/schemas/PendingPayment"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pendingPayments"
+        ],
+        "type": "object"
+      },
+      "PendingPaymentListInput": {
+        "additionalProperties": false,
+        "description": "The pending-payment queue. Not paged — bounded per org.",
+        "properties": {
+          "pendingPayments": {
+            "items": {
+              "$ref": "#/components/schemas/PendingPaymentInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pendingPayments"
         ],
         "type": "object"
       },
@@ -18089,6 +19051,216 @@
           "customersCreated",
           "vendorsCreated",
           "openingJournalId"
+        ],
+        "type": "object"
+      },
+      "RailDisbursement": {
+        "additionalProperties": false,
+        "description": "A disbursement as an external ACH/wire processor pulls it (D-110) — the vendor’s real bank coordinates travel here, gated on the issue permission.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "paymentId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "paymentId",
+          "contactId",
+          "vendorName",
+          "rail",
+          "amount",
+          "reference",
+          "achRoutingNumber",
+          "achAccountNumber",
+          "wireInstructions",
+          "issuedAt"
+        ],
+        "type": "object"
+      },
+      "RailDisbursementInput": {
+        "additionalProperties": false,
+        "description": "A disbursement as an external ACH/wire processor pulls it (D-110) — the vendor’s real bank coordinates travel here, gated on the issue permission.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "paymentId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vendorName": {
+            "type": "string"
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "paymentId",
+          "contactId",
+          "vendorName",
+          "rail",
+          "amount",
+          "reference",
+          "achRoutingNumber",
+          "achAccountNumber",
+          "wireInstructions",
+          "issuedAt"
+        ],
+        "type": "object"
+      },
+      "RailDisbursementList": {
+        "additionalProperties": false,
+        "description": "Every disbursement issued on one rail, for an external processor to pull.",
+        "properties": {
+          "disbursements": {
+            "items": {
+              "$ref": "#/components/schemas/RailDisbursement"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "disbursements"
+        ],
+        "type": "object"
+      },
+      "RailDisbursementListInput": {
+        "additionalProperties": false,
+        "description": "Every disbursement issued on one rail, for an external processor to pull.",
+        "properties": {
+          "disbursements": {
+            "items": {
+              "$ref": "#/components/schemas/RailDisbursementInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "disbursements"
         ],
         "type": "object"
       },
@@ -21689,6 +22861,144 @@
         },
         "type": "object"
       },
+      "UpdatePendingPaymentRequest": {
+        "additionalProperties": false,
+        "description": "Partial update to an open pending payment. `intents`, when supplied, replaces the set wholesale rather than patching individual lines.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAmount": {
+                  "$ref": "#/components/schemas/MinorUnits"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnits",
+                  "description": "How much of this bill this payment covers, in minor units."
+                }
+              },
+              "required": [
+                "billId",
+                "payAmount"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePendingPaymentRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update to an open pending payment. `intents`, when supplied, replaces the set wholesale rather than patching individual lines.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "appliedVendorCreditId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "billId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAccountId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "discountAmount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput"
+                },
+                "payAmount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput",
+                  "description": "How much of this bill this payment covers, in minor units."
+                }
+              },
+              "required": [
+                "billId",
+                "payAmount"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rail": {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "enum": [
+              "check",
+              "ach",
+              "wire"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateReconciliationSessionRequest": {
         "additionalProperties": false,
         "description": "Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen.",
@@ -22045,6 +23355,124 @@
               "inclusive"
             ],
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateVendorDisbursementDetailsRequest": {
+        "additionalProperties": false,
+        "description": "Sets or clears a vendor’s disbursement details. An omitted field is left alone; `null` clears it.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "maxLength": 34,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "maxLength": 34,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredPaymentRail": {
+            "anyOf": [
+              {
+                "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+                "enum": [
+                  "check",
+                  "ach",
+                  "wire"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateVendorDisbursementDetailsRequestInput": {
+        "additionalProperties": false,
+        "description": "Sets or clears a vendor’s disbursement details. An omitted field is left alone; `null` clears it.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "maxLength": 34,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "maxLength": 34,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredPaymentRail": {
+            "anyOf": [
+              {
+                "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+                "enum": [
+                  "check",
+                  "ach",
+                  "wire"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
@@ -22630,6 +24058,124 @@
           "settlement",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "VendorDisbursementDetails": {
+        "additionalProperties": false,
+        "description": "A vendor’s ACH/wire disbursement details, kept on the contact (D-67). Sensitive: the ACH and wire coordinates are the vendor’s real bank data.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredPaymentRail": {
+            "anyOf": [
+              {
+                "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+                "enum": [
+                  "check",
+                  "ach",
+                  "wire"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "preferredPaymentRail",
+          "achRoutingNumber",
+          "achAccountNumber",
+          "wireInstructions"
+        ],
+        "type": "object"
+      },
+      "VendorDisbursementDetailsInput": {
+        "additionalProperties": false,
+        "description": "A vendor’s ACH/wire disbursement details, kept on the contact (D-67). Sensitive: the ACH and wire coordinates are the vendor’s real bank data.",
+        "properties": {
+          "achAccountNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "achRoutingNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferredPaymentRail": {
+            "anyOf": [
+              {
+                "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+                "enum": [
+                  "check",
+                  "ach",
+                  "wire"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wireInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "preferredPaymentRail",
+          "achRoutingNumber",
+          "achAccountNumber",
+          "wireInstructions"
         ],
         "type": "object"
       },
@@ -27478,6 +29024,112 @@
         ]
       }
     },
+    "/v1/contacts/{contactId}/disbursement-details": {
+      "get": {
+        "description": "The four `contacts` columns Pay Bills reads to pick a rail default and the coordinates an `ach`/`wire` handoff needs (D-67). Gated on `contacts.read`, not a Pay-Bills-specific key — these are contact fields.",
+        "operationId": "getVendorDisbursementDetails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorDisbursementDetails"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "A vendor’s ACH/wire disbursement details",
+        "tags": [
+          "disbursements"
+        ]
+      },
+      "patch": {
+        "description": "An omitted field is left alone; `null` clears it. Gated on `contacts.write`, `getVendorDisbursementDetails`’s own reason.",
+        "operationId": "updateVendorDisbursementDetails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVendorDisbursementDetailsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorDisbursementDetails"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Set or clear a vendor’s ACH/wire disbursement details",
+        "tags": [
+          "disbursements"
+        ]
+      }
+    },
     "/v1/contacts/{contactId}/reactivate": {
       "post": {
         "description": "The counterpart, so that deactivation is not a one-way door.",
@@ -28784,6 +30436,108 @@
         "summary": "Add a value to a dimension",
         "tags": [
           "dimensions"
+        ]
+      }
+    },
+    "/v1/disbursements": {
+      "get": {
+        "description": "The handoff surface an external ACH/wire processor pulls from (D-110) — OpenBooks writes no NACHA file and executes no wire itself. Carries the vendor’s real bank coordinates, gated on the release authority (D-109) rather than the queue-read permission.",
+        "operationId": "listDisbursementsByRail",
+        "parameters": [
+          {
+            "description": "How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).",
+            "in": "query",
+            "name": "rail",
+            "required": true,
+            "schema": {
+              "enum": [
+                "check",
+                "ach",
+                "wire"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RailDisbursementList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Every disbursement issued on one rail",
+        "tags": [
+          "disbursements"
+        ]
+      }
+    },
+    "/v1/disbursements/issue": {
+      "post": {
+        "description": "Atomic per payment, not per run (G2/D-63): each vendor is materialised in its own transaction, so one bad ACH detail leaves the others issued and reports that one `failed` rather than rolling back the batch. Idempotent as a whole call.",
+        "operationId": "issuePendingPayments",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssuePendingPaymentsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Issue several pending payments in one call",
+        "tags": [
+          "disbursements"
         ]
       }
     },
@@ -31631,6 +33385,92 @@
         ]
       }
     },
+    "/v1/pay-bills": {
+      "post": {
+        "description": "The fan-out is already expressed on the wire as one element per vendor (D-63): each is built independently, so one vendor’s refusal does not lose the rest.",
+        "operationId": "payBills",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayBillsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPaymentList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Build a batch of pending payments, one per vendor",
+        "tags": [
+          "pay-bills"
+        ]
+      }
+    },
+    "/v1/payable-bills": {
+      "get": {
+        "description": "Every approved, non-void, not-fully-paid bill, with `outstanding`, `committed`, and `availableToPay` computed on read (D-34, D-68) and stored nowhere — a bill an open pending payment already covers shows `availableToPay = 0`.",
+        "operationId": "listPayableBills",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayableBillList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The Pay Bills window",
+        "tags": [
+          "pay-bills"
+        ]
+      }
+    },
     "/v1/payment-terms": {
       "get": {
         "description": "Every term the org has defined, active ones first by name — a picker list, not paged (the catalog is small and bounded, unlike the documents that reference it).",
@@ -32352,6 +34192,329 @@
         "summary": "Void a payment",
         "tags": [
           "payments"
+        ]
+      }
+    },
+    "/v1/pending-payments": {
+      "get": {
+        "description": "Every pending payment the org holds, optionally filtered by status.",
+        "operationId": "listPendingPayments",
+        "parameters": [
+          {
+            "description": "Omitting this lists every status. `open` is what a clerk building or issuing usually wants.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "issued",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPaymentList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List the pending-payment queue",
+        "tags": [
+          "pay-bills"
+        ]
+      },
+      "post": {
+        "description": "One vendor per pending payment — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64): this only reserves each named bill’s `committed` until issue.",
+        "operationId": "buildPendingPayment",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePendingPaymentRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPayment"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Build a pending payment",
+        "tags": [
+          "pay-bills"
+        ]
+      }
+    },
+    "/v1/pending-payments/{pendingPaymentId}": {
+      "get": {
+        "operationId": "getPendingPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pendingPaymentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPayment"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One pending payment",
+        "tags": [
+          "pay-bills"
+        ]
+      },
+      "patch": {
+        "description": "An omitted field is unchanged. `intents`, when supplied, replaces the set wholesale rather than patching individual lines — the queue is pencil, and rebuilding the line set is how it is edited. Refused once the pending payment is no longer `open`.",
+        "operationId": "updatePendingPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pendingPaymentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePendingPaymentRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPayment"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Edit an open pending payment",
+        "tags": [
+          "pay-bills"
+        ]
+      }
+    },
+    "/v1/pending-payments/{pendingPaymentId}/cancel": {
+      "post": {
+        "description": "Frees every bill it named — `committedForBill` counts only `open` intents. No ledger correction is needed because none was ever posted (D-64): a pending payment is pencil, and erasing pencil restates nothing. Refused once no longer `open`.",
+        "operationId": "cancelPendingPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pendingPaymentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPayment"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Cancel an open pending payment",
+        "tags": [
+          "pay-bills"
+        ]
+      }
+    },
+    "/v1/pending-payments/{pendingPaymentId}/issue": {
+      "post": {
+        "description": "Materialises it into a real Payment (D-65) — the journal, the payAmount allocations, any settlement discount, and any applied vendor credit all post in one transaction. Idempotent: a retried issue replays the original outcome rather than paying the vendor twice.",
+        "operationId": "issuePendingPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pendingPaymentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssuePendingPaymentRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueOutcome"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Issue one pending payment",
+        "tags": [
+          "pay-bills"
         ]
       }
     },

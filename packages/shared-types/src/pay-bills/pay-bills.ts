@@ -12,13 +12,16 @@ import { documentMemoSchema, documentReferenceSchema } from '../subledger/docume
  * per-bill payability — `outstanding`, `committed`, and `availableToPay`, all three
  * computed on read and stored nowhere (D-34, D-68).
  *
- * ## No `.meta({ id })` here yet
+ * ## `.meta({ id })` arrived with OB-115's routes
  *
  * Following every earlier module's rule (`payment-terms.ts`'s header states it): an
  * `.meta({ id })` publishes a `components.schemas` entry and A10 fails the build on
- * one nothing references. These schemas gain their ids in OB-115 when `/v1` routes
- * reference them; until then a description-only `.meta` is safe (it inlines rather
- * than registering a component).
+ * one nothing references. The request/response shapes `/v1/pending-payments`,
+ * `/v1/pay-bills`, `/v1/disbursements`, and the vendor disbursement-details routes
+ * name directly all carry one now. `pendingPaymentIntentInputSchema`,
+ * `pendingPaymentIntentSchema`, `railSchema`, `pendingPaymentStatusSchema`, and
+ * `routeToRailRequestSchema` carry none — nested-only (the first two) or unreferenced
+ * by any route in this wave (the last one; no route re-routes a rail today).
  */
 
 /**
@@ -107,13 +110,20 @@ export type PendingPaymentIntent = z.infer<typeof pendingPaymentIntentSchema>;
  * defaults from the vendor's `preferredPaymentRail` at the call site but is explicit
  * on the wire and changeable in the queue.
  */
-export const createPendingPaymentRequestSchema = z.strictObject({
-  contactId: z.uuid(),
-  bankAccountId: z.uuid(),
-  rail: railSchema,
-  memo: documentMemoSchema.nullish(),
-  intents: z.array(pendingPaymentIntentInputSchema).min(1),
-});
+export const createPendingPaymentRequestSchema = z
+  .strictObject({
+    contactId: z.uuid(),
+    bankAccountId: z.uuid(),
+    rail: railSchema,
+    memo: documentMemoSchema.nullish(),
+    intents: z.array(pendingPaymentIntentInputSchema).min(1),
+  })
+  .meta({
+    id: 'CreatePendingPaymentRequest',
+    description:
+      'Builds one pending payment for one vendor — a Payment carries one contact and ' +
+      'allocations refuse to cross contacts (D-63). Posts no journal (D-64).',
+  });
 
 export type CreatePendingPaymentRequest = z.infer<typeof createPendingPaymentRequestSchema>;
 
@@ -133,38 +143,57 @@ export const updatePendingPaymentRequestSchema = z
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdatePendingPaymentRequest',
+    description:
+      'Partial update to an open pending payment. `intents`, when supplied, replaces the ' +
+      'set wholesale rather than patching individual lines.',
   });
 
 export type UpdatePendingPaymentRequest = z.infer<typeof updatePendingPaymentRequestSchema>;
 
 /** A pending payment as the API returns it, with its intents and computed total. */
-export const pendingPaymentSchema = z.strictObject({
-  id: z.uuid(),
-  contactId: z.uuid(),
-  vendorName: z.string().meta({
-    description: 'The vendor’s display name, denormalized for the queue screen.',
-  }),
-  bankAccountId: z.uuid(),
-  rail: railSchema,
-  status: pendingPaymentStatusSchema,
-  issuedPaymentId: z.uuid().nullable().meta({
-    description: 'The real Payment this materialised into, once issued; null while open.',
-  }),
-  memo: z.string().nullable(),
-  intents: z.array(pendingPaymentIntentSchema),
-  totalAmount: minorUnitsSchema.meta({
-    description: 'Σ of the intents’ payAmount — what the check or transfer is for. Computed.',
-  }),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
-});
+export const pendingPaymentSchema = z
+  .strictObject({
+    id: z.uuid(),
+    contactId: z.uuid(),
+    vendorName: z.string().meta({
+      description: 'The vendor’s display name, denormalized for the queue screen.',
+    }),
+    bankAccountId: z.uuid(),
+    rail: railSchema,
+    status: pendingPaymentStatusSchema,
+    issuedPaymentId: z.uuid().nullable().meta({
+      description: 'The real Payment this materialised into, once issued; null while open.',
+    }),
+    memo: z.string().nullable(),
+    intents: z.array(pendingPaymentIntentSchema),
+    totalAmount: minorUnitsSchema.meta({
+      description: 'Σ of the intents’ payAmount — what the check or transfer is for. Computed.',
+    }),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'PendingPayment',
+    description:
+      'A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is ' +
+      '`open` while it may still be edited or cancelled, `issued` once materialised into a ' +
+      'real Payment, `cancelled` if abandoned.',
+  });
 
 export type PendingPayment = z.infer<typeof pendingPaymentSchema>;
 
 /** The queue as a list — bounded per org, so not paged (`paymentTermListSchema`'s reasoning). */
-export const pendingPaymentListSchema = z.strictObject({
-  pendingPayments: z.array(pendingPaymentSchema),
-});
+export const pendingPaymentListSchema = z
+  .strictObject({
+    pendingPayments: z.array(pendingPaymentSchema),
+  })
+  .meta({
+    id: 'PendingPaymentList',
+    description: 'The pending-payment queue. Not paged — bounded per org.',
+  });
 
 export type PendingPaymentList = z.infer<typeof pendingPaymentListSchema>;
 
@@ -173,9 +202,16 @@ export type PendingPaymentList = z.infer<typeof pendingPaymentListSchema>;
  * gesture (D-63 — the fan-out is already expressed as one element per vendor). The
  * service builds each independently so one vendor's refusal does not lose the rest.
  */
-export const payBillsRequestSchema = z.strictObject({
-  payments: z.array(createPendingPaymentRequestSchema).min(1),
-});
+export const payBillsRequestSchema = z
+  .strictObject({
+    payments: z.array(createPendingPaymentRequestSchema).min(1),
+  })
+  .meta({
+    id: 'PayBillsRequest',
+    description:
+      'A batch Pay Bills run: one pending payment per vendor, built independently (D-63) — a ' +
+      'refusal on one does not lose the rest.',
+  });
 
 export type PayBillsRequest = z.infer<typeof payBillsRequestSchema>;
 
@@ -192,10 +228,18 @@ export type RouteToRailRequest = z.infer<typeof routeToRailRequestSchema>;
  * (the trace or confirmation, user- or integration-supplied — D-36), left null for a
  * `check`, which draws its number from the register instead.
  */
-export const issuePendingPaymentRequestSchema = z.strictObject({
-  date: calendarDateSchema,
-  reference: documentReferenceSchema.nullish(),
-});
+export const issuePendingPaymentRequestSchema = z
+  .strictObject({
+    date: calendarDateSchema,
+    reference: documentReferenceSchema.nullish(),
+  })
+  .meta({
+    id: 'IssuePendingPaymentRequest',
+    description:
+      'Materialises one pending payment into a real Payment (D-65). `reference` is the ' +
+      'rail’s own trace/confirmation for `ach`/`wire`; left null for `check`, which draws its ' +
+      'number from the register instead.',
+  });
 
 export type IssuePendingPaymentRequest = z.infer<typeof issuePendingPaymentRequestSchema>;
 
@@ -205,32 +249,53 @@ export type IssuePendingPaymentRequest = z.infer<typeof issuePendingPaymentReque
  * detail leaves the others issued and that one `open`/flagged. The result reports
  * each outcome individually.
  */
-export const issuePendingPaymentsRequestSchema = z.strictObject({
-  pendingPaymentIds: z.array(z.uuid()).min(1),
-  date: calendarDateSchema,
-});
+export const issuePendingPaymentsRequestSchema = z
+  .strictObject({
+    pendingPaymentIds: z.array(z.uuid()).min(1),
+    date: calendarDateSchema,
+  })
+  .meta({
+    id: 'IssuePendingPaymentsRequest',
+    description:
+      'Issues several pending payments in one call. Atomic per payment, not per run (D-63): ' +
+      'one bad ACH detail leaves the others issued.',
+  });
 
 export type IssuePendingPaymentsRequest = z.infer<typeof issuePendingPaymentsRequestSchema>;
 
 /** One pending payment's issue outcome — success carries the Payment (and, for a check, its number). */
-export const issueOutcomeSchema = z.strictObject({
-  pendingPaymentId: z.uuid(),
-  status: z.enum(['issued', 'failed']),
-  paymentId: z.uuid().nullable(),
-  checkNumber: z.string().nullable().meta({
-    description:
-      'The number drawn from the bank account’s register when the rail is `check`; null otherwise.',
-  }),
-  error: z.string().nullable().meta({
-    description: 'The refusal token when `status` is `failed`; null on success.',
-  }),
-});
+export const issueOutcomeSchema = z
+  .strictObject({
+    pendingPaymentId: z.uuid(),
+    status: z.enum(['issued', 'failed']),
+    paymentId: z.uuid().nullable(),
+    checkNumber: z
+      .string()
+      .nullable()
+      .meta({
+        description:
+          'The number drawn from the bank account’s register when the rail is `check`; null ' +
+          'otherwise.',
+      }),
+    error: z.string().nullable().meta({
+      description: 'The refusal token when `status` is `failed`; null on success.',
+    }),
+  })
+  .meta({
+    id: 'IssueOutcome',
+    description: 'One pending payment’s issue outcome — success carries the Payment it became.',
+  });
 
 export type IssueOutcome = z.infer<typeof issueOutcomeSchema>;
 
-export const issueResultSchema = z.strictObject({
-  outcomes: z.array(issueOutcomeSchema),
-});
+export const issueResultSchema = z
+  .strictObject({
+    outcomes: z.array(issueOutcomeSchema),
+  })
+  .meta({
+    id: 'IssueResult',
+    description: 'The result of issuing a batch of pending payments, one outcome per payment.',
+  });
 
 export type IssueResult = z.infer<typeof issueResultSchema>;
 
@@ -242,28 +307,41 @@ export type IssueResult = z.infer<typeof issueResultSchema>;
  * open pending payment already covers shows `availableToPay = 0` and cannot be
  * queued again (G4).
  */
-export const payableBillSchema = z.strictObject({
-  billId: z.uuid(),
-  contactId: z.uuid(),
-  vendorName: z.string(),
-  reference: z.string().nullable(),
-  issueDate: calendarDateSchema,
-  dueDate: calendarDateSchema.nullable(),
-  gross: minorUnitsSchema,
-  outstanding: minorUnitsSchema,
-  committed: minorUnitsSchema.meta({
-    description: 'Σ payAmount over open pending intents targeting this bill (D-68). Computed.',
-  }),
-  availableToPay: minorUnitsSchema.meta({
-    description: 'outstanding − committed — what a new pending payment may still queue. Computed.',
-  }),
-});
+export const payableBillSchema = z
+  .strictObject({
+    billId: z.uuid(),
+    contactId: z.uuid(),
+    vendorName: z.string(),
+    reference: z.string().nullable(),
+    issueDate: calendarDateSchema,
+    dueDate: calendarDateSchema.nullable(),
+    gross: minorUnitsSchema,
+    outstanding: minorUnitsSchema,
+    committed: minorUnitsSchema.meta({
+      description: 'Σ payAmount over open pending intents targeting this bill (D-68). Computed.',
+    }),
+    availableToPay: minorUnitsSchema.meta({
+      description:
+        'outstanding − committed — what a new pending payment may still queue. Computed.',
+    }),
+  })
+  .meta({
+    id: 'PayableBill',
+    description:
+      'A bill on the Pay Bills window, with its payability computed on read (D-34, D-68). ' +
+      'All four money fields are computed and stored nowhere.',
+  });
 
 export type PayableBill = z.infer<typeof payableBillSchema>;
 
-export const payableBillListSchema = z.strictObject({
-  bills: z.array(payableBillSchema),
-});
+export const payableBillListSchema = z
+  .strictObject({
+    bills: z.array(payableBillSchema),
+  })
+  .meta({
+    id: 'PayableBillList',
+    description: 'Every approved, non-void, not-fully-paid bill, with its payability computed.',
+  });
 
 export type PayableBillList = z.infer<typeof payableBillListSchema>;
 
@@ -273,24 +351,36 @@ export type PayableBillList = z.infer<typeof payableBillListSchema>;
  * hand them to the system that moves the money — a sensitive read, gated on the
  * issue permission, and the reason those columns are flagged for log redaction.
  */
-export const railDisbursementSchema = z.strictObject({
-  paymentId: z.uuid(),
-  contactId: z.uuid(),
-  vendorName: z.string(),
-  rail: railSchema,
-  amount: minorUnitsSchema,
-  reference: z.string().nullable(),
-  achRoutingNumber: z.string().nullable(),
-  achAccountNumber: z.string().nullable(),
-  wireInstructions: z.string().nullable(),
-  issuedAt: z.iso.datetime(),
-});
+export const railDisbursementSchema = z
+  .strictObject({
+    paymentId: z.uuid(),
+    contactId: z.uuid(),
+    vendorName: z.string(),
+    rail: railSchema,
+    amount: minorUnitsSchema,
+    reference: z.string().nullable(),
+    achRoutingNumber: z.string().nullable(),
+    achAccountNumber: z.string().nullable(),
+    wireInstructions: z.string().nullable(),
+    issuedAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'RailDisbursement',
+    description:
+      'A disbursement as an external ACH/wire processor pulls it (D-110) — the vendor’s real ' +
+      'bank coordinates travel here, gated on the issue permission.',
+  });
 
 export type RailDisbursement = z.infer<typeof railDisbursementSchema>;
 
-export const railDisbursementListSchema = z.strictObject({
-  disbursements: z.array(railDisbursementSchema),
-});
+export const railDisbursementListSchema = z
+  .strictObject({
+    disbursements: z.array(railDisbursementSchema),
+  })
+  .meta({
+    id: 'RailDisbursementList',
+    description: 'Every disbursement issued on one rail, for an external processor to pull.',
+  });
 
 export type RailDisbursementList = z.infer<typeof railDisbursementListSchema>;
 
@@ -299,12 +389,19 @@ export type RailDisbursementList = z.infer<typeof railDisbursementListSchema>;
  * and wire coordinates are the vendor's real bank data, never seeded, redacted in
  * logs. `preferredPaymentRail` seeds a new pending payment's rail default.
  */
-export const vendorDisbursementDetailsSchema = z.strictObject({
-  preferredPaymentRail: railSchema.nullable(),
-  achRoutingNumber: z.string().nullable(),
-  achAccountNumber: z.string().nullable(),
-  wireInstructions: z.string().nullable(),
-});
+export const vendorDisbursementDetailsSchema = z
+  .strictObject({
+    preferredPaymentRail: railSchema.nullable(),
+    achRoutingNumber: z.string().nullable(),
+    achAccountNumber: z.string().nullable(),
+    wireInstructions: z.string().nullable(),
+  })
+  .meta({
+    id: 'VendorDisbursementDetails',
+    description:
+      'A vendor’s ACH/wire disbursement details, kept on the contact (D-67). Sensitive: the ' +
+      'ACH and wire coordinates are the vendor’s real bank data.',
+  });
 
 export type VendorDisbursementDetails = z.infer<typeof vendorDisbursementDetailsSchema>;
 
@@ -318,6 +415,12 @@ export const updateVendorDisbursementDetailsRequestSchema = z
   })
   .refine((input) => Object.keys(input).length > 0, {
     message: 'Supply at least one field to change.',
+  })
+  .meta({
+    id: 'UpdateVendorDisbursementDetailsRequest',
+    description:
+      'Sets or clears a vendor’s disbursement details. An omitted field is left alone; ' +
+      '`null` clears it.',
   });
 
 export type UpdateVendorDisbursementDetailsRequest = z.infer<

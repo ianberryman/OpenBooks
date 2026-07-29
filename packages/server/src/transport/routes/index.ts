@@ -25,6 +25,7 @@ import { registerJournalRoutes } from './journals';
 import { registerMemberRoutes } from './members';
 import { registerOAuthClientRoutes } from './oauth-clients';
 import { registerOrgRoutes } from './orgs';
+import { registerPayBillsRoutes } from './pay-bills';
 import { registerPaymentTermsRoutes } from './payment-terms';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
@@ -520,6 +521,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerReportRoutes(app);
   registerSettingsRoutes(app);
   registerTaxRateRoutes(app);
+  registerPayBillsRoutes(app);
   registerPaymentTermsRoutes(app);
   registerInvoiceRoutes(app);
   registerRecurringInvoiceRoutes(app);

@@ -1,3 +1,4 @@
+import type { IssueResult } from '@openbooks/shared-types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { runInContext, type RequestContext } from '../../src/context';
@@ -55,6 +56,12 @@ import {
 import { postJournal } from '../../src/modules/ledger';
 import { changeMemberRole, inviteMember } from '../../src/modules/members';
 import { OWNER_ROLE_ID } from '../../src/modules/orgs';
+import {
+  buildPendingPayment,
+  issuePendingPayments,
+  payBills,
+  updatePendingPayment,
+} from '../../src/modules/pay-bills';
 import { createPaymentTerm, suggestDiscount } from '../../src/modules/payment-terms';
 import {
   allocateCreditNote,
@@ -196,6 +203,16 @@ interface Org {
   readonly journalId: string;
   readonly differenceJournalId: string;
   readonly clearableLineIds: readonly string[];
+
+  /**
+   * Pay Bills (PB): an `open` pending payment against this org's own vendor and
+   * bill, for the `updatePendingPayment` body-reference rows below to edit —
+   * `bankRuleId`'s reason above for keeping a caller-owned row in place while the id
+   * under test travels in the body. `updatePendingPayment` never changes `status`,
+   * so the row stays `open` (and therefore resolvable) across every reference row
+   * that reuses it, in whatever order they run.
+   */
+  readonly pendingPaymentId: string;
 }
 
 /** One of the org's six uncleared lines, by index — asserted present. */
@@ -446,6 +463,22 @@ async function org(label: string): Promise<Org> {
     ),
   );
 
+  // Pay Bills (PB): an `open` pending payment, `bankRule`'s reason above one
+  // subsystem over — a caller-owned row for `updatePendingPayment`'s reference rows
+  // to edit. Nominates `subledger`'s own vendor and bill rather than dedicated ones,
+  // `connectProcessor`'s reason for reusing `cash`/`expense` above.
+  const pendingPayment = await runInContext(ctx, () =>
+    buildPendingPayment(
+      {
+        contactId: subledger.partyId,
+        bankAccountId,
+        rail: 'check',
+        intents: [{ billId: subledger.billId, payAmount: '100' }],
+      },
+      ctx,
+    ),
+  );
+
   return {
     ctx,
     orgUuid: record.uuid,
@@ -470,6 +503,7 @@ async function org(label: string): Promise<Org> {
     journalId: posted.journalId,
     differenceJournalId: secondJournal.journalId,
     clearableLineIds,
+    pendingPaymentId: pendingPayment.id,
     ...subledger,
   };
 }
@@ -2343,6 +2377,218 @@ const REFERENCES: readonly Reference[] = [
         s.caller.ctx,
       ),
   },
+
+  // ---------------------------------------------------------------------------
+  // Pay Bills (PB). `buildPendingPayment` and `payBills` share one code path —
+  // `payBills` calls `buildPendingPayment` once per vendor and does not catch what
+  // it throws (`queue.service.ts`'s own header) — so each pair of rows below is the
+  // identical check, reached through the two different bodies the wire actually
+  // carries. `contactId` is not among them: `resolveIntents` never looks a contact
+  // up on its own, only checks it against the bill named in the *same* intent
+  // (`bill_contact_mismatch`), so it is `EXEMPT` below, with the row that proves
+  // the mismatch still does not leak. Every row here pins the other fields to the
+  // caller's own real resources, `connectProcessor`'s reason above.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'buildPendingPayment',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      buildPendingPayment(
+        {
+          contactId: s.caller.partyId,
+          bankAccountId: id,
+          rail: 'check',
+          intents: [{ billId: s.caller.billId, payAmount: '100' }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'buildPendingPayment',
+    field: 'billId',
+    subject: (o) => o.billId,
+    reach: (id, s) =>
+      buildPendingPayment(
+        {
+          contactId: s.caller.partyId,
+          bankAccountId: s.caller.bankAccountId,
+          rail: 'check',
+          intents: [{ billId: id, payAmount: '100' }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'buildPendingPayment',
+    field: 'discountAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      buildPendingPayment(
+        {
+          contactId: s.caller.partyId,
+          bankAccountId: s.caller.bankAccountId,
+          rail: 'check',
+          intents: [
+            {
+              billId: s.caller.billId,
+              payAmount: '100',
+              discountAmount: '10',
+              discountAccountId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'buildPendingPayment',
+    field: 'appliedVendorCreditId',
+    subject: (o) => o.vendorCreditId,
+    reach: (id, s) =>
+      buildPendingPayment(
+        {
+          contactId: s.caller.partyId,
+          bankAccountId: s.caller.bankAccountId,
+          rail: 'check',
+          intents: [{ billId: s.caller.billId, payAmount: '100', appliedVendorCreditId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'payBills',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      payBills(
+        {
+          payments: [
+            {
+              contactId: s.caller.partyId,
+              bankAccountId: id,
+              rail: 'check',
+              intents: [{ billId: s.caller.billId, payAmount: '100' }],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'payBills',
+    field: 'billId',
+    subject: (o) => o.billId,
+    reach: (id, s) =>
+      payBills(
+        {
+          payments: [
+            {
+              contactId: s.caller.partyId,
+              bankAccountId: s.caller.bankAccountId,
+              rail: 'check',
+              intents: [{ billId: id, payAmount: '100' }],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'payBills',
+    field: 'discountAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      payBills(
+        {
+          payments: [
+            {
+              contactId: s.caller.partyId,
+              bankAccountId: s.caller.bankAccountId,
+              rail: 'check',
+              intents: [
+                {
+                  billId: s.caller.billId,
+                  payAmount: '100',
+                  discountAmount: '10',
+                  discountAccountId: id,
+                },
+              ],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'payBills',
+    field: 'appliedVendorCreditId',
+    subject: (o) => o.vendorCreditId,
+    reach: (id, s) =>
+      payBills(
+        {
+          payments: [
+            {
+              contactId: s.caller.partyId,
+              bankAccountId: s.caller.bankAccountId,
+              rail: 'check',
+              intents: [{ billId: s.caller.billId, payAmount: '100', appliedVendorCreditId: id }],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePendingPayment',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      updatePendingPayment(s.caller.pendingPaymentId, { bankAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updatePendingPayment',
+    field: 'billId',
+    subject: (o) => o.billId,
+    reach: (id, s) =>
+      updatePendingPayment(
+        s.caller.pendingPaymentId,
+        { intents: [{ billId: id, payAmount: '100' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePendingPayment',
+    field: 'discountAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updatePendingPayment(
+        s.caller.pendingPaymentId,
+        {
+          intents: [
+            {
+              billId: s.caller.billId,
+              payAmount: '100',
+              discountAmount: '10',
+              discountAccountId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePendingPayment',
+    field: 'appliedVendorCreditId',
+    subject: (o) => o.vendorCreditId,
+    reach: (id, s) =>
+      updatePendingPayment(
+        s.caller.pendingPaymentId,
+        { intents: [{ billId: s.caller.billId, payAmount: '100', appliedVendorCreditId: id }] },
+        s.caller.ctx,
+      ),
+  },
 ];
 
 /**
@@ -2470,6 +2716,27 @@ const EXEMPT: Readonly<Record<string, string>> = {
    * of a bank feed. It names no OpenBooks row, so there is no cross-org read to make.
    */
   'connectProcessor.externalAccountId': 'a free-text processor identifier, not a tenant row',
+  /**
+   * Pay Bills (PB). `resolveIntents` (`queue.service.ts`) never looks `contactId` up
+   * on its own — it is checked only relationally, against the contact already on the
+   * bill named in the same intent (`bill_contact_mismatch`). So a cross-org value and
+   * a nonexistent one are not merely indistinguishable, they are unreachable as
+   * distinct cases: both differ from the bill's real contact in the same way and earn
+   * the identical `precondition_failed`, never the `not_found` the rest of this file's
+   * rows converge on — which is what stops it from being a `SEALED` row. Asserted
+   * below rather than as a row, `payBills`'s reason above for sharing one proof.
+   */
+  'buildPendingPayment.contactId':
+    'validated only against the bill in the same intent, asserted separately',
+  'payBills.contactId': 'validated only against the bill in the same intent, asserted separately',
+  /**
+   * Pay Bills (PB). `issuePendingPayments` (`issue.service.ts`) is atomic *per
+   * payment, not per run* (D-63/G2 — the file's own header): a bad id in the array
+   * is caught inside the loop and recorded as a `failed` outcome in a `200`, never
+   * thrown. So there is no wire error for this file's mechanism to compare — the
+   * non-leak claim is about the outcome payload instead, asserted separately.
+   */
+  'issuePendingPayments.pendingPaymentIds': 'a per-item batch outcome, asserted separately',
 };
 
 /** What every row must report. Anything else is the leak. */
@@ -2655,6 +2922,98 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
         listInvoices({ contactId: s.caller.partyId }, s.caller.ctx),
       );
       expect(mine.items.length).toBeGreaterThan(0);
+    } finally {
+      await dropCustomRoles(s);
+    }
+  });
+
+  /**
+   * `buildPendingPayment.contactId`/`payBills.contactId`'s claim (`EXEMPT`),
+   * proven directly: `resolveIntents` never looks a contact up on its own, only
+   * checks it against the contact already on the bill named in the same intent, so a
+   * cross-org contact and a nonexistent one differ from that bill's real contact in
+   * exactly the same way and earn the identical `bill_contact_mismatch` — a
+   * `precondition_failed`, never a `not_found`, which is why the field cannot be a
+   * plain `SEALED` row above. `payBills` is not run a second time: it calls
+   * `buildPendingPayment` for this exact check and does not catch what it throws
+   * (`queue.service.ts`'s own header), so a second pass would prove nothing this one
+   * does not already.
+   */
+  it("gives a pending payment's mismatched contact the same refusal as a nonexistent one", async () => {
+    const s = await scene();
+    try {
+      const attempt = (contactId: string): Promise<unknown> =>
+        runInContext(s.caller.ctx, () =>
+          buildPendingPayment(
+            {
+              contactId,
+              bankAccountId: s.caller.bankAccountId,
+              rail: 'check',
+              intents: [{ billId: s.caller.billId, payAmount: '100' }],
+            },
+            s.caller.ctx,
+          ),
+        ).then(
+          () => 'did not throw',
+          (error: unknown) => toWireError(error),
+        );
+
+      const cross = (await attempt(s.stranger.partyId)) as { status?: number; code?: string };
+      const nowhere = await attempt(NOWHERE);
+      const own = await attempt(s.caller.partyId);
+
+      expect(cross.status).toBe(412);
+      expect(cross.code).toBe('precondition_failed');
+      // Compared as bytes, `matchesNonexistent`'s reason throughout this file: the
+      // claim is that the two are indistinguishable on the wire, not merely equal
+      // in status.
+      expect(JSON.stringify(cross)).toBe(JSON.stringify(nowhere));
+      // The control: the caller's own contact, matching the bill it is paired with,
+      // is not refused at all — which is what makes the refusal above a statement
+      // about the mismatch rather than something this body always does.
+      expect(own).toBe('did not throw');
+    } finally {
+      await dropCustomRoles(s);
+    }
+  });
+
+  /**
+   * `issuePendingPayments.pendingPaymentIds`'s claim (`EXEMPT`), proven directly:
+   * `issuePendingPayments` is atomic per payment, not per run (D-63/G2 —
+   * `issue.service.ts`'s own header), so a bad id in the array is caught inside the
+   * loop and recorded as a `failed` outcome in a `200` rather than thrown — there is
+   * no wire error for this file's usual mechanism to compare. The outcome's own
+   * `error` token is the same `pending_payment` resource name every other
+   * pending-payment row's `NotFoundError` carries, identical whether the id belongs
+   * to another org or to nobody; the two outcomes differ only in the
+   * `pendingPaymentId` field each echoes back, which is the id the caller already
+   * supplied and not new information (`ownerGetsNotFound`'s reasoning in
+   * `cross-org.test.ts`, one field over).
+   */
+  it('gives a foreign pending payment in a batch issue the same failed outcome as an unknown one', async () => {
+    const s = await scene();
+    try {
+      const issue = (pendingPaymentId: string): Promise<IssueResult> =>
+        runInContext(s.caller.ctx, () =>
+          issuePendingPayments({ pendingPaymentIds: [pendingPaymentId], date: DATE }, s.caller.ctx),
+        );
+
+      const cross = await issue(s.stranger.pendingPaymentId);
+      const nowhere = await issue(NOWHERE);
+      const own = await issue(s.caller.pendingPaymentId);
+
+      const strip = (result: IssueResult): unknown =>
+        result.outcomes.map(({ pendingPaymentId: _id, ...rest }) => rest);
+
+      expect(cross.outcomes[0]?.status).toBe('failed');
+      expect(cross.outcomes[0]?.error).toBe('pending_payment');
+      expect(strip(cross)).toEqual(strip(nowhere));
+      // The control: the caller's own id does not fail on *this* lookup — `error`
+      // is never the `pending_payment` token `assertFound` reports for a miss,
+      // whatever it resolves to past that point. Not asserted as `status: 'issued'`:
+      // this row's claim is about the pending-payment lookup B11 governs, not about
+      // whether the rest of issue succeeds, which is a different surface entirely.
+      expect(own.outcomes[0]?.error).not.toBe('pending_payment');
     } finally {
       await dropCustomRoles(s);
     }

@@ -289,6 +289,19 @@ describe('the /v1 route table', () => {
         'suggestDiscount',
         'getDiscountAccounts',
         'updateDiscountAccounts',
+        // Pay Bills (OB-115).
+        'buildPendingPayment',
+        'payBills',
+        'listPendingPayments',
+        'getPendingPayment',
+        'updatePendingPayment',
+        'cancelPendingPayment',
+        'issuePendingPayment',
+        'issuePendingPayments',
+        'listPayableBills',
+        'listDisbursementsByRail',
+        'getVendorDisbursementDetails',
+        'updateVendorDisbursementDetails',
       ]),
     );
   });

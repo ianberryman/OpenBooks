@@ -173,6 +173,17 @@ interface Scene {
    * `reactivateProcessorConnection` to answer about across orgs.
    */
   readonly processorConnectionId: string;
+
+  /**
+   * Pay Bills (PB, OB-154…): a single `open` pending payment, for
+   * `getPendingPayment`/`updatePendingPayment`/`cancelPendingPayment`/
+   * `issuePendingPayment` to answer about across orgs. One row rather than one per
+   * operation, `bankAccountId`'s reason above: `cancel` moves it to `cancelled`
+   * (`ownerGetsNotFound`'s constraint is still satisfied, since a `412` from `issue`
+   * on an already-`cancelled` payment is not a `404` — the SURFACES ordering below
+   * relies on exactly that).
+   */
+  readonly pendingPaymentId: string;
 }
 
 /**
@@ -361,6 +372,17 @@ async function scene(app: App): Promise<Scene> {
     },
   );
 
+  // Pay Bills (PB): an `open` pending payment against the owner's own vendor and
+  // approved bill, nominating `subledger`/`banking`'s fixtures rather than dedicated
+  // ones — `connectProcessor`'s reason above, there is nothing a fresh party, account
+  // or bill would prove that these do not already.
+  const pendingPaymentId = await created('pending-payment', '/v1/pending-payments', {
+    contactId: subledger.partyId,
+    bankAccountId: banking.bankAccountId,
+    rail: 'check',
+    intents: [{ billId: subledger.targetBillId, payAmount: '100' }],
+  });
+
   return {
     owner,
     stranger,
@@ -382,6 +404,7 @@ async function scene(app: App): Promise<Scene> {
     approvableProposalId,
     rejectableProposalId,
     processorConnectionId,
+    pendingPaymentId,
     ...subledger,
     ...banking,
     ...captures,
@@ -1771,6 +1794,62 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/processing/connections/%s/reactivate',
     id: (s) => s.processorConnectionId,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Pay Bills (PB): the four pending-payment id-addressed operations, one fixture
+  // shared across all four (`pendingPaymentId`'s own comment). Ordered get, update,
+  // cancel, issue so the control pass runs straight through: `cancel` moves the
+  // payment to `cancelled`, so `issue` last against it is refused with a `412`
+  // (`pending_payment_not_open`) rather than succeeding — still not a `404`, which is
+  // all `ownerGetsNotFound` asks, `deactivateBankAccount`'s reason above.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getPendingPayment',
+    method: 'GET',
+    path: '/v1/pending-payments/%s',
+    id: (s) => s.pendingPaymentId,
+  },
+  {
+    operationId: 'updatePendingPayment',
+    method: 'PATCH',
+    path: '/v1/pending-payments/%s',
+    id: (s) => s.pendingPaymentId,
+    payload: () => ({ memo: 'edited' }),
+  },
+  {
+    operationId: 'cancelPendingPayment',
+    method: 'POST',
+    path: '/v1/pending-payments/%s/cancel',
+    id: (s) => s.pendingPaymentId,
+  },
+  {
+    operationId: 'issuePendingPayment',
+    method: 'POST',
+    path: '/v1/pending-payments/%s/issue',
+    id: (s) => s.pendingPaymentId,
+    payload: () => ({ date: DOCUMENT_DATE }),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Pay Bills (PB): the vendor disbursement-details operations, on the owner's own
+  // `partyId` — the vendor `subledgerScene` already built for the bill fixtures, so
+  // there is nothing a dedicated contact would prove that this one does not already.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getVendorDisbursementDetails',
+    method: 'GET',
+    path: '/v1/contacts/%s/disbursement-details',
+    id: (s) => s.partyId,
+  },
+  {
+    operationId: 'updateVendorDisbursementDetails',
+    method: 'PATCH',
+    path: '/v1/contacts/%s/disbursement-details',
+    id: (s) => s.partyId,
+    payload: () => ({ preferredPaymentRail: 'check' }),
   },
 ];
 

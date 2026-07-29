@@ -1098,6 +1098,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/contacts/{contactId}/disbursement-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A vendor’s ACH/wire disbursement details
+         * @description The four `contacts` columns Pay Bills reads to pick a rail default and the coordinates an `ach`/`wire` handoff needs (D-67). Gated on `contacts.read`, not a Pay-Bills-specific key — these are contact fields.
+         */
+        get: operations["getVendorDisbursementDetails"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set or clear a vendor’s ACH/wire disbursement details
+         * @description An omitted field is left alone; `null` clears it. Gated on `contacts.write`, `getVendorDisbursementDetails`’s own reason.
+         */
+        patch: operations["updateVendorDisbursementDetails"];
+        trace?: never;
+    };
     "/v1/contacts/{contactId}/reactivate": {
         parameters: {
             query?: never;
@@ -1399,6 +1423,46 @@ export interface paths {
          * @description The axis must not be archived — an archived one is offered for nothing new, and answers `dimension_archived`. `code` is unique within the axis and immutable.
          */
         post: operations["createDimensionValue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disbursements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every disbursement issued on one rail
+         * @description The handoff surface an external ACH/wire processor pulls from (D-110) — OpenBooks writes no NACHA file and executes no wire itself. Carries the vendor’s real bank coordinates, gated on the release authority (D-109) rather than the queue-read permission.
+         */
+        get: operations["listDisbursementsByRail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/disbursements/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue several pending payments in one call
+         * @description Atomic per payment, not per run (G2/D-63): each vendor is materialised in its own transaction, so one bad ACH detail leaves the others issued and reports that one `failed` rather than rolling back the batch. Idempotent as a whole call.
+         */
+        post: operations["issuePendingPayments"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2134,6 +2198,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/pay-bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a batch of pending payments, one per vendor
+         * @description The fan-out is already expressed on the wire as one element per vendor (D-63): each is built independently, so one vendor’s refusal does not lose the rest.
+         */
+        post: operations["payBills"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payable-bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Pay Bills window
+         * @description Every approved, non-void, not-fully-paid bill, with `outstanding`, `committed`, and `availableToPay` computed on read (D-34, D-68) and stored nowhere — a bill an open pending payment already covers shows `availableToPay = 0`.
+         */
+        get: operations["listPayableBills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/payment-terms": {
         parameters: {
             query?: never;
@@ -2301,6 +2405,91 @@ export interface paths {
          * @description Posts a reversing journal and **deletes the allocations this payment made** — the money did not move, so nothing it settled is settled, and outstanding is a sum over those rows rather than a column anyone could correct. The payment itself stays visible with both journals (D-16). The reversal takes its own `date`, which must fall in an open period.
          */
         post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pending-payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the pending-payment queue
+         * @description Every pending payment the org holds, optionally filtered by status.
+         */
+        get: operations["listPendingPayments"];
+        put?: never;
+        /**
+         * Build a pending payment
+         * @description One vendor per pending payment — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64): this only reserves each named bill’s `committed` until issue.
+         */
+        post: operations["buildPendingPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pending-payments/{pendingPaymentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One pending payment */
+        get: operations["getPendingPayment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit an open pending payment
+         * @description An omitted field is unchanged. `intents`, when supplied, replaces the set wholesale rather than patching individual lines — the queue is pencil, and rebuilding the line set is how it is edited. Refused once the pending payment is no longer `open`.
+         */
+        patch: operations["updatePendingPayment"];
+        trace?: never;
+    };
+    "/v1/pending-payments/{pendingPaymentId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an open pending payment
+         * @description Frees every bill it named — `committedForBill` counts only `open` intents. No ledger correction is needed because none was ever posted (D-64): a pending payment is pencil, and erasing pencil restates nothing. Refused once no longer `open`.
+         */
+        post: operations["cancelPendingPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/pending-payments/{pendingPaymentId}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue one pending payment
+         * @description Materialises it into a real Payment (D-65) — the journal, the payAmount allocations, any settlement discount, and any applied vendor credit all post in one transaction. Idempotent: a retried issue replays the original outcome rather than paying the vendor twice.
+         */
+        post: operations["issuePendingPayment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5497,6 +5686,54 @@ export interface components {
             /** @description Days from issue to due. Zero is "due on receipt". */
             netDays: number;
         };
+        /** @description Builds one pending payment for one vendor — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64). */
+        CreatePendingPaymentRequest: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            contactId: string;
+            intents: {
+                /** Format: uuid */
+                appliedVendorCreditId?: string;
+                /** Format: uuid */
+                billId: string;
+                /** Format: uuid */
+                discountAccountId?: string;
+                discountAmount?: components["schemas"]["MinorUnits"];
+                /** @description How much of this bill this payment covers, in minor units. */
+                payAmount: components["schemas"]["MinorUnits"];
+            }[];
+            memo?: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+        };
+        /** @description Builds one pending payment for one vendor — a Payment carries one contact and allocations refuse to cross contacts (D-63). Posts no journal (D-64). */
+        CreatePendingPaymentRequestInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            contactId: string;
+            intents: {
+                /** Format: uuid */
+                appliedVendorCreditId?: string;
+                /** Format: uuid */
+                billId: string;
+                /** Format: uuid */
+                discountAccountId?: string;
+                discountAmount?: components["schemas"]["MinorUnitsInput"];
+                /** @description How much of this bill this payment covers, in minor units. */
+                payAmount: components["schemas"]["MinorUnitsInput"];
+            }[];
+            memo?: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+        };
         /** @description Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. */
         CreateReconciliationSessionRequest: {
             /** Format: uuid */
@@ -6689,6 +6926,58 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @description One pending payment’s issue outcome — success carries the Payment it became. */
+        IssueOutcome: {
+            /** @description The number drawn from the bank account’s register when the rail is `check`; null otherwise. */
+            checkNumber: string | null;
+            /** @description The refusal token when `status` is `failed`; null on success. */
+            error: string | null;
+            paymentId: string | null;
+            /** Format: uuid */
+            pendingPaymentId: string;
+            /** @enum {string} */
+            status: "issued" | "failed";
+        };
+        /** @description One pending payment’s issue outcome — success carries the Payment it became. */
+        IssueOutcomeInput: {
+            /** @description The number drawn from the bank account’s register when the rail is `check`; null otherwise. */
+            checkNumber: string | null;
+            /** @description The refusal token when `status` is `failed`; null on success. */
+            error: string | null;
+            paymentId: string | null;
+            /** Format: uuid */
+            pendingPaymentId: string;
+            /** @enum {string} */
+            status: "issued" | "failed";
+        };
+        /** @description Materialises one pending payment into a real Payment (D-65). `reference` is the rail’s own trace/confirmation for `ach`/`wire`; left null for `check`, which draws its number from the register instead. */
+        IssuePendingPaymentRequest: {
+            date: components["schemas"]["CalendarDate"];
+            reference?: string | null;
+        };
+        /** @description Materialises one pending payment into a real Payment (D-65). `reference` is the rail’s own trace/confirmation for `ach`/`wire`; left null for `check`, which draws its number from the register instead. */
+        IssuePendingPaymentRequestInput: {
+            date: components["schemas"]["CalendarDateInput"];
+            reference?: string | null;
+        };
+        /** @description Issues several pending payments in one call. Atomic per payment, not per run (D-63): one bad ACH detail leaves the others issued. */
+        IssuePendingPaymentsRequest: {
+            date: components["schemas"]["CalendarDate"];
+            pendingPaymentIds: string[];
+        };
+        /** @description Issues several pending payments in one call. Atomic per payment, not per run (D-63): one bad ACH detail leaves the others issued. */
+        IssuePendingPaymentsRequestInput: {
+            date: components["schemas"]["CalendarDateInput"];
+            pendingPaymentIds: string[];
+        };
+        /** @description The result of issuing a batch of pending payments, one outcome per payment. */
+        IssueResult: {
+            outcomes: components["schemas"]["IssueOutcome"][];
+        };
+        /** @description The result of issuing a batch of pending payments, one outcome per payment. */
+        IssueResultInput: {
+            outcomes: components["schemas"]["IssueOutcomeInput"][];
+        };
         /** @description A newly created invitation and its send outcome. */
         IssuedInvitation: {
             /** @description False means the invitation exists and the message did not go out. Reissue rather than assume — the invitation is valid either way, but nobody has the link. */
@@ -7155,6 +7444,56 @@ export interface components {
         PageCursor: string;
         /** @description An opaque position in a list. Send back the `nextCursor` of the previous page verbatim to get the next one. Do not parse it, construct it, or store it: its contents are the server’s ordering columns and they are free to change. */
         PageCursorInput: string;
+        /** @description A batch Pay Bills run: one pending payment per vendor, built independently (D-63) — a refusal on one does not lose the rest. */
+        PayBillsRequest: {
+            payments: components["schemas"]["CreatePendingPaymentRequest"][];
+        };
+        /** @description A batch Pay Bills run: one pending payment per vendor, built independently (D-63) — a refusal on one does not lose the rest. */
+        PayBillsRequestInput: {
+            payments: components["schemas"]["CreatePendingPaymentRequestInput"][];
+        };
+        /** @description A bill on the Pay Bills window, with its payability computed on read (D-34, D-68). All four money fields are computed and stored nowhere. */
+        PayableBill: {
+            /** @description outstanding − committed — what a new pending payment may still queue. Computed. */
+            availableToPay: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            billId: string;
+            /** @description Σ payAmount over open pending intents targeting this bill (D-68). Computed. */
+            committed: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            contactId: string;
+            dueDate: components["schemas"]["CalendarDate"] | null;
+            gross: components["schemas"]["MinorUnits"];
+            issueDate: components["schemas"]["CalendarDate"];
+            outstanding: components["schemas"]["MinorUnits"];
+            reference: string | null;
+            vendorName: string;
+        };
+        /** @description A bill on the Pay Bills window, with its payability computed on read (D-34, D-68). All four money fields are computed and stored nowhere. */
+        PayableBillInput: {
+            /** @description outstanding − committed — what a new pending payment may still queue. Computed. */
+            availableToPay: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            billId: string;
+            /** @description Σ payAmount over open pending intents targeting this bill (D-68). Computed. */
+            committed: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            contactId: string;
+            dueDate: components["schemas"]["CalendarDateInput"] | null;
+            gross: components["schemas"]["MinorUnitsInput"];
+            issueDate: components["schemas"]["CalendarDateInput"];
+            outstanding: components["schemas"]["MinorUnitsInput"];
+            reference: string | null;
+            vendorName: string;
+        };
+        /** @description Every approved, non-void, not-fully-paid bill, with its payability computed. */
+        PayableBillList: {
+            bills: components["schemas"]["PayableBill"][];
+        };
+        /** @description Every approved, non-void, not-fully-paid bill, with its payability computed. */
+        PayableBillListInput: {
+            bills: components["schemas"]["PayableBillInput"][];
+        };
         /** @description Money that moved, and the documents it has been applied to. A payment is not a numbered document (D-36) and it has no draft state — money either moved or it did not — so `journalId` is never null. `settlement.outstanding` is the credit still available on the contact (D-37), computed on read. */
         Payment: {
             /**
@@ -7350,6 +7689,94 @@ export interface components {
         /** @description Every term the org has defined, active ones first by name. Not paged — a term catalog is a small, bounded list, unlike the documents that reference it. */
         PaymentTermListInput: {
             paymentTerms: components["schemas"]["PaymentTermInput"][];
+        };
+        /** @description A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned. */
+        PendingPayment: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            intents: {
+                appliedVendorCreditId: string | null;
+                /** Format: uuid */
+                billId: string;
+                discountAccountId: string | null;
+                discountAmount: components["schemas"]["MinorUnits"] | null;
+                /** Format: uuid */
+                id: string;
+                payAmount: components["schemas"]["MinorUnits"];
+            }[];
+            /** @description The real Payment this materialised into, once issued; null while open. */
+            issuedPaymentId: string | null;
+            memo: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+            /**
+             * @description Pencil lifecycle: `open` while built and edited, `issued` once released into a real Payment, `cancelled` if abandoned. Only `open` intents count toward a bill’s `committed`.
+             * @enum {string}
+             */
+            status: "open" | "issued" | "cancelled";
+            /** @description Σ of the intents’ payAmount — what the check or transfer is for. Computed. */
+            totalAmount: components["schemas"]["MinorUnits"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The vendor’s display name, denormalized for the queue screen. */
+            vendorName: string;
+        };
+        /** @description A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned. */
+        PendingPaymentInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            intents: {
+                appliedVendorCreditId: string | null;
+                /** Format: uuid */
+                billId: string;
+                discountAccountId: string | null;
+                discountAmount: components["schemas"]["MinorUnitsInput"] | null;
+                /** Format: uuid */
+                id: string;
+                payAmount: components["schemas"]["MinorUnitsInput"];
+            }[];
+            /** @description The real Payment this materialised into, once issued; null while open. */
+            issuedPaymentId: string | null;
+            memo: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+            /**
+             * @description Pencil lifecycle: `open` while built and edited, `issued` once released into a real Payment, `cancelled` if abandoned. Only `open` intents count toward a bill’s `committed`.
+             * @enum {string}
+             */
+            status: "open" | "issued" | "cancelled";
+            /** @description Σ of the intents’ payAmount — what the check or transfer is for. Computed. */
+            totalAmount: components["schemas"]["MinorUnitsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description The vendor’s display name, denormalized for the queue screen. */
+            vendorName: string;
+        };
+        /** @description The pending-payment queue. Not paged — bounded per org. */
+        PendingPaymentList: {
+            pendingPayments: components["schemas"]["PendingPayment"][];
+        };
+        /** @description The pending-payment queue. Not paged — bounded per org. */
+        PendingPaymentListInput: {
+            pendingPayments: components["schemas"]["PendingPaymentInput"][];
         };
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
@@ -7740,6 +8167,54 @@ export interface components {
             customersCreated: number;
             openingJournalId: string | null;
             vendorsCreated: number;
+        };
+        /** @description A disbursement as an external ACH/wire processor pulls it (D-110) — the vendor’s real bank coordinates travel here, gated on the issue permission. */
+        RailDisbursement: {
+            achAccountNumber: string | null;
+            achRoutingNumber: string | null;
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: uuid */
+            paymentId: string;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+            reference: string | null;
+            vendorName: string;
+            wireInstructions: string | null;
+        };
+        /** @description A disbursement as an external ACH/wire processor pulls it (D-110) — the vendor’s real bank coordinates travel here, gated on the issue permission. */
+        RailDisbursementInput: {
+            achAccountNumber: string | null;
+            achRoutingNumber: string | null;
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            contactId: string;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: uuid */
+            paymentId: string;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail: "check" | "ach" | "wire";
+            reference: string | null;
+            vendorName: string;
+            wireInstructions: string | null;
+        };
+        /** @description Every disbursement issued on one rail, for an external processor to pull. */
+        RailDisbursementList: {
+            disbursements: components["schemas"]["RailDisbursement"][];
+        };
+        /** @description Every disbursement issued on one rail, for an external processor to pull. */
+        RailDisbursementListInput: {
+            disbursements: components["schemas"]["RailDisbursementInput"][];
         };
         /** @description What the session’s arithmetic says, all computed on read except `statementClosingBalance` (D-34, D-46). `difference` must be zero to finalise (E5). */
         ReconciliationBalances: {
@@ -8745,6 +9220,50 @@ export interface components {
             /** @description Days from issue to due. Zero is "due on receipt". */
             netDays?: number;
         };
+        /** @description Partial update to an open pending payment. `intents`, when supplied, replaces the set wholesale rather than patching individual lines. */
+        UpdatePendingPaymentRequest: {
+            /** Format: uuid */
+            bankAccountId?: string;
+            intents?: {
+                /** Format: uuid */
+                appliedVendorCreditId?: string;
+                /** Format: uuid */
+                billId: string;
+                /** Format: uuid */
+                discountAccountId?: string;
+                discountAmount?: components["schemas"]["MinorUnits"];
+                /** @description How much of this bill this payment covers, in minor units. */
+                payAmount: components["schemas"]["MinorUnits"];
+            }[];
+            memo?: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail?: "check" | "ach" | "wire";
+        };
+        /** @description Partial update to an open pending payment. `intents`, when supplied, replaces the set wholesale rather than patching individual lines. */
+        UpdatePendingPaymentRequestInput: {
+            /** Format: uuid */
+            bankAccountId?: string;
+            intents?: {
+                /** Format: uuid */
+                appliedVendorCreditId?: string;
+                /** Format: uuid */
+                billId: string;
+                /** Format: uuid */
+                discountAccountId?: string;
+                discountAmount?: components["schemas"]["MinorUnitsInput"];
+                /** @description How much of this bill this payment covers, in minor units. */
+                payAmount: components["schemas"]["MinorUnitsInput"];
+            }[];
+            memo?: string | null;
+            /**
+             * @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110).
+             * @enum {string}
+             */
+            rail?: "check" | "ach" | "wire";
+        };
         /** @description Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen. */
         UpdateReconciliationSessionRequest: {
             endDate?: components["schemas"]["CalendarDate"];
@@ -8866,6 +9385,20 @@ export interface components {
              * @enum {string}
              */
             taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Sets or clears a vendor’s disbursement details. An omitted field is left alone; `null` clears it. */
+        UpdateVendorDisbursementDetailsRequest: {
+            achAccountNumber?: string | null;
+            achRoutingNumber?: string | null;
+            preferredPaymentRail?: ("check" | "ach" | "wire") | null;
+            wireInstructions?: string | null;
+        };
+        /** @description Sets or clears a vendor’s disbursement details. An omitted field is left alone; `null` clears it. */
+        UpdateVendorDisbursementDetailsRequestInput: {
+            achAccountNumber?: string | null;
+            achRoutingNumber?: string | null;
+            preferredPaymentRail?: ("check" | "ach" | "wire") | null;
+            wireInstructions?: string | null;
         };
         /** @description Uploads a document to be extracted. Creates a `document_captures` row in status `extracting` and enqueues the extraction job; the bytes are stored, never returned. */
         UploadCaptureRequest: {
@@ -9018,6 +9551,20 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description A vendor’s ACH/wire disbursement details, kept on the contact (D-67). Sensitive: the ACH and wire coordinates are the vendor’s real bank data. */
+        VendorDisbursementDetails: {
+            achAccountNumber: string | null;
+            achRoutingNumber: string | null;
+            preferredPaymentRail: ("check" | "ach" | "wire") | null;
+            wireInstructions: string | null;
+        };
+        /** @description A vendor’s ACH/wire disbursement details, kept on the contact (D-67). Sensitive: the ACH and wire coordinates are the vendor’s real bank data. */
+        VendorDisbursementDetailsInput: {
+            achAccountNumber: string | null;
+            achRoutingNumber: string | null;
+            preferredPaymentRail: ("check" | "ach" | "wire") | null;
+            wireInstructions: string | null;
         };
         /** @description Voiding takes its own entry date, because the document’s own period is usually closed by the time someone voids it and the reversal has to land somewhere postable. One shape for all four documents and for a payment, because voiding is the same act everywhere: a reversing journal, never a deletion (D-16, D-38). */
         VoidDocumentRequest: {
@@ -11547,6 +12094,75 @@ export interface operations {
             };
         };
     };
+    getVendorDisbursementDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorDisbursementDetails"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateVendorDisbursementDetails: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVendorDisbursementDetailsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorDisbursementDetails"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     reactivateContact: {
         parameters: {
             query?: never;
@@ -12339,6 +12955,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DimensionValue"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listDisbursementsByRail: {
+        parameters: {
+            query: {
+                /** @description How the disbursement is executed. `check` is handled in-app (a number and a printable check); `ach`/`wire` are tags for an external system, which returns the trace onto the payment reference — no NACHA or wire file is generated (D-110). */
+                rail: "check" | "ach" | "wire";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RailDisbursementList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    issuePendingPayments: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssuePendingPaymentsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueResult"];
                 };
             };
             /** @description Default Response */
@@ -14119,6 +14803,71 @@ export interface operations {
             };
         };
     };
+    payBills: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayBillsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPaymentList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listPayableBills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayableBillList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listPaymentTerms: {
         parameters: {
             query?: {
@@ -14542,6 +15291,215 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listPendingPayments: {
+        parameters: {
+            query?: {
+                /** @description Omitting this lists every status. `open` is what a clerk building or issuing usually wants. */
+                status?: "open" | "issued" | "cancelled";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPaymentList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    buildPendingPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePendingPaymentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPayment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPendingPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pendingPaymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPayment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePendingPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                pendingPaymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePendingPaymentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPayment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelPendingPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                pendingPaymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingPayment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    issuePendingPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                pendingPaymentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssuePendingPaymentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueOutcome"];
                 };
             };
             /** @description Default Response */
