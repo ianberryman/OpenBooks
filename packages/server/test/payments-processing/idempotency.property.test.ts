@@ -200,10 +200,9 @@ describe('the clearing account reconciles against a generated event stream (D-85
   const chargeArb: fc.Arbitrary<Charge> = grossArb.chain((gross) =>
     fc.record({
       gross: fc.constant(gross),
-      fee: fc.option(
-        fc.integer({ min: 1, max: Math.max(1, Number(gross / 20n)) }).map(BigInt),
-        { nil: null },
-      ),
+      fee: fc.option(fc.integer({ min: 1, max: Math.max(1, Number(gross / 20n)) }).map(BigInt), {
+        nil: null,
+      }),
     }),
   );
   const planArb: fc.Arbitrary<Plan> = fc.record({

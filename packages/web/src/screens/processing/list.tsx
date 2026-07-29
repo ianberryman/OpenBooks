@@ -85,7 +85,9 @@ export function ConnectionList({
             <td className={TD_CLASSES}>{accountLabel(reference, connection.clearingAccountId)}</td>
             <td className={TD_CLASSES}>{accountLabel(reference, connection.feeAccountId)}</td>
             <td className={cx(TD_CLASSES, 'text-text-muted')}>
-              {connection.lastPolledAt === null ? 'Never' : formatTimestamp(connection.lastPolledAt)}
+              {connection.lastPolledAt === null
+                ? 'Never'
+                : formatTimestamp(connection.lastPolledAt)}
             </td>
             <td className={TD_CLASSES}>
               <Pill tone={connection.isActive ? 'positive' : 'muted'}>

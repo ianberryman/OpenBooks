@@ -236,10 +236,7 @@ export async function sendInvoiceAndGetToken(
     headers: writeHeaders(),
     data: {},
   });
-  expect(
-    response.ok(),
-    `POST /v1/invoices/{id}/send → ${String(response.status())}`,
-  ).toBeTruthy();
+  expect(response.ok(), `POST /v1/invoices/{id}/send → ${String(response.status())}`).toBeTruthy();
   const delivery = (await response.json()) as { publicUrl: string };
 
   const token = delivery.publicUrl.split('/i/').pop();
@@ -317,10 +314,7 @@ export async function lookupPaymentRef(
     externalId: externalObjectId,
   });
   const response = await request.get(`/v1/external-refs/lookup?${query.toString()}`);
-  expect(
-    response.ok(),
-    `GET /v1/external-refs/lookup → ${String(response.status())}`,
-  ).toBeTruthy();
+  expect(response.ok(), `GET /v1/external-refs/lookup → ${String(response.status())}`).toBeTruthy();
   const ref = (await response.json()) as { entityId: string };
   return ref.entityId;
 }

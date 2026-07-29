@@ -45,13 +45,12 @@ import type { NormalizedProcessorEvent } from './support/payments';
  * (`support/banking.ts`'s bank account, `support/books.ts`'s fiscal year). This one
  * inverts that ratio, for reasons specific to what OB-150/OB-153 actually shipped:
  *
- *  - **There is no "Pay now" button.** `screens/public-invoice.tsx` renders the
- *    hosted page from `publicInvoiceViewSchema` but its own hand-mirrored
- *    `PublicInvoiceView` interface never declares `payable`, and nothing on the page
- *    calls `POST /public/invoices/{token}/pay-link`. The API contract OB-150 shipped
- *    is real and this narrative drives it directly; the UI half is not built yet — a
- *    real product gap, in `support/banking.ts`'s "no bank-account-creation screen"
- *    shape, not a shortcut taken here.
+ *  - **The "Pay now" button is a redirect, not an assertion target.** OB-151 renders
+ *    it on `screens/public-invoice.tsx` when `payable` is true, and clicking it POSTs
+ *    `/public/invoices/{token}/pay-link` and navigates the browser to the processor's
+ *    checkout URL — which, for a real processor, leaves the app entirely. Driving the
+ *    pay-link over `page.request` asserts the same contract (the URL comes back)
+ *    without chasing a cross-origin redirect the fake processor has no page behind.
  *  - **A webhook has no UI at all, by construction.** `x-fake-signature` is computed
  *    over raw bytes by a processor's own backend, never by a browser — there is
  *    nothing to click that would produce one.
