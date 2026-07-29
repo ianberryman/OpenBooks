@@ -7,7 +7,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runInContext, type RequestContext } from '../../src/context';
 import { uuidToBuffer } from '../../src/db';
 import { toWireError } from '../../src/errors';
-import { InProcessQueue, setQueueProvider } from '../../src/providers';
+import {
+  createLocalSecretsProvider,
+  InProcessQueue,
+  setQueueProvider,
+  setSecretsProvider,
+} from '../../src/providers';
 import {
   applyChartTemplate,
   createAccount,
@@ -209,6 +214,13 @@ import {
  */
 import { getAging } from '../../src/modules/reports/aging.service';
 import { getInboundEmailAddress } from '../../src/modules/orgs';
+import {
+  connectProcessor,
+  deactivateProcessorConnection,
+  getProcessorConnection,
+  listProcessorConnections,
+  reactivateProcessorConnection,
+} from '../../src/modules/payments-processing';
 import { getControlAccounts, updateControlAccounts } from '../../src/modules/settings';
 import {
   archiveTaxRate,
@@ -333,11 +345,21 @@ const db = useServiceDatabase();
 // `startBankStatementImport` enqueues (D-47). A queue with no handler in this process
 // drops the job (and logs it) rather than reaching for a process config these
 // service-layer tests never load, so the row reaches its gate and returns cleanly.
+//
+// `connectProcessor` (OB-150) writes through the secrets provider (D-101). Installed
+// directly, the way the queue above is, rather than through `getConfig()` — a
+// throwaway `local` adapter and encryption key, for `setEmailProvider`'s reason in
+// `test/members/support.ts`: this file's process-wide config is never resolved for
+// its own sake.
 beforeAll(() => {
   setQueueProvider(new InProcessQueue(silentLogger));
+  setSecretsProvider(
+    createLocalSecretsProvider({ provider: 'local', encryptionKey: 'k'.repeat(32) }),
+  );
 });
 afterAll(() => {
   setQueueProvider(undefined);
+  setSecretsProvider(undefined);
 });
 
 // `inviteMember` sends. The real `log` adapter over a capture stream, because a
@@ -363,11 +385,12 @@ const ROLES = [
  * database by construction can never disagree with it. This table is the claim; the
  * database is what it is checked against.
  *
- * Forty-eight rows, because forty-eight of the catalog's fifty-one codes are
- * checked by a service. The other three are `LATENT_GRANTS` below. Eighteen arrived
- * with M3 and are marked, three with INV (branding + `invoices.send`), and five with
- * M5 (OB-104: `agents.review`, `api_keys.read`, `api_keys.write`, `integrations.read`,
- * `integrations.write`); every one of them is a role widened by a service rather than
+ * Fifty rows, because fifty of the catalog's fifty-three codes are checked by a
+ * service. The other three are `workflows.*` — see `LATENT_GRANTS` below. Eighteen
+ * arrived with M3 and are marked, three with INV (branding + `invoices.send`), five
+ * with M5 (OB-104: `agents.review`, `api_keys.read`, `api_keys.write`,
+ * `integrations.read`, `integrations.write`), and two with OB-150 (`processing.read`,
+ * `processing.write`); every one of them is a role widened by a service rather than
  * by a migration (C11, known gap 6).
  */
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
@@ -495,6 +518,17 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'api_keys.write': ['owner'],
   'integrations.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'integrations.write': ['owner'],
+
+  /**
+   * Payment integration (OB-150) — the two codes `connections.service.ts` now
+   * enforces, read straight off the `LATENT_GRANTS` rows they moved out of, the
+   * same way the M5 block above was: `processing.read` was on owner, bookkeeper,
+   * readOnly and approver (the `%.read` bundle); `processing.write` was on owner
+   * alone — bookkeeper is excluded from it by name, the same administration
+   * exclusion `integrations.write` carries (D-101). No migration ran.
+   */
+  'processing.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'processing.write': ['owner'],
 };
 
 /**
@@ -526,33 +560,20 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
  */
 const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // `agents.review`, `api_keys.read`, `api_keys.write`, and `integrations.write`
-  // moved to `GRANTED_TO` this milestone (M5, OB-104). `workflows.*` stays latent
-  // until M6; `processing.*` is seeded now (initiative J, PAY) but latent until the
-  // connect/manage routes stream enforces it — the same catalog-before-enforcement
-  // pattern `agents.review` followed through M5.
-  owner: [
-    'processing.read',
-    'processing.write',
-    'workflows.activate',
-    'workflows.read',
-    'workflows.write',
-  ],
-  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone.
-  // `processing.read` is held (it matches the `%.read` bundle); `processing.write`
-  // is excluded from bookkeeper (org-administration, D-101) so it is not listed.
-  bookkeeper: ['processing.read', 'workflows.read', 'workflows.write'],
+  // moved to `GRANTED_TO` at M5 (OB-104); `processing.read`/`processing.write` moved
+  // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
+  // the same catalog-before-enforcement pattern `agents.review` followed through M5.
+  // `workflows.*` is the only family still latent, with no milestone scoped at all.
+  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
+  bookkeeper: ['workflows.read', 'workflows.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
   // code it is missing was never in its bundle to begin with.
   apOnly: [],
   arOnly: [],
-  // `integrations.read` moved to `GRANTED_TO` this milestone; `processing.read`
-  // arrives latent (the `%.read` bundle picks it up), enforced by PAY's routes.
-  readOnly: ['processing.read', 'workflows.read'],
-  // `agents.review` and `integrations.read` moved to `GRANTED_TO` this milestone;
-  // `processing.read` is latent here for the same reason as `readOnly`.
-  approver: ['processing.read', 'workflows.read'],
+  readOnly: ['workflows.read'],
+  approver: ['workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -623,6 +644,14 @@ interface Scene {
   readonly clearedStatementLineId: string;
   /** A ledger account with no bank account yet, for `createBankAccount` to register. */
   readonly registrableBankLedgerAccountId: string;
+  /**
+   * A `fake` processor connection, for `getProcessorConnection`,
+   * `deactivateProcessorConnection`, and `reactivateProcessorConnection` (OB-150).
+   * Connected by Owner (`setup`), the way `bankAccountId` is built — the setup
+   * context is always Owner regardless of the role under test, so a role that
+   * cannot connect a processor still has one to be refused against.
+   */
+  readonly processorConnectionId: string;
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
@@ -2254,6 +2283,53 @@ const OPERATIONS: readonly Operation[] = [
     thenRequires: ['journals.post'],
     call: (s) => rejectProposal(newUuid(), s.ctx),
   },
+
+  // ---------------------------------------------------------------------------
+  // Payment integration (OB-150) — the five `connections.service.ts` operations.
+  // Follows `bank-accounts.service.ts`'s connect/list/get/deactivate/reactivate
+  // shape (that file's own header): `processing.write` gates connecting and the
+  // two lifecycle writes, `processing.read` gates the two reads.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'connectProcessor',
+    operationId: 'connectProcessor',
+    permission: 'processing.write',
+    call: (s) =>
+      connectProcessor(
+        {
+          processor: 'fake',
+          clearingAccountId: s.revenueId,
+          feeAccountId: s.expenseId,
+          secretKey: 'sk_test_row',
+          webhookSecret: 'whsec_row',
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listProcessorConnections',
+    operationId: 'listProcessorConnections',
+    permission: 'processing.read',
+    call: (s) => listProcessorConnections(s.ctx),
+  },
+  {
+    name: 'getProcessorConnection',
+    operationId: 'getProcessorConnection',
+    permission: 'processing.read',
+    call: (s) => getProcessorConnection(s.processorConnectionId, s.ctx),
+  },
+  {
+    name: 'deactivateProcessorConnection',
+    operationId: 'deactivateProcessorConnection',
+    permission: 'processing.write',
+    call: (s) => deactivateProcessorConnection(s.processorConnectionId, s.ctx),
+  },
+  {
+    name: 'reactivateProcessorConnection',
+    operationId: 'reactivateProcessorConnection',
+    permission: 'processing.write',
+    call: (s) => reactivateProcessorConnection(s.processorConnectionId, s.ctx),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -2329,6 +2405,13 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   // `authorizeRequest` resolves the client through the caller's own org, so cross-org holds
   // without a permission row.
   'getOAuthAuthorizationDetails',
+  // Payment integration (OB-150): the hosted invoice page's pay-link button, the same
+  // capability-token shape as the public-invoice pair above — see `public-pay-link.ts`.
+  'createPublicPayLink',
+  // The processor webhook (OB-148): no session at all, `:connectionId` resolves the org
+  // and the delivery's own signature is the authorization, not a permission — see
+  // `processing-webhook.ts`.
+  'receiveProcessorWebhook',
 ]);
 
 /**
@@ -2704,6 +2787,28 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     normalBalance: 'debit',
   });
 
+  // --- OB-150 payment-processor fixture ---
+  //
+  // `revenue`/`expense` are nominated rather than dedicated accounts, the same way
+  // `arLine`/`apLine` reuse them below — `connectProcessor` only reads whether an
+  // account is active, so there is nothing for a fresh pair to prove that these two
+  // do not already. `uq_processor_connections_org_processor` allows one `fake`
+  // connection per org, which this scene fixture is; the `connectProcessor` row in
+  // `OPERATIONS` nominates the same processor again, so a permitted caller's attempt
+  // reaches `processor_already_connected` rather than a second row — a business-rule
+  // refusal downstream of the gate, not a `permission_denied`, so it still reads
+  // `allowed` (the same trade-off every fixture-collision row in this file makes).
+  const processorConnection = await connectProcessor(
+    {
+      processor: 'fake',
+      clearingAccountId: revenue.uuid,
+      feeAccountId: expense.uuid,
+      secretKey: 'sk_test_fixture',
+      webhookSecret: 'whsec_fixture',
+    },
+    setup,
+  );
+
   return {
     ...subledger,
     openReconciliationSessionId: openSessionUuid,
@@ -2713,6 +2818,7 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     statementLineId: statementLineUuid,
     clearedStatementLineId: clearedLineUuid,
     registrableBankLedgerAccountId: registrable.uuid,
+    processorConnectionId: processorConnection.id,
     receivableId: receivable.uuid,
     payableId: payable.uuid,
     expenseId: expense.uuid,
@@ -3181,12 +3287,13 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // Thirty-one before M3, thirteen after it. M4 wired the banking codes over three
     // waves — `banking.import`/`banking.read` (eleven), `banking.match` (ten), then
     // `banking.reconcile`/`banking.reopen` (eight) — leaving only the M5/M6 codes and
-    // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, leaving only
+    // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, and OB-150
+    // (initiative J, PAY) wired `processing.read`/`processing.write` the moment
+    // `connections.service.ts` enforced them, leaving only
     // `workflows.activate`/`workflows.read`/`workflows.write` (M6). This number is
     // the only place the count is asserted rather than described, so it moves once
-    // per wave that wires a code. Initiative J (PAY) seeds `processing.read`/
-    // `processing.write` ahead of the routes that enforce them, taking it to five.
-    expect(latent).toHaveLength(5);
+    // per wave that wires a code.
+    expect(latent).toHaveLength(3);
   });
 
   /**

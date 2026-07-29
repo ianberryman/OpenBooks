@@ -1,5 +1,5 @@
 import type { LightMyRequestResponse } from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { runInContext } from '../../src/context';
 import { newUuid, uuidToBuffer } from '../../src/db';
@@ -8,7 +8,11 @@ import { getAccount } from '../../src/modules/accounts';
 import { reverseJournal } from '../../src/modules/ledger';
 import { OWNER_ROLE_ID, resolveOrgMembership } from '../../src/modules/orgs';
 import { getPeriod } from '../../src/modules/periods';
-import { storageProvider } from '../../src/providers';
+import {
+  createLocalSecretsProvider,
+  setSecretsProvider,
+  storageProvider,
+} from '../../src/providers';
 import { generateOpenApiDocument } from '../../src/transport';
 import type { App } from '../../src/transport';
 import type { Session } from '../transport/v1-support';
@@ -40,6 +44,20 @@ import { contextFor } from './support';
  * nowhere in the response.
  */
 const harness = useV1App();
+
+// `connectProcessor` (OB-150) writes through the secrets provider (D-101), which
+// `useV1App` does not install — installed directly here, the way its own storage and
+// email adapters are, rather than through `getConfig()`: a throwaway `local` adapter
+// and encryption key, since this file's process-wide config is never resolved for
+// its own sake.
+beforeAll(() => {
+  setSecretsProvider(
+    createLocalSecretsProvider({ provider: 'local', encryptionKey: 'k'.repeat(32) }),
+  );
+});
+afterAll(() => {
+  setSecretsProvider(undefined);
+});
 
 /** A syntactically valid id that belongs to nobody. Fixed, so a failure is reproducible. */
 const NOWHERE = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
@@ -146,6 +164,13 @@ interface Scene {
   readonly oauthClientPublicId: string;
   readonly approvableProposalId: string;
   readonly rejectableProposalId: string;
+
+  /**
+   * Payment integration (OB-150): a `fake` processor connection, for
+   * `getProcessorConnection`/`deactivateProcessorConnection`/
+   * `reactivateProcessorConnection` to answer about across orgs.
+   */
+  readonly processorConnectionId: string;
 }
 
 /**
@@ -318,6 +343,22 @@ async function scene(app: App): Promise<Scene> {
   const approvableProposalId = await created('proposal-approve', '/v1/journal-drafts', proposal);
   const rejectableProposalId = await created('proposal-reject', '/v1/journal-drafts', proposal);
 
+  // Payment integration (OB-150): a `fake` connection, nominating the two accounts
+  // the scene already built rather than dedicated ones — `connectProcessor` only
+  // checks that an account is active, so there is nothing a fresh pair would prove
+  // that `accountId`/`revenueId` do not already.
+  const processorConnectionId = await created(
+    'processor-connection',
+    '/v1/processing/connections',
+    {
+      processor: 'fake',
+      clearingAccountId: revenueId,
+      feeAccountId: accountId,
+      secretKey: 'sk_test_a7_fixture',
+      webhookSecret: 'whsec_a7_fixture',
+    },
+  );
+
   return {
     owner,
     stranger,
@@ -338,6 +379,7 @@ async function scene(app: App): Promise<Scene> {
     oauthClientPublicId,
     approvableProposalId,
     rejectableProposalId,
+    processorConnectionId,
     ...subledger,
     ...banking,
     ...captures,
@@ -1650,6 +1692,34 @@ const SURFACES: readonly Surface[] = [
     path: '/v1/agent-proposals/%s/reject',
     id: (s) => s.rejectableProposalId,
   },
+
+  // ---------------------------------------------------------------------------
+  // Payment integration (OB-150): the three operations whose id travels in the
+  // path. `connectProcessor`/`listProcessorConnections` carry no resource id and
+  // are not surfaces here, the same reason `createReconciliationSession` above is
+  // not one.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getProcessorConnection',
+    method: 'GET',
+    path: '/v1/processing/connections/%s',
+    id: (s) => s.processorConnectionId,
+  },
+  // Deactivate before reactivate, on the one connection: both are judged only on
+  // not being a `404`, `deactivateBankAccount`/`reactivateBankAccount`'s reason above.
+  {
+    operationId: 'deactivateProcessorConnection',
+    method: 'POST',
+    path: '/v1/processing/connections/%s/deactivate',
+    id: (s) => s.processorConnectionId,
+  },
+  {
+    operationId: 'reactivateProcessorConnection',
+    method: 'POST',
+    path: '/v1/processing/connections/%s/reactivate',
+    id: (s) => s.processorConnectionId,
+  },
 ];
 
 /** What every row must report. Deviations are the leak. */
@@ -1789,10 +1859,20 @@ describe('A7 across every surface that takes a resource id', () => {
     // `receiveInboundBill`'s `{token}` is the same shape one milestone over: the org's
     // inbound-capture mailbox address, resolved by `resolveOrgIdForInboundToken` before
     // any org context exists, never a resource id inside one.
+    //
+    // Payment integration (OB-150) adds two more, one of each kind. `createPublicPayLink`'s
+    // `{token}` is the identical hosted-invoice capability token the pair above carry —
+    // `public-pay-link.ts`'s own header says so. `receiveProcessorWebhook`'s `{connectionId}`
+    // is not a secret (that file's header is explicit: the delivery's own signature is the
+    // authorization, not this path segment) but carries no caller session either — there is
+    // no stranger-versus-owner axis to run the SURFACES matrix over, so it is excluded here
+    // for the same practical reason as the token-gated three, not because it is one of them.
     const tokenGatedPublicOperations = new Set([
       'getPublicInvoiceView',
       'getPublicInvoicePdf',
       'receiveInboundBill',
+      'createPublicPayLink',
+      'receiveProcessorWebhook',
     ]);
     const templated = Object.entries(document.paths)
       .filter(([path]) => path.includes('{'))

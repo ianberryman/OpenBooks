@@ -98,7 +98,7 @@ const processorWebhookResultSchema = z
         '`duplicate` for a redelivery already on file (F9); `ignored` for an event kind this ' +
         'connection takes no action on (a standalone `fee`, folded into its charge, D-104); ' +
         '`failed` when the signature verified but posting then failed — recorded, not retried by ' +
-        'this response (see `webhook.service.ts`\'s header for why a failure here is not a 5xx).',
+        "this response (see `webhook.service.ts`'s header for why a failure here is not a 5xx).",
     }),
   })
   .meta({ id: 'ProcessorWebhookResult' });
@@ -140,9 +140,7 @@ export function registerProcessingWebhookRoutes(app: App): void {
         },
       },
       async (request) => {
-        const lookup = await selectProcessorConnectionOrgAndProcessor(
-          request.params.connectionId,
-        );
+        const lookup = await selectProcessorConnectionOrgAndProcessor(request.params.connectionId);
         if (lookup === undefined) throw new NotFoundError('processor_connection');
 
         const signatureHeaderName = SIGNATURE_HEADER_BY_PROCESSOR[lookup.processor];

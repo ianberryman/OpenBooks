@@ -65,10 +65,16 @@ import {
 import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/modules/reports';
 // Not through `modules/reports`' index — OB-065 never exported it and OB-067 did
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
+import { connectProcessor } from '../../src/modules/payments-processing';
 import { getAging } from '../../src/modules/reports/aging.service';
 import { updateControlAccounts } from '../../src/modules/settings';
 import { createTaxRate, updateTaxRate } from '../../src/modules/tax';
-import { InProcessQueue, setQueueProvider } from '../../src/providers';
+import {
+  createLocalSecretsProvider,
+  InProcessQueue,
+  setQueueProvider,
+  setSecretsProvider,
+} from '../../src/providers';
 import { generateOpenApiDocument } from '../../src/transport';
 import { silentLogger } from '../banking/support';
 import { newUuid } from '../db';
@@ -105,12 +111,18 @@ import { contextFor } from './support';
 const db = useServiceDatabase();
 
 // `startImport` enqueues; a queue with no handler drops the job rather than reaching a
-// process config these service-layer tests never load.
+// process config these service-layer tests never load. `connectProcessor` (OB-150)
+// writes through the secrets provider (D-101), installed directly for the same
+// reason — a throwaway `local` adapter, rather than reaching `getConfig()`.
 beforeAll(() => {
   setQueueProvider(new InProcessQueue(silentLogger));
+  setSecretsProvider(
+    createLocalSecretsProvider({ provider: 'local', encryptionKey: 'k'.repeat(32) }),
+  );
 });
 afterAll(() => {
   setQueueProvider(undefined);
+  setSecretsProvider(undefined);
 });
 
 captureEmail();
@@ -2196,6 +2208,48 @@ const REFERENCES: readonly Reference[] = [
         s.caller.ctx,
       ),
   },
+
+  // ---------------------------------------------------------------------------
+  // Payment integration (OB-150). `connectProcessor` nominates two existing ledger
+  // accounts (D-23, D-103); each is checked with `assertActiveAccount` in turn, so a
+  // cross-org value on either field 404s before the other is even read — the same
+  // `createBankAccount`/`createReconciliationSession` shape above. The other field
+  // is pinned to a real account of the caller's own, `recordPayment`'s two-field
+  // rows' reason.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'connectProcessor',
+    field: 'clearingAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      connectProcessor(
+        {
+          processor: 'fake',
+          clearingAccountId: id,
+          feeAccountId: s.caller.expenseId,
+          secretKey: 'sk_test_b11',
+          webhookSecret: 'whsec_b11',
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'connectProcessor',
+    field: 'feeAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      connectProcessor(
+        {
+          processor: 'fake',
+          clearingAccountId: s.caller.accountId,
+          feeAccountId: id,
+          secretKey: 'sk_test_b11',
+          webhookSecret: 'whsec_b11',
+        },
+        s.caller.ctx,
+      ),
+  },
 ];
 
 /**
@@ -2315,6 +2369,14 @@ const EXEMPT: Readonly<Record<string, string>> = {
    * sibling already proves.
    */
   'getOAuthAuthorizationDetails.clientId': 'proven directly in platform-security.test.ts (F10)',
+  /**
+   * Payment integration (OB-150). `externalAccountId` is the processor's own id for
+   * the connected account (Stripe's account id, Square's location id) — a free
+   * string held so a poll or a webhook can be checked against the account it
+   * arrived on, `externalAccountId`'s reason above applied to a processor instead
+   * of a bank feed. It names no OpenBooks row, so there is no cross-org read to make.
+   */
+  'connectProcessor.externalAccountId': 'a free-text processor identifier, not a tenant row',
 };
 
 /** What every row must report. Anything else is the leak. */

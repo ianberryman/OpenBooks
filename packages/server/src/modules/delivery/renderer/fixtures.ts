@@ -88,6 +88,8 @@ const fullView: PublicInvoiceView = {
     invoiceFooter: 'Acme Supplies Limited — Company No. 01234567 — VAT GB123456789',
   },
   pdfUrl: 'https://books.example.test/public/invoices/abcd1234.secret-token/pdf',
+  // Rendering fixtures predate the pay-link; the PDF never shows a Pay button.
+  payable: false,
 };
 
 export function fullInvoiceRenderInput(): InvoiceRenderInput {
@@ -131,6 +133,7 @@ const minimalView: PublicInvoiceView = {
     invoiceFooter: null,
   },
   pdfUrl: 'https://books.example.test/public/invoices/wxyz9876.secret-token/pdf',
+  payable: false,
 };
 
 export function minimalInvoiceRenderInput(): InvoiceRenderInput {

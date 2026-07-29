@@ -274,6 +274,12 @@ describe('the /v1 route table', () => {
         'listProposals',
         'approveProposal',
         'rejectProposal',
+        // Payment integration (OB-150).
+        'connectProcessor',
+        'listProcessorConnections',
+        'getProcessorConnection',
+        'deactivateProcessorConnection',
+        'reactivateProcessorConnection',
       ]),
     );
   });

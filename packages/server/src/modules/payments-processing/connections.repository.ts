@@ -139,10 +139,7 @@ export async function selectConnectionByProcessor(
     .executeTakeFirst();
 }
 
-export async function insertConnection(
-  db: TenantDatabase,
-  input: NewConnectionRow,
-): Promise<void> {
+export async function insertConnection(db: TenantDatabase, input: NewConnectionRow): Promise<void> {
   await db
     .insertInto('processor_connections')
     .values({

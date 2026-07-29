@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/invoices/{token}/pay-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a hosted-checkout session for this invoice, unauthenticated
+         * @description Opens a processor-hosted checkout session for the invoice a hosted-page token names, and returns the URL to send the customer to (D-83) — never a page of OpenBooks’ own. An unknown, malformed or never-issued token is the same `404` `GET /public/invoices/{token}` gives it. An org with no active processor connection is `409 no_processor_connected`: nowhere exists to send this payment yet.
+         */
+        post: operations["createPublicPayLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/invoices/{token}/pdf": {
         parameters: {
             query?: never;
@@ -58,6 +78,26 @@ export interface paths {
         get: operations["getPublicInvoicePdf"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/processing/{connectionId}/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbound payment-processor webhook (Stripe, Square, or fake)
+         * @description No session: the `:connectionId` path segment resolves the org, and the delivery’s own signature (verified against that connection’s stored webhook secret) is the entire authorization (D-85). Deduped two ways — `processor_events` on the delivery’s own event id (F9), `external_refs` on the charge/refund/payout object id — so a redelivery or a poll re-reporting the same object both collapse to one write. Does **not** require an `Idempotency-Key`: Stripe/Square do not send one, and the processor’s own event id is this endpoint’s idempotency anchor instead.
+         */
+        post: operations["receiveProcessorWebhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2176,6 +2216,87 @@ export interface paths {
          * @description Posts a reversing journal and **deletes the allocations this payment made** — the money did not move, so nothing it settled is settled, and outstanding is a sum over those rows rather than a column anyone could correct. The payment itself stays visible with both journals (D-16). The reversal takes its own `date`, which must fall in an open period.
          */
         post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List payment-processor connections
+         * @description Every connection the org holds, active and inactive, oldest first. Not a paged collection — see this file’s header for why.
+         */
+        get: operations["listProcessorConnections"];
+        put?: never;
+        /**
+         * Connect a payment processor
+         * @description Wires a Stripe or Square account to two existing ledger accounts — a clearing account a charge settles into immediately, and a fee account the processor’s cut posts to (D-82, D-103). `secretKey` and `webhookSecret` are inbound-only: this response, and every later read of this connection, never carries either one back out (D-83). One connection per processor per org — connecting a second one for the same processor is `processor_already_connected`; reconnecting a deactivated one is `POST .../reactivate`, never a second call here.
+         */
+        post: operations["connectProcessor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/connections/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One payment-processor connection */
+        get: operations["getProcessorConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/connections/{connectionId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a payment-processor connection out of circulation
+         * @description The webhook and the D-85 poll stop writing new payments through this connection; every payment already recorded stays exactly as posted. Idempotent: an already-inactive connection is returned unchanged rather than refused.
+         */
+        post: operations["deactivateProcessorConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/connections/{connectionId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a payment-processor connection back into service
+         * @description The only way back in (D-103) — never a second `connectProcessor`, which `processor_already_connected` would refuse. Idempotent: an already-active connection is returned unchanged rather than refused.
+         */
+        post: operations["reactivateProcessorConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7065,6 +7186,20 @@ export interface components {
             /** @description A saved mapping to read the file with. CSV only, and exclusive with `mapping`. */
             mappingId?: string | null;
         };
+        ProcessorWebhookResult: {
+            /**
+             * @description `duplicate` for a redelivery already on file (F9); `ignored` for an event kind this connection takes no action on (a standalone `fee`, folded into its charge, D-104); `failed` when the signature verified but posting then failed — recorded, not retried by this response (see `webhook.service.ts`'s header for why a failure here is not a 5xx).
+             * @enum {string}
+             */
+            status: "processed" | "ignored" | "duplicate" | "failed";
+        };
+        ProcessorWebhookResultInput: {
+            /**
+             * @description `duplicate` for a redelivery already on file (F9); `ignored` for an event kind this connection takes no action on (a standalone `fee`, folded into its charge, D-104); `failed` when the signature verified but posting then failed — recorded, not retried by this response (see `webhook.service.ts`'s header for why a failure here is not a 5xx).
+             * @enum {string}
+             */
+            status: "processed" | "ignored" | "duplicate" | "failed";
+        };
         /** @description Revenue and expense over a date range, with hierarchy subtotals and net income. Amounts are signed to their section — positive revenue is earned, positive expense is spent — and no comparative period is included; run the report twice to compare two ranges. */
         ProfitAndLoss: {
             /**
@@ -8654,6 +8789,8 @@ export interface operations {
                             unitAmount: components["schemas"]["MinorUnits"];
                         }[];
                         memo: string | null;
+                        /** @description Whether the org has an active payment-processor connection (OB-150). `false` means the "Pay now" button has nowhere to send a customer — the hosted page hides it rather than opening a checkout session `POST /public/invoices/{token}/pay-link` would refuse. */
+                        payable: boolean;
                         /** @description The `/public/invoices/{token}/pdf` link, carrying the same capability token as this page. */
                         pdfUrl: string;
                         /** @description The customer’s own reference — their purchase-order number, when they gave one. */
@@ -8665,6 +8802,44 @@ export interface operations {
                             taxRateName: string | null;
                         }[];
                         totals: components["schemas"]["DocumentTotals"];
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createPublicPayLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The hosted invoice page’s capability token, the same one `GET /public/invoices/{token}` verifies (D-74). No session, no permission — this token is the whole authorization. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pay-link on the hosted invoice page: the processor’s own hosted-checkout URL, reused from the invoice-delivery capability token (`delivery/delivery.ts`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uri
+                         * @description The processor’s own hosted-checkout URL (D-83). The customer enters card details there, never on an OpenBooks page.
+                         */
+                        url: string;
                     };
                 };
             };
@@ -8691,6 +8866,38 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    receiveProcessorWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The processor connection this delivery is for. An unknown or malformed id is a `404` — the request’s own signature, verified against this connection’s webhook secret, is the actual authorization (D-85), not this path segment. */
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessorWebhookResult"];
+                };
+            };
             /** @description Default Response */
             default: {
                 headers: {
@@ -13791,6 +13998,295 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Payment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listProcessorConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        clearingAccountId: string;
+                        externalAccountId: string | null;
+                        /** Format: uuid */
+                        feeAccountId: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description An inactive connection stops the webhook and the poll from writing new payments through it, and keeps every payment it already recorded. */
+                        isActive: boolean;
+                        /** @description When the D-85 polling backstop last ran against this connection. */
+                        lastPolledAt: string | null;
+                        /**
+                         * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                         * @enum {string}
+                         */
+                        processor: "stripe" | "square" | "fake";
+                        publishableKey: string | null;
+                        /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
+                        reconciledThrough: string | null;
+                    }[];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    connectProcessor: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Connects a processor to two existing ledger accounts (D-103). `secretKey` and `webhookSecret` are inbound-only and never appear in any response (D-83). */
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description The ledger account a charge clears into immediately (D-82) — "invoice paid" happens here, before any payout reaches the bank.
+                     */
+                    clearingAccountId: string;
+                    /** @description The processor’s own id for the connected account, if it assigns one. */
+                    externalAccountId?: string;
+                    /**
+                     * Format: uuid
+                     * @description The ledger account the per-charge fee posts to (D-104/D-84).
+                     */
+                    feeAccountId: string;
+                    /**
+                     * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                     * @enum {string}
+                     */
+                    processor: "stripe" | "square" | "fake";
+                    /** @description The processor’s public, embeddable key, if it has one (Stripe does; not a secret). */
+                    publishableKey?: string;
+                    /** @description The processor’s secret API key. Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83). */
+                    secretKey: string;
+                    /** @description The signing secret the webhook receiver verifies inbound events against (D-85). Inbound-only, for `secretKey`’s reason. */
+                    webhookSecret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A payment-processor connection as the API returns it — never carrying `secretKey` or `webhookSecret` (D-83). See this module’s header for why there is no with-secret counterpart. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        clearingAccountId: string;
+                        externalAccountId: string | null;
+                        /** Format: uuid */
+                        feeAccountId: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description An inactive connection stops the webhook and the poll from writing new payments through it, and keeps every payment it already recorded. */
+                        isActive: boolean;
+                        /** @description When the D-85 polling backstop last ran against this connection. */
+                        lastPolledAt: string | null;
+                        /**
+                         * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                         * @enum {string}
+                         */
+                        processor: "stripe" | "square" | "fake";
+                        publishableKey: string | null;
+                        /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
+                        reconciledThrough: string | null;
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getProcessorConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A payment-processor connection as the API returns it — never carrying `secretKey` or `webhookSecret` (D-83). See this module’s header for why there is no with-secret counterpart. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        clearingAccountId: string;
+                        externalAccountId: string | null;
+                        /** Format: uuid */
+                        feeAccountId: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description An inactive connection stops the webhook and the poll from writing new payments through it, and keeps every payment it already recorded. */
+                        isActive: boolean;
+                        /** @description When the D-85 polling backstop last ran against this connection. */
+                        lastPolledAt: string | null;
+                        /**
+                         * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                         * @enum {string}
+                         */
+                        processor: "stripe" | "square" | "fake";
+                        publishableKey: string | null;
+                        /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
+                        reconciledThrough: string | null;
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateProcessorConnection: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A payment-processor connection as the API returns it — never carrying `secretKey` or `webhookSecret` (D-83). See this module’s header for why there is no with-secret counterpart. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        clearingAccountId: string;
+                        externalAccountId: string | null;
+                        /** Format: uuid */
+                        feeAccountId: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description An inactive connection stops the webhook and the poll from writing new payments through it, and keeps every payment it already recorded. */
+                        isActive: boolean;
+                        /** @description When the D-85 polling backstop last ran against this connection. */
+                        lastPolledAt: string | null;
+                        /**
+                         * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                         * @enum {string}
+                         */
+                        processor: "stripe" | "square" | "fake";
+                        publishableKey: string | null;
+                        /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
+                        reconciledThrough: string | null;
+                    };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reactivateProcessorConnection: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A payment-processor connection as the API returns it — never carrying `secretKey` or `webhookSecret` (D-83). See this module’s header for why there is no with-secret counterpart. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        clearingAccountId: string;
+                        externalAccountId: string | null;
+                        /** Format: uuid */
+                        feeAccountId: string;
+                        /** Format: uuid */
+                        id: string;
+                        /** @description An inactive connection stops the webhook and the poll from writing new payments through it, and keeps every payment it already recorded. */
+                        isActive: boolean;
+                        /** @description When the D-85 polling backstop last ran against this connection. */
+                        lastPolledAt: string | null;
+                        /**
+                         * @description Which processor this connection talks to. `fake` is a real, deterministic implementation the gate exercises in place of a network call (D-102), not a placeholder value.
+                         * @enum {string}
+                         */
+                        processor: "stripe" | "square" | "fake";
+                        publishableKey: string | null;
+                        /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
+                        reconciledThrough: string | null;
+                    };
                 };
             };
             /** @description Default Response */
