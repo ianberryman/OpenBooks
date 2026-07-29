@@ -46,6 +46,7 @@ import {
   PENDING_PAYMENT_RESOURCE,
   orgScope,
   pendingPaymentIdBytes,
+  selectBankAccountById,
   selectPendingPaymentByIdForUpdate,
   selectPendingPaymentIntents,
   selectPendingPaymentWithVendor,
@@ -135,6 +136,14 @@ export async function issuePendingPayment(
       amount: intent.pay_amount_minor.toString(),
     }));
 
+    // `recordPayment` credits a *ledger* account, so the bank account's nominated
+    // chart account (D-46) is resolved here — `pending.bank_account_id` is a
+    // `bank_accounts.id` (registration metadata), never the `accounts.id` the journal
+    // touches. The FK guarantees the row exists, so a miss is a fault, not a refusal.
+    const bankAccount =
+      (await selectBankAccountById(trx, pending.bank_account_id)) ??
+      raiseInternal('The pending payment names a bank account that does not exist.');
+
     // The journal, the payAmount allocations, and `payments_made.write` all live in
     // `recordPayment` — called, never re-implemented (the file header explains why
     // it may safely join this transaction).
@@ -144,7 +153,7 @@ export async function issuePendingPayment(
         contactId,
         date: request.date,
         amount: totalAmount.toString(),
-        accountId: bufferToUuid(pending.bank_account_id),
+        accountId: bufferToUuid(bankAccount.account_id),
         reference,
         memo: pending.memo,
         allocations,

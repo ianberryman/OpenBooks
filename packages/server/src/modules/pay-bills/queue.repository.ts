@@ -406,8 +406,16 @@ export async function committedTotals(
 export async function selectBankAccountById(
   db: TenantDatabase,
   id: Buffer,
-): Promise<{ readonly id: Buffer } | undefined> {
-  return db.selectFrom('bank_accounts').select('id').where('id', '=', id).executeTakeFirst();
+): Promise<{ readonly id: Buffer; readonly account_id: Buffer } | undefined> {
+  // `account_id` is the nominated ledger asset account (D-46): a `bank_accounts` row
+  // is import/registration metadata pointing at a real chart account, and it is that
+  // ledger account — never the `bank_accounts.id` — that a payment's journal credits.
+  // Issue resolves it here so `recordPayment` receives an `accounts.id`.
+  return db
+    .selectFrom('bank_accounts')
+    .select(['id', 'account_id'])
+    .where('id', '=', id)
+    .executeTakeFirst();
 }
 
 /** One bill candidate for the Pay Bills window, before the computed columns. */
