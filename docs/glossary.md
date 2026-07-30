@@ -10,10 +10,10 @@ relevant doc is linked.
 **Journal** — one balanced double-entry transaction: a header plus two or more lines whose debits
 equal credits. Append-only. See [Ledger kernel](architecture/ledger-kernel.md).
 
-**Journal line** — one side of a journal: a debit *or* a credit against one account, a positive
+**Journal line** — one side of a journal: a debit _or_ a credit against one account, a positive
 amount. One-sided by CHECK constraint.
 
-**Reversing entry** — the *only* way to correct a posted journal: a new journal with every line's
+**Reversing entry** — the _only_ way to correct a posted journal: a new journal with every line's
 debit/credit swapped and `reverses_journal_id` set. There is no edit or delete.
 
 **Double-entry** — every transaction affects at least two accounts and always balances. The invariant
@@ -34,13 +34,13 @@ total must agree with the control account (spec §11).
 **Trial balance** — every account's balance at a point in time; total debits equal total credits. The
 **oracle** every property test checks against. See [Reporting](features/reporting-and-tax.md).
 
-**Fiscal period** — an accounting calendar span. Posting into a *locked* period is refused. See
+**Fiscal period** — an accounting calendar span. Posting into a _locked_ period is refused. See
 [Foundation → periods](features/foundation.md#periods--the-accounting-calendar-and-the-posting-gate).
 
 **Accrual vs cash basis** — accrual recognises revenue/expense when earned/incurred; cash basis when
 money moves. The org picks a default reporting basis.
 
-**AR / AP** — Accounts Receivable (owed *to* you, invoices) / Accounts Payable (owed *by* you, bills).
+**AR / AP** — Accounts Receivable (owed _to_ you, invoices) / Accounts Payable (owed _by_ you, bills).
 
 **Allocation** — applying a payment, credit note, or discount against a document to reduce what's
 outstanding. Posts no journal of its own (both sides already exist). See
@@ -97,7 +97,7 @@ by config, with a zero-dependency self-host default and a hosted adapter. See
 **Role (permission role)** — a named bundle of permissions a member holds in an org (owner,
 bookkeeper, ap_only, …).
 
-**Capability token** — a bearer secret that *is* the whole authorization for a resource, with no
+**Capability token** — a bearer secret that _is_ the whole authorization for a resource, with no
 session — e.g. the hosted-invoice page's per-delivery token.
 
 **Draft** — a mutable, pre-posting journal workspace: in no report, no sequence number, no period. The

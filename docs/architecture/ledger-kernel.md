@@ -14,7 +14,7 @@ Source: `packages/server/src/modules/ledger/`.
 ## What a journal is
 
 A **journal** is one balanced double-entry transaction. It has a header (`journals`) and two or more
-lines (`journal_lines`). Each line is one-sided — a debit *or* a credit, a positive amount — and the
+lines (`journal_lines`). Each line is one-sided — a debit _or_ a credit, a positive amount — and the
 debits must equal the credits.
 
 ```mermaid
@@ -52,7 +52,7 @@ There is **no stored balance and no stored status** anywhere. A document's outst
 
 The application connects to MySQL as **`openbooks_app`**. That user is granted `SELECT` and `INSERT`
 database-wide, and `UPDATE`/`DELETE` **only** on an explicit allowlist of mutable tables. The
-journal tables are *not* on that allowlist.
+journal tables are _not_ on that allowlist.
 
 ```mermaid
 flowchart LR
@@ -63,7 +63,7 @@ flowchart LR
     MIG["openbooks_migrator<br/>(migrate role only)"] -->|"ALL + GRANT OPTION"| J
 ```
 
-This is not "the app promises not to update journals." It is "the app *cannot* update journals — the
+This is not "the app promises not to update journals." It is "the app _cannot_ update journals — the
 grant does not exist." An `UPDATE journals …` from any code path fails at the database with a
 privilege error.
 
@@ -76,11 +76,11 @@ privilege error.
 
 Immutability is enforced at **three independent layers**, so a gap in one is caught by another:
 
-| Layer | Catches |
-| --- | --- |
-| **Database grants** (`0999_app_grants.ts`) | Any `UPDATE`/`DELETE` on journals from the running app. |
-| **Lint rule** `openbooks/no-journal-writes` | An unauthorised `INSERT` from the wrong code path (grants allow inserts; this rule confines *which file* may write them). |
-| **Reversing-entry design** | The absence of any "edit" affordance in the first place. |
+| Layer                                       | Catches                                                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Database grants** (`0999_app_grants.ts`)  | Any `UPDATE`/`DELETE` on journals from the running app.                                                                   |
+| **Lint rule** `openbooks/no-journal-writes` | An unauthorised `INSERT` from the wrong code path (grants allow inserts; this rule confines _which file_ may write them). |
+| **Reversing-entry design**                  | The absence of any "edit" affordance in the first place.                                                                  |
 
 ---
 
@@ -104,8 +104,8 @@ same journal twice is translated into a friendly conflict error rather than a du
 
 ## Only one function writes journals
 
-`posting.repository.ts` is, by lint rule and grant allowlist, *the only code in the system permitted
-to write `journals` or `journal_lines`.* It is deliberately the least clever code in the codebase —
+`posting.repository.ts` is, by lint rule and grant allowlist, _the only code in the system permitted
+to write `journals` or `journal_lines`._ It is deliberately the least clever code in the codebase —
 pure plumbing:
 
 - `allocateSequenceNumber()` — allocates the next gapless `sequence_number` (see below).
@@ -115,8 +115,8 @@ pure plumbing:
   `chk_journal_lines_one_sided` CHECK and the composite foreign keys evaluate as a unit. No
   partially-inserted journal ever exists, even transiently.
 
-Everything that makes a journal *correct* — balance validation, the period lock, actor provenance —
-lives in the layer *above* this repository, in `posting.service.ts`. That is precisely why nothing
+Everything that makes a journal _correct_ — balance validation, the period lock, actor provenance —
+lives in the layer _above_ this repository, in `posting.service.ts`. That is precisely why nothing
 else may write these tables: a second write path would skip all three checks.
 
 ---
@@ -148,7 +148,7 @@ flowchart TD
 
 Debits and credits are summed as `Money` (a branded `bigint` of minor units) — **exact, no epsilon**.
 In minor units there is nothing for a floating-point tolerance to absorb. The database CHECK
-guarantees each *line* is one-sided and positive; it cannot express the cross-row invariant that a
+guarantees each _line_ is one-sided and positive; it cannot express the cross-row invariant that a
 journal's lines sum to zero. That invariant is validated in `posting.service.ts` — and, again, is
 exactly why nothing else may write the tables.
 
@@ -162,7 +162,7 @@ locking read (`SELECT … FOR UPDATE`) so two concurrent posts don't collide on 
 But **you cannot take a locking read on `journals` itself** — MySQL requires `UPDATE`/`DELETE`/`LOCK
 TABLES` privileges alongside `SELECT` for a `FOR UPDATE`, and withholding exactly those privileges is
 how append-only-ness is enforced. So the counter lives in its **own mutable table**, `journal_sequences`,
-which the app *can* lock (decision **D-14**).
+which the app _can_ lock (decision **D-14**).
 
 ```mermaid
 flowchart LR
@@ -224,14 +224,14 @@ mechanism is what the AI `journal.propose` tool lands into.
 
 ## The acceptance criteria this kernel delivers
 
-| Criterion | Guarantee |
-| --- | --- |
-| **A3** | A journal's debits equal its credits — validated exactly in minor units. |
-| **A4** | Posting into a locked period is rejected. |
-| **A7** | A cross-org read is indistinguishable from a non-existent one (404, never 403). |
-| **A8** | A duplicate idempotency key yields exactly one journal. |
-| **A9** | A posting racing a period lock leaves no half-written journal. |
-| **A13** | Every log line carries actor provenance. |
+| Criterion | Guarantee                                                                       |
+| --------- | ------------------------------------------------------------------------------- |
+| **A3**    | A journal's debits equal its credits — validated exactly in minor units.        |
+| **A4**    | Posting into a locked period is rejected.                                       |
+| **A7**    | A cross-org read is indistinguishable from a non-existent one (404, never 403). |
+| **A8**    | A duplicate idempotency key yields exactly one journal.                         |
+| **A9**    | A posting racing a period lock leaves no half-written journal.                  |
+| **A13**   | Every log line carries actor provenance.                                        |
 
 Related reading: [Data & tenancy](data-and-tenancy.md) (the two DB users, tenant scoping),
 [Money & invariants](money-and-invariants.md) (the money primitive, idempotency, property testing).

@@ -1,6 +1,6 @@
 # Sales / Accounts Receivable
 
-Everything about money owed *to* the business: invoices and credit notes, the terms that govern when
+Everything about money owed _to_ the business: invoices and credit notes, the terms that govern when
 they're due, how they're delivered to the customer, and the automations that raise and chase them.
 
 Source: `packages/server/src/modules/{invoices,invoicing,delivery,branding,payment-terms}`.
@@ -29,7 +29,7 @@ stateDiagram-v2
   `document_sequences` (`FOR UPDATE`, gapless), and posts a balanced journal via `postJournal` — all
   in one transaction. An approved invoice debits the org's nominated **receivables control account**
   and credits revenue (and tax).
-- **Void** posts a *reversing* journal (never deletes) and is refused if allocations exist against the
+- **Void** posts a _reversing_ journal (never deletes) and is refused if allocations exist against the
   document.
 
 There is **no stored balance and no stored status** (decisions **D-34**, **D-38**). Tax and rounding
@@ -121,7 +121,7 @@ Standing instructions the **daily tick** (see [scheduling](platform-and-ai.md) /
 
 ### Recurring
 
-`recurring_invoice_templates` are materialised into real invoices each cycle through the *ordinary*
+`recurring_invoice_templates` are materialised into real invoices each cycle through the _ordinary_
 `createInvoice`/`approveInvoice` path (draft-or-approved mode). A once-per-cycle guard via
 `last_run_date` prevents double-materialisation (decision **D-76**).
 

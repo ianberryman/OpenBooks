@@ -2,7 +2,7 @@
 
 The API is the product — not the private backend of the web app. This page explains how the
 transport layer is built, why it holds no business logic, how one set of Zod schemas produces
-validation *and* types *and* the OpenAPI spec, and how permissions are enforced.
+validation _and_ types _and_ the OpenAPI spec, and how permissions are enforced.
 
 Source: `packages/server/src/transport/` and `packages/server/src/modules/permissions/`.
 
@@ -18,7 +18,7 @@ service function**, and **map the result to a status and body**. That's it.
 app.post('/v1/accounts', { schema: createAccountRouteSchema }, async (request, reply) => {
   const result = await withIdempotency(
     { endpoint: 'createAccount', request, successStatus: 201 },
-    () => createAccount(request.body),          // ← the only business call
+    () => createAccount(request.body), // ← the only business call
   );
   return reply.status(result.status).send(idempotentBody(result));
 });
@@ -62,9 +62,9 @@ sequenceDiagram
 
 - **Step 2 before step 3** so that even a rejected `Idempotency-Key` is logged with a request id.
 - **Step 3** resolves identity in a fixed priority order. A handful of "identity-establishing"
-  routes (login, register, logout, the two public-invoice routes, the artifact stream) are *exempt*
+  routes (login, register, logout, the two public-invoice routes, the artifact stream) are _exempt_
   from the throwing resolver — because the resolver throws on a stale/forged cookie, which is correct
-  for a tenant route but wrong for the routes that exist to *clear* a bad cookie. (This exact bug
+  for a tenant route but wrong for the routes that exist to _clear_ a bad cookie. (This exact bug
   once 401'd every request including login; the fix is these exemptions.)
 - Fastify's built-in request logging is disabled because it fires before the context scope exists.
 
@@ -97,12 +97,12 @@ yarn drift  =  yarn spec:check  &&  yarn client:check
 ```
 
 - **`spec:check`** regenerates `openapi.json` in-memory from the live route table (no DB or network
-  needed) and diffs it against the committed file. The generator is a *pure function* of the routes —
+  needed) and diffs it against the committed file. The generator is a _pure function_ of the routes —
   keys are recursively sorted so a harmless file split can't produce a false drift.
 - **`client:check`** regenerates the web client's `schema.d.ts` from `openapi.json` and byte-compares
   it against the committed one.
 
-The order matters: reversed, a route change would report as *client* drift instead of *spec* drift.
+The order matters: reversed, a route change would report as _client_ drift instead of _spec_ drift.
 See [Development](../guides/development.md#the-gate-yarn-check).
 
 ---
@@ -122,7 +122,7 @@ service's; the behavioural guarantee lives entirely in the idempotency module. S
 ### The catalog
 
 `PERMISSION_KEYS` (`modules/permissions/catalog.ts`) is a **closed, hand-written union** of 56
-permission keys, pinned by a type-level size assertion. It is *not* derived from the schema
+permission keys, pinned by a type-level size assertion. It is _not_ derived from the schema
 (`permissions.code` is a plain `VARCHAR`, not an enum). Drift between this list and the seeded
 `permissions` table is caught by a test asserting set-equality both ways.
 
@@ -142,19 +142,19 @@ export async function createAccount(input: CreateAccountInput) {
 
 `requirePermission(ctx, key)`:
 
-- throws `UnauthenticatedError` if the context isn't authenticated (checked *first*, so the reason
+- throws `UnauthenticatedError` if the context isn't authenticated (checked _first_, so the reason
   given is correct);
 - else throws `PermissionDeniedError(key)` if the resolved permission set lacks the key.
 
 The resolved set is **memoised per request** in a `WeakMap` keyed by the frozen context object —
-deliberately *not* a process-lifetime cache, which would keep a demoted user's old permissions until
+deliberately _not_ a process-lifetime cache, which would keep a demoted user's old permissions until
 restart. Concurrent checks within one request coalesce onto one query; a rejection evicts the entry
 so a transient DB error doesn't poison the rest of the request.
 
 ### OAuth scope narrowing
 
 An OAuth-token context carries a `scopeLimit`. The effective permission set is the **intersection**
-of the token's scope with the granting user's *current* role — recomputed per request. So a delegated
+of the token's scope with the granting user's _current_ role — recomputed per request. So a delegated
 token can never exceed its user's role, even if its stored scope is broader, and a role change or
 revocation takes effect immediately without touching a token row (decision **D-54**).
 
@@ -169,7 +169,7 @@ flowchart LR
 
 `GET /v1/auth/me` returns the caller's permission list for the UI to grey out nav items. This is
 **advisory only** (decision **D-25**) — it authorises nothing. If any code branches on it to decide
-whether to *perform* an operation, that call site is the bug. The real gate is always
+whether to _perform_ an operation, that call site is the bug. The real gate is always
 `requirePermission` in the service.
 
 ---
@@ -189,15 +189,15 @@ identical wording — the A7 indistinguishability rule, one layer up. See
 
 Not everything lives under `/v1`:
 
-| Path | What | Auth |
-| --- | --- | --- |
-| `/v1/*` | The permissioned REST API. | Session / API key / OAuth bearer. |
-| `/public/invoices/{token}` and `.../pdf` | The hosted invoice page + PDF. | A per-delivery **capability token** in the URL — the one sanctioned unauthenticated read. Resolves org → `tenantDb` from the token. |
-| `/artifacts/{key}` | Local storage adapter streams a stored file. | Identity-establishing exemption. |
-| `/oauth/authorize`, `/oauth/token`, … | The OAuth 2.1 authorization server. | The OAuth flow itself. |
-| `/mcp` | The MCP JSON-RPC host. | Same identity resolvers as REST. |
-| `/health` | Liveness. | None. |
-| `/docs` | Swagger UI over `openapi.json`. | None. |
+| Path                                     | What                                         | Auth                                                                                                                                |
+| ---------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `/v1/*`                                  | The permissioned REST API.                   | Session / API key / OAuth bearer.                                                                                                   |
+| `/public/invoices/{token}` and `.../pdf` | The hosted invoice page + PDF.               | A per-delivery **capability token** in the URL — the one sanctioned unauthenticated read. Resolves org → `tenantDb` from the token. |
+| `/artifacts/{key}`                       | Local storage adapter streams a stored file. | Identity-establishing exemption.                                                                                                    |
+| `/oauth/authorize`, `/oauth/token`, …    | The OAuth 2.1 authorization server.          | The OAuth flow itself.                                                                                                              |
+| `/mcp`                                   | The MCP JSON-RPC host.                       | Same identity resolvers as REST.                                                                                                    |
+| `/health`                                | Liveness.                                    | None.                                                                                                                               |
+| `/docs`                                  | Swagger UI over `openapi.json`.              | None.                                                                                                                               |
 
 The public invoice surface bypasses `requirePermission` by design, so it carries its own security
 review obligation. See [Security](security.md).

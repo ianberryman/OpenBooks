@@ -26,15 +26,15 @@ flowchart TB
 
 `Dockerfile` is multi-stage. The important stages:
 
-| Stage | Does |
-| --- | --- |
-| `base` | `node:22.19.0-slim` (Debian, not Alpine — glibc prebuilds for `argon2` are more reliable under `enableScripts: false`). |
-| `toolchain` | Copies only manifests, so a source edit doesn't invalidate the install layer. |
-| `deps` | `yarn install --immutable` (full, incl. devDeps — esbuild/TS are build inputs). |
-| `build` | `yarn build` at the **root** — one canonical production build (also builds the web bundle). |
-| `prod-deps` | `yarn workspaces focus @openbooks/server --production` — the server's production closure only. |
-| `runtime` | Final app image: `dist` + prod `node_modules`, runs as uid 1000, `HEALTHCHECK` hits `/health` via Node's `fetch`. `CMD ["node", "dist/server/main.js"]`. |
-| `web` | Separate `nginx:alpine` stage serving the Vite build + `infra/nginx/openbooks-web.conf`. |
+| Stage       | Does                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`      | `node:22.19.0-slim` (Debian, not Alpine — glibc prebuilds for `argon2` are more reliable under `enableScripts: false`).                                  |
+| `toolchain` | Copies only manifests, so a source edit doesn't invalidate the install layer.                                                                            |
+| `deps`      | `yarn install --immutable` (full, incl. devDeps — esbuild/TS are build inputs).                                                                          |
+| `build`     | `yarn build` at the **root** — one canonical production build (also builds the web bundle).                                                              |
+| `prod-deps` | `yarn workspaces focus @openbooks/server --production` — the server's production closure only.                                                           |
+| `runtime`   | Final app image: `dist` + prod `node_modules`, runs as uid 1000, `HEALTHCHECK` hits `/health` via Node's `fetch`. `CMD ["node", "dist/server/main.js"]`. |
+| `web`       | Separate `nginx:alpine` stage serving the Vite build + `infra/nginx/openbooks-web.conf`.                                                                 |
 
 **What's bundled:** esbuild bundles the server entrypoint to `dist/server/main.js` (ESM, `node22`,
 sourcemaps, not minified — readable stack traces matter more than bytes). A few packages are kept
@@ -69,13 +69,13 @@ flowchart LR
     API --> WEB["web / nginx :8080"]
 ```
 
-| Service | Role | Restart | Notes |
-| --- | --- | --- | --- |
-| **mysql** | — | — | Runs `docker/mysql-init/*.sql` once (creates the two DB users + grants). Published on `13307`. TCP healthcheck. |
-| **migrate** | `migrate` | `no` | The **only** service with `DATABASE_MIGRATOR_*` credentials. Runs to completion. |
-| **api** | `api` | default | Gated on `migrate` completing. Published on `3100`. |
-| **worker** | `worker` | `unless-stopped` | A clean exit is an outage — it blocks on the queue. |
-| **web** | (nginx) | default | Published on `8080`. Depends only on `api` being *started*. |
+| Service     | Role      | Restart          | Notes                                                                                                           |
+| ----------- | --------- | ---------------- | --------------------------------------------------------------------------------------------------------------- |
+| **mysql**   | —         | —                | Runs `docker/mysql-init/*.sql` once (creates the two DB users + grants). Published on `13307`. TCP healthcheck. |
+| **migrate** | `migrate` | `no`             | The **only** service with `DATABASE_MIGRATOR_*` credentials. Runs to completion.                                |
+| **api**     | `api`     | default          | Gated on `migrate` completing. Published on `3100`.                                                             |
+| **worker**  | `worker`  | `unless-stopped` | A clean exit is an outage — it blocks on the queue.                                                             |
+| **web**     | (nginx)   | default          | Published on `8080`. Depends only on `api` being _started_.                                                     |
 
 Migrations are always a **discrete job** — `api`/`worker` do not start until `migrate` exits zero.
 This is the same discipline in production: run the `migrate` role, wait for exit 0, then roll the app.
@@ -95,16 +95,16 @@ a running-but-wrong server). See [Providers & config](../architecture/providers-
 
 The categories in `.env.example`:
 
-| Category | Keys (examples) |
-| --- | --- |
-| Process | `OPENBOOKS_ROLE`, `NODE_ENV`, `LOG_LEVEL` |
-| HTTP | `HTTP_HOST`, `HTTP_PORT` (internal), `API_HOST_PORT`/`WEB_HOST_PORT` (published) |
-| Database | `DATABASE_HOST/PORT/USER/PASSWORD/NAME/POOL_SIZE`; `DATABASE_MIGRATOR_*` (migrate role only) |
-| Sessions | `SESSION_SECRET`, `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_DOMAIN` |
-| CORS | `CORS_ALLOWED_ORIGINS` (rejects `*`; requires `SESSION_COOKIE_DOMAIN` when set) |
-| Providers | `QUEUE_PROVIDER`, `STORAGE_PROVIDER`, `SECRETS_PROVIDER`, `EMAIL_PROVIDER`, `*_EXTRACTION`, inbound-mail, bank-feed |
-| AWS (hosted) | region + per-provider vars (SQS/S3/Secrets Manager/SES) |
-| Misc | `APP_BASE_URL` (unset → invite links are relative), `SECRETS_ENCRYPTION_KEY` |
+| Category     | Keys (examples)                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Process      | `OPENBOOKS_ROLE`, `NODE_ENV`, `LOG_LEVEL`                                                                           |
+| HTTP         | `HTTP_HOST`, `HTTP_PORT` (internal), `API_HOST_PORT`/`WEB_HOST_PORT` (published)                                    |
+| Database     | `DATABASE_HOST/PORT/USER/PASSWORD/NAME/POOL_SIZE`; `DATABASE_MIGRATOR_*` (migrate role only)                        |
+| Sessions     | `SESSION_SECRET`, `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_DOMAIN`                                                  |
+| CORS         | `CORS_ALLOWED_ORIGINS` (rejects `*`; requires `SESSION_COOKIE_DOMAIN` when set)                                     |
+| Providers    | `QUEUE_PROVIDER`, `STORAGE_PROVIDER`, `SECRETS_PROVIDER`, `EMAIL_PROVIDER`, `*_EXTRACTION`, inbound-mail, bank-feed |
+| AWS (hosted) | region + per-provider vars (SQS/S3/Secrets Manager/SES)                                                             |
+| Misc         | `APP_BASE_URL` (unset → invite links are relative), `SECRETS_ENCRYPTION_KEY`                                        |
 
 **Production musts:** set a real `SESSION_SECRET`, `SESSION_COOKIE_SECURE=true` behind HTTPS,
 `APP_BASE_URL` to the public origin, and a strong `SECRETS_ENCRYPTION_KEY` if using the `local` secrets

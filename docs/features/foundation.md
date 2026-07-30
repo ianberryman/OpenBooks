@@ -52,7 +52,7 @@ flowchart LR
 
 - `password.ts` — Argon2id with tuned cost parameters (an unauthenticated endpoint hashes under
   concurrency).
-- `tokens.ts` — a *fast* hash for session/API-key/OAuth-token lookups (the opposite of password
+- `tokens.ts` — a _fast_ hash for session/API-key/OAuth-token lookups (the opposite of password
   hashing; reused by the OAuth module).
 - `cookie.ts` — the session cookie's lifetime and attributes: `HttpOnly`, server-side, revocable.
 
@@ -72,14 +72,14 @@ The authorization catalog and enforcement. Covered in depth in
 
 **Six seeded system roles** (`org_id` NULL = shared across all orgs):
 
-| Role | For |
-| --- | --- |
-| **owner** | Full authority, including disbursement issue. |
-| **bookkeeper** | Day-to-day posting and document entry. |
-| **ap_only** | Enter and pay what they owe (bills); can post/reverse/void/pay. |
-| **ar_only** | Enter and collect what they're owed (invoices). |
-| **read_only / accountant** | Read and report. |
-| **approver** | Review agent proposals *and* post them (bundles `agents.review` + `journals.post`). |
+| Role                       | For                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| **owner**                  | Full authority, including disbursement issue.                                       |
+| **bookkeeper**             | Day-to-day posting and document entry.                                              |
+| **ap_only**                | Enter and pay what they owe (bills); can post/reverse/void/pay.                     |
+| **ar_only**                | Enter and collect what they're owed (invoices).                                     |
+| **read_only / accountant** | Read and report.                                                                    |
+| **approver**               | Review agent proposals _and_ post them (bundles `agents.review` + `journals.post`). |
 
 Tables: `permissions`, `roles`, `role_permissions`.
 
@@ -137,7 +137,7 @@ flowchart LR
 Tags apply **per journal line**, not per document header — one entry can legitimately split across
 axes. `dimensions.service.ts` is axis/value CRUD (archive-not-delete once a value is in use, since the
 FK is `RESTRICT`). `tagging.service.ts` owns tag resolution; retagging a posted line is allowed
-*even in a closed period*, because a tag is "analysis laid over the ledger," not a term of the entry
+_even in a closed period_, because a tag is "analysis laid over the ledger," not a term of the entry
 (decision **D-32**).
 
 Tables: `dimensions`, `dimension_values`, `journal_line_dimensions` (plus draft/subledger/banking tag
@@ -164,7 +164,7 @@ Tables: `accounts`.
 ## Contacts — customers & vendors
 
 **One table for both roles.** `is_customer` / `is_vendor` flags, neither required (an employee
-reimbursement names a contact that is neither). Unlike accounts, a contact's `code` is *mutable*
+reimbursement names a contact that is neither). Unlike accounts, a contact's `code` is _mutable_
 (contacts are addressed by row id in postings, not by code), and hard delete is allowed only when
 nothing in the ledger names the contact. A deactivated contact can't be posted to on a new entry
 (reversals exempted).

@@ -60,37 +60,37 @@ flowchart TB
 
 ## Build status
 
-| Area | Status | Notes |
-| --- | --- | --- |
-| **Foundation** (M1–M2) | ✅ Built | Tenancy, auth, ledger kernel, CoA, contacts, dimensions, periods, settings. |
-| **Sales / AR** (M3 + INV) | ✅ Built | Invoices, credit notes, payment terms, PDF/hosted-page/email delivery, recurring & dunning. |
-| **Purchases / AP** (M3 + O) | ✅ Built (bills, OCR) · ⚠️ partial (Pay Bills) | Bills, vendor credits, OCR capture built. **Pay Bills**: schema/permissions/cheque plumbing exist; the pending-payment queue service is not yet written. |
-| **Cash & Banking** (M4 + CA) | ✅ Built | Statement import, matching, clearing, reconciliation, cash application, settlement discounts. |
-| **Payment processing** (PAY) | ✅ Built | Stripe/Square as clearing account; real adapters proven in manual sandbox, `fake` drives the gate. |
-| **Reporting & tax** (M2 + K) | ✅ Built | All core statements incl. cash-basis and cash flow. |
-| **Platform / AI** (M5) | ✅ Built | OAuth 2.1 AS, API keys, MCP, event outbox, change feed, external refs, agent review. |
-| **Automations** (M6) | 🔲 Scoped | The agent work queue + BYO-model automation runtime. |
-| **Launch polish** (M7) | 🔲 Partial | QuickBooks CSV import done; onboarding/export/published spec remain. |
+| Area                         | Status                                         | Notes                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Foundation** (M1–M2)       | ✅ Built                                       | Tenancy, auth, ledger kernel, CoA, contacts, dimensions, periods, settings.                                                                              |
+| **Sales / AR** (M3 + INV)    | ✅ Built                                       | Invoices, credit notes, payment terms, PDF/hosted-page/email delivery, recurring & dunning.                                                              |
+| **Purchases / AP** (M3 + O)  | ✅ Built (bills, OCR) · ⚠️ partial (Pay Bills) | Bills, vendor credits, OCR capture built. **Pay Bills**: schema/permissions/cheque plumbing exist; the pending-payment queue service is not yet written. |
+| **Cash & Banking** (M4 + CA) | ✅ Built                                       | Statement import, matching, clearing, reconciliation, cash application, settlement discounts.                                                            |
+| **Payment processing** (PAY) | ✅ Built                                       | Stripe/Square as clearing account; real adapters proven in manual sandbox, `fake` drives the gate.                                                       |
+| **Reporting & tax** (M2 + K) | ✅ Built                                       | All core statements incl. cash-basis and cash flow.                                                                                                      |
+| **Platform / AI** (M5)       | ✅ Built                                       | OAuth 2.1 AS, API keys, MCP, event outbox, change feed, external refs, agent review.                                                                     |
+| **Automations** (M6)         | 🔲 Scoped                                      | The agent work queue + BYO-model automation runtime.                                                                                                     |
+| **Launch polish** (M7)       | 🔲 Partial                                     | QuickBooks CSV import done; onboarding/export/published spec remain.                                                                                     |
 
 ---
 
 ## Subsystem → migration → doc
 
-| Subsystem | Migration | Documented in |
-| --- | --- | --- |
-| orgs, members, auth, permissions, roles, api-keys, sessions | `0001_tenancy` | [foundation](foundation.md), [platform-and-ai](platform-and-ai.md) |
-| accounts, contacts, dimensions, periods, drafts | `0002_ledger` | [foundation](foundation.md) |
-| idempotency keys | `0003_idempotency` | [Money & invariants](../architecture/money-and-invariants.md) |
-| invoices, bills, payments, allocations, tax, settings, document sequences | `0005_subledger` | [sales-ar](sales-ar.md), [purchases-ap](purchases-ap.md), [reporting-and-tax](reporting-and-tax.md) |
-| banking: import, matching, rules, clearing, reconciliation | `0006_banking` | [banking-and-cash](banking-and-cash.md) |
-| invoice delivery, org branding | `0007_invoice_delivery` | [sales-ar](sales-ar.md) |
-| recurring invoices, dunning | `0008_recurring_dunning` | [sales-ar](sales-ar.md) |
-| bill capture (OCR) | `0009_bill_capture` | [purchases-ap](purchases-ap.md) |
-| OAuth, event log, change feed, external refs | `0010_platform` | [platform-and-ai](platform-and-ai.md) |
-| payment processing (Stripe/Square), secrets | `0011_payment_processing` | [payments-processing](payments-processing.md) |
-| payment terms, cash application | `0012_cash_application` | [sales-ar](sales-ar.md), [banking-and-cash](banking-and-cash.md) |
-| pay bills, cheque sequences | `0013_pay_bills` | [purchases-ap](purchases-ap.md) |
-| app grants (always last) | `0999_app_grants` | [Data & tenancy](../architecture/data-and-tenancy.md) |
+| Subsystem                                                                 | Migration                 | Documented in                                                                                       |
+| ------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------- |
+| orgs, members, auth, permissions, roles, api-keys, sessions               | `0001_tenancy`            | [foundation](foundation.md), [platform-and-ai](platform-and-ai.md)                                  |
+| accounts, contacts, dimensions, periods, drafts                           | `0002_ledger`             | [foundation](foundation.md)                                                                         |
+| idempotency keys                                                          | `0003_idempotency`        | [Money & invariants](../architecture/money-and-invariants.md)                                       |
+| invoices, bills, payments, allocations, tax, settings, document sequences | `0005_subledger`          | [sales-ar](sales-ar.md), [purchases-ap](purchases-ap.md), [reporting-and-tax](reporting-and-tax.md) |
+| banking: import, matching, rules, clearing, reconciliation                | `0006_banking`            | [banking-and-cash](banking-and-cash.md)                                                             |
+| invoice delivery, org branding                                            | `0007_invoice_delivery`   | [sales-ar](sales-ar.md)                                                                             |
+| recurring invoices, dunning                                               | `0008_recurring_dunning`  | [sales-ar](sales-ar.md)                                                                             |
+| bill capture (OCR)                                                        | `0009_bill_capture`       | [purchases-ap](purchases-ap.md)                                                                     |
+| OAuth, event log, change feed, external refs                              | `0010_platform`           | [platform-and-ai](platform-and-ai.md)                                                               |
+| payment processing (Stripe/Square), secrets                               | `0011_payment_processing` | [payments-processing](payments-processing.md)                                                       |
+| payment terms, cash application                                           | `0012_cash_application`   | [sales-ar](sales-ar.md), [banking-and-cash](banking-and-cash.md)                                    |
+| pay bills, cheque sequences                                               | `0013_pay_bills`          | [purchases-ap](purchases-ap.md)                                                                     |
+| app grants (always last)                                                  | `0999_app_grants`         | [Data & tenancy](../architecture/data-and-tenancy.md)                                               |
 
 ---
 
@@ -98,7 +98,7 @@ flowchart TB
 
 - **No stored balances or statuses.** Outstanding = total − allocations; status is derived from
   journal ids. Every figure is recomputed live (decisions **D-34**, **D-38**).
-- **Proposals never post.** Bank matching, bank rules, and discount suggestions *propose*; only a
+- **Proposals never post.** Bank matching, bank rules, and discount suggestions _propose_; only a
   human-accepted action writes to the ledger (decision **D-43**).
 - **Corrections are reversals, deletes are rare.** Documents void by posting a reversing journal;
   hard delete is allowed only when nothing in the ledger references the row.

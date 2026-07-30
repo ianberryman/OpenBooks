@@ -49,7 +49,7 @@ flowchart TB
 ```
 
 The critical detail is at the bottom edge: the `api` and `worker` roles connect to MySQL as
-**`openbooks_app`**, a user that *does not hold* `UPDATE` or `DELETE` on the journal tables. Only
+**`openbooks_app`**, a user that _does not hold_ `UPDATE` or `DELETE` on the journal tables. Only
 the `migrate` role connects as **`openbooks_migrator`**, and only to change the schema. Immutability
 is therefore a property of the database, not of the application. See
 [Ledger kernel](ledger-kernel.md) and [Data & tenancy](data-and-tenancy.md).
@@ -99,12 +99,12 @@ flowchart LR
 A request crosses four layers, and each layer has exactly one responsibility. The boundaries
 between them are compiler- and lint-enforced, not aspirational.
 
-| Layer | Responsibility | Enforced boundary |
-| --- | --- | --- |
-| **Transport** (`src/transport/`) | Parse the request with a Zod schema, call one service function, map the result to a status code. **No business logic.** | Cannot import a `*.repository.ts` or reach into `src/db/` (except the public `index.ts`). |
-| **Service** (`src/modules/*/`) | The business logic. This is the only layer that calls `requirePermission`. | Cannot import `src/transport/` (one narrow carve-out: the MCP host). |
-| **Ledger kernel** (`src/modules/ledger/posting.repository.ts`) | The *only* code permitted to write `journals`/`journal_lines`. | Enforced by the `openbooks/no-journal-writes` lint rule. |
-| **Data access** (`src/db/`) | Tenant-scoped and system-scoped query builders. The raw handle is module-private. | Only `src/db/**` may import the raw Kysely client. |
+| Layer                                                          | Responsibility                                                                                                          | Enforced boundary                                                                         |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Transport** (`src/transport/`)                               | Parse the request with a Zod schema, call one service function, map the result to a status code. **No business logic.** | Cannot import a `*.repository.ts` or reach into `src/db/` (except the public `index.ts`). |
+| **Service** (`src/modules/*/`)                                 | The business logic. This is the only layer that calls `requirePermission`.                                              | Cannot import `src/transport/` (one narrow carve-out: the MCP host).                      |
+| **Ledger kernel** (`src/modules/ledger/posting.repository.ts`) | The _only_ code permitted to write `journals`/`journal_lines`.                                                          | Enforced by the `openbooks/no-journal-writes` lint rule.                                  |
+| **Data access** (`src/db/`)                                    | Tenant-scoped and system-scoped query builders. The raw handle is module-private.                                       | Only `src/db/**` may import the raw Kysely client.                                        |
 
 Because these boundaries are enforced, a whole class of mistakes is simply unrepresentable: a route
 handler can't sneak a business rule in, a service can't skip permission checks by writing SQL
@@ -199,12 +199,12 @@ See [Platform & AI](../features/platform-and-ai.md) and [API & transport](api-an
 ## Bring-your-own-model AI
 
 The AI surface is an **MCP server** (`POST /mcp`) mounted on the same Fastify instance as REST. It
-exposes a focused set of tools that are thin wrappers over the *same* service functions — same input
+exposes a focused set of tools that are thin wrappers over the _same_ service functions — same input
 schemas, same `requirePermission` checks — as the equivalent REST routes. You connect the model you
 already pay for; there is no vendor model in the middle of your financial data.
 
 Crucially, **an AI cannot post to the ledger**. The one write tool (`journal.propose`) lands a
-*draft* that a human with the `agents.review` permission must approve. Agent actions carry actor
+_draft_ that a human with the `agents.review` permission must approve. Agent actions carry actor
 provenance (`actorType: 'agent'`) on the journal itself. See
 [Platform & AI](../features/platform-and-ai.md).
 

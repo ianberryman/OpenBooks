@@ -73,19 +73,19 @@ Tables: `api_keys`.
 ## MCP — the AI tool surface
 
 `host.ts` is a minimal, dependency-free, in-process **JSON-RPC-2.0-over-HTTP** MCP host (`initialize`,
-`tools/list`, `tools/call`) mounted at `POST /mcp` on the *same* Fastify instance as REST — no
+`tools/list`, `tools/call`) mounted at `POST /mcp` on the _same_ Fastify instance as REST — no
 `@modelcontextprotocol/*` SDK dependency, by deliberate choice.
 
 `tools.ts` defines a focused suite where **every handler is a thin call onto an existing service** —
 same input schema, same `requirePermission` — as the equivalent REST route:
 
-| Tool | Kind |
-| --- | --- |
-| `accounts.list` | read |
-| `contacts.list` | read |
-| `bills.list` | read |
-| `invoices.list` | read |
-| `trial-balance` | read |
+| Tool              | Kind                                           |
+| ----------------- | ---------------------------------------------- |
+| `accounts.list`   | read                                           |
+| `contacts.list`   | read                                           |
+| `bills.list`      | read                                           |
+| `invoices.list`   | read                                           |
+| `trial-balance`   | read                                           |
 | `journal.propose` | **write — but lands a draft, never a journal** |
 
 ```mermaid
@@ -153,7 +153,7 @@ advancing (or rewinding) the cursor. A retention bound is documented; no pruning
 ## External refs — integrator correlation
 
 `external-refs.service.ts` maintains a bidirectional, uniquely-keyed map from an integrator's own id
-to an OpenBooks entity (decision **D-58**) — "generalised idempotency for *relationships*" (versus
+to an OpenBooks entity (decision **D-58**) — "generalised idempotency for _relationships_" (versus
 `Idempotency-Key` for one-shot requests). `entity_id` is deliberately **not** a foreign key (only the
 owning entity's service can validate it; this is a correlation record, not a referential guarantee).
 Used by QuickBooks import and payment processing. Tables: `external_refs`.

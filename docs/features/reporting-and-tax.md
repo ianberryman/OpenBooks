@@ -27,16 +27,16 @@ flowchart TB
     CF --> CFP[Cash-flow projection]
 ```
 
-| Report | What it reads | Notes |
-| --- | --- | --- |
-| **Trial balance** (`getTrialBalance`, in `modules/ledger`) | all accounts | The **oracle** every property test checks against. |
-| **Profit & Loss** (`profit-and-loss.service.ts`) | `movement` for revenue/expense over a period | |
-| **Balance sheet** (`balance-sheet.service.ts`) | `closing`, plus current-year earnings derived from revenue/expense movement | No year-end closing journal exists (decision **D-20**). |
-| **General ledger** (`general-ledger.service.ts`) | per-account drill-down | Running balance across keyset pages. |
-| **Aging** (`aging.service.ts`) | AR/AP outstanding as-at a date | Bucket sums tie **exactly** to the control-account balance (decision **D-40**, criterion C8); includes unapplied credits as a negative "current" line; doubles as the per-contact statement. |
-| **Cash-basis P&L** (`cash-basis/`) | recognises revenue/expense only when cash moved | Drop-in alternate aggregator; flags ambiguous cases for review rather than guessing (decisions **D-87, D-99**). |
-| **Cash flow** (`cash-flow.service.ts`) | indirect method | One honest reconciling "plug" rather than a fabricated operating/investing/financing split (decision **D-88**). |
-| **Cash-flow projection** (`cash-flow-projection.service.ts`) | forward-looking off AR/AP due dates | Overdue amounts land in the earliest bucket. |
+| Report                                                       | What it reads                                                               | Notes                                                                                                                                                                                        |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Trial balance** (`getTrialBalance`, in `modules/ledger`)   | all accounts                                                                | The **oracle** every property test checks against.                                                                                                                                           |
+| **Profit & Loss** (`profit-and-loss.service.ts`)             | `movement` for revenue/expense over a period                                |                                                                                                                                                                                              |
+| **Balance sheet** (`balance-sheet.service.ts`)               | `closing`, plus current-year earnings derived from revenue/expense movement | No year-end closing journal exists (decision **D-20**).                                                                                                                                      |
+| **General ledger** (`general-ledger.service.ts`)             | per-account drill-down                                                      | Running balance across keyset pages.                                                                                                                                                         |
+| **Aging** (`aging.service.ts`)                               | AR/AP outstanding as-at a date                                              | Bucket sums tie **exactly** to the control-account balance (decision **D-40**, criterion C8); includes unapplied credits as a negative "current" line; doubles as the per-contact statement. |
+| **Cash-basis P&L** (`cash-basis/`)                           | recognises revenue/expense only when cash moved                             | Drop-in alternate aggregator; flags ambiguous cases for review rather than guessing (decisions **D-87, D-99**).                                                                              |
+| **Cash flow** (`cash-flow.service.ts`)                       | indirect method                                                             | One honest reconciling "plug" rather than a fabricated operating/investing/financing split (decision **D-88**).                                                                              |
+| **Cash-flow projection** (`cash-flow-projection.service.ts`) | forward-looking off AR/AP due dates                                         | Overdue amounts land in the earliest bucket.                                                                                                                                                 |
 
 **No balance caching anywhere** — every figure recomputes live. That's what makes the trial balance a
 trustworthy oracle and lets property tests generate random journals and check invariants against it.
@@ -67,14 +67,14 @@ always reconcile. See [dimensions](foundation.md#dimensions--user-defined-report
 `tax-rates.service.ts` is CRUD/lifecycle over a per-org rate list. A rate has:
 
 - a **name**;
-- a **percentage** stored as integer parts-per-million (`rate_ppm`, *not* `DECIMAL`) so it survives
+- a **percentage** stored as integer parts-per-million (`rate_ppm`, _not_ `DECIMAL`) so it survives
   the driver round-trip as a `bigint` rather than a float-prone string;
-- the **liability *or* asset account** it posts to (the asset side supports reclaimable input VAT);
+- the **liability _or_ asset account** it posts to (the asset side supports reclaimable input VAT);
 - `applies_to` — sales / purchases / both (enforced where a document line cites the rate, not here).
 
 Rules:
 
-- The percentage is **immutable** once created. Correcting a rate is a *new* rate plus archiving the
+- The percentage is **immutable** once created. Correcting a rate is a _new_ rate plus archiving the
   old one — a changed rate would restate already-posted, already-mailed invoices.
 - **Zero-rated** (`rate = 0`, an explicit row) and **exempt** (`tax_rate_id IS NULL`) are deliberately
   different and never collapsed.

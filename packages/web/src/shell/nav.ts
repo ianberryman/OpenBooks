@@ -47,6 +47,16 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   // whose every action succeeds; the service enforces the write code (initiative O).
   { to: '/bill-captures', label: 'Bill capture', permission: 'bills.read' },
   /**
+   * `pending_payments.read` (OB-116, initiative PB) for both Pay Bills and Disbursements —
+   * the same D-25 reasoning as every gate on this list: the service is the real gate
+   * (`buildPendingPayment`, `issuePendingPayment`, `cancelPendingPayment` each enforce their
+   * own release-authority permission per D-109), and this filter only drops a link that
+   * would always fail to load its queue. A caller who can view the queue but not build,
+   * issue or cancel still gets both links; the service refuses each write.
+   */
+  { to: '/pay-bills', label: 'Pay bills', permission: 'pending_payments.read' },
+  { to: '/disbursements', label: 'Disbursements', permission: 'pending_payments.read' },
+  /**
    * `payments_received.read`, and the choice is not arbitrary: the screen opens on the
    * payments list, and an *unfiltered* list spans both subledgers, so the service asks for
    * `payments_made.read` as well. Naming the stricter pair here would hide the link from an

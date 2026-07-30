@@ -5,7 +5,7 @@ on AWS. This guide describes the topology, the deliberate "never applied" status
 bootstrap that is shared byte-for-byte with the Compose stack.
 
 > **Status (decision D-05): this Terraform has never been applied.** No AWS account exists for the
-> project, so `terraform plan` has never run against a real provider. What *is* verified:
+> project, so `terraform plan` has never run against a real provider. What _is_ verified:
 > `terraform fmt -check` is clean, and `init -backend=false && validate` succeeds for both roots. Treat
 > the topology as a validated design, not a running system.
 
@@ -78,7 +78,7 @@ flowchart TD
     C --> D["4. Apply the rest"]
 ```
 
-`-target` is used exactly once, because the DB-user bootstrap task must run *between* the database
+`-target` is used exactly once, because the DB-user bootstrap task must run _between_ the database
 existing and the compute existing.
 
 ---
@@ -94,7 +94,7 @@ existing and the compute existing.
   comment) would be a shell-injection risk, since the whole file is interpreted.
 - **`02-grants.sql`** — **shared byte-for-byte** with `docker/mysql-init/02-grants.sql`. Grants
   `ALL … WITH GRANT OPTION` to the migrator and only `SELECT, INSERT` (no `UPDATE`/`DELETE`/DDL) to the
-  app user. The `UPDATE`/`DELETE` the app *does* need comes per-table from `0999_app_grants`.
+  app user. The `UPDATE`/`DELETE` the app _does_ need comes per-table from `0999_app_grants`.
 
 ### The parity guard
 

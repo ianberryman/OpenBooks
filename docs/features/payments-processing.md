@@ -1,6 +1,6 @@
 # Payment Processing (Stripe / Square)
 
-Take card payments through the org's *own* Stripe or Square account, and have every charge, fee,
+Take card payments through the org's _own_ Stripe or Square account, and have every charge, fee,
 refund, and payout land in the ledger automatically. The model reuses one idea from banking: **a
 processor is a clearing account.**
 
@@ -40,7 +40,7 @@ Files: `connections.service.ts`, `posting.service.ts`.
 Processor API keys and webhook secrets are **not** columns on `processor_connections`. They're
 `secret_ref` / `webhook_secret_ref` pointers into a dedicated **`secrets` table** (AES-256-GCM at
 rest under the `local` provider, AWS Secrets Manager when hosted — decision **D-101**). That table is
-deliberately *not* tenant-scoped (it's infrastructure). The management API is **write-only** — a
+deliberately _not_ tenant-scoped (it's infrastructure). The management API is **write-only** — a
 stored secret is never read back to a client. See
 [Providers & config](../architecture/providers-and-config.md) and
 [Security](../architecture/security.md#secrets-at-rest).
@@ -77,13 +77,13 @@ Files: `webhook.service.ts`, `poll.job.ts`.
 
 ## What's handled
 
-| Event | Ledger effect |
-| --- | --- |
-| **Charge** | Dr clearing / Cr AR (settles the receivable). |
-| **Fee** | Dr fee account / Cr clearing. |
-| **Refund** | Reopens the receivable (Dr AR / Cr clearing) — full credit-note flow deferred. |
+| Event                 | Ledger effect                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| **Charge**            | Dr clearing / Cr AR (settles the receivable).                                      |
+| **Fee**               | Dr fee account / Cr clearing.                                                      |
+| **Refund**            | Reopens the receivable (Dr AR / Cr clearing) — full credit-note flow deferred.     |
 | **Chargeback** (lean) | Loss currently codes to the fee account (a dedicated loss account is a follow-up). |
-| **Payout** | Dr bank / Cr clearing, reconciled via banking's `link_entry`. |
+| **Payout**            | Dr bank / Cr clearing, reconciled via banking's `link_entry`.                      |
 
 The daily **poll** (`poll.job.ts`, decision **D-85**) is the backstop: it redrives missed events and
 reconciles the clearing account's ledger balance against the processor's reported balance (reusing

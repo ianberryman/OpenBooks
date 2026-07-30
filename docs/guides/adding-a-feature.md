@@ -67,7 +67,7 @@ returns a result.
 ```ts
 export async function createBill(input: CreateBillInput) {
   const ctx = getContext();
-  await requirePermission(ctx, 'bills.write');      // ← authority check, here and nowhere else
+  await requirePermission(ctx, 'bills.write'); // ← authority check, here and nowhere else
   // …validate, resolve terms, insert via tenantDb(ctx.orgId), maybe post a journal…
 }
 ```
@@ -172,7 +172,7 @@ Format, lint (incl. the custom rules), typecheck, **drift** (this is where a for
 From `CLAUDE.md`: when splitting a wave across contributors, **pin the interface contracts first** —
 exact field/column names, signatures, token formats — so independently-authored streams compose. A
 worktree-isolated author can't run the gate (no `node_modules`); the orchestrator integrates and runs
-`yarn check`, which is where parallel work is *proven*. Schema changes need the orchestrator's hand
+`yarn check`, which is where parallel work is _proven_. Schema changes need the orchestrator's hand
 because `generated.ts` needs a live migrated DB.
 
 ---

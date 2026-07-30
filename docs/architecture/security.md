@@ -51,12 +51,12 @@ Identity is resolved in a fixed priority order — **OAuth bearer → API key �
 resolver returning `null` for a credential that isn't its kind and throwing only for one that is but
 is invalid.
 
-| Surface | Credential | Storage | Revocation |
-| --- | --- | --- | --- |
-| **Sessions** | `HttpOnly; SameSite=Lax` cookie, server-side, unsigned | Hashed with a *fast* hash (it's a lookup, not a password) | Server-side; a revoked session is dead immediately |
-| **API keys** | `key_prefix.secret`, opaque | `key_prefix` + SHA-256 hash | Revoke the row; each key carries its *own* role, not the issuer's (a demoted issuer's key doesn't retain authority — D-55) |
-| **OAuth tokens** | Opaque bearer (not JWT) | Hashed like API keys | Revoke the row; effective scope is recomputed against the user's *current* role every request (D-54) |
-| **Passwords** | — | Argon2id with tuned cost parameters (memory tuned for concurrent hashing on an unauthenticated endpoint) | — |
+| Surface          | Credential                                             | Storage                                                                                                  | Revocation                                                                                                                 |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Sessions**     | `HttpOnly; SameSite=Lax` cookie, server-side, unsigned | Hashed with a _fast_ hash (it's a lookup, not a password)                                                | Server-side; a revoked session is dead immediately                                                                         |
+| **API keys**     | `key_prefix.secret`, opaque                            | `key_prefix` + SHA-256 hash                                                                              | Revoke the row; each key carries its _own_ role, not the issuer's (a demoted issuer's key doesn't retain authority — D-55) |
+| **OAuth tokens** | Opaque bearer (not JWT)                                | Hashed like API keys                                                                                     | Revoke the row; effective scope is recomputed against the user's _current_ role every request (D-54)                       |
+| **Passwords**    | —                                                      | Argon2id with tuned cost parameters (memory tuned for concurrent hashing on an unauthenticated endpoint) | —                                                                                                                          |
 
 Opaque tokens (not JWT) were a deliberate choice (decision **D-53/D-61**) so that revocation is
 immediate and authority is never carried in a self-contained, un-revocable token.
@@ -93,7 +93,7 @@ handlers add a second layer (event-id + object-id). See
 
 ## Privacy-preserving surfaces
 
-- **The hosted invoice page** (`/public/invoices/{token}`) is the *one* sanctioned unauthenticated
+- **The hosted invoice page** (`/public/invoices/{token}`) is the _one_ sanctioned unauthenticated
   read. It's gated by a per-delivery **capability token** (`prefix.secret`, stored as prefix +
   SHA-256 hash, no expiry) — the whole authorization is the token. It resolves org → `tenantDb` from
   the token, so tenant isolation still holds below it, and it exposes a customer-safe projection with
@@ -107,10 +107,10 @@ handlers add a second layer (event-id + object-id). See
 
 These are tracked honestly in the roadmap and should not be forgotten:
 
-| Item | What it is |
-| --- | --- |
-| **OB-098 — OAuth AS review** | The authorization server was built to spec in-house; a dedicated *external* security review is owed before it faces production traffic. |
-| **Public invoice endpoint** | The unauthenticated hosted-invoice surface bypasses `requirePermission` and gets its own security review (a new surface that skips the normal gate). |
+| Item                         | What it is                                                                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OB-098 — OAuth AS review** | The authorization server was built to spec in-house; a dedicated _external_ security review is owed before it faces production traffic.              |
+| **Public invoice endpoint**  | The unauthenticated hosted-invoice surface bypasses `requirePermission` and gets its own security review (a new surface that skips the normal gate). |
 
 Both are deliberate "build-to-spec now, review before prod" decisions, not oversights.
 

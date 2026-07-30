@@ -14,9 +14,11 @@ import { BankingScreen } from './screens/banking';
 import { BillCapturesScreen } from './screens/bill-captures';
 import { ConnectedAppsScreen } from './screens/connected-apps';
 import { ContactsScreen } from './screens/contacts';
+import { DisbursementsScreen } from './screens/disbursements';
 import { DunningScreen } from './screens/dunning';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
+import { PayBillsScreen } from './screens/pay-bills';
 import { OAuthClientsScreen } from './screens/oauth-clients';
 import { OAuthConsentScreen } from './screens/oauth-consent';
 import { ProcessingScreen } from './screens/processing';
@@ -193,6 +195,8 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/dunning" element={<DunningScreen />} />
         <Route path="/purchases" element={<PurchasesScreen />} />
         <Route path="/bill-captures" element={<BillCapturesScreen />} />
+        <Route path="/pay-bills" element={<PayBillsScreen />} />
+        <Route path="/disbursements" element={<DisbursementsScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/banking/*" element={<BankingScreen />} />
         <Route path="/processing" element={<ProcessingScreen />} />

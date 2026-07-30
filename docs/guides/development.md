@@ -15,19 +15,19 @@ yarn check
 # = format:check && lint && lint:tokens && lint:deps && typecheck && drift && build && test
 ```
 
-| Step | Command | Checks | Typical time |
-| --- | --- | --- | --- |
-| `format:check` | `prettier --check .` | Formatting only (100 col, single quotes, semicolons, trailing commas). | ~5s |
-| `lint` | `eslint .` | typescript-eslint + the four custom `openbooks/*` rules. | ~11s |
-| `lint:tokens` | `bash .github/scripts/check-token-lint.sh` | That `no-raw-color` is still *wired in* at `error` (see note below). | ~4s |
-| `lint:deps` | `depcruise packages --config .dependency-cruiser.cjs` | Architectural boundaries (see below). | ~1s |
-| `typecheck` | `tsc --noEmit` per workspace | Strict TypeScript across all packages. | ~3s |
-| `drift` | `yarn spec:check && yarn client:check` | OpenAPI spec + generated client match the code. | ~3s |
-| `build` | esbuild server + Vite web | That it actually bundles. | ~2s |
-| `test` | `vitest run` | Full suite incl. real MySQL. | ~2m |
+| Step           | Command                                               | Checks                                                                 | Typical time |
+| -------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- | ------------ |
+| `format:check` | `prettier --check .`                                  | Formatting only (100 col, single quotes, semicolons, trailing commas). | ~5s          |
+| `lint`         | `eslint .`                                            | typescript-eslint + the four custom `openbooks/*` rules.               | ~11s         |
+| `lint:tokens`  | `bash .github/scripts/check-token-lint.sh`            | That `no-raw-color` is still _wired in_ at `error` (see note below).   | ~4s          |
+| `lint:deps`    | `depcruise packages --config .dependency-cruiser.cjs` | Architectural boundaries (see below).                                  | ~1s          |
+| `typecheck`    | `tsc --noEmit` per workspace                          | Strict TypeScript across all packages.                                 | ~3s          |
+| `drift`        | `yarn spec:check && yarn client:check`                | OpenAPI spec + generated client match the code.                        | ~3s          |
+| `build`        | esbuild server + Vite web                             | That it actually bundles.                                              | ~2s          |
+| `test`         | `vitest run`                                          | Full suite incl. real MySQL.                                           | ~2m          |
 
 > **`build` is in the gate on purpose.** A real regression (Tailwind emitting invalid CSS for any
-> file containing the word `container`) once passed typecheck, lint, *and* the whole test suite but
+> file containing the word `container`) once passed typecheck, lint, _and_ the whole test suite but
 > broke `yarn build`. The gate now bundles.
 
 > **Heads-up on `lint:tokens`.** In the current checkout `.github/scripts/check-token-lint.sh` is an
@@ -87,7 +87,7 @@ A **module** typically contains `*.service.ts` (business logic, calls `requirePe
 - **Zod is v4** — check installed behaviour rather than assuming v3 idioms.
 - **Prettier**: 100 col, single quotes, semicolons, trailing commas.
 
-### Comments explain *why*, not *what*
+### Comments explain _why_, not _what_
 
 Ordinary code gets no commentary. A decision that took measuring to reach gets the measurement written
 down, citing the spec section or roadmap decision. The register to match:
@@ -99,18 +99,18 @@ down, citing the spec section or roadmap decision. The register to match:
 
 Source: `packages/eslint-plugin/src/rules/`.
 
-| Rule | Bans | Where |
-| --- | --- | --- |
-| **`no-float-money`** (type-aware) | Arithmetic (`+ - * / %`), `Number()`, `Math.*`, compound assignment on `Money`-typed operands. | `packages/{server,shared-types}`. Use the `add`/`subtract`/`sum`/`allocate` helpers. |
-| **`no-journal-writes`** | `insertInto`/`updateTable`/`deleteFrom` on `journals`/`journal_lines`. | Everywhere except an allowlist (`posting.repository.ts`, migrations, test factories). |
-| **`no-process-env`** | Any `process.env` access. | Everywhere except `config/**` and a few carved-out tooling files. |
-| **`no-raw-color`** | Hex / `rgb()` / `oklch()` / Tailwind arbitrary colours in `.tsx`. | `packages/web` except `src/styles/`. Use design tokens. |
+| Rule                              | Bans                                                                                           | Where                                                                                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **`no-float-money`** (type-aware) | Arithmetic (`+ - * / %`), `Number()`, `Math.*`, compound assignment on `Money`-typed operands. | `packages/{server,shared-types}`. Use the `add`/`subtract`/`sum`/`allocate` helpers.  |
+| **`no-journal-writes`**           | `insertInto`/`updateTable`/`deleteFrom` on `journals`/`journal_lines`.                         | Everywhere except an allowlist (`posting.repository.ts`, migrations, test factories). |
+| **`no-process-env`**              | Any `process.env` access.                                                                      | Everywhere except `config/**` and a few carved-out tooling files.                     |
+| **`no-raw-color`**                | Hex / `rgb()` / `oklch()` / Tailwind arbitrary colours in `.tsx`.                              | `packages/web` except `src/styles/`. Use design tokens.                               |
 
 ---
 
 ## Architectural boundaries (dependency-cruiser)
 
-`lint:deps` enforces *what a file may reach* — complementary to ESLint's *what a file does*. The rules
+`lint:deps` enforces _what a file may reach_ — complementary to ESLint's _what a file does_. The rules
 in `.dependency-cruiser.cjs`:
 
 ```mermaid
@@ -122,15 +122,15 @@ flowchart TB
     PA[plugin-api] -.->|"✗ leaf, no in-tree deps"| SRV
 ```
 
-| Rule | Enforces |
-| --- | --- |
-| `no-raw-db-outside-db-module` | Only `src/db/**` imports the raw Kysely client. |
-| `transport-holds-no-business-logic` | Transport can't import a `*.repository.ts` or reach into `src/db/` (except `index.ts`). |
-| `services-do-not-import-transport` | Services can't import transport (one carve-out: the MCP host, which may import only the `App` type alias). |
-| `plugin-api-is-a-leaf` | `plugin-api` depends on nothing else in the tree. |
-| `web-uses-the-public-api-only` | `web` imports neither `server` nor `plugin-api`. |
-| `no-circular` | No circular dependencies. |
-| `no-dev-deps-in-src` | Production `src/` can't depend on a dev dependency. |
+| Rule                                | Enforces                                                                                                   |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `no-raw-db-outside-db-module`       | Only `src/db/**` imports the raw Kysely client.                                                            |
+| `transport-holds-no-business-logic` | Transport can't import a `*.repository.ts` or reach into `src/db/` (except `index.ts`).                    |
+| `services-do-not-import-transport`  | Services can't import transport (one carve-out: the MCP host, which may import only the `App` type alias). |
+| `plugin-api-is-a-leaf`              | `plugin-api` depends on nothing else in the tree.                                                          |
+| `web-uses-the-public-api-only`      | `web` imports neither `server` nor `plugin-api`.                                                           |
+| `no-circular`                       | No circular dependencies.                                                                                  |
+| `no-dev-deps-in-src`                | Production `src/` can't depend on a dev dependency.                                                        |
 
 If you find yourself wanting to work around one of these, that's the signal to stop and reconsider the
 design — the boundary is usually protecting an invariant.

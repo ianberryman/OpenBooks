@@ -8,11 +8,11 @@ prerequisites they share.
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-| --- | --- | --- |
-| **Node** | `22.19.0` (see `.nvmrc`) | `nvm use` picks it up. `engines` requires `>=22.11.0`. |
-| **Docker** | with Compose v2 | Required for the stack *and* for tests (testcontainers). |
-| **Yarn** | **do not install** | Yarn 4.17.1 is committed at `.yarn/releases/` and pinned by `packageManager`. Do **not** `corepack enable` or install Yarn globally. |
+| Tool       | Version                  | Notes                                                                                                                                |
+| ---------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Node**   | `22.19.0` (see `.nvmrc`) | `nvm use` picks it up. `engines` requires `>=22.11.0`.                                                                               |
+| **Docker** | with Compose v2          | Required for the stack _and_ for tests (testcontainers).                                                                             |
+| **Yarn**   | **do not install**       | Yarn 4.17.1 is committed at `.yarn/releases/` and pinned by `packageManager`. Do **not** `corepack enable` or install Yarn globally. |
 
 ```bash
 git clone https://github.com/ianberryman/OpenBooks.git
@@ -47,13 +47,13 @@ flowchart LR
     API --> WEB["web (nginx)<br/>host :8080"]
 ```
 
-| Service | Host port | Why that port |
-| --- | --- | --- |
-| **web** (nginx SPA + reverse proxy) | `8080` (`WEB_HOST_PORT`) | The app you open in a browser. |
-| **api** | `3100` (`API_HOST_PORT`) | 3100 dodges the commonly-bound 3000. |
-| **mysql** | `13307` (`DATABASE_HOST_PORT`) | **13307, not 3306** — a host `mysqld` usually owns 3306, and a clash makes Docker fall back to IPv6-only, so host-side `yarn migrate`/`codegen` would silently hit the *wrong* database. |
+| Service                             | Host port                      | Why that port                                                                                                                                                                            |
+| ----------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **web** (nginx SPA + reverse proxy) | `8080` (`WEB_HOST_PORT`)       | The app you open in a browser.                                                                                                                                                           |
+| **api**                             | `3100` (`API_HOST_PORT`)       | 3100 dodges the commonly-bound 3000.                                                                                                                                                     |
+| **mysql**                           | `13307` (`DATABASE_HOST_PORT`) | **13307, not 3306** — a host `mysqld` usually owns 3306, and a clash makes Docker fall back to IPv6-only, so host-side `yarn migrate`/`codegen` would silently hit the _wrong_ database. |
 
-> **Internal vs host ports.** `DATABASE_PORT`/`HTTP_PORT` are what the processes bind *inside* the
+> **Internal vs host ports.** `DATABASE_PORT`/`HTTP_PORT` are what the processes bind _inside_ the
 > Compose network (3306/3000) — **never** change these to dodge a host clash; that silently repoints
 > the app. Only the `*_HOST_PORT` values are yours to move.
 
@@ -129,11 +129,11 @@ testcontainers — Docker must be running). Expect ~3 minutes; `test` dominates.
 
 ## Common first-run issues
 
-| Symptom | Cause & fix |
-| --- | --- |
-| `Access denied` from `yarn migrate`/`codegen` | You're hitting a host `mysqld` on 3306 instead of Compose on 13307. Set `DATABASE_PORT=13307` (and `DATABASE_HOST=127.0.0.1`). |
-| Login "works" then every request 401s | A stale session cookie, or `SESSION_COOKIE_SECURE=true` over plain HTTP. Set `SESSION_COOKIE_SECURE=false` for local HTTP. |
-| Blank page, opaque JSON-parse error in dev | An API path isn't proxied by Vite (SPA fallback served `index.html`). Check `vite.config.ts`'s proxy list. |
+| Symptom                                                             | Cause & fix                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Access denied` from `yarn migrate`/`codegen`                       | You're hitting a host `mysqld` on 3306 instead of Compose on 13307. Set `DATABASE_PORT=13307` (and `DATABASE_HOST=127.0.0.1`).                                                             |
+| Login "works" then every request 401s                               | A stale session cookie, or `SESSION_COOKIE_SECURE=true` over plain HTTP. Set `SESSION_COOKIE_SECURE=false` for local HTTP.                                                                 |
+| Blank page, opaque JSON-parse error in dev                          | An API path isn't proxied by Vite (SPA fallback served `index.html`). Check `vite.config.ts`'s proxy list.                                                                                 |
 | `migrate:down` fails / schema looks wrong after editing a migration | Pre-release migrations are edited in place; your local DB is now inconsistent. Drop & recreate — see the [reset runbook](database-and-migrations.md#runbook-reset-after-an-in-place-edit). |
 
 ---

@@ -24,15 +24,15 @@ yarn drift            # spec:check + client:check — both generated artifacts m
 
 ## Migration conventions
 
-| Convention | Rule |
-| --- | --- |
-| **Raw SQL** | Migrations use `sql` templates, not Kysely's schema builder — MySQL specifics (`BINARY(16)`, `DATETIME(3)`, `ENUM`, `CHECK`, composite FKs, `REVOKE`) need it. |
-| **Four-digit prefixes** | `0001_tenancy`, `0002_ledger`, … applied in lexicographic order. `0004` is permanently retired. |
-| **`0999_app_grants` runs last** | `GRANT` errors on a table that doesn't exist yet, so every granted table must be created earlier. `0999` is the ceiling of the scheme, so "last" is structural. |
-| **Static registration** | `migrations/index.ts` lists them explicitly (the server bundles to one file — no directory to scan at runtime). |
-| **Money `BIGINT`, UUIDs `BINARY(16)`, dates `DATE`** | Never `DECIMAL`/float; plain byte-order UUIDs; dates read as strings. |
-| **Composite `(org_id, id)` keys** | Children FK through them, making cross-org references unrepresentable. |
-| **In-place edits pre-release** (D-15) | Migrations are edited, not appended, until first release. |
+| Convention                                           | Rule                                                                                                                                                            |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Raw SQL**                                          | Migrations use `sql` templates, not Kysely's schema builder — MySQL specifics (`BINARY(16)`, `DATETIME(3)`, `ENUM`, `CHECK`, composite FKs, `REVOKE`) need it.  |
+| **Four-digit prefixes**                              | `0001_tenancy`, `0002_ledger`, … applied in lexicographic order. `0004` is permanently retired.                                                                 |
+| **`0999_app_grants` runs last**                      | `GRANT` errors on a table that doesn't exist yet, so every granted table must be created earlier. `0999` is the ceiling of the scheme, so "last" is structural. |
+| **Static registration**                              | `migrations/index.ts` lists them explicitly (the server bundles to one file — no directory to scan at runtime).                                                 |
+| **Money `BIGINT`, UUIDs `BINARY(16)`, dates `DATE`** | Never `DECIMAL`/float; plain byte-order UUIDs; dates read as strings.                                                                                           |
+| **Composite `(org_id, id)` keys**                    | Children FK through them, making cross-org references unrepresentable.                                                                                          |
+| **In-place edits pre-release** (D-15)                | Migrations are edited, not appended, until first release.                                                                                                       |
 
 ---
 
@@ -65,7 +65,7 @@ flowchart TD
 migrated** database (introspection needs the whole schema), connected as the migrator user.
 
 > **You cannot codegen against your running local stack.** Pre-release migrations are edited in place,
-> so a new migration sorts *before* the applied `0999` and `migrate` refuses it. Codegen must run
+> so a new migration sorts _before_ the applied `0999` and `migrate` refuses it. Codegen must run
 > against a **throwaway** MySQL migrated fresh with the full set.
 
 The two overrides that matter (baked into the codegen config): `BIGINT → bigint` (precision) and
@@ -93,7 +93,7 @@ yarn drift    # = yarn spec:check && yarn client:check
 - **`client:check`** regenerates the web client's `schema.d.ts` from `openapi.json` and byte-compares
   it, restoring the working tree either way.
 
-Order matters: reversed, a route change would report as *client* drift instead of *spec* drift. To
+Order matters: reversed, a route change would report as _client_ drift instead of _spec_ drift. To
 regenerate the committed spec after a real route change: `yarn workspace @openbooks/server spec` (then
 `yarn workspace @openbooks/web codegen` for the client).
 
@@ -125,10 +125,10 @@ OPENBOOKS_ROLE=migrate DATABASE_HOST=127.0.0.1 DATABASE_PORT=13307 yarn migrate
 
 ## The two database users
 
-| User | Privileges | Provisioned in |
-| --- | --- | --- |
-| **`openbooks_app`** | `SELECT`, `INSERT` DB-wide; `UPDATE`/`DELETE` per-table on the allowlist. No DDL. | `docker/mysql-init/`, `infra/db-bootstrap/`. |
-| **`openbooks_migrator`** | `ALL … WITH GRANT OPTION`. | Same. |
+| User                     | Privileges                                                                        | Provisioned in                               |
+| ------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------- |
+| **`openbooks_app`**      | `SELECT`, `INSERT` DB-wide; `UPDATE`/`DELETE` per-table on the allowlist. No DDL. | `docker/mysql-init/`, `infra/db-bootstrap/`. |
+| **`openbooks_migrator`** | `ALL … WITH GRANT OPTION`.                                                        | Same.                                        |
 
 The grant file (`02-grants.sql`) is **byte-for-byte identical** between Compose and the RDS bootstrap;
 `infra/scripts/check-db-bootstrap-parity.sh` fails the build if they diverge. See

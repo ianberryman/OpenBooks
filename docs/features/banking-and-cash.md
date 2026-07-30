@@ -24,7 +24,7 @@ flowchart LR
 ```
 
 The crucial property: **only the clearing step writes to the ledger.** Import, matching, and rules
-all *propose* — they never post (decision **D-43**). A bank rule change never restates a posted entry
+all _propose_ — they never post (decision **D-43**). A bank rule change never restates a posted entry
 (decision **D-44**).
 
 ### Bank accounts
@@ -50,12 +50,12 @@ coding suggestion — and writes nothing to the ledger.
 ### Rules
 
 `bank_rules` is a **deterministic** (non-AI, non-chaining) classification lookup that only ever
-*proposes*. Changing a rule affects future proposals, never posted history.
+_proposes_. Changing a rule affects future proposals, never posted history.
 
 ### Clearing — the one write path
 
 `clearing.service.ts::clearBankStatementLine` is where a human-accepted match posts. A clear is
-**1..N entries**, each reaching the ordinary posting/payment/allocation service for its *own*
+**1..N entries**, each reaching the ordinary posting/payment/allocation service for its _own_
 permission check:
 
 ```mermaid
@@ -100,9 +100,9 @@ flowchart LR
     ALLOC --> ONACCT["unallocated remainder<br/>= 'on account' credit"]
 ```
 
-- **`payments.service.ts`** records a `Payment` — it *always* has a `journal_id` and has no draft
+- **`payments.service.ts`** records a `Payment` — it _always_ has a `journal_id` and has no draft
   state, because money already moved (decision **D-37**).
-- **`allocations.service.ts`** applies a payment, credit note, vendor credit, *or* discount journal
+- **`allocations.service.ts`** applies a payment, credit note, vendor credit, _or_ discount journal
   against a document. It refuses **over-allocation** (a locking read + recompute, criterion C3) but
   deliberately **permits over-payment** — the remainder is a spendable credit balance on the contact,
   not an error (decision **D-37**, criterion C4).

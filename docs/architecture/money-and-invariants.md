@@ -1,7 +1,7 @@
 # Money, Idempotency & Invariants
 
 Three cross-cutting concerns that show up in nearly every subsystem: how money is represented, how
-retries are made safe, and how correctness is *proven* rather than assumed. Getting any of these
+retries are made safe, and how correctness is _proven_ rather than assumed. Getting any of these
 wrong is subtle and expensive, so each is handled once, centrally, and enforced.
 
 ---
@@ -39,8 +39,8 @@ structurally and bans `+ - * / %`, `Number(money)`, `Math.*(money)`, and compoun
 money operands.
 
 ```ts
-const total = add(subtotal, tax);        // ✓ sanctioned
-const total = subtotal + tax;            // ✗ lint error: no-float-money
+const total = add(subtotal, tax); // ✓ sanctioned
+const total = subtotal + tax; // ✗ lint error: no-float-money
 ```
 
 ### Formatting is string manipulation
@@ -86,10 +86,10 @@ sequenceDiagram
     R2->>DB: read committed claim → replay stored response
 ```
 
-| Guarantee | How |
-| --- | --- |
+| Guarantee                              | How                                                                                                                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Exactly one execution under a race** | Two concurrent requests both `INSERT` the same key; the unique index serialises them. The second blocks, then fails `ER_DUP_ENTRY`, then replays the first's stored response. The guarantee is MySQL's unique index, not a check-then-act. |
-| **A failure is not poison** | If the operation throws, the claim rolls back *with it* — no committed row — so a genuine retry re-claims and re-executes. |
+| **A failure is not poison**            | If the operation throws, the claim rolls back _with it_ — no committed row — so a genuine retry re-claims and re-executes.                                                                                                                 |
 
 ### Replay, conflict, and fingerprints
 
@@ -102,7 +102,7 @@ On a repeat request with a completed, non-expired claim:
 The fingerprint uses a custom type-tagged canonical encoding, **not** `JSON.stringify` — which throws
 on `bigint` money and collapses `1` vs `'1'`.
 
-Retention is **7 days** and is *not* configurable (a correctness window as a deployment knob invites
+Retention is **7 days** and is _not_ configurable (a correctness window as a deployment knob invites
 someone shortening it and rediscovering why it existed). Two namespaces exist: org-scoped claims, and
 a separate org-less namespace for the five pre-org writes (register, login, logout, create-org,
 switch-org), whose fingerprint also folds in the caller's `userId`.
@@ -110,7 +110,7 @@ switch-org), whose fingerprint also folds in the caller's `userId`.
 ### The one thing a caller must get right
 
 `withIdempotency(spec, operation)` hands the `operation` callback a transactional, org-scoped handle
-that it **must use**. A callback that ignores it and calls `tenantDb(...)` itself opens a *second*
+that it **must use**. A callback that ignores it and calls `tenantDb(...)` itself opens a _second_
 transaction and silently defeats every guarantee. For the ledger this is resolved by ambient
 transaction propagation (see [Data & tenancy](data-and-tenancy.md#ambient-transactions)), so
 `withIdempotency(spec, () => postJournal(input, ctx))` composes correctly.
@@ -125,7 +125,7 @@ existed (acceptance criterion **A7**). A 403 would itself leak existence — it 
 Three things make 404 the default:
 
 1. `tenantDb()` injects the org filter, so a cross-org row **never arrives**.
-2. `assertFound(value, resource)` is the *single* sanctioned way to turn "no row" into a thrown
+2. `assertFound(value, resource)` is the _single_ sanctioned way to turn "no row" into a thrown
    error — so "never existed" and "exists but isn't yours" are literally the same line of code.
 3. `NotFoundError` accepts only a validated resource **token** — no message, no id echo, no details
    bag. Two different reasons produce identical output by construction; constructing one with a
@@ -143,12 +143,12 @@ flowchart TD
 
 The error taxonomy that supports this:
 
-| Error | Status | Rule |
-| --- | --- | --- |
-| `NotFoundError` | 404 | Takes a resource token only. The default for anything a caller can't see. |
-| `PermissionDeniedError` | 403 | Takes a permission key only. Thrown *only* by `requirePermission` for a caller lacking a role-granted permission — never for an object lookup. |
-| `UnauthenticatedError` | 401 | Takes no message at all — "no such user" and "wrong password" must stay indistinguishable or login becomes an enumeration oracle. |
-| `PreconditionFailedError` | 412 | Well-formed and permitted, but current state forbids it (e.g. posting to a closed period). Distinct from validation because the fix differs. |
+| Error                     | Status | Rule                                                                                                                                           |
+| ------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NotFoundError`           | 404    | Takes a resource token only. The default for anything a caller can't see.                                                                      |
+| `PermissionDeniedError`   | 403    | Takes a permission key only. Thrown _only_ by `requirePermission` for a caller lacking a role-granted permission — never for an object lookup. |
+| `UnauthenticatedError`    | 401    | Takes no message at all — "no such user" and "wrong password" must stay indistinguishable or login becomes an enumeration oracle.              |
+| `PreconditionFailedError` | 412    | Well-formed and permitted, but current state forbids it (e.g. posting to a closed period). Distinct from validation because the fix differs.   |
 
 `toWireError` is the single serialisation point; an unrecognised error becomes a bare
 `internal_error` (never `String(error)`, which could leak a connection string), and details are
@@ -159,7 +159,7 @@ stripped unconditionally on internal errors.
 ## Provenance
 
 Every log line automatically carries **who did it** (`requestId`, `orgId`, `userId`, `roleId`,
-`actorType`, `actorId`). This is a property of the *logger*, not something a call site must remember:
+`actorType`, `actorId`). This is a property of the _logger_, not something a call site must remember:
 pino's `mixin` reads the frozen request context on every log call. A caller's own fields cannot
 override the provenance — "evidence a call site can overwrite is not evidence" (acceptance criterion
 **A13**). All logging goes through this logger; `console.*` is a lint error.
@@ -171,12 +171,12 @@ override the provenance — "evidence a call site can overwrite is not evidence"
 Two habits this project has earned the hard way (from `CLAUDE.md`):
 
 - **Prove contention, don't assume it.** Concurrency tests park one transaction mid-flight and assert
-  the other has *not* settled. A sequential simulation of a race passes against code that has no
+  the other has _not_ settled. A sequential simulation of a race passes against code that has no
   locking at all — so it proves nothing. `openAppConnection()` gives a genuinely separate connection
   for this.
 - **Mutation-test anything load-bearing.** Two mutations once passed the entire example suite and
   were caught only by property tests — including permuting accounts in a reversal instead of swapping
-  sides, which is *identical to correct* on a two-line journal, and two-line journals were all the
+  sides, which is _identical to correct_ on a two-line journal, and two-line journals were all the
   example suite posted. A suite that has never failed is of unknown value.
 
 Property suites (via `fast-check`) generate and post journals against **real MySQL**, then check

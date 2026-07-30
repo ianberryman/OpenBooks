@@ -1,6 +1,6 @@
 # Purchases / Accounts Payable
 
-Money owed *by* the business: bills and vendor credits, the OCR pipeline that turns a photographed or
+Money owed _by_ the business: bills and vendor credits, the OCR pipeline that turns a photographed or
 emailed bill into a draft, and the disbursement side that pays them.
 
 Source: `packages/server/src/modules/{bills,pay-bills}`.
@@ -16,7 +16,7 @@ posting through `postJournal` / `reverseJournal`.
 
 Two AP-specific rules matter:
 
-1. **Duplicate-reference refusal.** A bill's `reference` is the *vendor's own* invoice number. A
+1. **Duplicate-reference refusal.** A bill's `reference` is the _vendor's own_ invoice number. A
    duplicate reference from the same vendor is refused (`assertNoDuplicateReference`) — this is the
    classic double-payment mistake, caught at entry.
 2. **Inverted journal direction.** A bill **credits** AP and debits expense; an invoice **debits** AR.
@@ -52,7 +52,7 @@ flowchart LR
   `anthropic` placeholder) and inbound mail (`dev` JSON webhook / `ses-inbound`).
 - A per-org `orgs.inbound_email_token` routes forwarded mail to the right org.
 - Capture reuses the `bills.read`/`bills.write` permissions — **no new catalog keys** — and the final
-  approval runs the *same* `approveBill` path a hand-entered bill does, so the duplicate-reference
+  approval runs the _same_ `approveBill` path a hand-entered bill does, so the duplicate-reference
   guard still applies.
 
 Files: `capture/capture.service.ts`, `capture/extraction.job.ts`.

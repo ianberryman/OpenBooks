@@ -33,12 +33,12 @@ flowchart TB
     ROOT --> WEB["web<br/>jsdom (extends vite.config.ts)"]
 ```
 
-| Project | Environment | Notes |
-| --- | --- | --- |
-| **server** | node | `globalSetup` starts **one shared MySQL 8 testcontainer** for the whole suite and migrates it. `fileParallelism: false` — ledger suites share one DB, and parallel files would interleave writes across property runs. |
-| **shared-types** | node | Pure unit tests (money, tax compute). |
-| **eslint-plugin** | node | Rule-tester tests for the four custom rules. |
-| **web** | jsdom | testing-library; API calls stubbed by replacing `globalThis.fetch` at import time. |
+| Project           | Environment | Notes                                                                                                                                                                                                                  |
+| ----------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **server**        | node        | `globalSetup` starts **one shared MySQL 8 testcontainer** for the whole suite and migrates it. `fileParallelism: false` — ledger suites share one DB, and parallel files would interleave writes across property runs. |
+| **shared-types**  | node        | Pure unit tests (money, tax compute).                                                                                                                                                                                  |
+| **eslint-plugin** | node        | Rule-tester tests for the four custom rules.                                                                                                                                                                           |
+| **web**           | jsdom       | testing-library; API calls stubbed by replacing `globalThis.fetch` at import time.                                                                                                                                     |
 
 ---
 
@@ -67,7 +67,7 @@ and defeat a race test.
 ## Habit 1: prove contention, don't assume it
 
 A sequential simulation of a race **passes against code that has no locking at all** — so it proves
-nothing. Real concurrency tests park one transaction mid-flight and assert the other has *not* settled:
+nothing. Real concurrency tests park one transaction mid-flight and assert the other has _not_ settled:
 
 ```mermaid
 sequenceDiagram
@@ -87,23 +87,25 @@ This is how the posting/period-lock races (A9) and the idempotency race (A8) are
 
 ## Habit 2: mutation-test anything load-bearing
 
-A suite that has never failed is of unknown value. Two mutations once passed the *entire* example
+A suite that has never failed is of unknown value. Two mutations once passed the _entire_ example
 suite and were caught only by property tests — including **permuting accounts in a reversal instead of
-swapping sides**, which is *identical to correct* on a two-line journal, and two-line journals were all
+swapping sides**, which is _identical to correct_ on a two-line journal, and two-line journals were all
 the example suite posted.
 
 The lesson: for load-bearing logic, write **property tests** (via `fast-check`) that generate a wide
-space of inputs and check invariants, and confirm they actually *fail* when you deliberately break the
+space of inputs and check invariants, and confirm they actually _fail_ when you deliberately break the
 code.
 
 ```ts
 // The shape: generate random balanced journals, post them against real MySQL,
 // then assert an invariant against the trial balance (the oracle).
-fc.assert(fc.property(arbitraryBalancedJournal(), async (j) => {
-  await postJournal(j, ctx);
-  const tb = await getTrialBalance(ctx);
-  expect(sumDebits(tb)).toEqual(sumCredits(tb));   // must hold for ANY input
-}));
+fc.assert(
+  fc.property(arbitraryBalancedJournal(), async (j) => {
+    await postJournal(j, ctx);
+    const tb = await getTrialBalance(ctx);
+    expect(sumDebits(tb)).toEqual(sumCredits(tb)); // must hold for ANY input
+  }),
+);
 ```
 
 One banking property suite computes the cleared balance **four independent ways over four tables** and
@@ -141,7 +143,7 @@ the M1–M4 milestone stories plus `cash-basis`, `quickbooks-import`, `recurring
 
 ---
 
-## What the default gate does *not* run
+## What the default gate does _not_ run
 
 `yarn check` runs `vitest run` but **not** `yarn e2e` — the E2E narratives are stack-runnable but
 separate. Run them explicitly when touching a cross-cutting flow.

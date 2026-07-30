@@ -28,7 +28,7 @@ const user = await systemDb().selectFrom('users').where('id', '=', id).executeTa
 **`tenantDb(orgId)`** returns a wrapper whose every `selectFrom` / `insertInto` / `updateTable` /
 `deleteFrom`:
 
-- is restricted at the *type level* to tenant tables only (a non-tenant table won't typecheck);
+- is restricted at the _type level_ to tenant tables only (a non-tenant table won't typecheck);
 - has `<table>.org_id = ?` injected into the `WHERE` clause **before** the caller can add anything;
 - on insert, has `org_id` **stripped from the accepted shape entirely** — there is nowhere to put a
   wrong one; the org id is spliced in after your values.
@@ -44,7 +44,7 @@ So a service author physically cannot write a query that reads another org's row
 `tenantDb`. The org id comes from the **frozen request context**, never from a parameter the caller
 controls.
 
-> **The one documented gap:** `updateTable` does not hide `org_id` from `.set()`. A caller *could*
+> **The one documented gap:** `updateTable` does not hide `org_id` from `.set()`. A caller _could_
 > move one of their own rows to another org's ownership — but they still cannot read or write another
 > org's rows, because the `WHERE` clause still confines the statement to their org. This is an
 > accepted, documented limit.
@@ -78,7 +78,7 @@ So a migration that adds a table with a non-nullable `org_id` is automatically i
 counterpart `TENANT_TABLES` is tied to the derived type with a compile-time exhaustiveness check —
 add a tenant table and forget to register it, and the build fails.
 
-**`roles` is deliberately excluded.** Its `org_id` is *nullable*, and `NULL` means a shared system
+**`roles` is deliberately excluded.** Its `org_id` is _nullable_, and `NULL` means a shared system
 role visible to all orgs (there are six seeded system roles). A bare `org_id = ?` equality would
 hide them. `roles` is accessed via `systemDb()` with an explicit `org_id = ? OR org_id IS NULL`
 predicate.
@@ -96,7 +96,7 @@ FOREIGN KEY (org_id, journal_id) REFERENCES journals (org_id, journal_id)
 ```
 
 A child row whose `org_id` disagrees with its parent's is not "rejected by a check" — it is
-*impossible to insert*, because there is no parent row with that `(org_id, id)` pair. Cross-org
+_impossible to insert_, because there is no parent row with that `(org_id, id)` pair. Cross-org
 references are unrepresentable at the storage layer.
 
 ---
@@ -115,10 +115,10 @@ flowchart TB
     MIGU --> DB
 ```
 
-| User | Holds | Used by |
-| --- | --- | --- |
-| **`openbooks_app`** | `SELECT`, `INSERT` database-wide; `UPDATE`/`DELETE` per-table on the `MUTABLE_TABLES` allowlist. **No DDL.** | The `api` and `worker` roles (the running server). |
-| **`openbooks_migrator`** | `ALL PRIVILEGES … WITH GRANT OPTION`. | The `migrate` role only. It's the only user that can hand out grants, which is how it narrows the app user's privileges. |
+| User                     | Holds                                                                                                        | Used by                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **`openbooks_app`**      | `SELECT`, `INSERT` database-wide; `UPDATE`/`DELETE` per-table on the `MUTABLE_TABLES` allowlist. **No DDL.** | The `api` and `worker` roles (the running server).                                                                       |
+| **`openbooks_migrator`** | `ALL PRIVILEGES … WITH GRANT OPTION`.                                                                        | The `migrate` role only. It's the only user that can hand out grants, which is how it narrows the app user's privileges. |
 
 The two users are provisioned **identically** in three places, and a script enforces that they don't
 drift:
@@ -142,14 +142,14 @@ await withIdempotency(spec, () => postJournal(input, ctx));
 ```
 
 `withIdempotency` opens a transaction to insert its claim row. `postJournal` calls `tenantDb(orgId)`,
-which builds a wrapper over the *pool*. Without help, the claim and the posting land in **two
+which builds a wrapper over the _pool_. Without help, the claim and the posting land in **two
 separate transactions on two connections** — a rollback of one leaves the other committed, breaking
 "a duplicate key yields exactly one journal" (A8).
 
 The fix (`src/db/transaction-scope.ts`) is an `AsyncLocalStorage<Transaction>` holding the **ambient
 transaction** for the current async scope. Both `tenantDb()` and `systemDb()` consult it before
 falling back to the pool. So any code running inside `withIdempotency`'s transaction automatically
-*joins* it — no transaction parameter threaded through every service signature.
+_joins_ it — no transaction parameter threaded through every service signature.
 
 ```mermaid
 flowchart TD
@@ -160,7 +160,7 @@ flowchart TD
 ```
 
 Related helpers: `runDetached()` clears the ambient scope for a queued job that will run on a later
-event-loop turn (a job enqueued inside a request's transaction must *not* see that
+event-loop turn (a job enqueued inside a request's transaction must _not_ see that
 committed/closed transaction); `withTransaction()` is the `systemDb()` counterpart to a tenant
 transaction.
 
@@ -175,13 +175,13 @@ bundles into a single file in production — there is no migrations directory on
 
 ### The conventions that matter
 
-| Convention | Why |
-| --- | --- |
-| **Four-digit prefixes**, applied in lexicographic order (`0001_tenancy`, `0002_ledger`, …). | Deterministic ordering. |
-| **`0999_app_grants` runs last.** | `GRANT` resolves table names at execution time and errors on a table that doesn't exist yet. Every table it names must be created by an earlier migration. `0999` is the *ceiling* of the four-digit scheme, so "last" is a property of the numbering, not something every future migration must remember. |
-| **`0004` is permanently retired.** | It used to be the grants file's number. |
-| Money is `BIGINT` minor units; UUIDs are `BINARY(16)` plain byte order; dates are `DATE` read as strings. | See [Money & invariants](money-and-invariants.md). |
-| **Pre-release, migrations are edited in place**, not appended (decision **D-15**). | Cleaner history before the schema is public. This inverts permanently at first release. |
+| Convention                                                                                                | Why                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Four-digit prefixes**, applied in lexicographic order (`0001_tenancy`, `0002_ledger`, …).               | Deterministic ordering.                                                                                                                                                                                                                                                                                    |
+| **`0999_app_grants` runs last.**                                                                          | `GRANT` resolves table names at execution time and errors on a table that doesn't exist yet. Every table it names must be created by an earlier migration. `0999` is the _ceiling_ of the four-digit scheme, so "last" is a property of the numbering, not something every future migration must remember. |
+| **`0004` is permanently retired.**                                                                        | It used to be the grants file's number.                                                                                                                                                                                                                                                                    |
+| Money is `BIGINT` minor units; UUIDs are `BINARY(16)` plain byte order; dates are `DATE` read as strings. | See [Money & invariants](money-and-invariants.md).                                                                                                                                                                                                                                                         |
+| **Pre-release, migrations are edited in place**, not appended (decision **D-15**).                        | Cleaner history before the schema is public. This inverts permanently at first release.                                                                                                                                                                                                                    |
 
 The current migration set:
 

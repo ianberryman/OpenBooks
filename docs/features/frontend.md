@@ -57,8 +57,8 @@ out" from "the identity call itself failed" (a 503 shows a retry button, not a l
 `/quickbooks-import`, `/api-keys`, `/oauth-clients`, `/connected-apps`, `/agent-proposals`,
 `/oauth/consent`, and the public `/i/:token`.
 
-> **Design invariant (D-25): every screen is mounted unconditionally.** Permissions filter *nav
-> visibility only* — routes are never permission-gated, because enforcement is server-side. Typing a
+> **Design invariant (D-25): every screen is mounted unconditionally.** Permissions filter _nav
+> visibility only_ — routes are never permission-gated, because enforcement is server-side. Typing a
 > URL for a screen you lack permission for renders the screen, which then gets refused by the API.
 > `App.test.tsx` asserts exactly this: a caller without `reports.read` gets no Reports nav link but
 > can still navigate to `/reports` with no redirect.
@@ -70,30 +70,30 @@ Banking is its own **nested** router (`/banking/*` with relative sub-paths `acco
 
 ## The screens
 
-| Route | Screen |
-| --- | --- |
-| `/auth` | Sign-in / register (session cookie, no token handling). |
-| `/select-org` | Pick a membership or create an org. |
-| `/accounts` | Chart of accounts — tree/table, create/edit/deactivate, chart templates. |
-| `/journal-entry` | Manual double-entry editor — draft vs posted, balance indicator, one idempotency key per draft. |
-| `/contacts` | Customers/vendors directory; deactivate vs delete by posting history. |
-| `/sales` | Invoices & credit notes — editor/list/view, line items, allocations, sending. |
-| `/recurring-invoices` | Recurring templates the scheduler materialises. |
-| `/dunning` | Overdue-reminder policies & ladders (no "send now"). |
-| `/purchases` | Bills & vendor credits (two tabs). |
-| `/bill-captures` | OCR capture review queue → draft bills. |
-| `/money` | Payments in/out + allocations, plus AR/AP aging. |
-| `/banking/*` | Accounts → import → match → reconcile workflow. |
-| `/processing` | Connect a payment processor (write-only secrets). |
-| `/reports` | TB, P&L, BS, GL, cash-flow — shared filter/date/dimension controls, drill-through. |
-| `/settings` | Fiscal periods, dimensions, members/roles, branding, payment terms, discount accounts. |
-| `/quickbooks-import` | QuickBooks migration preview + import. |
-| `/api-keys` | Issue/revoke role-bound API keys (secret shown once). |
-| `/oauth-clients` | Register/deactivate third-party OAuth clients (admin). |
-| `/connected-apps` | The user's own granted apps (revoke own tokens). |
-| `/agent-proposals` | Human review queue for AI-authored journal drafts. |
-| `/oauth/consent` | OAuth 2.1 consent (reached only via the server's redirect). |
-| `/i/:token` | Public hosted-invoice view — no session, no cache, no AppShell. |
+| Route                 | Screen                                                                                          |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| `/auth`               | Sign-in / register (session cookie, no token handling).                                         |
+| `/select-org`         | Pick a membership or create an org.                                                             |
+| `/accounts`           | Chart of accounts — tree/table, create/edit/deactivate, chart templates.                        |
+| `/journal-entry`      | Manual double-entry editor — draft vs posted, balance indicator, one idempotency key per draft. |
+| `/contacts`           | Customers/vendors directory; deactivate vs delete by posting history.                           |
+| `/sales`              | Invoices & credit notes — editor/list/view, line items, allocations, sending.                   |
+| `/recurring-invoices` | Recurring templates the scheduler materialises.                                                 |
+| `/dunning`            | Overdue-reminder policies & ladders (no "send now").                                            |
+| `/purchases`          | Bills & vendor credits (two tabs).                                                              |
+| `/bill-captures`      | OCR capture review queue → draft bills.                                                         |
+| `/money`              | Payments in/out + allocations, plus AR/AP aging.                                                |
+| `/banking/*`          | Accounts → import → match → reconcile workflow.                                                 |
+| `/processing`         | Connect a payment processor (write-only secrets).                                               |
+| `/reports`            | TB, P&L, BS, GL, cash-flow — shared filter/date/dimension controls, drill-through.              |
+| `/settings`           | Fiscal periods, dimensions, members/roles, branding, payment terms, discount accounts.          |
+| `/quickbooks-import`  | QuickBooks migration preview + import.                                                          |
+| `/api-keys`           | Issue/revoke role-bound API keys (secret shown once).                                           |
+| `/oauth-clients`      | Register/deactivate third-party OAuth clients (admin).                                          |
+| `/connected-apps`     | The user's own granted apps (revoke own tokens).                                                |
+| `/agent-proposals`    | Human review queue for AI-authored journal drafts.                                              |
+| `/oauth/consent`      | OAuth 2.1 consent (reached only via the server's redirect).                                     |
+| `/i/:token`           | Public hosted-invoice view — no session, no cache, no AppShell.                                 |
 
 ---
 
@@ -132,7 +132,7 @@ data router.
 - **`api/presentation.ts`** maps every server error `code` to `{ title, message, recovery }`. Notably
   `permission_denied` and `not_found` share identical wording (the A7 rule).
 - **`query/`** — TanStack Query with `staleTime: 30s`, `refetchOnWindowFocus: false` (accounting data
-  changes on *this* user's own posts, which invalidate explicitly). Mutations default to `retry: 0`
+  changes on _this_ user's own posts, which invalidate explicitly). Mutations default to `retry: 0`
   (retrying is only safe when variables carry the idempotency key). Per-screen `queries.ts` files own
   their own keys and `invalidateQueries({ queryKey: SCOPE })` on success.
 
@@ -161,8 +161,8 @@ flowchart LR
     R --> T["@theme<br/>maps Tailwind utilities to role tokens"]
 ```
 
-- Tailwind's default theme is **wiped** (`--*: initial`), so a class like `bg-red-500` produces *no
-  CSS at all* — "tokens only" is mechanically enforced, not review-dependent.
+- Tailwind's default theme is **wiped** (`--*: initial`), so a class like `bg-red-500` produces _no
+  CSS at all_ — "tokens only" is mechanically enforced, not review-dependent.
 - The `openbooks/no-raw-color` lint rule bans hex/rgb/oklch literals in `.tsx`; `tokens.css` is the
   only file allowed to name a raw colour.
 - Theme is driven by a `data-theme` attribute on `<html>` (an inline pre-paint script resolves it from
