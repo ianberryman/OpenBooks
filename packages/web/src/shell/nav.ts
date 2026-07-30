@@ -39,6 +39,10 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   // action succeeds. The service enforces the write codes and the screen surfaces the refusal.
   { to: '/recurring-invoices', label: 'Recurring invoices', permission: 'invoices.read' },
   { to: '/dunning', label: 'Dunning', permission: 'invoices.read' },
+  // Initiative L: recurring GL templates read on their own key (D-117, no SoD); the
+  // service enforces `recurring_journals.write` and the screen surfaces the refusal.
+  { to: '/recurring-journals', label: 'Recurring journals', permission: 'recurring_journals.read' },
+  { to: '/fixed-assets', label: 'Fixed assets', permission: 'fixed_assets.read' },
   { to: '/purchases', label: 'Purchases', permission: 'bills.read' },
   // `bills.read`, the same reasoning as the invoicing surfaces above: the capture
   // review screen reads on `bills.read`; its writes (upload, create-draft) want
