@@ -305,6 +305,18 @@ const OVERRIDES = {
     'estimate_lines.unit_amount_minor': 'bigint',
     'estimate_lines.line_amount_minor': 'bigint',
     'estimate_lines.tax_amount_minor': 'bigint',
+
+    // ── Budgets (0016_budgets) ────────────────────────────────────────────────
+    //
+    // `amount_minor` is money and gets the same `bigint` correction every `*_minor`
+    // column above takes — plain `bigint`, not `Generated<>`, because a budget that
+    // silently defaulted its amount to zero is the bug no CHECK here can catch.
+    // `dimension_slice` is a STORED generated column (`idempotency_keys.claim_scope`'s
+    // own kind): MySQL rejects any attempt to write it, so `Generated<Buffer>` is what
+    // keeps it off the insert type. It is NOT NULL (COALESCE never yields null), so no
+    // nullability to spell out.
+    'budgets.amount_minor': 'bigint',
+    'budgets.dimension_slice': 'Generated<Buffer>',
   },
 };
 

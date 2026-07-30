@@ -929,6 +929,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List stored budget figures
+         * @description Every stored budget, optionally narrowed to one period and/or one account. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the budget-vs-actual report — not this list — is the read that scales.
+         */
+        get: operations["listBudgets"];
+        put?: never;
+        /**
+         * Enter or import budget figures
+         * @description Upserts a batch of budget figures by account, period and optional dimension value (OB-181, D-N5). Each entry replaces the amount in its slot, so re-sending the same batch is a no-op rather than an accumulation. Posts no journal (D-94). Only revenue and expense accounts may be budgeted in v1 (D-N2); a balance-sheet account is refused with `account_not_profit_and_loss`.
+         */
+        post: operations["setBudgets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/budgets/{budgetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a budget figure
+         * @description Removes one stored budget figure. Deleting is not reversing — a budget posts no journal (D-94), so removing one restates nothing a trial balance depends on. A cross-org or nonexistent id answers 404, never 403 (A7).
+         */
+        delete: operations["deleteBudget"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/change-feed": {
         parameters: {
             query?: never;
@@ -3224,6 +3268,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports/budget-vs-actual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget vs actual for one period
+         * @description Budgeted figures compared to ledger actuals for one fiscal period (OB-182, N), with per-account and section variance. Amounts are signed to their P&L section the way the profit and loss’s are — a positive variance is favourable (more revenue, or less expense, than planned). `basis` overrides the org default; `dimensions` filters and `groupBy` slices, both exactly as on the P&L. An account-total budget behaves like an untagged line — it lands in the unassigned bucket under any `groupBy` — so a sliced report’s slices plus its unassigned bucket sum to the whole (B6). Cash basis combined with a dimension filter or `groupBy` is refused, the same guard the P&L uses (D-N3). Only revenue and expense are budgeted in v1 (D-N2). Takes `reports.read` and only that.
+         */
+        get: operations["getBudgetVsActual"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/cash-flow": {
         parameters: {
             query?: never;
@@ -5212,6 +5276,194 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description A single budget figure for an account and period, optionally scoped to one dimension value. Posts no journal (D-94) — a target the budget-vs-actual report compares to actuals. */
+        Budget: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description The budgeted amount for this slot, as minor units. May be negative (a contra account). */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The axis of a per-slice budget, or null for the account-total budget. */
+            dimensionId: string | null;
+            /** @description The dimension value a per-slice budget targets, or null for the account total. */
+            dimensionValueId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            periodId: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A single budget figure for an account and period, optionally scoped to one dimension value. Posts no journal (D-94) — a target the budget-vs-actual report compares to actuals. */
+        BudgetInput: {
+            /** Format: uuid */
+            accountId: string;
+            /** @description The budgeted amount for this slot, as minor units. May be negative (a contra account). */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description The axis of a per-slice budget, or null for the account-total budget. */
+            dimensionId: string | null;
+            /** @description The dimension value a per-slice budget targets, or null for the account total. */
+            dimensionValueId: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            periodId: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A collection of stored budget figures. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the report — not this list — is the read that scales. */
+        BudgetList: {
+            items: components["schemas"]["Budget"][];
+        };
+        /** @description A collection of stored budget figures. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the report — not this list — is the read that scales. */
+        BudgetListInput: {
+            items: components["schemas"]["BudgetInput"][];
+        };
+        /** @description Budget vs actual for one fiscal period (OB-182): budgeted figures compared to ledger actuals on the org’s basis, with per-account and section variance. Amounts are signed to their P&L section; a positive variance is favourable. */
+        BudgetVsActual: {
+            /**
+             * @description Which basis produced the actuals (D-N3) — the request’s, or the org default.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            groupBy: string | null;
+            groups: components["schemas"]["BudgetVsActualGroup"][];
+            /** @description The fiscal period compared, resolved from `periodId`. */
+            period: {
+                endDate: components["schemas"]["CalendarDate"];
+                /** Format: uuid */
+                id: string;
+                name: string;
+                startDate: components["schemas"]["CalendarDate"];
+            };
+            /** @description Every group summed. Equal to the same report run without `groupBy`. */
+            totals: components["schemas"]["BudgetVsActualTotals"];
+        };
+        /** @description One complete budget-vs-actual statement. An unsliced report has exactly one group whose `key` is null; a `groupBy` report has a group per dimension value plus the unassigned bucket. */
+        BudgetVsActualGroup: {
+            expenses: components["schemas"]["BudgetVsActualSection"];
+            key: components["schemas"]["ReportGroupKey"] | null;
+            /** @description `revenue − expenses` for each of budget, actual and variance. */
+            netIncome: {
+                actual: components["schemas"]["MinorUnits"];
+                budget: components["schemas"]["MinorUnits"];
+                variance: components["schemas"]["MinorUnits"];
+            };
+            revenue: components["schemas"]["BudgetVsActualSection"];
+        };
+        /** @description One complete budget-vs-actual statement. An unsliced report has exactly one group whose `key` is null; a `groupBy` report has a group per dimension value plus the unassigned bucket. */
+        BudgetVsActualGroupInput: {
+            expenses: components["schemas"]["BudgetVsActualSectionInput"];
+            key: components["schemas"]["ReportGroupKeyInput"] | null;
+            /** @description `revenue − expenses` for each of budget, actual and variance. */
+            netIncome: {
+                actual: components["schemas"]["MinorUnitsInput"];
+                budget: components["schemas"]["MinorUnitsInput"];
+                variance: components["schemas"]["MinorUnitsInput"];
+            };
+            revenue: components["schemas"]["BudgetVsActualSectionInput"];
+        };
+        /** @description Budget vs actual for one fiscal period (OB-182): budgeted figures compared to ledger actuals on the org’s basis, with per-account and section variance. Amounts are signed to their P&L section; a positive variance is favourable. */
+        BudgetVsActualInput: {
+            /**
+             * @description Which basis produced the actuals (D-N3) — the request’s, or the org default.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            groupBy: string | null;
+            groups: components["schemas"]["BudgetVsActualGroupInput"][];
+            /** @description The fiscal period compared, resolved from `periodId`. */
+            period: {
+                endDate: components["schemas"]["CalendarDateInput"];
+                /** Format: uuid */
+                id: string;
+                name: string;
+                startDate: components["schemas"]["CalendarDateInput"];
+            };
+            /** @description Every group summed. Equal to the same report run without `groupBy`. */
+            totals: components["schemas"]["BudgetVsActualTotalsInput"];
+        };
+        /** @description One account’s budget, actual and variance for the period. Amounts are signed to the P&L section the same way `ProfitAndLossRow`’s are. */
+        BudgetVsActualRow: {
+            /** Format: uuid */
+            accountId: string;
+            actual: components["schemas"]["MinorUnits"];
+            budget: components["schemas"]["MinorUnits"];
+            code: string;
+            name: string;
+            /** @enum {string} */
+            type: "revenue" | "expense";
+            /** @description `budget − actual`, signed to the section. */
+            variance: components["schemas"]["MinorUnits"];
+            /** @description `variance / budget × 100`, or null when the budget is zero. */
+            variancePercent: number | null;
+        };
+        /** @description One account’s budget, actual and variance for the period. Amounts are signed to the P&L section the same way `ProfitAndLossRow`’s are. */
+        BudgetVsActualRowInput: {
+            /** Format: uuid */
+            accountId: string;
+            actual: components["schemas"]["MinorUnitsInput"];
+            budget: components["schemas"]["MinorUnitsInput"];
+            code: string;
+            name: string;
+            /** @enum {string} */
+            type: "revenue" | "expense";
+            /** @description `budget − actual`, signed to the section. */
+            variance: components["schemas"]["MinorUnitsInput"];
+            /** @description `variance / budget × 100`, or null when the budget is zero. */
+            variancePercent: number | null;
+        };
+        /** @description Every account of one section (revenue or expense) with its budget, actual and variance, plus the section totals. Rows include accounts with no budget and no activity, at zero. */
+        BudgetVsActualSection: {
+            actual: components["schemas"]["MinorUnits"];
+            budget: components["schemas"]["MinorUnits"];
+            rows: components["schemas"]["BudgetVsActualRow"][];
+            variance: components["schemas"]["MinorUnits"];
+        };
+        /** @description Every account of one section (revenue or expense) with its budget, actual and variance, plus the section totals. Rows include accounts with no budget and no activity, at zero. */
+        BudgetVsActualSectionInput: {
+            actual: components["schemas"]["MinorUnitsInput"];
+            budget: components["schemas"]["MinorUnitsInput"];
+            rows: components["schemas"]["BudgetVsActualRowInput"][];
+            variance: components["schemas"]["MinorUnitsInput"];
+        };
+        BudgetVsActualTotals: {
+            expenses: {
+                actual: components["schemas"]["MinorUnits"];
+                budget: components["schemas"]["MinorUnits"];
+                variance: components["schemas"]["MinorUnits"];
+            };
+            netIncome: {
+                actual: components["schemas"]["MinorUnits"];
+                budget: components["schemas"]["MinorUnits"];
+                variance: components["schemas"]["MinorUnits"];
+            };
+            revenue: {
+                actual: components["schemas"]["MinorUnits"];
+                budget: components["schemas"]["MinorUnits"];
+                variance: components["schemas"]["MinorUnits"];
+            };
+        };
+        BudgetVsActualTotalsInput: {
+            expenses: {
+                actual: components["schemas"]["MinorUnitsInput"];
+                budget: components["schemas"]["MinorUnitsInput"];
+                variance: components["schemas"]["MinorUnitsInput"];
+            };
+            netIncome: {
+                actual: components["schemas"]["MinorUnitsInput"];
+                budget: components["schemas"]["MinorUnitsInput"];
+                variance: components["schemas"]["MinorUnitsInput"];
+            };
+            revenue: {
+                actual: components["schemas"]["MinorUnitsInput"];
+                budget: components["schemas"]["MinorUnitsInput"];
+                variance: components["schemas"]["MinorUnitsInput"];
+            };
         };
         /**
          * Format: date
@@ -10050,6 +10302,44 @@ export interface components {
         SendPredocumentRequestInput: {
             recipientEmail?: string | null;
         };
+        /** @description Enters or imports budget figures in one batch (D-N5). Each entry upserts its `(account, period, dimension-value)` slot; a repeated slot within one batch is the last writer. Posts no journal. */
+        SetBudgetsRequest: {
+            entries: {
+                /**
+                 * Format: uuid
+                 * @description A P&L account (revenue or expense). Balance-sheet budgeting is deferred (D-N2).
+                 */
+                accountId: string;
+                /** @description The budgeted amount, as minor units. Replaces whatever the slot held before. */
+                amount: components["schemas"]["MinorUnits"];
+                /**
+                 * Format: uuid
+                 * @description The dimension value this figure is scoped to. Omit for the account-total budget; the service resolves the value’s axis, so the axis is never sent separately.
+                 */
+                dimensionValueId?: string;
+                /** Format: uuid */
+                periodId: string;
+            }[];
+        };
+        /** @description Enters or imports budget figures in one batch (D-N5). Each entry upserts its `(account, period, dimension-value)` slot; a repeated slot within one batch is the last writer. Posts no journal. */
+        SetBudgetsRequestInput: {
+            entries: {
+                /**
+                 * Format: uuid
+                 * @description A P&L account (revenue or expense). Balance-sheet budgeting is deferred (D-N2).
+                 */
+                accountId: string;
+                /** @description The budgeted amount, as minor units. Replaces whatever the slot held before. */
+                amount: components["schemas"]["MinorUnitsInput"];
+                /**
+                 * Format: uuid
+                 * @description The dimension value this figure is scoped to. Omit for the account-total budget; the service resolves the value’s axis, so the axis is never sent separately.
+                 */
+                dimensionValueId?: string;
+                /** Format: uuid */
+                periodId: string;
+            }[];
+        };
         /** @description The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused. */
         SetJournalLineDimensionsRequest: {
             /** @description Every dimension value this line carries, after the call. An axis absent from the list is untagged; an empty list clears every tag. Two values on one axis is a `precondition_failed`, not a last-one-wins. */
@@ -13257,6 +13547,106 @@ export interface operations {
                         website: string | null;
                     };
                 };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBudgets: {
+        parameters: {
+            query?: {
+                periodId?: string;
+                accountId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setBudgets: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBudgetsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteBudget: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                budgetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Default Response */
             default: {
@@ -18981,6 +19371,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BalanceSheet"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBudgetVsActual: {
+        parameters: {
+            query: {
+                periodId: string;
+                /** @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers. */
+                basis?: "accrual" | "cash";
+                /** @description A url-encoded JSON array of dimension filters. Each entry is `{ "dimensionId": uuid, "valueIds"?: uuid[], "includeUnassigned"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing. */
+                dimensions?: string;
+                /** @description A dimension axis to slice by. The result is one bucket per value the window contains plus an unassigned bucket, which is always present (D-18) — a slice view that omitted untagged lines would show a smaller business than exists. One axis, not several: two would be a cross-tabulation, which is a different presentation problem. */
+                groupBy?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetVsActual"];
                 };
             };
             /** @description Default Response */

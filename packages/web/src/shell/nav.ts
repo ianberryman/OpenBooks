@@ -94,6 +94,7 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
    */
   { to: '/processing', label: 'Payment processing', permission: 'processing.read' },
   { to: '/reports', label: 'Reports', permission: 'reports.read' },
+  { to: '/budgets', label: 'Budgets', permission: 'budgets.read' },
   // `orgs.read` and not the union of dimensions/members/periods: the settings screen is the
   // organization's own administration, and the seeded roles that hold any of its parts hold
   // this one too — except the job-scoped ones (`ap_only`, `ar_only`), for whom the whole

@@ -86,6 +86,8 @@ interface Scene {
   readonly dunningPolicyId: string;
   readonly recurringJournalTemplateId: string;
   readonly fixedAssetId: string;
+  /** Budgets (N, OB-183): a stored budget figure, for `deleteBudget`'s id-addressed route. */
+  readonly budgetId: string;
   /**
    * Procure-to-pay (M, OB-177): a draft purchase order, estimate, and expense. A
    * draft suffices for every id-addressed row — the route resolves it for the owner
@@ -363,6 +365,21 @@ async function scene(app: App): Promise<Scene> {
     inServiceDate: '2026-01-15',
   });
 
+  // Budgets (N): `setBudgets` returns 200 with the upserted list, not a 201 with an
+  // id, so it cannot go through `created()` — build it inline and take the one item.
+  const budgetSetup = await app.inject({
+    method: 'POST',
+    url: '/v1/budgets',
+    headers: authorizedWrite(owner, 'a7-setup-budget'),
+    payload: { entries: [{ accountId: revenueId, periodId, amount: '100000' }] },
+  });
+  if (budgetSetup.statusCode !== 200) {
+    throw new Error(`budget setup failed: ${String(budgetSetup.statusCode)} ${budgetSetup.body}`);
+  }
+  const budgetItem = budgetSetup.json<{ items: { id: string }[] }>().items[0];
+  if (budgetItem === undefined) throw new Error('budget setup returned no items');
+  const budgetId = budgetItem.id;
+
   const subledger = await subledgerScene(app, owner, created, revenueId);
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
   const captures = await captureScene(owner, subledger.targetBillId);
@@ -471,6 +488,7 @@ async function scene(app: App): Promise<Scene> {
     dunningPolicyId,
     recurringJournalTemplateId,
     fixedAssetId,
+    budgetId,
     apiKeyId,
     oauthClientId,
     oauthClientPublicId,
@@ -1191,6 +1209,15 @@ const SURFACES: readonly Surface[] = [
       proceedsMinor: '0',
       gainLossAccountId: s.accountId,
     }),
+  },
+  // Budgets (N, OB-183). `deleteBudget` is the one budget route addressed by a path
+  // id; `setBudgets`/`listBudgets` carry their ids in the body/query and are covered
+  // by cross-org-references.test.ts instead. The stranger 404s at the row load.
+  {
+    operationId: 'deleteBudget',
+    method: 'DELETE',
+    path: '/v1/budgets/%s',
+    id: (s) => s.budgetId,
   },
   // Procure-to-pay (M, OB-177). Purchase orders and estimates are non-posting
   // pre-documents that convert into a bill/invoice; an employee expense is an

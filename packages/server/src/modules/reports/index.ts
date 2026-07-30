@@ -220,3 +220,12 @@ export {
   cashFlowProjectionQuerySchema,
 } from '@openbooks/shared-types';
 export type { CashFlowBucketGranularity } from '@openbooks/shared-types';
+
+/**
+ * Budget vs actual (OB-182; D-N1…D-N6). A projection over `getAccountBalances`,
+ * shaped like the P&L — read `budget-vs-actual.service.ts` for why the period is
+ * read directly off `fiscal_periods` rather than through `periods.read`, and for
+ * how a stored budget's own signed amount is bucketed to match the actuals side's
+ * grouping.
+ */
+export { getBudgetVsActual } from './budget-vs-actual.service';

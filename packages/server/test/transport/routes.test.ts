@@ -150,6 +150,8 @@ describe('the /v1 route table', () => {
         // K (cash-basis reporting): the two cash-flow statements (OB-157, OB-158).
         'getStatementOfCashFlows',
         'getCashFlowProjection',
+        // N (budgets): the budget-vs-actual report (OB-182), reports.read like the rest.
+        'getBudgetVsActual',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',
         'updateControlAccounts',
@@ -303,6 +305,11 @@ describe('the /v1 route table', () => {
         'disposeFixedAsset',
         'getDepreciationAccounts',
         'updateDepreciationAccounts',
+        // N (budgets): enter/list/delete the figures (OB-183). The budget-vs-actual
+        // report is above, with the other reports.
+        'setBudgets',
+        'listBudgets',
+        'deleteBudget',
         // Pay Bills (OB-115).
         'buildPendingPayment',
         'payBills',

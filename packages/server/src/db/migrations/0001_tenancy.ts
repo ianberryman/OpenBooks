@@ -340,7 +340,9 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('estimates.write',          'Create, approve, send, and convert estimates (M)'),
       ('expenses.read',            'View employee expenses (M)'),
       ('expenses.write',           'Enter and modify employee expenses (M)'),
-      ('expenses.approve',         'Approve an employee expense into a payable (M)')
+      ('expenses.approve',         'Approve an employee expense into a payable (M)'),
+      ('budgets.read',             'View budgets and budget-vs-actual (N)'),
+      ('budgets.write',            'Enter and import budget figures (N)')
   `.execute(db);
 }
 

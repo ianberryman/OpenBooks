@@ -5859,6 +5859,734 @@
         ],
         "type": "object"
       },
+      "Budget": {
+        "additionalProperties": false,
+        "description": "A single budget figure for an account and period, optionally scoped to one dimension value. Posts no journal (D-94) — a target the budget-vs-actual report compares to actuals.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The budgeted amount for this slot, as minor units. May be negative (a contra account)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "dimensionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The axis of a per-slice budget, or null for the account-total budget."
+          },
+          "dimensionValueId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The dimension value a per-slice budget targets, or null for the account total."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "periodId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "periodId",
+          "dimensionId",
+          "dimensionValueId",
+          "amount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BudgetInput": {
+        "additionalProperties": false,
+        "description": "A single budget figure for an account and period, optionally scoped to one dimension value. Posts no journal (D-94) — a target the budget-vs-actual report compares to actuals.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The budgeted amount for this slot, as minor units. May be negative (a contra account)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "dimensionId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The axis of a per-slice budget, or null for the account-total budget."
+          },
+          "dimensionValueId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The dimension value a per-slice budget targets, or null for the account total."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "periodId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "periodId",
+          "dimensionId",
+          "dimensionValueId",
+          "amount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BudgetList": {
+        "additionalProperties": false,
+        "description": "A collection of stored budget figures. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the report — not this list — is the read that scales.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Budget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "BudgetListInput": {
+        "additionalProperties": false,
+        "description": "A collection of stored budget figures. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the report — not this list — is the read that scales.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActual": {
+        "additionalProperties": false,
+        "description": "Budget vs actual for one fiscal period (OB-182): budgeted figures compared to ledger actuals on the org’s basis, with per-account and section variance. Amounts are signed to their P&L section; a positive variance is favourable.",
+        "properties": {
+          "basis": {
+            "description": "Which basis produced the actuals (D-N3) — the request’s, or the org default.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "groupBy": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetVsActualGroup"
+            },
+            "type": "array"
+          },
+          "period": {
+            "additionalProperties": false,
+            "description": "The fiscal period compared, resolved from `periodId`.",
+            "properties": {
+              "endDate": {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              "id": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "startDate": {
+                "$ref": "#/components/schemas/CalendarDate"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BudgetVsActualTotals",
+            "description": "Every group summed. Equal to the same report run without `groupBy`."
+          }
+        },
+        "required": [
+          "period",
+          "basis",
+          "groupBy",
+          "groups",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualGroup": {
+        "additionalProperties": false,
+        "description": "One complete budget-vs-actual statement. An unsliced report has exactly one group whose `key` is null; a `groupBy` report has a group per dimension value plus the unassigned bucket.",
+        "properties": {
+          "expenses": {
+            "$ref": "#/components/schemas/BudgetVsActualSection"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportGroupKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "netIncome": {
+            "additionalProperties": false,
+            "description": "`revenue − expenses` for each of budget, actual and variance.",
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnits"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "revenue": {
+            "$ref": "#/components/schemas/BudgetVsActualSection"
+          }
+        },
+        "required": [
+          "key",
+          "revenue",
+          "expenses",
+          "netIncome"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualGroupInput": {
+        "additionalProperties": false,
+        "description": "One complete budget-vs-actual statement. An unsliced report has exactly one group whose `key` is null; a `groupBy` report has a group per dimension value plus the unassigned bucket.",
+        "properties": {
+          "expenses": {
+            "$ref": "#/components/schemas/BudgetVsActualSectionInput"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportGroupKeyInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "netIncome": {
+            "additionalProperties": false,
+            "description": "`revenue − expenses` for each of budget, actual and variance.",
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "revenue": {
+            "$ref": "#/components/schemas/BudgetVsActualSectionInput"
+          }
+        },
+        "required": [
+          "key",
+          "revenue",
+          "expenses",
+          "netIncome"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualInput": {
+        "additionalProperties": false,
+        "description": "Budget vs actual for one fiscal period (OB-182): budgeted figures compared to ledger actuals on the org’s basis, with per-account and section variance. Amounts are signed to their P&L section; a positive variance is favourable.",
+        "properties": {
+          "basis": {
+            "description": "Which basis produced the actuals (D-N3) — the request’s, or the org default.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "groupBy": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetVsActualGroupInput"
+            },
+            "type": "array"
+          },
+          "period": {
+            "additionalProperties": false,
+            "description": "The fiscal period compared, resolved from `periodId`.",
+            "properties": {
+              "endDate": {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              "id": {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "startDate": {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "startDate",
+              "endDate"
+            ],
+            "type": "object"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BudgetVsActualTotalsInput",
+            "description": "Every group summed. Equal to the same report run without `groupBy`."
+          }
+        },
+        "required": [
+          "period",
+          "basis",
+          "groupBy",
+          "groups",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualRow": {
+        "additionalProperties": false,
+        "description": "One account’s budget, actual and variance for the period. Amounts are signed to the P&L section the same way `ProfitAndLossRow`’s are.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actual": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          },
+          "variance": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "`budget − actual`, signed to the section."
+          },
+          "variancePercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`variance / budget × 100`, or null when the budget is zero."
+          }
+        },
+        "required": [
+          "accountId",
+          "code",
+          "name",
+          "type",
+          "budget",
+          "actual",
+          "variance",
+          "variancePercent"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualRowInput": {
+        "additionalProperties": false,
+        "description": "One account’s budget, actual and variance for the period. Amounts are signed to the P&L section the same way `ProfitAndLossRow`’s are.",
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "actual": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "revenue",
+              "expense"
+            ],
+            "type": "string"
+          },
+          "variance": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "`budget − actual`, signed to the section."
+          },
+          "variancePercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`variance / budget × 100`, or null when the budget is zero."
+          }
+        },
+        "required": [
+          "accountId",
+          "code",
+          "name",
+          "type",
+          "budget",
+          "actual",
+          "variance",
+          "variancePercent"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualSection": {
+        "additionalProperties": false,
+        "description": "Every account of one section (revenue or expense) with its budget, actual and variance, plus the section totals. Rows include accounts with no budget and no activity, at zero.",
+        "properties": {
+          "actual": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetVsActualRow"
+            },
+            "type": "array"
+          },
+          "variance": {
+            "$ref": "#/components/schemas/MinorUnits"
+          }
+        },
+        "required": [
+          "rows",
+          "budget",
+          "actual",
+          "variance"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualSectionInput": {
+        "additionalProperties": false,
+        "description": "Every account of one section (revenue or expense) with its budget, actual and variance, plus the section totals. Rows include accounts with no budget and no activity, at zero.",
+        "properties": {
+          "actual": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetVsActualRowInput"
+            },
+            "type": "array"
+          },
+          "variance": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "required": [
+          "rows",
+          "budget",
+          "actual",
+          "variance"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "expenses": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnits"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "netIncome": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnits"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "revenue": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnits"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "revenue",
+          "expenses",
+          "netIncome"
+        ],
+        "type": "object"
+      },
+      "BudgetVsActualTotalsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "expenses": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "netIncome": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          },
+          "revenue": {
+            "additionalProperties": false,
+            "properties": {
+              "actual": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "budget": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              "variance": {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              }
+            },
+            "required": [
+              "budget",
+              "actual",
+              "variance"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "revenue",
+          "expenses",
+          "netIncome"
+        ],
+        "type": "object"
+      },
       "CalendarDate": {
         "description": "A calendar date, `YYYY-MM-DD`. Not an instant: an accounting date carries no time and no timezone, because which fiscal period an entry lands in must not depend on the reader’s.",
         "examples": [
@@ -24019,6 +24747,100 @@
         },
         "type": "object"
       },
+      "SetBudgetsRequest": {
+        "additionalProperties": false,
+        "description": "Enters or imports budget figures in one batch (D-N5). Each entry upserts its `(account, period, dimension-value)` slot; a repeated slot within one batch is the last writer. Posts no journal.",
+        "properties": {
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "accountId": {
+                  "description": "A P&L account (revenue or expense). Balance-sheet budgeting is deferred (D-N2).",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MinorUnits",
+                  "description": "The budgeted amount, as minor units. Replaces whatever the slot held before."
+                },
+                "dimensionValueId": {
+                  "description": "The dimension value this figure is scoped to. Omit for the account-total budget; the service resolves the value’s axis, so the axis is never sent separately.",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "periodId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "accountId",
+                "periodId",
+                "amount"
+              ],
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "SetBudgetsRequestInput": {
+        "additionalProperties": false,
+        "description": "Enters or imports budget figures in one batch (D-N5). Each entry upserts its `(account, period, dimension-value)` slot; a repeated slot within one batch is the last writer. Posts no journal.",
+        "properties": {
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "accountId": {
+                  "description": "A P&L account (revenue or expense). Balance-sheet budgeting is deferred (D-N2).",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MinorUnitsInput",
+                  "description": "The budgeted amount, as minor units. Replaces whatever the slot held before."
+                },
+                "dimensionValueId": {
+                  "description": "The dimension value this figure is scoped to. Omit for the account-total budget; the service resolves the value’s axis, so the axis is never sent separately.",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "periodId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "accountId",
+                "periodId",
+                "amount"
+              ],
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
       "SetJournalLineDimensionsRequest": {
         "additionalProperties": false,
         "description": "The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused.",
@@ -32359,6 +33181,159 @@
         "summary": "Upload the org’s logo",
         "tags": [
           "branding"
+        ]
+      }
+    },
+    "/v1/budgets": {
+      "get": {
+        "description": "Every stored budget, optionally narrowed to one period and/or one account. Not paginated: a period’s budgets are bounded by the chart × its dimension values, and the budget-vs-actual report — not this list — is the read that scales.",
+        "operationId": "listBudgets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "periodId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List stored budget figures",
+        "tags": [
+          "budgets"
+        ]
+      },
+      "post": {
+        "description": "Upserts a batch of budget figures by account, period and optional dimension value (OB-181, D-N5). Each entry replaces the amount in its slot, so re-sending the same batch is a no-op rather than an accumulation. Posts no journal (D-94). Only revenue and expense accounts may be budgeted in v1 (D-N2); a balance-sheet account is refused with `account_not_profit_and_loss`.",
+        "operationId": "setBudgets",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBudgetsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Enter or import budget figures",
+        "tags": [
+          "budgets"
+        ]
+      }
+    },
+    "/v1/budgets/{budgetId}": {
+      "delete": {
+        "description": "Removes one stored budget figure. Deleting is not reversing — a budget posts no journal (D-94), so removing one restates nothing a trial balance depends on. A cross-org or nonexistent id answers 404, never 403 (A7).",
+        "operationId": "deleteBudget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "budgetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Delete a budget figure",
+        "tags": [
+          "budgets"
         ]
       }
     },
@@ -41877,6 +42852,84 @@
           }
         },
         "summary": "Balance sheet",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/v1/reports/budget-vs-actual": {
+      "get": {
+        "description": "Budgeted figures compared to ledger actuals for one fiscal period (OB-182, N), with per-account and section variance. Amounts are signed to their P&L section the way the profit and loss’s are — a positive variance is favourable (more revenue, or less expense, than planned). `basis` overrides the org default; `dimensions` filters and `groupBy` slices, both exactly as on the P&L. An account-total budget behaves like an untagged line — it lands in the unassigned bucket under any `groupBy` — so a sliced report’s slices plus its unassigned bucket sum to the whole (B6). Cash basis combined with a dimension filter or `groupBy` is refused, the same guard the P&L uses (D-N3). Only revenue and expense are budgeted in v1 (D-N2). Takes `reports.read` and only that.",
+        "operationId": "getBudgetVsActual",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "periodId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.",
+            "in": "query",
+            "name": "basis",
+            "required": false,
+            "schema": {
+              "enum": [
+                "accrual",
+                "cash"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "A url-encoded JSON array of dimension filters. Each entry is `{ \"dimensionId\": uuid, \"valueIds\"?: uuid[], \"includeUnassigned\"?: boolean }`. Filters on different axes are conjoined; the values within one are a disjunction. `includeUnassigned` is the drill-through from a grouped report’s unassigned bucket, which no list of value ids can express. Two filters naming the same axis is refused rather than silently matching nothing.",
+            "in": "query",
+            "name": "dimensions",
+            "required": false,
+            "schema": {
+              "contentMediaType": "application/json",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A dimension axis to slice by. The result is one bucket per value the window contains plus an unassigned bucket, which is always present (D-18) — a slice view that omitted untagged lines would show a smaller business than exists. One axis, not several: two would be a cross-tabulation, which is a different presentation problem.",
+            "in": "query",
+            "name": "groupBy",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetVsActual"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Budget vs actual for one period",
         "tags": [
           "reports"
         ]

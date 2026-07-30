@@ -12,6 +12,7 @@ import { ApiKeysScreen } from './screens/api-keys';
 import { AuthScreen } from './screens/auth';
 import { BankingScreen } from './screens/banking';
 import { BillCapturesScreen } from './screens/bill-captures';
+import { BudgetsScreen } from './screens/budgets';
 import { ConnectedAppsScreen } from './screens/connected-apps';
 import { ContactsScreen } from './screens/contacts';
 import { DisbursementsScreen } from './screens/disbursements';
@@ -211,6 +212,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/banking/*" element={<BankingScreen />} />
         <Route path="/processing" element={<ProcessingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
+        <Route path="/budgets" element={<BudgetsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />
         <Route path="/api-keys" element={<ApiKeysScreen />} />

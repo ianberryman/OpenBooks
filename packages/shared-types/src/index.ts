@@ -13,6 +13,7 @@
 export * from './accounts';
 export * from './auth';
 export * from './banking';
+export * from './budgets';
 export * from './contacts';
 export * from './delivery';
 export * from './dimensions';

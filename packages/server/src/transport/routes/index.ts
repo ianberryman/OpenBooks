@@ -11,6 +11,7 @@ import { registerBillCaptureRoutes } from './bill-captures';
 import { registerBillInboundRoutes } from './bill-inbound';
 import { registerBillRoutes } from './bills';
 import { registerBrandingRoutes } from './branding';
+import { registerBudgetRoutes } from './budgets';
 import { registerChangeFeedRoutes } from './change-feed';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
@@ -589,6 +590,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerProcessingRoutes(app);
   registerRecurringJournalRoutes(app);
   registerFixedAssetRoutes(app);
+  // Budgets (N, OB-183): enter/import/list/delete budget figures. The
+  // budget-vs-actual report is registered with the other reports above.
+  registerBudgetRoutes(app);
   // Procure-to-pay (M, OB-175): purchase orders, estimates, employee expenses, and
   // the lean send path for the two pre-documents.
   registerPurchaseOrderRoutes(app);

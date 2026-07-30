@@ -423,6 +423,15 @@ const MUTABLE_TABLES = [
   'purchase_order_lines',
   'estimates',
   'estimate_lines',
+  // ── Budgets (0016_budgets) ─────────────────────────────────────────────────
+  //
+  // A budget posts no journal (D-94) — it is a target compared against actuals in
+  // a report, not a ledger event — so, like the M3 subledger, `budgets` holds no
+  // financial fact and editing one restates nothing a trial balance depends on.
+  // Mutable for `setBudgets`' upsert, which replaces a slot's amount in place
+  // (`ON DUPLICATE KEY UPDATE`), an UPDATE the append-only grant would refuse. The
+  // numbers a budget is measured against live in `journals`, append-only above.
+  'budgets',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

@@ -5,6 +5,7 @@ import {
   MAX_DIMENSIONS_PER_ORG,
   agingSchema,
   balanceSheetSchema,
+  budgetVsActualSchema,
   calendarDateSchema,
   cashFlowProjectionSchema,
   generalLedgerSchema,
@@ -24,6 +25,7 @@ import { getTrialBalance } from '../../modules/ledger';
 import type { TrialBalance } from '../../modules/ledger';
 import {
   getBalanceSheet,
+  getBudgetVsActual,
   getCashFlowProjection,
   getGeneralLedger,
   getProfitAndLoss,
@@ -295,6 +297,22 @@ const cashFlowProjectionWireQuerySchema = z.strictObject({
     }),
 });
 
+/**
+ * Budget vs actual (OB-182, N). `periodId` is required — v1 compares a single period
+ * (D-N4). `dimensions` and `groupBy` are the same url-encoded-JSON filter and axis
+ * the P&L takes; `basis` overrides the org default. Local and carrying no `id`, like
+ * every other query schema here.
+ */
+const budgetVsActualWireQuerySchema = z.strictObject({
+  periodId: z.uuid(),
+  basis: reportBasisSchema.optional(),
+  // Only `dimensions`, not the full slice shape: budget-vs-actual takes no
+  // `contactId` (a budget is by account and dimension, never by counterparty), and
+  // the service's strict query schema would reject one.
+  dimensions: dimensionFiltersQuerySchema.optional(),
+  groupBy: groupByWireSchema,
+});
+
 export function registerReportRoutes(app: App): void {
   app.get(
     '/v1/reports/trial-balance',
@@ -557,6 +575,44 @@ export function registerReportRoutes(app: App): void {
       );
 
       return wireValue(projection);
+    },
+  );
+
+  app.get(
+    '/v1/reports/budget-vs-actual',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getBudgetVsActual',
+        summary: 'Budget vs actual for one period',
+        description:
+          'Budgeted figures compared to ledger actuals for one fiscal period (OB-182, N), with ' +
+          'per-account and section variance. Amounts are signed to their P&L section the way the ' +
+          'profit and loss’s are — a positive variance is favourable (more revenue, or less ' +
+          'expense, than planned). `basis` overrides the org default; `dimensions` filters and ' +
+          '`groupBy` slices, both exactly as on the P&L. An account-total budget behaves like an ' +
+          'untagged line — it lands in the unassigned bucket under any `groupBy` — so a sliced ' +
+          'report’s slices plus its unassigned bucket sum to the whole (B6). Cash basis combined ' +
+          'with a dimension filter or `groupBy` is refused, the same guard the P&L uses (D-N3). ' +
+          'Only revenue and expense are budgeted in v1 (D-N2). Takes `reports.read` and only that.',
+        tags: [TAG],
+        querystring: budgetVsActualWireQuerySchema,
+        response: { 200: budgetVsActualSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<z.infer<typeof budgetVsActualSchema>> => {
+      const { periodId, basis, dimensions, groupBy } = request.query;
+      const report = await getBudgetVsActual(
+        {
+          periodId,
+          ...(basis === undefined ? {} : { basis }),
+          ...(dimensions === undefined ? {} : { dimensions }),
+          ...(groupBy === undefined ? {} : { groupBy }),
+        },
+        getContext(),
+      );
+
+      return wireValue(report);
     },
   );
 }

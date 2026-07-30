@@ -195,9 +195,11 @@ import {
   listPeriods,
   reopenPeriod,
 } from '../../src/modules/periods';
+import { deleteBudget, listBudgets, setBudgets } from '../../src/modules/budgets';
 import {
   getAccountBalances,
   getBalanceSheet,
+  getBudgetVsActual,
   getCashFlowProjection,
   getGeneralLedger,
   getProfitAndLoss,
@@ -648,6 +650,17 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'expenses.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
   'expenses.write': ['owner', 'bookkeeper', 'apOnly'],
   'expenses.approve': ['owner', 'bookkeeper', 'approver'],
+
+  // ---------------------------------------------------------------------------
+  // N — budgets (OB-180…184). A budget posts no journal (D-94), so there is no
+  // separation-of-duties release gate — a plain read/write pair (D-N6), the L
+  // block's own shape: `.write` to owner and bookkeeper, `.read` reaching the two
+  // read-only roles through `%.read`. Not to ap_only/ar_only. The budget-vs-actual
+  // report gates on `reports.read`, not on these. The service gates now, so these
+  // are `GRANTED_TO` rather than latent.
+  // ---------------------------------------------------------------------------
+  'budgets.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'budgets.write': ['owner', 'bookkeeper'],
 };
 
 /**
@@ -2930,6 +2943,40 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'sendEstimate',
     permission: 'estimates.write',
     call: (s) => sendEstimate(newUuid(), {}, s.ctx),
+  },
+  // N — budgets (OB-181, OB-182). The three entry operations gate on
+  // `budgets.read`/`budgets.write` (D-N6); the budget-vs-actual report gates on
+  // `reports.read` like every other report, so its row's permission is that, not a
+  // budgets key. Each call is judged the moment its own `requirePermission` passes,
+  // so the `newUuid()` id and the throwaway account/period reach `allowed` for a
+  // holder and a refusal for a non-holder.
+  {
+    name: 'setBudgets',
+    operationId: 'setBudgets',
+    permission: 'budgets.write',
+    call: (s) =>
+      setBudgets(
+        { entries: [{ accountId: s.revenueId, periodId: s.periodId, amount: '0' }] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listBudgets',
+    operationId: 'listBudgets',
+    permission: 'budgets.read',
+    call: (s) => listBudgets({}, s.ctx),
+  },
+  {
+    name: 'deleteBudget',
+    operationId: 'deleteBudget',
+    permission: 'budgets.write',
+    call: (s) => deleteBudget({ budgetId: newUuid() }, s.ctx),
+  },
+  {
+    name: 'getBudgetVsActual',
+    operationId: 'getBudgetVsActual',
+    permission: 'reports.read',
+    call: (s) => getBudgetVsActual({ periodId: s.periodId }, s.ctx),
   },
 ];
 

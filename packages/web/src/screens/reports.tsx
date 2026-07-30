@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { cx } from '../lib/cx';
 import { BalanceSheetView } from './reports/balance-sheet';
+import { BudgetVsActualView } from './reports/budget-vs-actual';
 import { CashFlowView } from './reports/cash-flow';
 import { CashFlowProjectionView } from './reports/cash-flow-projection';
 import type { ReportCapabilities } from './reports/controls';
@@ -34,6 +35,13 @@ import { TrialBalanceView } from './reports/trial-balance';
  * equivalent among the other four, so it carries no `CAPABILITIES` entry and the shared
  * toolbar is hidden while it is open — see `cash-flow-projection.tsx` for its own controls.
  *
+ * Budget vs actual is the sixth and carries no entry either, for a related but distinct
+ * reason: it needs a fiscal `periodId` rather than a date range, and `ReportControls`
+ * always renders a "To"/"As at" date field once a report has any entry at all — there is
+ * no `dates` value that suppresses it. So it renders its own period picker and stays off
+ * the shared toolbar, while still reading `basis`/`groupBy`/dimensions from the shared
+ * state set on another tab — see `budget-vs-actual.tsx` for the fuller explanation.
+ *
  * ## Drill-through
  *
  * Every account line is a control. Clicking one opens the general ledger for that account
@@ -54,7 +62,8 @@ type ReportView =
   | 'balance-sheet'
   | 'general-ledger'
   | 'cash-flow'
-  | 'cash-flow-projection';
+  | 'cash-flow-projection'
+  | 'budget-vs-actual';
 
 const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
   { id: 'trial-balance', label: 'Trial balance' },
@@ -63,6 +72,7 @@ const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
   { id: 'general-ledger', label: 'General ledger' },
   { id: 'cash-flow', label: 'Cash flow' },
   { id: 'cash-flow-projection', label: 'Cash-flow projection' },
+  { id: 'budget-vs-actual', label: 'Budget vs actual' },
 ];
 
 /**
@@ -71,6 +81,11 @@ const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
  * — and answers a different kind of question (forward, not historical), so it owns
  * its own toolbar (`cash-flow-projection.tsx`) rather than a `ReportCapabilities`
  * row that would have to say "none of the above" four different ways.
+ *
+ * `budget-vs-actual` carries no entry either, for a narrower reason: `ReportCapabilities`
+ * has no `dates` value meaning "none" — `ReportControls` renders a "To"/"As at" field
+ * whenever a report has any entry — so there is no way to give it `basis`/`groupBy`
+ * without also giving it a date input the query never reads. See `budget-vs-actual.tsx`.
  */
 const CAPABILITIES: Readonly<Partial<Record<ReportView, ReportCapabilities>>> = {
   // M1's endpoint: one inclusive upper bound, and nothing else.
@@ -177,6 +192,7 @@ export function ReportsScreen(): ReactElement {
           figures to send to the general ledger — see `cash-flow.tsx`. */}
       {view === 'cash-flow' && <CashFlowView state={filters} />}
       {view === 'cash-flow-projection' && <CashFlowProjectionView />}
+      {view === 'budget-vs-actual' && <BudgetVsActualView state={filters} />}
     </div>
   );
 }

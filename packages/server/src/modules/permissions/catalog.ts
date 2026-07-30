@@ -122,6 +122,12 @@ export const PERMISSION_KEYS = [
   'expenses.read',
   'expenses.write',
   'expenses.approve',
+  // Budgets (initiative N, OB-180…184). A budget posts no journal (D-94), so there
+  // is no separation-of-duties release gate to withhold — just a plain read/write
+  // pair (D-N6). The budget-vs-actual report gates on `reports.read` like every
+  // other report; these two govern only entering and importing the figures.
+  'budgets.read',
+  'budgets.write',
 ] as const;
 
 /**
@@ -151,12 +157,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 67 codes and the six system roles are set operations over
+ * Migration `0001` seeds 69 codes and the six system roles are set operations over
  * that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 67> = true;
+type AssertCatalogSize<_N extends 69> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

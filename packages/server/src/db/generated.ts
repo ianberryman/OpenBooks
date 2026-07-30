@@ -318,6 +318,20 @@ export interface BillAttachments {
   storage_key: string;
 }
 
+export interface Budgets {
+  account_id: Buffer;
+  amount_minor: bigint;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  dimension_id: Buffer | null;
+  dimension_slice: Generated<Buffer>;
+  dimension_value_id: Buffer | null;
+  id: Buffer;
+  org_id: Buffer;
+  period_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface ChangeFeedCursors {
   created_at: Generated<Date>;
   id: Buffer;
@@ -1101,6 +1115,7 @@ export interface DB {
   bank_statement_imports: BankStatementImports;
   bank_statement_lines: BankStatementLines;
   bill_attachments: BillAttachments;
+  budgets: Budgets;
   change_feed_cursors: ChangeFeedCursors;
   check_number_sequences: CheckNumberSequences;
   contacts: Contacts;

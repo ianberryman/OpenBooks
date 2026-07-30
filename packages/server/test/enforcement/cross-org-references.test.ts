@@ -70,7 +70,13 @@ import {
   listPayments,
   recordPayment,
 } from '../../src/modules/payments';
-import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/modules/reports';
+import { listBudgets, setBudgets } from '../../src/modules/budgets';
+import {
+  getBalanceSheet,
+  getBudgetVsActual,
+  getGeneralLedger,
+  getProfitAndLoss,
+} from '../../src/modules/reports';
 // Not through `modules/reports`' index — OB-065 never exported it and OB-067 did
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
 import { connectProcessor } from '../../src/modules/payments-processing';
@@ -168,6 +174,8 @@ interface Org {
   readonly userUuid: string;
   readonly accountId: string;
   readonly revenueId: string;
+  /** Budgets (N): the fiscal period a budget figure and the budget-vs-actual report name. */
+  readonly periodId: string;
   readonly contactId: string;
   readonly dimensionId: string;
   readonly dimensionValueId: string;
@@ -522,6 +530,7 @@ async function org(label: string): Promise<Org> {
     userUuid: user.uuid,
     accountId: cash.uuid,
     revenueId: revenue.uuid,
+    periodId: period.uuid,
     contactId: contact.id,
     dimensionId: dimension.id,
     dimensionValueId: value.id,
@@ -3282,6 +3291,54 @@ const REFERENCES: readonly Reference[] = [
         s.caller.ctx,
       ),
   },
+  // Budgets (N, OB-181/OB-182). Every id `setBudgets` accepts is resolved and answers
+  // 404 for a stranger's — the account and period are validated, and a dimension value
+  // is resolved to its axis. `getBudgetVsActual` resolves its `periodId` the same way.
+  {
+    operationId: 'setBudgets',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      setBudgets(
+        { entries: [{ accountId: id, periodId: s.caller.periodId, amount: '0' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'setBudgets',
+    field: 'periodId',
+    subject: (o) => o.periodId,
+    reach: (id, s) =>
+      setBudgets(
+        { entries: [{ accountId: s.caller.revenueId, periodId: id, amount: '0' }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'setBudgets',
+    field: 'dimensionValueId',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      setBudgets(
+        {
+          entries: [
+            {
+              accountId: s.caller.revenueId,
+              periodId: s.caller.periodId,
+              dimensionValueId: id,
+              amount: '0',
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'getBudgetVsActual',
+    field: 'periodId',
+    subject: (o) => o.periodId,
+    reach: (id, s) => getBudgetVsActual({ periodId: id }, s.caller.ctx),
+  },
 ];
 
 /**
@@ -3350,6 +3407,11 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'listPurchaseOrders.contactId': 'a filter over the caller’s own org, asserted separately',
   'listEstimates.contactId': 'a filter over the caller’s own org, asserted separately',
   'listExpenses.contactId': 'a filter over the caller’s own org, asserted separately',
+  // Budgets (N): `listBudgets` narrows by period and account over the caller's own
+  // org — a cross-org or unknown id yields an empty list, not the 404 that would
+  // confirm the id names something somewhere (A7).
+  'listBudgets.periodId': 'a filter over the caller’s own org — empty, not 404',
+  'listBudgets.accountId': 'a filter over the caller’s own org — empty, not 404',
   /**
    * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
    * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`
@@ -3599,15 +3661,27 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
           field: 'listExpenses.contactId',
           list: (id) => listExpenses({ contactId: id }, s.caller.ctx),
         },
+        {
+          field: 'listBudgets.periodId',
+          list: (id) => listBudgets({ periodId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listBudgets.accountId',
+          list: (id) => listBudgets({ accountId: id }, s.caller.ctx),
+        },
       ];
 
-      // The user-shaped filter is the one exception to "ask about the stranger's
-      // contact": `listDrafts` filters on who composed a draft, so the cross-org
-      // value has to be a user.
-      const strangerValue = (field: string): string =>
-        field === 'listDrafts.createdByUserId' || field === 'listProposals.createdByUserId'
-          ? s.stranger.userUuid
-          : s.stranger.partyId;
+      // Most filters ask about the stranger's contact; the exceptions name a value of
+      // the field's own kind, so "a real id in the stranger's org" stays true rather
+      // than a contact id standing in for a period or an account.
+      const strangerValue = (field: string): string => {
+        if (field === 'listDrafts.createdByUserId' || field === 'listProposals.createdByUserId') {
+          return s.stranger.userUuid;
+        }
+        if (field === 'listBudgets.periodId') return s.stranger.periodId;
+        if (field === 'listBudgets.accountId') return s.stranger.revenueId;
+        return s.stranger.partyId;
+      };
 
       const verdicts: Record<string, unknown> = {};
       for (const { field, list } of filters) {

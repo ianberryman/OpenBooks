@@ -179,6 +179,7 @@ describe('the tenant table set is derived from the schema', () => {
       'bank_statement_imports',
       'bank_statement_lines',
       'bill_attachments',
+      'budgets',
       'change_feed_cursors',
       'check_number_sequences',
       'contacts',
