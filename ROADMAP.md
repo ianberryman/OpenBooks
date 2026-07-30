@@ -2689,6 +2689,121 @@ deferred-revenue recognition on the same scheduler.
 
 **Critical path:** 162 → 164 → 165 → 168 → 169.
 
+### L execution — dev-ready, parallelised
+
+The prose above is criteria + tickets; this is the seam-pinned build plan (the PAY/CA/PB "decide
+before you fan out" discipline). L is **greenfield** (no fixed-asset/depreciation code — grep-confirmed)
+and **reuse-heavy**: the OB-127 scheduler, `runAsAutomation`, the recurring-invoice engine,
+`postJournal`'s free-form `source`, `org_accounting_settings`' nomination pattern, and the chart's
+existing contra-account support all carry it.
+
+#### Seams that already exist — reuse verbatim
+
+| Need                                     | Reuse (symbol @ path)                                                                                                                                                                                 | How L uses it                                                                                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scheduler enrolment                      | `registerDailyTask(queue)` + `queue.subscribe` @ `modules/scheduling` (`tick.ts`); wired in `entrypoints/{worker,api}.ts`                                                                             | Each new sweep (recurring-journal, depreciation) calls `registerDailyTask` — that single call makes `run-due-work` fan to it. Wire both into `worker.ts`+`api.ts` beside recurring/dunning/poll.          |
+| System-actor post (D-89)                 | `runAsAutomation(orgId, actorId, ctx=>…)` @ `modules/scheduling/automation.ts:45`                                                                                                                     | Runs under Owner role; sets `actorType:'automation'`, `actorId=<template/schedule id>`, and **leaves `invocationMode` unset** (agent-only per `chk_journals_invocation_mode`, `0002_ledger.ts:391`).      |
+| Due-sweep + once-per-period idempotency  | recurring engine @ `modules/invoicing/recurring/engine.ts` (`selectDueTemplates(systemDb(), runDate)` → per-row `runAsAutomation` → `materializeCycle`: `FOR UPDATE` reload + `last_run === dispatched cycle`) | The template for both L sweeps. Depreciation's idempotency key is the schedule row's `posted_journal_id IS NULL` under `FOR UPDATE` — one journal per row.                                                |
+| Draft vs auto-post (D-76)                | `materialization_mode ∈ {draft,approved}` @ `0008_recurring_dunning`; engine `createInvoice` then conditionally `approveInvoice`                                                                      | Recurring GL mirrors it: `posted` → `postJournal` directly; `draft` → a `journal_drafts` row (M2) for a human to post.                                                                                    |
+| The journal post                         | `postJournal(input, ctx)` @ `modules/ledger/posting.service.ts:115`; `source` a free `VARCHAR(32)` (`0002_ledger.ts:370`)                                                                             | Depreciation posts `source:'depreciation'`, disposal `'disposal'`, recurring GL `'recurring'` — **no ENUM ALTER, no shared-types change** (≤32 chars). Server-internal call, like `payments.service.ts:153`. |
+| Account nomination                       | `updateControlAccounts`/`resolveControlAccount` @ `modules/settings/control-accounts.ts` (gated `orgs.write`/`orgs.read`; required-type + active check, re-checked at use)                            | New `org_accounting_settings` columns for org-default depreciation-expense (→`expense`) and accumulated-depreciation (→`asset`) accounts, following the `discount_*` in-place precedent (D-15).            |
+| Contra-asset                             | chart `type`/`normal_balance` independent (`0002_ledger.ts:86`, no CHECK)                                                                                                                             | Accumulated depreciation is an ordinary account `type:'asset'`,`normalBalance:'credit'` — no contra flag; reports flip off `type` not `normal_balance`, so it renders correctly.                          |
+| Disposal                                 | `postJournal` (fresh), NOT `reverseJournal`                                                                                                                                                           | Disposal is a new journal recognizing gain/loss vs proceeds; it never touches the acquisition journal.                                                                                                    |
+
+#### Forks settled ([D-113](#d-113)…[D-117](#d-117))
+
+- **[D-113](#d-113) — depreciation is a precomputed schedule table posted by its own scheduled job, not a
+  fixed recurring template.** Declining-balance amounts vary per period, so a fixed-line template cannot
+  express them. Registration computes a `fixed_asset_schedule` (one row per period); a depreciation sweep
+  posts the earliest unposted row whose `period_date ≤ runDate`, idempotent on `posted_journal_id`.
+  Recurring GL entries and depreciation are **two distinct due-work sources on the one scheduler**.
+- **[D-114](#d-114) — methods: straight-line + declining-balance, with salvage.** SL = `(cost − salvage)/life`
+  per period; DB = `rate × book value`, floored at salvage, with the **final period truing up so
+  Σ = cost − salvage** (L6). Units-of-production deferred.
+- **[D-115](#d-115) — per-asset account nominations, defaulted from org settings.** Each asset names its cost,
+  accumulated-depreciation, and depreciation-expense accounts, defaulted from the new
+  `org_accounting_settings` columns when set. Accumulated depreciation is an ordinary asset/credit account —
+  the chart already allows it, so no contra flag.
+- **[D-116](#d-116) — disposal is full-only, a fresh journal.** One journal (`source:'disposal'`) removes
+  remaining cost + accumulated-to-date and recognizes gain/loss vs proceeds, flips the asset to `disposed`,
+  and stops the schedule (unposted future rows voided). Partial disposal and impairment deferred.
+- **[D-117](#d-117) — two new key pairs, no SoD.** `recurring_journals.read/write` and `fixed_assets.read/write`
+  gate the two config surfaces; writes seeded owner+bookkeeper, reads reach the read-only roles via `%.read`.
+  Automated posts run through `postJournal` under the automation's Owner role. Catalog 56→60. No owner-only
+  split — unlike PB there is no separation-of-duties story here.
+
+#### Schema — migration `0014_fixed_assets` (next free prefix)
+
+New tenant tables, all **mutable** (settings/plans, not ledger facts — the immutable record is the
+`journals` each posts):
+
+- **`recurring_journal_templates`**: `id`, `org_id`, `name`, `memo`, `materialization_mode ENUM('draft','posted')`,
+  `frequency ENUM('weekly','monthly','quarterly','yearly')`, `interval_count`, `next_run_date DATE`,
+  `last_run_date DATE NULL`, `end_date DATE NULL`, `is_active`, author, timestamps; `KEY (org_id, is_active, next_run_date)`.
+- **`recurring_journal_template_lines`**: `id`, `org_id`, `template_id` (CASCADE), `line_number`, `account_id`,
+  `side ENUM('debit','credit')`, `amount_minor BIGINT`, `contact_id BINARY(16) NULL`, `description NULL`. Fixed
+  amounts posted verbatim; the service asserts debits = credits before a template can activate.
+- **`fixed_assets`**: `id`, `org_id`, `name`, `description NULL`, `asset_account_id`,
+  `accumulated_depreciation_account_id`, `depreciation_expense_account_id` (composite FKs to `accounts`),
+  `acquisition_cost_minor BIGINT`, `salvage_value_minor BIGINT`, `method ENUM('straight_line','declining_balance')`,
+  `useful_life_months INT UNSIGNED`, `declining_rate_ppm INT UNSIGNED NULL`, `in_service_date DATE`,
+  `status ENUM('active','disposed')`, `disposed_date DATE NULL`, `disposal_journal_id BINARY(16) NULL`, author, timestamps.
+- **`fixed_asset_schedule`**: `id`, `org_id`, `fixed_asset_id` (CASCADE), `period_index INT`, `period_date DATE`,
+  `depreciation_amount_minor BIGINT`, `posted_journal_id BINARY(16) NULL`; `KEY (org_id, posted_journal_id, period_date)`
+  (the due index). `posted_journal_id` set = that period is done (idempotency).
+- **In-place adds ([D-15](#d-15))**: `org_accounting_settings.depreciation_expense_account_id` /
+  `.accumulated_depreciation_account_id` (`0005_subledger`) — nullable, composite FK, the `discount_*` precedent.
+- Registries: `TENANT_TABLES` +4 · `MUTABLE_TABLES` +4 · `grants.test`/`tenant-scope` tripwires · codegen
+  `generated.ts` (throwaway MySQL; `bigint` overrides for the four `*_minor` columns).
+- **Permissions ([D-117](#d-117))**: `recurring_journals.read/write` + `fixed_assets.read/write` →
+  `AssertCatalogSize<56>`→`<60>`; seed in `0001_tenancy` (writes owner+bookkeeper; reads via `%.read`);
+  update catalog/resolution/permission-matrix/harness tripwires.
+
+#### Contract-first seams (pin before fan-out)
+
+- **Wire contracts** (`shared-types`): `recurringJournalTemplateSchema` (+ balanced lines), create/update;
+  `fixedAssetSchema` + create/update; `fixedAssetScheduleSchema`; `disposeFixedAssetRequestSchema`
+  (`{ date, proceedsMinor }`). No `.meta({ id })` until OB-167 wires routes (A10).
+- **Two scheduled sweeps** each follow the recurring `job.ts`/`engine.ts` shape: a queue-name constant +
+  `type Payload = DailyTaskPayload`, a `registerXxxJob(queue, deps)` doing `registerDailyTask` + `subscribe`,
+  a `systemDb()` due-sweep, and a per-row `runAsAutomation` with a `FOR UPDATE` idempotency guard. Wire both
+  into `entrypoints/worker.ts` + `entrypoints/api.ts`.
+- **Schedule computation is pure** (OB-164): a deterministic `(cost, salvage, method, life, rate, inServiceDate)
+  → readonly ScheduleRow[]` with `Σ amount === cost − salvage` — unit/property-tested standalone before any DB,
+  the way the recurring `advance()` date math is.
+
+#### Waves
+
+| Wave                          | Tickets                                                                                                                                                                                          | Deliverable                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **0 — Foundation** (orch)     | `0014` schema + `org_accounting_settings` in-place columns + 4 permission keys + registries + codegen · OB-162/163 wire contracts                                                                | Owns codegen + the `0005` in-place edit + role reseed.                         |
+| **1 — Services** (A ∥ B ∥ C)  | **A** OB-162 recurring GL templates + sweep (reuse recurring engine) · **B** OB-163 register → OB-164 pure schedule compute → OB-165 depreciation sweep (spine) · **C** OB-166 disposal          | OB-164's pure computation is the property anchor; OB-165 is the idempotency risk. |
+| **2 — Transport + screens**   | OB-167 `/v1` routes + Recurring-journals screen + Fixed-asset register/schedule/disposal screen                                                                                                  | New keys → permission-matrix + routes.test + cross-org move; openapi/client regen. |
+| **3 — Verification**          | OB-168 property suite (Σ schedule = cost − salvage, both methods; recurring + depreciation once-per-period idempotency via `openAppConnection` re-run) · OB-169 E2E (register → auto-post a period → recurring GL posts → dispose → gain/loss) |                                                                                |
+
+**Critical path:** `0014` → OB-164 → OB-165 → OB-168 → OB-169. OB-162 is independent of the asset spine;
+OB-166 pins against B's schema and integrates after it.
+
+#### Tripwire / registry checklist
+
+`db/tenant-tables.ts` (+4) · `0999_app_grants` `MUTABLE_TABLES` (+4) + `grants.test.ts` · `catalog.ts`
+`PERMISSION_KEYS` (+4) `AssertCatalogSize<56>`→`<60>` + `0001_tenancy` seed + `catalog.test.ts` (56→60) +
+`resolution.test.ts` (owner 56→60, bookkeeper +2, read_only/approver +2 via `%.read`) ·
+**`permission-matrix.test.ts`** (4 new `GRANTED_TO` + OPERATIONS rows) · `harness.test.ts` (migration list +
+catalog count) · route-table + openapi + web client + cross-org A7/B11 for the new id-taking routes ·
+`generated.ts` via throwaway codegen.
+
+#### Deliberate scope edges (flagged)
+
+- **Recurring GL = fixed-amount lines only** ([D-90](#d-90)); a formula/percent-of-balance template is deferred
+  — depreciation's varying amount is exactly why it is a schedule table, not a recurring template (D-113).
+- **Methods SL + DB only** (D-114); units-of-production deferred.
+- **Full disposal only** (D-116); partial disposal, impairment, and revaluation deferred.
+- **No mid-life re-forecast in v1** — a schedule is recomputed on edit only while no period has posted; once
+  posting has begun, a method/life change is a disposal + re-register (a true prospective re-forecast is a follow-up).
+- Scheduler is **non-durable across restart** (single in-process clock, [D-49](#d-49)) — idempotency is what
+  makes a missed or duplicated tick safe, exactly as for recurring invoices.
+
 ---
 
 ## Procure-to-pay & pre-sale — POs, estimates, expenses
@@ -4392,6 +4507,53 @@ posts it through CA's shape — debit the payables control, **credit the nominat
 the bank-match `discount` clearing entry and PB issue call, so the AR and AP discount paths cannot
 drift. The Pay Bills window surfaces `suggestDiscount` for `bill` targets (the service is already
 AP-capable), finishing the [D-108](#d-108) deferral.
+
+<a id="d-113"></a>
+
+**D-113 — Depreciation is a precomputed schedule table posted by its own scheduled job, not a fixed
+recurring-journal template (initiative L).** A recurring GL template ([D-90](#d-90)) posts fixed lines
+each period; a declining-balance depreciation amount changes every period, so it cannot be a fixed
+template. Registering an asset computes a `fixed_asset_schedule` — one row per period, each with its
+planned `depreciation_amount_minor` — and a depreciation sweep posts the earliest unposted row whose
+`period_date ≤ runDate`, idempotent on `posted_journal_id`. Recurring GL entries and depreciation are
+therefore two **distinct due-work sources on the one OB-127 scheduler**, both riding `runAsAutomation`
+and the recurring-invoice engine's `FOR UPDATE`-reload-plus-guard idempotency pattern, not one mechanism.
+
+<a id="d-114"></a>
+
+**D-114 — Depreciation methods are straight-line and declining-balance, with salvage.** Straight-line is
+`(cost − salvage) / useful_life_months` per period; declining-balance is `rate × book value`, floored so
+book value never drops below salvage, with the **final period truing up so `Σ amounts === cost − salvage`**
+— the equality L6 property-tests. Units-of-production and sum-of-years'-digits are deferred: they need a
+usage feed or add no method the target market asks for.
+
+<a id="d-115"></a>
+
+**D-115 — Per-asset account nominations, defaulted from org settings; accumulated depreciation is an
+ordinary asset/credit account.** Each asset names its cost, accumulated-depreciation, and
+depreciation-expense accounts, defaulted from two new `org_accounting_settings` columns
+(`depreciation_expense_account_id` → `expense`, `accumulated_depreciation_account_id` → `asset`) when the
+org has set them — the in-place `discount_*` precedent ([D-15](#d-15)), gated `orgs.write`. Accumulated
+depreciation needs **no contra flag**: the chart's `type` and `normal_balance` are independent by design
+(`0002_ledger`), so it is simply `type:'asset'`, `normalBalance:'credit'`, and the balance sheet — which
+flips off `type`, never `normal_balance` — renders it correctly.
+
+<a id="d-116"></a>
+
+**D-116 — Disposal is full-only, a fresh journal.** Disposing an asset posts one new journal
+(`source:'disposal'`) that removes the remaining cost and accumulated-depreciation-to-date and recognizes
+the gain or loss against proceeds, flips the asset to `disposed`, and stops the schedule (unposted future
+rows are voided). It never touches the acquisition journal, so `reverseJournal` is not involved. Partial
+disposal, impairment, and revaluation are deferred.
+
+<a id="d-117"></a>
+
+**D-117 — L adds two config key-pairs, with no separation-of-duties split.** `recurring_journals.read`/
+`.write` and `fixed_assets.read`/`.write` gate the two management surfaces (recurring templates and the
+asset register); writes seed to owner + bookkeeper like every other configuration write, reads reach the
+read-only roles through `%.read`. Catalog 56 → 60. Unlike PB ([D-109](#d-109)) there is no owner-only
+release step — the automated posts run through `postJournal` under the automation's Owner role
+([D-89](#d-89)), and managing the standing instructions is ordinary bookkeeping configuration.
 
 ## Status — Milestone 1
 
