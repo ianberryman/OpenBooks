@@ -134,6 +134,11 @@ export function FiscalPeriodsSection(): ReactElement {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: PERIODS_QUERY_KEY });
+      // The audit report (initiative P) records every close and reopen, so it is stale the
+      // moment this succeeds. Its own mutations must invalidate it explicitly
+      // (`query/client.ts`'s contract) — without this a user who closes a period and opens
+      // the audit trail inside the 30s staleTime sees a trail missing their own action.
+      await queryClient.invalidateQueries({ queryKey: ['reports', 'audit'] });
     },
   });
 
@@ -151,6 +156,9 @@ export function FiscalPeriodsSection(): ReactElement {
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: PERIODS_QUERY_KEY });
+      // Same as the close handler above: a reopen is an audit-recorded event, so the audit
+      // report's cache must be invalidated here too.
+      await queryClient.invalidateQueries({ queryKey: ['reports', 'audit'] });
     },
   });
 

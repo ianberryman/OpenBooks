@@ -12630,10 +12630,10 @@ export interface operations {
     listProposals: {
         parameters: {
             query?: {
-                /** @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                createdByUserId?: string;
+                /** @description How many proposals to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
                 limit?: number;
                 cursor?: components["schemas"]["PageCursorInput"];
-                createdByUserId?: string;
             };
             header?: never;
             path?: never;

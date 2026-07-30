@@ -31613,7 +31613,17 @@
         "operationId": "listProposals",
         "parameters": [
           {
-            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "createdByUserId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many proposals to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -31630,16 +31640,6 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/PageCursorInput"
-            }
-          },
-          {
-            "in": "query",
-            "name": "createdByUserId",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "type": "string"
             }
           }
         ],

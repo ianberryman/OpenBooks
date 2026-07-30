@@ -1,6 +1,6 @@
 import {
   journalDraftPageSchema,
-  listDraftsQuerySchema,
+  pageCursorSchema,
   postedJournalSchema,
 } from '@openbooks/shared-types';
 import type { JournalDraftPage, PostedJournalResponse } from '@openbooks/shared-types';
@@ -16,6 +16,7 @@ import {
   idempotencyKeyHeaderSchema,
   idempotentBody,
   noContentSchema,
+  pageLimitQuery,
   requireOrgScope,
 } from './support';
 
@@ -43,6 +44,19 @@ const TAG = 'agent-proposals';
 
 const proposalParamsSchema = z.strictObject({ draftId: z.uuid() });
 
+/**
+ * The querystring, coerced. A querystring value arrives as a string, so `limit` needs the
+ * `pageLimitQuery` coercion every other list route uses — binding the shared
+ * `listDraftsQuerySchema` directly (its `limit` is a bare `z.int()`) rejects `?limit=200`
+ * as a type error, because it never sees a number. Same three fields the shared schema
+ * names, so `listProposals` re-parsing against it downstream is unaffected.
+ */
+const listProposalsWireQuerySchema = z.strictObject({
+  createdByUserId: z.uuid().optional(),
+  limit: pageLimitQuery('proposals'),
+  cursor: pageCursorSchema.optional(),
+});
+
 export function registerAgentProposalRoutes(app: App): void {
   app.get(
     '/v1/agent-proposals',
@@ -56,7 +70,7 @@ export function registerAgentProposalRoutes(app: App): void {
           'discarded, the same collection `GET /v1/journal-drafts` lists, gated on ' +
           '`agents.review` instead of `journals.read`.',
         tags: [TAG],
-        querystring: listDraftsQuerySchema,
+        querystring: listProposalsWireQuerySchema,
         response: { 200: journalDraftPageSchema, ...ERROR_RESPONSES },
       },
     },
