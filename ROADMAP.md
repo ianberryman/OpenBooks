@@ -8,21 +8,21 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                                                   | Status                       |
-| --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                                    | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                                               | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                                    | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                                     | **Built — see Status below** |
-| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                                           | **Built — see Status below** |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                                   | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                                    | Not scoped                   |
-| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                                           | **Built — gate-green**       |
-| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                                           | **Scoped — see below**       |
-| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                                | **Built — gate-green**       |
-| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                                       | **Built — gate-green**       |
-| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals **(L — built)** · procure-to-pay · budgets · OCR · accountant/close | **Scoped — L built**         |
-| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                                            | **Scoped — see below**       |
+| Milestone | Spec phase | Outcome                                                                                                                                                   | Status                       |
+| --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                                                    | **Built — see Status below** |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                                                               | **Built — see Status below** |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                                                    | **Built — see Status below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                                                     | **Built — see Status below** |
+| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                                                           | **Built — see Status below** |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                                                   | Not scoped                   |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                                                    | Not scoped                   |
+| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                                                           | **Built — gate-green**       |
+| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                                                           | **Scoped — see below**       |
+| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                                                | **Built — gate-green**       |
+| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                                                       | **Built — gate-green**       |
+| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals **(L — built)** · procure-to-pay **(M — built)** · budgets · OCR · accountant/close | **Scoped — L, M built**      |
+| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                                                            | **Scoped — see below**       |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
 spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
@@ -2703,7 +2703,7 @@ depreciation sweep → disposal) → `/v1` routes + OpenAPI/client → two paral
   lines only ([D-90](#d-90)); methods SL+DB only; full disposal only; no mid-life re-forecast once a period
   has posted (method/life change is disposal + re-register); the E2E is authored `yarn check`-clean but run by
   `yarn e2e`, not the gate ([D-26](#d-26)), and asserts materialisation as `run-due-work → 200 + runDate` (the
-  in-process queue resolves the enqueue before the job settles). **Next: M, N, P — [Release plan](#release-plan--post-m4-sequencing) phase 6.**
+  in-process queue resolves the enqueue before the job settles). **M is now built too (see [Procure-to-pay](#procure-to-pay--pre-sale--pos-estimates-expenses)); next: N, P — [Release plan](#release-plan--post-m4-sequencing) phase 6.**
 
 ### Definition of done
 
@@ -2855,6 +2855,32 @@ catalog count) · route-table + openapi + web client + cross-org A7/B11 for the 
 ---
 
 ## Procure-to-pay & pre-sale — POs, estimates, expenses
+
+**Built — gate-green (2,627 tests / 244 files), four commits `3726b85…0d8fb04`.** All ten tickets
+(OB-170…179) shipped via orchestrated fan-out — trunk (schema `0015` + shared-types + permission
+catalog) → four parallel services (expenses ‖ purchase-orders ‖ estimates ‖ send) → transport + the
+A7/B11 enforcement wiring → three screens ‖ property suites → E2E — each wave integrated through
+`yarn check`. What's in: `is_employee` as a third contact boolean ([D-91](#d-91)); `purchase_orders`/
+`estimates` as non-posting pre-documents ([D-92](#d-92)) with their own `document_sequences` series,
+that **convert-once** into a draft bill/invoice via the existing `createBill`/`createInvoice`; an
+employee expense modelled as an `ap_documents` bill against an employee contact (the settled fork —
+`requireEmployee` swaps in for `requireVendor`, the whole posting path is reused, and Pay Bills settles
+it unchanged); a **lean send** (email + append-only `predocument_deliveries`, hosted page + PDF
+deferred); seven permission keys (catalog 60→67) with `expenses.approve` a real SoD gate; 22 `/v1`
+routes; and three web screens (`/purchase-orders`, `/estimates`, `/expenses`). Integration caught two
+real issues the isolated authors couldn't: subagent-authored SQL comments used **raw backticks inside
+the `sql` template literals**, closing the template early (four migrations); and `send.service.ts` gated on a
+**computed** permission key the permission-matrix scanner is blind to (moved to literals in the public
+wrappers). The E2E was executed (not just authored) against a throwaway migrated stack. **Deliberate
+lean-v1 deferrals, all flagged:** PO/estimate hosted page + PDF ([D-M5](#where-things-stand) — reuse
+INV's delivery stack); PO/estimate line **dimension tags** (D-M7 — a converted draft can have them
+added before approval); no per-line tax-rate picker in the screens (`taxMode` hardcoded `'exclusive'`;
+the full bill/invoice editor remains for taxed lines); an expense-bill also appears in the **Bills**
+list (it is a bill) and shares the `'bill'` document-number series (so an expense reads as bill #N,
+not a fresh #1 — confirmed by the E2E). **Receipt capture for reimbursements is a scoped follow-up**
+(see [the follow-up note](#follow-up--receipt-capture-for-employee-expense-reimbursements-future) — the
+bill-capture pipeline is vendor-only today and would branch to `createExpense`). **Next: N, P —
+[Release plan](#release-plan--post-m4-sequencing) phase 6.**
 
 The operational documents that sit **before** a bill or invoice: purchase orders (→ bill), estimates
 (→ invoice), and employee expenses (→ reimbursement). Criteria **M**; tickets OB-170…OB-179.
