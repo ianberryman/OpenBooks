@@ -116,6 +116,14 @@ behaviour has never been reviewed as a whole**. Before launch we owe a dedicated
 data-entry forms (journal entry, the match workbench, the Pay Bills window) are the likely
 trouble spots. Not scheduled yet; captured here so it is not rediscovered as a launch surprise.
 
+Beyond responsive web, we want a **native mobile app** (iOS/Android), most likely by wrapping
+the existing `packages/web` SPA in a native shell via **Capacitor** rather than a separate
+codebase — it reuses the React app and the same `/v1` client, and adds native capabilities
+(camera for bill capture, push notifications, biometric unlock) behind a thin plugin layer.
+The responsive review above is a prerequisite: the wrapped web views must already work on a
+phone-sized viewport before a native shell is worth building. Also unscheduled; the decision
+between Capacitor and a fuller native/React-Native rewrite is itself deferred.
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
