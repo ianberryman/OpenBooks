@@ -16,6 +16,8 @@ import { ConnectedAppsScreen } from './screens/connected-apps';
 import { ContactsScreen } from './screens/contacts';
 import { DisbursementsScreen } from './screens/disbursements';
 import { DunningScreen } from './screens/dunning';
+import { EstimatesScreen } from './screens/estimates';
+import { ExpensesScreen } from './screens/expenses';
 import { JournalEntryScreen } from './screens/journal-entry';
 import { MoneyInScreen } from './screens/money-in';
 import { PayBillsScreen } from './screens/pay-bills';
@@ -23,6 +25,7 @@ import { OAuthClientsScreen } from './screens/oauth-clients';
 import { OAuthConsentScreen } from './screens/oauth-consent';
 import { ProcessingScreen } from './screens/processing';
 import { PublicInvoiceScreen } from './screens/public-invoice';
+import { PurchaseOrdersScreen } from './screens/purchase-orders';
 import { PurchasesScreen } from './screens/purchases';
 import { QuickBooksImportScreen } from './screens/quickbooks-import';
 import { FixedAssetsScreen } from './screens/fixed-assets';
@@ -193,11 +196,14 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/journal-entry" element={<JournalEntryScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
         <Route path="/sales" element={<SalesScreen />} />
+        <Route path="/estimates" element={<EstimatesScreen />} />
         <Route path="/recurring-invoices" element={<RecurringInvoicesScreen />} />
         <Route path="/dunning" element={<DunningScreen />} />
         <Route path="/recurring-journals" element={<RecurringJournalsScreen />} />
         <Route path="/fixed-assets" element={<FixedAssetsScreen />} />
+        <Route path="/purchase-orders" element={<PurchaseOrdersScreen />} />
         <Route path="/purchases" element={<PurchasesScreen />} />
+        <Route path="/expenses" element={<ExpensesScreen />} />
         <Route path="/bill-captures" element={<BillCapturesScreen />} />
         <Route path="/pay-bills" element={<PayBillsScreen />} />
         <Route path="/disbursements" element={<DisbursementsScreen />} />

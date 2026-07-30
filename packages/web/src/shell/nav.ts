@@ -32,6 +32,7 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   { to: '/journal-entry', label: 'Journal entry', permission: 'journals.read' },
   { to: '/contacts', label: 'Contacts', permission: 'contacts.read' },
   { to: '/sales', label: 'Sales', permission: 'invoices.read' },
+  { to: '/estimates', label: 'Estimates', permission: 'estimates.read' },
   // Both recurring templates and dunning policies read on `invoices.read`; their writes want
   // `invoices.write`/`invoices.send`, but naming those would hide the link from a caller who
   // can legitimately view the schedule or the ladder — the same D-25 reasoning as `/money`
@@ -43,7 +44,9 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   // service enforces `recurring_journals.write` and the screen surfaces the refusal.
   { to: '/recurring-journals', label: 'Recurring journals', permission: 'recurring_journals.read' },
   { to: '/fixed-assets', label: 'Fixed assets', permission: 'fixed_assets.read' },
+  { to: '/purchase-orders', label: 'Purchase orders', permission: 'purchase_orders.read' },
   { to: '/purchases', label: 'Purchases', permission: 'bills.read' },
+  { to: '/expenses', label: 'Expenses', permission: 'expenses.read' },
   // `bills.read`, the same reasoning as the invoicing surfaces above: the capture
   // review screen reads on `bills.read`; its writes (upload, create-draft) want
   // `bills.write`, but naming that would hide the link from a caller who can view
