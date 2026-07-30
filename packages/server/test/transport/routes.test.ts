@@ -354,6 +354,17 @@ describe('the /v1 route table', () => {
         'discardExpense',
         'sendPurchaseOrder',
         'sendEstimate',
+        // Q (M6): automations + the agent work queue.
+        'createAutomation',
+        'listAutomations',
+        'getAutomation',
+        'updateAutomation',
+        'activateAutomation',
+        'deactivateAutomation',
+        'runAutomation',
+        'listWorkItems',
+        'getWorkItem',
+        'cancelWorkItem',
       ]),
     );
   });

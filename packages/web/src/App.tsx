@@ -10,6 +10,7 @@ import { AccountsScreen } from './screens/accounts';
 import { AgentProposalsScreen } from './screens/agent-proposals';
 import { ApiKeysScreen } from './screens/api-keys';
 import { AuthScreen } from './screens/auth';
+import { AutomationsScreen } from './screens/automations';
 import { BankingScreen } from './screens/banking';
 import { BillCapturesScreen } from './screens/bill-captures';
 import { BudgetsScreen } from './screens/budgets';
@@ -36,6 +37,7 @@ import { ReportsScreen } from './screens/reports';
 import { SalesScreen } from './screens/sales';
 import { SettingsScreen } from './screens/settings';
 import { StatementPackagesScreen } from './screens/statement-packages';
+import { WorkQueueScreen } from './screens/work-items';
 import { AppShell } from './shell/app-shell';
 import { landingPath, visibleNav } from './shell/nav';
 import { OrgControls } from './shell/org-switcher';
@@ -221,6 +223,8 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/oauth-clients" element={<OAuthClientsScreen />} />
         <Route path="/connected-apps" element={<ConnectedAppsScreen />} />
         <Route path="/agent-proposals" element={<AgentProposalsScreen />} />
+        <Route path="/automations" element={<AutomationsScreen />} />
+        <Route path="/work-items" element={<WorkQueueScreen />} />
         {/* No nav entry (OB-105): reached only by the 302 `GET /oauth/authorize`
             (`oauth-flow.ts`) sends a logged-in user to, never typed or linked. */}
         <Route path="/oauth/consent" element={<OAuthConsentScreen />} />

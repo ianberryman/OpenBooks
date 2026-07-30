@@ -3417,6 +3417,11 @@ const EXEMPT: Readonly<Record<string, string>> = {
   // shape exactly — a tenant-scoped filter, so a cross-org or unknown id yields an empty
   // page rather than the 404 that would confirm the id names someone somewhere (A7).
   'getAuditReport.actorId': 'a filter over the caller’s own org — empty, not 404',
+  // Q (M6): `listWorkItems` narrows the queue by the automation that enqueued each
+  // item. It is `listBudgets.periodId`'s shape exactly — a tenant-scoped filter, so a
+  // cross-org or unknown automation id yields an empty page rather than the 404 that
+  // would confirm the id names an automation somewhere (A7).
+  'listWorkItems.automationId': 'a filter over the caller’s own org — empty, not 404',
   /**
    * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
    * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`

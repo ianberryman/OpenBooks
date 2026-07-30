@@ -17,6 +17,7 @@ import {
   resolveOAuthIdentity,
   resolveSessionIdentity,
 } from '../modules/auth';
+import { registerAutomationsJob } from '../modules/automations';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
@@ -123,14 +124,18 @@ export async function startApi(): Promise<void> {
     // The D-85 polling backstop (OB-148), same reason as the jobs above: under the
     // in-process adapter this is the process that consumes what it enqueues.
     await registerProcessorPollJob(queueProvider(), { logger });
+    // The agent work-queue sweep (initiative Q, OB-200…210), same reason as the jobs
+    // above: under the in-process adapter this is the process that consumes what it
+    // enqueues.
+    await registerAutomationsJob(queueProvider(), { logger });
     // The daily tick (OB-127) runs here under the in-process adapter, because this is the
     // process that consumes what it enqueues (the comment above). A stop handle is captured so
     // the shutdown drain clears it before closing the pool.
     stopDailyTick = startDailyTick({ logger });
     logger.info(
       { role: 'api', queue: 'in-process' },
-      'statement, recurring, dunning, extraction and processor-poll jobs registered in-process; ' +
-        'daily tick started',
+      'statement, recurring, dunning, extraction, processor-poll and automations jobs ' +
+        'registered in-process; daily tick started',
     );
   }
 

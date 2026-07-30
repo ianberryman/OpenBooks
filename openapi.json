@@ -1946,6 +1946,453 @@
         ],
         "type": "object"
       },
+      "Automation": {
+        "additionalProperties": false,
+        "description": "A user-composed automation: a trigger and an ordered list of actions (Q1).",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActions"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Whether the automation fires. Flipped through `workflows.activate`.",
+            "type": "boolean"
+          },
+          "lastFiredRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run date of the most recent scheduled firing, or null. The once-per-cycle guard for a scheduled trigger (cf. a recurring template’s `lastRunDate`)."
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "trigger",
+          "actions",
+          "lastFiredRunDate"
+        ],
+        "type": "object"
+      },
+      "AutomationAction": {
+        "description": "One step of an automation. `annotate` writes a note; `agent_task` enqueues a work item for the org’s MCP agent (D-119). Actions run in list order (Q9).",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "description": "The note this action appends to the firing (append-only). D-119.",
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "annotate",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "note"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "prompt": {
+                "description": "The instruction enqueued for the org’s agent to act on (Q3). Never posts.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sourceKind": {
+                "default": "automation",
+                "description": "A label for what kind of work this is, carried onto the work item.",
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "agent_task",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "prompt",
+              "sourceKind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AutomationActionInput": {
+        "description": "One step of an automation. `annotate` writes a note; `agent_task` enqueues a work item for the org’s MCP agent (D-119). Actions run in list order (Q9).",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "note": {
+                "description": "The note this action appends to the firing (append-only). D-119.",
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "annotate",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "note"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "prompt": {
+                "description": "The instruction enqueued for the org’s agent to act on (Q3). Never posts.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "sourceKind": {
+                "default": "automation",
+                "description": "A label for what kind of work this is, carried onto the work item.",
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "agent_task",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "prompt"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AutomationActions": {
+        "description": "The ordered actions an automation runs on each firing.",
+        "items": {
+          "$ref": "#/components/schemas/AutomationAction"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "AutomationActionsInput": {
+        "description": "The ordered actions an automation runs on each firing.",
+        "items": {
+          "$ref": "#/components/schemas/AutomationActionInput"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+      },
+      "AutomationInput": {
+        "additionalProperties": false,
+        "description": "A user-composed automation: a trigger and an ordered list of actions (Q1).",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActionsInput"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Whether the automation fires. Flipped through `workflows.activate`.",
+            "type": "boolean"
+          },
+          "lastFiredRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run date of the most recent scheduled firing, or null. The once-per-cycle guard for a scheduled trigger (cf. a recurring template’s `lastRunDate`)."
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTriggerInput"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "trigger",
+          "actions",
+          "lastFiredRunDate"
+        ],
+        "type": "object"
+      },
+      "AutomationPage": {
+        "additionalProperties": false,
+        "description": "One page of automations, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Automation"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "AutomationPageInput": {
+        "additionalProperties": false,
+        "description": "One page of automations, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AutomationInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "AutomationRunResult": {
+        "additionalProperties": false,
+        "description": "What one firing produced: the count of annotations written and work items enqueued.",
+        "properties": {
+          "annotationsWritten": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "runToken": {
+            "description": "Ties this firing’s annotations and work items together.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "workItemsEnqueued": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runToken",
+          "annotationsWritten",
+          "workItemsEnqueued"
+        ],
+        "type": "object"
+      },
+      "AutomationRunResultInput": {
+        "additionalProperties": false,
+        "description": "What one firing produced: the count of annotations written and work items enqueued.",
+        "properties": {
+          "annotationsWritten": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "runToken": {
+            "description": "Ties this firing’s annotations and work items together.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "workItemsEnqueued": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runToken",
+          "annotationsWritten",
+          "workItemsEnqueued"
+        ],
+        "type": "object"
+      },
+      "AutomationTrigger": {
+        "description": "What fires the automation: `manual` (a run request), `scheduled` (a cadence the daily sweep matches), or `event` (a change-feed event name). Q2.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "manual",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "cadence": {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "const": "scheduled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "cadence"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "eventName": {
+                "description": "The bus event that fires this automation, e.g. `bill.approved.v1`.",
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "event",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "eventName"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AutomationTriggerInput": {
+        "description": "What fires the automation: `manual` (a run request), `scheduled` (a cadence the daily sweep matches), or `event` (a change-feed event name). Q2.",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "manual",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "cadence": {
+                "enum": [
+                  "daily",
+                  "weekly",
+                  "monthly"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "const": "scheduled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "cadence"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "eventName": {
+                "description": "The bus event that fires this automation, e.g. `bill.approved.v1`.",
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": {
+                "const": "event",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "eventName"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "BalanceSheet": {
         "additionalProperties": false,
         "description": "Assets, liabilities and equity as at a date, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a closing journal (D-20). Amounts are signed to their section, so `totals.assets` equals `totals.liabilitiesAndEquity`.",
@@ -8710,6 +9157,54 @@
         "required": [
           "name",
           "roleId"
+        ],
+        "type": "object"
+      },
+      "CreateAutomationRequest": {
+        "additionalProperties": false,
+        "description": "Creates an automation: a trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`.",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActions"
+          },
+          "name": {
+            "description": "The automation’s own label.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          }
+        },
+        "required": [
+          "name",
+          "trigger",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "CreateAutomationRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates an automation: a trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`.",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActionsInput"
+          },
+          "name": {
+            "description": "The automation’s own label.",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTriggerInput"
+          }
+        },
+        "required": [
+          "name",
+          "trigger",
+          "actions"
         ],
         "type": "object"
       },
@@ -26438,6 +26933,42 @@
         },
         "type": "object"
       },
+      "UpdateAutomationRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of an automation’s composition (name, trigger, actions). An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`.",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActions"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTrigger"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateAutomationRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of an automation’s composition (name, trigger, actions). An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`.",
+        "properties": {
+          "actions": {
+            "$ref": "#/components/schemas/AutomationActionsInput"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/AutomationTriggerInput"
+          }
+        },
+        "type": "object"
+      },
       "UpdateBankAccountRequest": {
         "additionalProperties": false,
         "description": "Partial update. `accountId` and `isActive` are absent on purpose: repointing at a different ledger account would orphan every cleared line, and deactivation is its own operation so it can refuse an account with an open session (`bank_account_has_open_session`).",
@@ -29736,6 +30267,374 @@
           "date"
         ],
         "type": "object"
+      },
+      "WorkItem": {
+        "additionalProperties": false,
+        "description": "One unit of agent work: a prompt + context, a status lifecycle, and (once submitted) the draft and provenance a human reviews (Q5/Q6). Never auto-posts (Q4).",
+        "properties": {
+          "agentModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model the agent reported using (agent-attested provenance, Q6/D-100)."
+          },
+          "attempts": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "automationId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "flagged": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaseExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leasedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "proposedDraftId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `journal_drafts` row the agent’s proposal landed as (Q4), or null before a submission. A human posts it through the `agents.review` queue — Q never posts."
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "leased",
+              "proposed",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "submittedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "automationId",
+          "sourceKind",
+          "sourceRef",
+          "prompt",
+          "context",
+          "status",
+          "attempts",
+          "flagged",
+          "proposedDraftId",
+          "agentModel",
+          "leasedBy",
+          "leaseExpiresAt",
+          "submittedAt",
+          "lastError",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "WorkItemInput": {
+        "additionalProperties": false,
+        "description": "One unit of agent work: a prompt + context, a status lifecycle, and (once submitted) the draft and provenance a human reviews (Q5/Q6). Never auto-posts (Q4).",
+        "properties": {
+          "agentModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model the agent reported using (agent-attested provenance, Q6/D-100)."
+          },
+          "attempts": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "automationId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "flagged": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaseExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leasedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "proposedDraftId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The `journal_drafts` row the agent’s proposal landed as (Q4), or null before a submission. A human posts it through the `agents.review` queue — Q never posts."
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "leased",
+              "proposed",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "submittedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "automationId",
+          "sourceKind",
+          "sourceRef",
+          "prompt",
+          "context",
+          "status",
+          "attempts",
+          "flagged",
+          "proposedDraftId",
+          "agentModel",
+          "leasedBy",
+          "leaseExpiresAt",
+          "submittedAt",
+          "lastError",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "WorkItemPage": {
+        "additionalProperties": false,
+        "description": "One page of work items, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItem"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "WorkItemPageInput": {
+        "additionalProperties": false,
+        "description": "One page of work items, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkItemInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
       }
     }
   },
@@ -31254,6 +32153,401 @@
         "summary": "Register a user and their first organization",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/v1/automations": {
+      "get": {
+        "description": "One page of automations, ordered by `(created_at, id)`, oldest first.",
+        "operationId": "listAutomations",
+        "parameters": [
+          {
+            "description": "Only active automations when `true`, only inactive ones when `false`.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "triggerType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "manual",
+                "scheduled",
+                "event"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many automations to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List automations",
+        "tags": [
+          "automations"
+        ]
+      },
+      "post": {
+        "description": "A trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`, a separate call to `POST …/activate`.",
+        "operationId": "createAutomation",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAutomationRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create an automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/v1/automations/{automationId}": {
+      "get": {
+        "operationId": "getAutomation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "automationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One automation",
+        "tags": [
+          "automations"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`.",
+        "operationId": "updateAutomation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "automationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAutomationRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update an automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/v1/automations/{automationId}/activate": {
+      "post": {
+        "description": "Lets the automation fire on its trigger (`workflows.activate`, distinct from composing it). Idempotent: an already-active automation is returned unchanged rather than refused.",
+        "operationId": "activateAutomation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "automationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Activate an automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/v1/automations/{automationId}/deactivate": {
+      "post": {
+        "description": "The counterpart to activation, so that activation is not a one-way door. Idempotent.",
+        "operationId": "deactivateAutomation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "automationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Automation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Deactivate an automation",
+        "tags": [
+          "automations"
+        ]
+      }
+    },
+    "/v1/automations/{automationId}/run": {
+      "post": {
+        "description": "Runs every action in order and returns what this one firing produced: the count of annotations written and work items enqueued (Q9). A retried call with the same `Idempotency-Key` replays the original `AutomationRunResult` rather than firing twice.",
+        "operationId": "runAutomation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "automationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationRunResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Fire an automation once, on demand",
+        "tags": [
+          "automations"
         ]
       }
     },
@@ -45690,6 +46984,182 @@
         "summary": "Void an approved vendor credit",
         "tags": [
           "vendor-credits"
+        ]
+      }
+    },
+    "/v1/work-items": {
+      "get": {
+        "description": "One page of work items, ordered by `(created_at, id)`, oldest first.",
+        "operationId": "listWorkItems",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "queued",
+                "leased",
+                "proposed",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "automationId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many work items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List work items",
+        "tags": [
+          "work-items"
+        ]
+      }
+    },
+    "/v1/work-items/{workItemId}": {
+      "get": {
+        "operationId": "getWorkItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One work item",
+        "tags": [
+          "work-items"
+        ]
+      }
+    },
+    "/v1/work-items/{workItemId}/cancel": {
+      "post": {
+        "description": "Withdraws a queued or leased item so no agent picks it up (or finishes acting on it). Idempotent: an already-cancelled item is returned unchanged rather than refused.",
+        "operationId": "cancelWorkItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Cancel a work item",
+        "tags": [
+          "work-items"
         ]
       }
     }

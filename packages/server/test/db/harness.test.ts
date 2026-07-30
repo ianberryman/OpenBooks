@@ -47,6 +47,7 @@ describe('test database harness', () => {
         '0015_procure_to_pay',
         '0016_budgets',
         '0017_accountant_close',
+        '0018_automations',
         '0999_app_grants',
       ]);
     });

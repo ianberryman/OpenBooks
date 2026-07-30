@@ -4,6 +4,7 @@ import { registerAccountRoutes } from './accounts';
 import { registerAgentProposalRoutes } from './agent-proposals';
 import { registerApiKeyRoutes } from './api-keys';
 import { registerAuthRoutes } from './auth';
+import { registerAutomationsRoutes } from './automations';
 import { registerBankAccountRoutes } from './bank-accounts';
 import { registerBankImportRoutes } from './bank-imports';
 import { registerBankRuleRoutes } from './bank-rules';
@@ -418,6 +419,45 @@ import { registerTaxRateRoutes } from './tax-rates';
  * dispose replays the first disposal's journal rather than posting a second removal of
  * the same asset.
  *
+ * ### Initiative Q — agent work queue (OB-200…210)
+ *
+ * | Method   | Path                                        | operationId            | Idempotency-Key | Claim scope |
+ * | -------- | --------------------------------------------- | ------------------------ | --------------- | ----------- |
+ * | `POST`   | `/v1/automations`                             | `createAutomation`       | required        | org         |
+ * | `GET`    | `/v1/automations`                             | `listAutomations`        | —                | —           |
+ * | `GET`    | `/v1/automations/:automationId`               | `getAutomation`          | —                | —           |
+ * | `PATCH`  | `/v1/automations/:automationId`               | `updateAutomation`       | required        | org         |
+ * | `POST`   | `/v1/automations/:automationId/activate`      | `activateAutomation`     | required        | org         |
+ * | `POST`   | `/v1/automations/:automationId/deactivate`    | `deactivateAutomation`   | required        | org         |
+ * | `POST`   | `/v1/automations/:automationId/run`           | `runAutomation`          | required        | org         |
+ * | `GET`    | `/v1/work-items`                              | `listWorkItems`          | —                | —           |
+ * | `GET`    | `/v1/work-items/:workItemId`                  | `getWorkItem`            | —                | —           |
+ * | `POST`   | `/v1/work-items/:workItemId/cancel`           | `cancelWorkItem`         | required        | org         |
+ *
+ * `createAutomation`/`updateAutomation`/`cancelWorkItem` take `workflows.write`;
+ * every read above takes `workflows.read`; `activateAutomation`/
+ * `deactivateAutomation`/`runAutomation` take `workflows.activate` — a separate
+ * privilege from composing an automation, so a composer holding only
+ * `workflows.write` cannot make their own automation fire (Q1's reserved
+ * compose-vs-activate split, mirrored on `deactivateRecurringJournalTemplate`'s own
+ * gate above). `automations.service.ts` and `work-items.service.ts` enforce each,
+ * not repeated here.
+ *
+ * Q never calls a model and never posts on its own (D-100): `runAutomation`'s
+ * `agent_task` actions only enqueue a work item, and the one write an agent can make
+ * — `work_queue.submit_proposal`, over MCP, `journals.post` — only lands an ordinary
+ * `journal_drafts` row a human approves through the existing `agents.review` queue.
+ * That MCP half of Q (`work_queue.poll`/`work_queue.submit_proposal`) carries no REST
+ * operation and is not on this table, the same way `POST /mcp` itself is not — see
+ * `modules/mcp/tools.ts`.
+ *
+ * `activateAutomation`/`deactivateAutomation` are their own routes rather than an
+ * `isActive` field on `PATCH`, `deactivateAccount`'s own reason restated for Q1.
+ * `runAutomation` returns `AutomationRunResult`, not the automation itself, because
+ * firing an automation is an action with its own effect (an annotation count, a work
+ * item count) rather than a state change to echo back; a retried call with the same
+ * `Idempotency-Key` replays that one firing's result rather than firing again.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -604,4 +644,8 @@ export function registerV1Routes(app: App, config: Config): void {
   // period-close checklist + sign-off and the audit report are registered with the
   // periods and reports routes above, on the surfaces they extend.
   registerStatementPackageRoutes(app);
+  // Agent work queue (Q, OB-200…210): automations a person composes and owns, and the
+  // work items their `agent_task` actions enqueue. The MCP half of Q — the queue
+  // protocol the org's own agent polls — is `modules/mcp/tools.ts`, not this surface.
+  registerAutomationsRoutes(app);
 }

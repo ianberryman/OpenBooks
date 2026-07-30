@@ -327,6 +327,17 @@ const OVERRIDES = {
     // columns are the only overrides P needs.
     'statement_packages.period_start': 'string',
     'statement_packages.period_end': 'string',
+
+    // ── Automations (0018_automations) ────────────────────────────────────────
+    //
+    // One override, one column: `last_fired_run_date` is the scheduled-trigger
+    // once-per-cycle guard and a calendar DATE, so it maps to `string` (nullability
+    // spelled out, since an override replaces the whole mapped type) — the same
+    // correction `recurring_invoice_templates.last_run_date` takes. `work_items` and
+    // `automation_annotations` need no entry: their non-scalar columns are DATETIME(3)
+    // instants (kept `Date`) and JSON (mapped correctly), with no money or BIGINT
+    // counter among them.
+    'automations.last_fired_run_date': 'string | null',
   },
 };
 

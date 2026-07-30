@@ -249,6 +249,17 @@ import {
   updateVendorDisbursementDetails,
 } from '../../src/modules/pay-bills';
 import {
+  cancelWorkItem,
+  createAutomation,
+  getAutomation,
+  getWorkItem,
+  listAutomations,
+  listWorkItems,
+  runAutomation,
+  setAutomationActive,
+  updateAutomation,
+} from '../../src/modules/automations';
+import {
   disposeFixedAsset,
   getFixedAsset,
   getFixedAssetSchedule,
@@ -494,6 +505,14 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'banking.reconcile': ['owner', 'bookkeeper'],
   'banking.reopen': ['owner', 'bookkeeper'],
+  // Q (M6): the reserved `workflows.*` triad, enforced now by the automations module
+  // (OB-200…210). `read` gates the automation/work-item reads and the agent's `poll`;
+  // `write` composes an automation; `activate` (owner-only) enables it and fires it —
+  // the reserved compose-vs-activate separation of duties. Moved here from
+  // `LATENT_GRANTS`, where they were the last family with no milestone scoped.
+  'workflows.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
+  'workflows.write': ['owner', 'bookkeeper'],
+  'workflows.activate': ['owner'],
   'contacts.read': [
     'owner',
     'bookkeeper',
@@ -754,24 +773,22 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
   // the same catalog-before-enforcement pattern `agents.review` followed through M5.
   //
-  // `workflows.*` is the only family still latent, with no milestone scoped at all.
-  // Procure-to-pay's seven codes (M) were latent for exactly one wave — the schema
-  // wave seeded them ahead of enforcement — and moved into `GRANTED_TO` the moment
-  // the M services gated them (this commit), so they are not here.
-  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
-  bookkeeper: ['workflows.read', 'workflows.write'],
+  // Empty as of Q (M6): `workflows.*` was the last family with no milestone scoped,
+  // and the automations module (OB-200…210) now enforces all three codes, so they
+  // moved into `GRANTED_TO`. Every code the seven system roles hold now has an
+  // enforcement point — nothing is latent. The rows stay (as empty arrays) so the
+  // per-role assertion below keeps naming each role, and so the next catalog-only
+  // code has an obvious home.
+  owner: [],
+  bookkeeper: [],
   // Empty since M3. Every code `0001_tenancy` grants an AP/AR clerk now has an
   // enforcement point — procure-to-pay's purchase_orders.*/expenses.*/estimates.*
   // gate the moment they are seeded (M), so neither clerk holds anything latent.
   apOnly: [],
   arOnly: [],
-  readOnly: ['workflows.read'],
-  approver: ['workflows.read'],
-  // Accountant holds the `%.read` bundle, so `workflows.read` reaches it for the same
-  // reason it reaches readOnly/approver — and nothing else is latent: its four
-  // non-read grants (`journals.post`/`journals.reverse`, `periods.close`/
-  // `periods.reopen`) are all enforced.
-  accountant: ['workflows.read'],
+  readOnly: [],
+  approver: [],
+  accountant: [],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -3071,6 +3088,78 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'reports.read',
     call: (s) => getBudgetVsActual({ periodId: s.periodId }, s.ctx),
   },
+  // Q (M6) — automations + the agent work queue. Every id argument is `s.cashId`
+  // (any real uuid): the gate runs first, so an unauthorised role is refused before
+  // the id is read, and an authorised role reaches a `NotFound` that `judge` treats
+  // as `allowed` — exactly the property this matrix asserts.
+  {
+    name: 'createAutomation',
+    operationId: 'createAutomation',
+    permission: 'workflows.write',
+    call: (s) =>
+      createAutomation(
+        {
+          name: 'Nightly review',
+          trigger: { type: 'manual' },
+          actions: [{ type: 'annotate', note: 'seen' }],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listAutomations',
+    operationId: 'listAutomations',
+    permission: 'workflows.read',
+    call: (s) => listAutomations({}, s.ctx),
+  },
+  {
+    name: 'getAutomation',
+    operationId: 'getAutomation',
+    permission: 'workflows.read',
+    call: (s) => getAutomation(s.cashId, s.ctx),
+  },
+  {
+    name: 'updateAutomation',
+    operationId: 'updateAutomation',
+    permission: 'workflows.write',
+    call: (s) => updateAutomation(s.cashId, { name: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'activateAutomation',
+    operationId: 'activateAutomation',
+    permission: 'workflows.activate',
+    call: (s) => setAutomationActive(s.cashId, true, s.ctx),
+  },
+  {
+    name: 'deactivateAutomation',
+    operationId: 'deactivateAutomation',
+    permission: 'workflows.activate',
+    call: (s) => setAutomationActive(s.cashId, false, s.ctx),
+  },
+  {
+    name: 'runAutomation',
+    operationId: 'runAutomation',
+    permission: 'workflows.activate',
+    call: (s) => runAutomation(s.cashId, s.ctx),
+  },
+  {
+    name: 'listWorkItems',
+    operationId: 'listWorkItems',
+    permission: 'workflows.read',
+    call: (s) => listWorkItems({}, s.ctx),
+  },
+  {
+    name: 'getWorkItem',
+    operationId: 'getWorkItem',
+    permission: 'workflows.read',
+    call: (s) => getWorkItem(s.cashId, s.ctx),
+  },
+  {
+    name: 'cancelWorkItem',
+    operationId: 'cancelWorkItem',
+    permission: 'workflows.write',
+    call: (s) => cancelWorkItem(s.cashId, s.ctx),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -4034,7 +4123,7 @@ describe('D-30 — Approver composes and posts a draft', () => {
  * `GRANTED_TO` and a row to `OPERATIONS`, or the two tests above fail.
  */
 describe('gap 6 — the grants that nothing checks yet', () => {
-  it('is exactly the catalog minus the forty-eight codes with an enforcement point', async () => {
+  it('is empty now that every catalog code has an enforcement point', async () => {
     const catalog = await selectCatalogCodes();
     // Against the union rather than the type, so a code deleted from the seeds
     // without being deleted from the catalog union is caught here too.
@@ -4057,9 +4146,11 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // moves once per wave that wires a code.
     //
     // Procure-to-pay (M) added seven codes and enforced them in the same milestone,
-    // so they never lingered here past their one schema-only wave — the count is back
-    // to the three `workflows.*` codes, still the only family with no milestone.
-    expect(latent).toHaveLength(3);
+    // so they never lingered here past their one schema-only wave. Q (M6) then wired
+    // the last family — `workflows.read`/`write`/`activate` — in the automations
+    // module (OB-200…210), so nothing is latent any more: every catalog code has an
+    // enforcement point. This number moves once per wave that wires a code.
+    expect(latent).toHaveLength(0);
   });
 
   /**

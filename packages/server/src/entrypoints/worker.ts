@@ -32,6 +32,7 @@ import { getConfig } from '../config';
 import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import type { Logger } from '../logging';
+import { registerAutomationsJob } from '../modules/automations';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
@@ -77,6 +78,9 @@ export async function startWorker(): Promise<void> {
   // The D-85 polling backstop (OB-148): a daily task like recurring/dunning, not
   // event-driven like the extraction job above.
   await registerProcessorPollJob(queueProvider(), { logger });
+  // The agent work-queue sweep (initiative Q, OB-200…210): matches `scheduled` and
+  // `event` triggers and enqueues the work items their `agent_task` actions produce.
+  await registerAutomationsJob(queueProvider(), { logger });
 
   // The daily clock (OB-127) lives with the job handlers: whichever process consumes the
   // queue is the one that should drive the tick, or a sweep is enqueued to a queue this
@@ -86,8 +90,8 @@ export async function startWorker(): Promise<void> {
 
   logger.info(
     { role: 'worker' },
-    'worker: statement, recurring, dunning, extraction and processor-poll jobs registered; ' +
-      'daily tick started; blocking on the queue',
+    'worker: statement, recurring, dunning, extraction, processor-poll and automations jobs ' +
+      'registered; daily tick started; blocking on the queue',
   );
 
   await blockUntilShutdown(logger, stopDailyTick);

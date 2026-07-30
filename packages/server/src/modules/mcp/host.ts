@@ -73,6 +73,22 @@ import { mcpTools } from './tools';
  * for a chat transcript and would need this host to invent a serialization of a
  * trial balance into prose for no reader. A client speaking this host's tool
  * suite reads `outcome.kind` directly.
+ *
+ * ## Every dispatched call answers HTTP 200 (ROADMAP D-118)
+ *
+ * A real MCP client (ChatGPT among them) treats a non-2xx response to
+ * `POST /mcp` as the tool, or the connection to it, having failed outright, and
+ * drops it — there is no notion at that layer of "the transport succeeded but
+ * the call was refused." So once `request.body` has parsed into a structurally
+ * valid `JsonRpcCall` (`asJsonRpcCall` below), every outcome of dispatching it —
+ * a tool's success, this host's own refusal, a tool handler's thrown
+ * `OpenBooksError` — answers 200, with the failure, if any, carried in the
+ * JSON-RPC `error` object (`toJsonRpcErrorResponse` below): a top-level `code`,
+ * a `message`, and the typed `data.code` a client actually branches on (F5).
+ * Non-2xx is reserved for the one case that precedes all of that: a body that
+ * never became a valid envelope in the first place (no `id` to answer, no call
+ * to have failed) and for whatever the auth layer's `onRequest` hooks reject
+ * before this route's handler ever runs.
  */
 
 const JSONRPC_VERSION = '2.0';
@@ -262,7 +278,14 @@ async function dispatch(
 }
 
 interface JsonRpcErrorResponse {
-  readonly status: number;
+  /**
+   * For logging only — never the outgoing HTTP status (ROADMAP D-118; see
+   * `registerMcpServer` below). `true` for a `wire.status` in the 5xx class,
+   * `false` otherwise, so the route handler can still split `request.log.error`
+   * from `.warn` the way `transport/errors.ts` does for REST, without the
+   * response itself varying.
+   */
+  readonly isServerError: boolean;
   readonly body: {
     readonly jsonrpc: typeof JSONRPC_VERSION;
     readonly id: string | number | null;
@@ -285,17 +308,21 @@ interface JsonRpcErrorResponse {
  * actually branches on, the same field an HTTP client reads from the response
  * body.
  *
+ * Neither `wire.status` nor `JsonRpcProtocolError` drives the HTTP status the
+ * route sends any more (ROADMAP D-118): every dispatched call is a 200, so what
+ * this function returns is only ever a body plus a severity for the log line.
+ *
  * Pure: it maps, it does not log. Logging belongs to the route handler, which has
  * the request-scoped `request.log` — the global `getLogger()` is wrong here for two
  * reasons, one of which is a live bug: it lacks this request's actor provenance, and
  * it lazily calls `getConfig()`, which throws in any process that authenticated a
  * caller without loading the global config first (every `buildTestApp` harness),
- * turning a clean 403/400 into a masked 500.
+ * turning a clean refusal into a masked 500 in the logs.
  */
 function toJsonRpcErrorResponse(id: string | number | null, error: unknown): JsonRpcErrorResponse {
   if (error instanceof JsonRpcProtocolError) {
     return {
-      status: 400,
+      isServerError: false,
       body: {
         jsonrpc: JSONRPC_VERSION,
         id,
@@ -306,7 +333,7 @@ function toJsonRpcErrorResponse(id: string | number | null, error: unknown): Jso
 
   const wire = toWireError(error);
   return {
-    status: wire.status,
+    isServerError: wire.status >= 500,
     body: {
       jsonrpc: JSONRPC_VERSION,
       id,
@@ -334,6 +361,10 @@ export function registerMcpServer(app: App, deps: RegisterMcpServerDeps = {}): v
   app.post('/mcp', { schema: { hide: true } }, async (request, reply) => {
     const call = asJsonRpcCall(request.body);
     if (call === undefined) {
+      // The one case that stays non-2xx (ROADMAP D-118): the body never became a
+      // valid JSON-RPC envelope, so there is no `id` to answer and nothing for a
+      // tool suite's own error shape to ride on — this is a transport failure,
+      // not a call outcome.
       return reply.status(400).send({
         jsonrpc: JSONRPC_VERSION,
         id: null,
@@ -345,12 +376,23 @@ export function registerMcpServer(app: App, deps: RegisterMcpServerDeps = {}): v
       const result = await dispatch(call, registry, tools);
       return { jsonrpc: JSONRPC_VERSION, id: call.id, result };
     } catch (error) {
-      const { status, body } = toJsonRpcErrorResponse(call.id, error);
-      // Split on status the way `transport/errors.ts` does: a 5xx is ours to fix, a
-      // 4xx is the caller's. `request.log` carries this request's actor provenance.
-      if (status >= 500) request.log.error({ err: error }, 'mcp: tool call failed');
+      // Every dispatched call answers HTTP 200 from here on, success or failure
+      // (ROADMAP D-118): a real MCP client (ChatGPT among them) treats any
+      // non-2xx `POST /mcp` response as the tool/connection itself failing and
+      // drops it, so a refused or failed call has to fail *inside* the JSON-RPC
+      // envelope — `body.error.code`/`message`/`data.code` — never in the HTTP
+      // status. This covers both this host's own refusals
+      // (`JsonRpcProtocolError` — unknown method/tool/mode, bad params) and every
+      // `OpenBooksError` a tool's handler threw; both are valid, dispatched
+      // calls, just ones that did not succeed.
+      const { isServerError, body } = toJsonRpcErrorResponse(call.id, error);
+      // `isServerError` still splits the log the way `transport/errors.ts` does
+      // for REST — a 5xx-class failure is ours to fix, a 4xx-class is the
+      // caller's — it just no longer drives what status ships. `request.log`
+      // carries this request's actor provenance.
+      if (isServerError) request.log.error({ err: error }, 'mcp: tool call failed');
       else request.log.warn({ err: error }, 'mcp: tool call rejected');
-      return reply.status(status).send(body);
+      return reply.status(200).send(body);
     }
   });
 }

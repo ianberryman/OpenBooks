@@ -162,6 +162,14 @@ const APPEND_ONLY_TABLES = [
   // StorageProvider, reached by `artifact_storage_key`.
   'period_close_events',
   'statement_packages',
+  // ── Automations (0018_automations) ─────────────────────────────────────────
+  //
+  // `automation_annotations` is the `annotate` action's output (D-119): a record
+  // that a firing happened, `period_close_events`' reason to be append-only. It
+  // posts no journal and nothing downstream depends on editing it — the work_item
+  // and the draft a firing produces are where the state that matters lives. Its
+  // mutable siblings (`automations`, `work_items`) are below.
+  'automation_annotations',
 ] as const;
 
 /**
@@ -445,6 +453,17 @@ const MUTABLE_TABLES = [
   // (`ON DUPLICATE KEY UPDATE`), an UPDATE the append-only grant would refuse. The
   // numbers a budget is measured against live in `journals`, append-only above.
   'budgets',
+  // ── Automations (0018_automations) ─────────────────────────────────────────
+  //
+  // `automations` is a standing instruction edited freely — `recurring_invoice_templates`'
+  // reason — and posts no journal (Q proposes, a human posts, D-99). `work_items` is
+  // the queue, mutable for `bank_statement_imports`' reason (OB-078): a row is claimed
+  // and settled in place, and `poll` takes it `FOR UPDATE` to lease it (Q10), which
+  // needs the UPDATE grant a locking read requires (D-14). Neither holds a financial
+  // fact immutability would protect — the proposal a work item yields is a
+  // `journal_drafts` row, and the ledger entry only ever comes from a human's post.
+  'automations',
+  'work_items',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

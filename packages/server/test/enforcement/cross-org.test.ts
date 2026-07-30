@@ -88,6 +88,9 @@ interface Scene {
   readonly fixedAssetId: string;
   /** Budgets (N, OB-183): a stored budget figure, for `deleteBudget`'s id-addressed route. */
   readonly budgetId: string;
+  /** Q (M6): an automation and the work item running it enqueues, for the A7 rows. */
+  readonly automationId: string;
+  readonly workItemId: string;
   /**
    * Procure-to-pay (M, OB-177): a draft purchase order, estimate, and expense. A
    * draft suffices for every id-addressed row — the route resolves it for the owner
@@ -380,6 +383,34 @@ async function scene(app: App): Promise<Scene> {
   if (budgetItem === undefined) throw new Error('budget setup returned no items');
   const budgetId = budgetItem.id;
 
+  // Q (M6): an automation carrying an `agent_task` action, so running it enqueues
+  // exactly one work item — the only route by which a work item is created — giving
+  // the `getWorkItem`/`cancelWorkItem` rows a real resource for the owner control pass.
+  const automationId = await created('automation', '/v1/automations', {
+    name: 'A7 automation',
+    trigger: { type: 'manual' },
+    actions: [{ type: 'agent_task', prompt: 'Review this transaction.' }],
+  });
+  const ranAutomation = await app.inject({
+    method: 'POST',
+    url: `/v1/automations/${automationId}/run`,
+    headers: authorizedWrite(owner, 'a7-setup-run-automation'),
+  });
+  if (ranAutomation.statusCode !== 200) {
+    throw new Error(
+      `automation run setup failed: ${String(ranAutomation.statusCode)} ${ranAutomation.body}`,
+    );
+  }
+  const workItemsList = await app.inject({
+    method: 'GET',
+    url: '/v1/work-items?limit=1',
+    headers: { cookie: owner.cookie },
+  });
+  const workItemId = workItemsList.json<{ items: { id: string }[] }>().items[0]?.id;
+  if (workItemId === undefined) {
+    throw new Error(`work item setup returned none: ${workItemsList.body}`);
+  }
+
   const subledger = await subledgerScene(app, owner, created, revenueId);
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
   const captures = await captureScene(owner, subledger.targetBillId);
@@ -489,6 +520,8 @@ async function scene(app: App): Promise<Scene> {
     recurringJournalTemplateId,
     fixedAssetId,
     budgetId,
+    automationId,
+    workItemId,
     apiKeyId,
     oauthClientId,
     oauthClientPublicId,
@@ -2124,6 +2157,52 @@ const SURFACES: readonly Surface[] = [
     path: '/v1/contacts/%s/disbursement-details',
     id: (s) => s.partyId,
     payload: () => ({ preferredPaymentRail: 'check' }),
+  },
+  // Q (M6): the automation and work-item routes that take a path id. `runAutomation`
+  // and `cancelWorkItem` mutate, so they come after the reads; the owner control pass
+  // still answers each non-404, and the stranger 404s before the id is read.
+  {
+    operationId: 'getAutomation',
+    method: 'GET',
+    path: '/v1/automations/%s',
+    id: (s) => s.automationId,
+  },
+  {
+    operationId: 'updateAutomation',
+    method: 'PATCH',
+    path: '/v1/automations/%s',
+    id: (s) => s.automationId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'activateAutomation',
+    method: 'POST',
+    path: '/v1/automations/%s/activate',
+    id: (s) => s.automationId,
+  },
+  {
+    operationId: 'deactivateAutomation',
+    method: 'POST',
+    path: '/v1/automations/%s/deactivate',
+    id: (s) => s.automationId,
+  },
+  {
+    operationId: 'runAutomation',
+    method: 'POST',
+    path: '/v1/automations/%s/run',
+    id: (s) => s.automationId,
+  },
+  {
+    operationId: 'getWorkItem',
+    method: 'GET',
+    path: '/v1/work-items/%s',
+    id: (s) => s.workItemId,
+  },
+  {
+    operationId: 'cancelWorkItem',
+    method: 'POST',
+    path: '/v1/work-items/%s/cancel',
+    id: (s) => s.workItemId,
   },
 ];
 

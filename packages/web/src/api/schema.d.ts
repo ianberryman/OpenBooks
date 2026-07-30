@@ -421,6 +421,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List automations
+         * @description One page of automations, ordered by `(created_at, id)`, oldest first.
+         */
+        get: operations["listAutomations"];
+        put?: never;
+        /**
+         * Create an automation
+         * @description A trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`, a separate call to `POST …/activate`.
+         */
+        post: operations["createAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/automations/{automationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One automation */
+        get: operations["getAutomation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update an automation
+         * @description An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`.
+         */
+        patch: operations["updateAutomation"];
+        trace?: never;
+    };
+    "/v1/automations/{automationId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate an automation
+         * @description Lets the automation fire on its trigger (`workflows.activate`, distinct from composing it). Idempotent: an already-active automation is returned unchanged rather than refused.
+         */
+        post: operations["activateAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/automations/{automationId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate an automation
+         * @description The counterpart to activation, so that activation is not a one-way door. Idempotent.
+         */
+        post: operations["deactivateAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/automations/{automationId}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fire an automation once, on demand
+         * @description Runs every action in order and returns what this one firing produced: the count of annotations written and work items enqueued (Q9). A retried call with the same `Idempotency-Key` replays the original `AutomationRunResult` rather than firing twice.
+         */
+        post: operations["runAutomation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bank-accounts": {
         parameters: {
             query?: never;
@@ -3799,6 +3904,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/work-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List work items
+         * @description One page of work items, ordered by `(created_at, id)`, oldest first.
+         */
+        get: operations["listWorkItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/work-items/{workItemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One work item */
+        get: operations["getWorkItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/work-items/{workItemId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a work item
+         * @description Withdraws a queued or leased item so no agent picks it up (or finishes acting on it). Idempotent: an already-cancelled item is returned unchanged rather than refused.
+         */
+        post: operations["cancelWorkItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4322,6 +4484,130 @@ export interface components {
             email: string;
             /** Format: uuid */
             id: string;
+        };
+        /** @description A user-composed automation: a trigger and an ordered list of actions (Q1). */
+        Automation: {
+            actions: components["schemas"]["AutomationActions"];
+            /** Format: uuid */
+            id: string;
+            /** @description Whether the automation fires. Flipped through `workflows.activate`. */
+            isActive: boolean;
+            /** @description The run date of the most recent scheduled firing, or null. The once-per-cycle guard for a scheduled trigger (cf. a recurring template’s `lastRunDate`). */
+            lastFiredRunDate: components["schemas"]["CalendarDate"] | null;
+            name: string;
+            trigger: components["schemas"]["AutomationTrigger"];
+        };
+        /** @description One step of an automation. `annotate` writes a note; `agent_task` enqueues a work item for the org’s MCP agent (D-119). Actions run in list order (Q9). */
+        AutomationAction: {
+            /** @description The note this action appends to the firing (append-only). D-119. */
+            note: string;
+            /** @constant */
+            type: "annotate";
+        } | {
+            /** @description The instruction enqueued for the org’s agent to act on (Q3). Never posts. */
+            prompt: string;
+            /**
+             * @description A label for what kind of work this is, carried onto the work item.
+             * @default automation
+             */
+            sourceKind: string;
+            /** @constant */
+            type: "agent_task";
+        };
+        /** @description One step of an automation. `annotate` writes a note; `agent_task` enqueues a work item for the org’s MCP agent (D-119). Actions run in list order (Q9). */
+        AutomationActionInput: {
+            /** @description The note this action appends to the firing (append-only). D-119. */
+            note: string;
+            /** @constant */
+            type: "annotate";
+        } | {
+            /** @description The instruction enqueued for the org’s agent to act on (Q3). Never posts. */
+            prompt: string;
+            /**
+             * @description A label for what kind of work this is, carried onto the work item.
+             * @default automation
+             */
+            sourceKind: string;
+            /** @constant */
+            type: "agent_task";
+        };
+        /** @description The ordered actions an automation runs on each firing. */
+        AutomationActions: components["schemas"]["AutomationAction"][];
+        /** @description The ordered actions an automation runs on each firing. */
+        AutomationActionsInput: components["schemas"]["AutomationActionInput"][];
+        /** @description A user-composed automation: a trigger and an ordered list of actions (Q1). */
+        AutomationInput: {
+            actions: components["schemas"]["AutomationActionsInput"];
+            /** Format: uuid */
+            id: string;
+            /** @description Whether the automation fires. Flipped through `workflows.activate`. */
+            isActive: boolean;
+            /** @description The run date of the most recent scheduled firing, or null. The once-per-cycle guard for a scheduled trigger (cf. a recurring template’s `lastRunDate`). */
+            lastFiredRunDate: components["schemas"]["CalendarDateInput"] | null;
+            name: string;
+            trigger: components["schemas"]["AutomationTriggerInput"];
+        };
+        /** @description One page of automations, oldest first by creation. */
+        AutomationPage: {
+            items: components["schemas"]["Automation"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of automations, oldest first by creation. */
+        AutomationPageInput: {
+            items: components["schemas"]["AutomationInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description What one firing produced: the count of annotations written and work items enqueued. */
+        AutomationRunResult: {
+            annotationsWritten: number;
+            /**
+             * Format: uuid
+             * @description Ties this firing’s annotations and work items together.
+             */
+            runToken: string;
+            workItemsEnqueued: number;
+        };
+        /** @description What one firing produced: the count of annotations written and work items enqueued. */
+        AutomationRunResultInput: {
+            annotationsWritten: number;
+            /**
+             * Format: uuid
+             * @description Ties this firing’s annotations and work items together.
+             */
+            runToken: string;
+            workItemsEnqueued: number;
+        };
+        /** @description What fires the automation: `manual` (a run request), `scheduled` (a cadence the daily sweep matches), or `event` (a change-feed event name). Q2. */
+        AutomationTrigger: {
+            /** @constant */
+            type: "manual";
+        } | {
+            /** @enum {string} */
+            cadence: "daily" | "weekly" | "monthly";
+            /** @constant */
+            type: "scheduled";
+        } | {
+            /** @description The bus event that fires this automation, e.g. `bill.approved.v1`. */
+            eventName: string;
+            /** @constant */
+            type: "event";
+        };
+        /** @description What fires the automation: `manual` (a run request), `scheduled` (a cadence the daily sweep matches), or `event` (a change-feed event name). Q2. */
+        AutomationTriggerInput: {
+            /** @constant */
+            type: "manual";
+        } | {
+            /** @enum {string} */
+            cadence: "daily" | "weekly" | "monthly";
+            /** @constant */
+            type: "scheduled";
+        } | {
+            /** @description The bus event that fires this automation, e.g. `bill.approved.v1`. */
+            eventName: string;
+            /** @constant */
+            type: "event";
         };
         /** @description Assets, liabilities and equity as at a date, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a closing journal (D-20). Amounts are signed to their section, so `totals.assets` equals `totals.liabilitiesAndEquity`. */
         BalanceSheet: {
@@ -6112,6 +6398,20 @@ export interface components {
              * @description The role the key authenticates as (D-55). Not the issuer’s own role — a key’s effective permissions are exactly this role’s, and narrowing the role narrows every key issued against it, the same guarantee D-54 gives an OAuth token.
              */
             roleId: string;
+        };
+        /** @description Creates an automation: a trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`. */
+        CreateAutomationRequest: {
+            actions: components["schemas"]["AutomationActions"];
+            /** @description The automation’s own label. */
+            name: string;
+            trigger: components["schemas"]["AutomationTrigger"];
+        };
+        /** @description Creates an automation: a trigger and an ordered list of actions (Q1). Created inactive — enabling it to fire needs `workflows.activate`. */
+        CreateAutomationRequestInput: {
+            actions: components["schemas"]["AutomationActionsInput"];
+            /** @description The automation’s own label. */
+            name: string;
+            trigger: components["schemas"]["AutomationTriggerInput"];
         };
         /** @description Registers an existing ledger account as a bank account. `accountId` names an account the org already has — the chart is the org’s, and a module that invented accounts in it would decide the org’s chart on its behalf (D-23). */
         CreateBankAccountRequest: {
@@ -10906,6 +11206,18 @@ export interface components {
              */
             type?: "asset" | "liability" | "equity" | "revenue" | "expense";
         };
+        /** @description Partial update of an automation’s composition (name, trigger, actions). An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`. */
+        UpdateAutomationRequest: {
+            actions?: components["schemas"]["AutomationActions"];
+            name?: string;
+            trigger?: components["schemas"]["AutomationTrigger"];
+        };
+        /** @description Partial update of an automation’s composition (name, trigger, actions). An absent field is unchanged; `trigger` and `actions` replace wholesale. Enabling it to fire is a separate act, gated by `workflows.activate`. */
+        UpdateAutomationRequestInput: {
+            actions?: components["schemas"]["AutomationActionsInput"];
+            name?: string;
+            trigger?: components["schemas"]["AutomationTriggerInput"];
+        };
         /** @description Partial update. `accountId` and `isActive` are absent on purpose: repointing at a different ledger account would orphan every cleared line, and deactivation is its own operation so it can refuse an account with an open session (`bank_account_has_open_session`). */
         UpdateBankAccountRequest: {
             externalAccountId?: string | null;
@@ -11735,6 +12047,70 @@ export interface components {
             /** @description The reversal’s own entry date, which must itself fall in an open period. */
             date: components["schemas"]["CalendarDateInput"];
             memo?: string | null;
+        };
+        /** @description One unit of agent work: a prompt + context, a status lifecycle, and (once submitted) the draft and provenance a human reviews (Q5/Q6). Never auto-posts (Q4). */
+        WorkItem: {
+            /** @description The model the agent reported using (agent-attested provenance, Q6/D-100). */
+            agentModel: string | null;
+            attempts: number;
+            automationId: string | null;
+            context: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            flagged: boolean;
+            /** Format: uuid */
+            id: string;
+            lastError: string | null;
+            leaseExpiresAt: string | null;
+            leasedBy: string | null;
+            prompt: string;
+            /** @description The `journal_drafts` row the agent’s proposal landed as (Q4), or null before a submission. A human posts it through the `agents.review` queue — Q never posts. */
+            proposedDraftId: string | null;
+            sourceKind: string;
+            sourceRef: string | null;
+            /** @enum {string} */
+            status: "queued" | "leased" | "proposed" | "failed" | "cancelled";
+            submittedAt: string | null;
+        };
+        /** @description One unit of agent work: a prompt + context, a status lifecycle, and (once submitted) the draft and provenance a human reviews (Q5/Q6). Never auto-posts (Q4). */
+        WorkItemInput: {
+            /** @description The model the agent reported using (agent-attested provenance, Q6/D-100). */
+            agentModel: string | null;
+            attempts: number;
+            automationId: string | null;
+            context: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            flagged: boolean;
+            /** Format: uuid */
+            id: string;
+            lastError: string | null;
+            leaseExpiresAt: string | null;
+            leasedBy: string | null;
+            prompt: string;
+            /** @description The `journal_drafts` row the agent’s proposal landed as (Q4), or null before a submission. A human posts it through the `agents.review` queue — Q never posts. */
+            proposedDraftId: string | null;
+            sourceKind: string;
+            sourceRef: string | null;
+            /** @enum {string} */
+            status: "queued" | "leased" | "proposed" | "failed" | "cancelled";
+            submittedAt: string | null;
+        };
+        /** @description One page of work items, oldest first by creation. */
+        WorkItemPage: {
+            items: components["schemas"]["WorkItem"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of work items, oldest first by creation. */
+        WorkItemPageInput: {
+            items: components["schemas"]["WorkItemInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
     };
     responses: never;
@@ -12604,6 +12980,249 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Identity"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listAutomations: {
+        parameters: {
+            query?: {
+                /** @description Only active automations when `true`, only inactive ones when `false`. */
+                isActive?: string;
+                triggerType?: "manual" | "scheduled" | "event";
+                /** @description How many automations to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createAutomation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAutomationRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getAutomation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateAutomation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAutomationRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    activateAutomation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateAutomation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Automation"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    runAutomation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                automationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRunResult"];
                 };
             };
             /** @description Default Response */
@@ -20914,6 +21533,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listWorkItems: {
+        parameters: {
+            query?: {
+                status?: "queued" | "leased" | "proposed" | "failed" | "cancelled";
+                automationId?: string;
+                /** @description How many work items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItemPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getWorkItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelWorkItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                workItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkItem"];
                 };
             };
             /** @description Default Response */

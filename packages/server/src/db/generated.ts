@@ -165,6 +165,29 @@ export interface ArDocuments {
   void_journal_id: Buffer | null;
 }
 
+export interface AutomationAnnotations {
+  automation_id: Buffer;
+  created_at: Generated<Date>;
+  id: Buffer;
+  note: string;
+  org_id: Buffer;
+  run_token: Buffer;
+}
+
+export interface Automations {
+  actions: Json;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  id: Buffer;
+  is_active: Generated<number>;
+  last_fired_run_date: string | null;
+  name: string;
+  org_id: Buffer;
+  trigger_config: Json;
+  trigger_type: "event" | "manual" | "scheduled";
+  updated_at: Generated<Date>;
+}
+
 export interface BankAccounts {
   account_id: Buffer;
   created_at: Generated<Date>;
@@ -1117,6 +1140,31 @@ export interface Users {
   updated_at: Generated<Date>;
 }
 
+export interface WorkItems {
+  agent_model: string | null;
+  attempts: Generated<number>;
+  automation_id: Buffer | null;
+  context: Json;
+  created_at: Generated<Date>;
+  flagged: Generated<number>;
+  id: Buffer;
+  last_error: string | null;
+  lease_expires_at: Date | null;
+  lease_token: Buffer | null;
+  leased_at: Date | null;
+  leased_by: string | null;
+  org_id: Buffer;
+  prompt: string;
+  proposed_draft_id: Buffer | null;
+  run_token: Buffer | null;
+  source_kind: string;
+  source_ref: string | null;
+  status: Generated<"cancelled" | "failed" | "leased" | "proposed" | "queued">;
+  submitted_at: Date | null;
+  submitted_by_client: string | null;
+  updated_at: Generated<Date>;
+}
+
 export interface DB {
   accounts: Accounts;
   ap_allocations: ApAllocations;
@@ -1128,6 +1176,8 @@ export interface DB {
   ar_document_line_dimensions: ArDocumentLineDimensions;
   ar_document_lines: ArDocumentLines;
   ar_documents: ArDocuments;
+  automation_annotations: AutomationAnnotations;
+  automations: Automations;
   bank_accounts: BankAccounts;
   bank_import_mappings: BankImportMappings;
   bank_line_clearing_entries: BankLineClearingEntries;
@@ -1200,4 +1250,5 @@ export interface DB {
   statement_packages: StatementPackages;
   tax_rates: TaxRates;
   users: Users;
+  work_items: WorkItems;
 }

@@ -10,6 +10,9 @@ import type {
   ListBillsQuery,
   ListContactsQuery,
   ListInvoicesQuery,
+  PollWorkQueueInput,
+  PollWorkQueueResult,
+  SubmitProposalInput,
 } from '@openbooks/shared-types';
 import {
   createDraftRequestSchema,
@@ -17,11 +20,14 @@ import {
   listBillsQuerySchema,
   listContactsQuerySchema,
   listInvoicesQuerySchema,
+  pollWorkQueueInputSchema,
+  submitProposalInputSchema,
   trialBalanceQuerySchema,
 } from '@openbooks/shared-types';
 
 import { ValidationError } from '../../errors';
 import { listAccounts } from '../accounts';
+import { pollWorkQueue, submitWorkItemProposal } from '../automations';
 import { listBills } from '../bills';
 import { listContacts } from '../contacts';
 import { createDraft } from '../drafts';
@@ -31,10 +37,12 @@ import { listInvoices } from '../invoices';
 import { requirePermission } from '../permissions';
 
 /**
- * The MCP tool suite (OB-103; ROADMAP D-59, D-60; spec §8, §12).
+ * The MCP tool suite (OB-103; ROADMAP D-59, D-60; spec §8, §12). Extended by
+ * initiative Q (OB-200…210, D-99/D-100/D-118/D-119) with the agent work queue
+ * protocol: `work_queue.poll` and `work_queue.submit_proposal`.
  *
  * **FOCUSED/representative scope, deliberately** — five read tools mirroring one
- * service each, plus one propose-only write. Not a mirror of every REST endpoint;
+ * service each, plus the propose-only writes. Not a mirror of every REST endpoint;
  * OB-103's brief is a tool suite that proves the seam (a second transport over the
  * same services, under the same permission catalog), not a second surface to
  * maintain in lockstep with `transport/routes/`.
@@ -55,13 +63,17 @@ import { requirePermission } from '../permissions';
  * spec §2.4/§5 rules out). The declared `permission` field is documentation the
  * MCP manifest can publish; the call in the handler is what actually refuses.
  *
- * ## The one write tool refuses to write
+ * ## The write tools refuse to write directly
  *
  * `journal.propose` is `supportsProposeOnly: true` and its handler refuses
  * `mode: 'execute'` outright — a ledger-writing tool has no execute path at all
  * (D-60). It lands a draft via `createDraft`, the same M2 mechanism a human typing
  * into the journal-entry form uses, and a human holding `agents.review` is the only
  * way that draft ever becomes a posting (`modules/agents/review.service.ts`).
+ * `work_queue.submit_proposal` is Q's own instance of the same rule (D-100): it never
+ * posts either, only lands a `journal_drafts` row through `submitWorkItemProposal`,
+ * so an org's agent has exactly one way to write anything through MCP, in both the
+ * ad hoc case (`journal.propose`) and the queued-work case (`work_queue.*`).
  */
 
 // ---------------------------------------------------------------------------
@@ -237,6 +249,62 @@ function describeDraft(draft: JournalDraft): ToolProposal {
 }
 
 // ---------------------------------------------------------------------------
+// The agent work queue (initiative Q, D-99/D-100/D-118/D-119)
+// ---------------------------------------------------------------------------
+
+export const workQueuePollTool: McpToolDefinition<
+  typeof pollWorkQueueInputSchema,
+  PollWorkQueueResult
+> = {
+  name: 'work_queue.poll',
+  description:
+    'Leases the next queued work item, if any, for `leaseSeconds` (default set by the server). ' +
+    'An empty queue is success, not an error: the result carries `item: null` rather than a ' +
+    '404 or an empty-collection refusal (ROADMAP D-118) — the agent’s poll loop should treat a ' +
+    'null item as "nothing to do right now", not as a fault. A leased item’s lease expires and ' +
+    're-queues on its own if `work_queue.submit_proposal` is never called with its `leaseToken`.',
+  inputSchema: pollWorkQueueInputSchema,
+  sideEffects:
+    'Mutates: on a hit, the returned item moves from `queued` to `leased` and is unavailable to ' +
+    'any other poll until the lease expires. Nothing about the org’s books changes — no journal, ' +
+    'no draft, no report is affected.',
+  requiresConfirm: false,
+  supportsProposeOnly: false,
+  permission: 'workflows.read',
+  async handler(input: PollWorkQueueInput, ctx) {
+    await requirePermission(ctx, 'workflows.read');
+    const result = await pollWorkQueue(input, ctx);
+    return { kind: 'executed', result };
+  },
+};
+
+export const workQueueSubmitProposalTool: McpToolDefinition<
+  typeof submitProposalInputSchema,
+  ToolProposal
+> = {
+  name: 'work_queue.submit_proposal',
+  description:
+    'Submits the leased work item’s result as a journal draft for human review. Never posts ' +
+    '(D-100, the same rule `journal.propose` follows): it lands an ordinary `journal_drafts` row ' +
+    'through the existing `agents.review` queue, and only a human holding that permission can ' +
+    'turn it into a posting. `leaseToken` proves the caller still holds the item leased by ' +
+    '`work_queue.poll`; a stale or already-resolved lease is refused.',
+  inputSchema: submitProposalInputSchema,
+  sideEffects:
+    'Lands a `journal_drafts` row for a human to approve or reject (`agents.review`). The work ' +
+    'item moves to `proposed` and records this draft and the agent’s attested model. Nothing ' +
+    'posts to the ledger from this call alone.',
+  requiresConfirm: true,
+  supportsProposeOnly: false,
+  permission: 'journals.post',
+  async handler(input: SubmitProposalInput, ctx) {
+    await requirePermission(ctx, 'journals.post');
+    const { proposal } = await submitWorkItemProposal(input, ctx);
+    return { kind: 'proposed', proposal };
+  },
+};
+
+// ---------------------------------------------------------------------------
 // The registry
 // ---------------------------------------------------------------------------
 
@@ -248,4 +316,6 @@ export const mcpTools: readonly McpToolDefinition[] = [
   invoicesListTool,
   billsListTool,
   journalProposeTool,
+  workQueuePollTool,
+  workQueueSubmitProposalTool,
 ];

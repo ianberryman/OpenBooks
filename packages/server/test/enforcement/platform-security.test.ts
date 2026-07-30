@@ -364,7 +364,11 @@ describe('F5 — the MCP transport refuses exactly what the REST route refuses',
       mcpCall(lackingKey),
       restCall(lackingKey),
     ]);
-    expect(mcpRefused.status).toBe(403);
+    // MCP answers HTTP 200 even for a refused call (ROADMAP D-118): a valid
+    // JSON-RPC envelope always gets a 200, and the refusal rides in
+    // `error.data.code`/`details` below, not the status — a real MCP client
+    // treats any non-2xx `/mcp` response as the connection itself failing.
+    expect(mcpRefused.status).toBe(200);
     expect(restRefused.status).toBe(403);
     expect((mcpRefused.body as unknown as McpErrorBody).error.data.details.permission).toBe(
       'invoices.read',
@@ -464,7 +468,10 @@ describe('F6 — a propose-only tool lands a draft, never a ledger write', () =>
         },
       },
     });
-    expect(execute.statusCode).toBe(400);
+    // The refused `execute` call still answers 200 (ROADMAP D-118): it is a
+    // valid, dispatched JSON-RPC call that this host declined to run, not a
+    // transport failure, so the refusal rides in `error.data.code` below.
+    expect(execute.statusCode).toBe(200);
     const executeBody = execute.json<{ error: { data: { code: string } } }>();
     expect(executeBody.error.data.code).toBe('validation_failed');
 

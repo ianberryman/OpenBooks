@@ -356,6 +356,7 @@ describe('the grant lists and the live server agree', () => {
       'predocument_deliveries',
       'period_close_events',
       'statement_packages',
+      'automation_annotations',
     ]);
     expect(MUTABLE_TABLES).toContain('bank_statement_imports');
     expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');

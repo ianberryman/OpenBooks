@@ -50,6 +50,8 @@ export const TENANT_TABLES = [
   'ar_document_line_dimensions',
   'ar_document_lines',
   'ar_documents',
+  'automation_annotations',
+  'automations',
   'bank_accounts',
   'bank_import_mappings',
   'bank_line_clearing_entries',
@@ -115,6 +117,7 @@ export const TENANT_TABLES = [
   'security_events',
   'statement_packages',
   'tax_rates',
+  'work_items',
 ] as const satisfies readonly TenantTableName[];
 
 /**

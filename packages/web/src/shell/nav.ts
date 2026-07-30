@@ -128,6 +128,18 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
   { to: '/oauth-clients', label: 'OAuth clients', permission: 'integrations.read' },
   { to: '/connected-apps', label: 'Connected apps', permission: 'integrations.read' },
   { to: '/agent-proposals', label: 'Agent proposals', permission: 'agents.review' },
+  /**
+   * `workflows.read` (initiative Q) for both Automations and the Work queue: gates viewing
+   * an automation's composition and viewing what its `agent_task` actions have enqueued.
+   * Composing wants `workflows.write` and activate/deactivate/run want `workflows.activate`
+   * (owner-only), but naming either here would hide the link from a caller who can
+   * legitimately view what exists without being able to change it — the same D-25 reasoning
+   * as every gate above: this filter drops links that always fail, not links whose every
+   * action succeeds. The service enforces the write and activate codes; the screen surfaces
+   * the refusal.
+   */
+  { to: '/automations', label: 'Automations', permission: 'workflows.read' },
+  { to: '/work-items', label: 'Work queue', permission: 'workflows.read' },
 ];
 
 export function visibleNav(permissions: ReadonlySet<string>): readonly NavItem[] {

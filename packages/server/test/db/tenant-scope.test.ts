@@ -169,6 +169,8 @@ describe('the tenant table set is derived from the schema', () => {
       'ar_document_line_dimensions',
       'ar_document_lines',
       'ar_documents',
+      'automation_annotations',
+      'automations',
       'bank_accounts',
       'bank_import_mappings',
       'bank_line_clearing_entries',
@@ -234,6 +236,7 @@ describe('the tenant table set is derived from the schema', () => {
       'security_events',
       'statement_packages',
       'tax_rates',
+      'work_items',
     ]);
   });
 });
