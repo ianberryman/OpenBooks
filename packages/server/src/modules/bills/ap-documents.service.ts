@@ -515,24 +515,33 @@ function toAllocation(
       ? (document.sequence_number?.toString() ?? null)
       : (numbers.get(id.toString('hex'))?.toString() ?? null);
 
+  // `chk_ap_allocations_one_source` makes exactly one of the three present (D-106
+  // added the discount journal as the third). The impossible fourth case throws
+  // rather than defaulting, because the only available default would name the wrong
+  // document.
   const source =
-    row.payment_id === null
-      ? // `chk_ap_allocations_one_source` makes exactly one of the two present, so
-        // a null payment means a vendor credit. The impossible third case throws
-        // rather than defaulting, because the only available default would name
-        // the wrong document.
-        {
-          sourceType: 'vendor_credit' as const,
-          sourceId: bufferToUuid(requireSource(row)),
-          sourceNumber: number(requireSource(row)),
-        }
-      : {
+    row.payment_id !== null
+      ? {
           // Null for a payment, per `allocationSchema`: D-36 numbers the four
           // document types and nothing else.
           sourceType: 'payment' as const,
           sourceId: bufferToUuid(row.payment_id),
           sourceNumber: null,
-        };
+        }
+      : row.discount_journal_id !== null
+        ? {
+            // A settlement discount's source is its own posted journal, not a
+            // numbered document, so `sourceNumber` is null — the same mapping
+            // `allocations.repository.ts` uses for the `discount` kind (D-106).
+            sourceType: 'discount' as const,
+            sourceId: bufferToUuid(row.discount_journal_id),
+            sourceNumber: null,
+          }
+        : {
+            sourceType: 'vendor_credit' as const,
+            sourceId: bufferToUuid(requireSource(row)),
+            sourceNumber: number(requireSource(row)),
+          };
 
   return {
     id: bufferToUuid(row.id),
@@ -549,8 +558,8 @@ function toAllocation(
 function requireSource(row: AllocationRow): Buffer {
   if (row.vendor_credit_id === null) {
     throw new InternalError(
-      'An ap_allocations row named neither a payment nor a vendor credit, which ' +
-        'chk_ap_allocations_one_source forbids.',
+      'An ap_allocations row named none of a payment, a discount journal, or a vendor ' +
+        'credit, which chk_ap_allocations_one_source forbids.',
     );
   }
   return row.vendor_credit_id;

@@ -163,6 +163,10 @@ export interface AllocationRow {
   readonly invoice_id: Buffer;
   readonly payment_id: Buffer | null;
   readonly credit_note_id: Buffer | null;
+  // The third source `chk_ar_allocations_one_source` permits (D-106): a settlement
+  // discount's own posted journal. Selected so a discounted invoice can be read
+  // individually — omitting it made `getInvoice` throw on any invoice ever discounted.
+  readonly discount_journal_id: Buffer | null;
   readonly amount_minor: bigint;
   readonly allocated_on: string;
   readonly created_at: Date;
@@ -593,6 +597,7 @@ export async function selectAllocations(
       'invoice_id',
       'payment_id',
       'credit_note_id',
+      'discount_journal_id',
       'amount_minor',
       'allocated_on',
       'created_at',

@@ -196,14 +196,31 @@ export function toAllocations(
       };
     }
 
+    // A settlement discount's source is its own posted journal (D-106), not a
+    // numbered document — so it has no `sourceNumber`, the same mapping
+    // `allocations.repository.ts` uses for the `discount` kind. Handled before the
+    // payment/credit-note split because it is the third source
+    // `chk_ar_allocations_one_source` permits, added after this projection was written.
+    if (row.discount_journal_id !== null) {
+      return {
+        ...shared,
+        sourceType: 'discount' as const,
+        sourceId: bufferToUuid(row.discount_journal_id),
+        sourceNumber: null,
+        targetType: 'invoice' as const,
+        targetId: bufferToUuid(documentId),
+        targetNumber: numberText(documentNumber),
+      };
+    }
+
     const source = row.payment_id ?? row.credit_note_id;
     if (source === null) {
-      // `chk_ar_allocations_one_source` makes exactly one of the two non-null, so
+      // `chk_ar_allocations_one_source` makes exactly one of the three non-null, so
       // reaching here means the constraint is gone. Stated as a fault rather than
       // defaulted, because every available default would attribute the credit to
       // something that did not give it.
       throw new InternalError(
-        'An allocation names neither a payment nor a credit note; ' +
+        'An allocation names none of a payment, a discount journal, or a credit note; ' +
           'chk_ar_allocations_one_source should make that unrepresentable.',
       );
     }
