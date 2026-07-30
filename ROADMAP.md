@@ -108,6 +108,14 @@ green), and **OB-094** is subsumed. Nothing on this list remains outstanding.
 ledger asset-account picker (D-46) and deactivates/reactivates it, with `deactivateBankAccount`
 refusing an account that has an open reconciliation session (`bank_account_has_open_session`).
 
+### Cross-cutting follow-up — mobile responsiveness review (future)
+
+The web app has been built desktop-first, screen by screen, and its **mobile/responsive
+behaviour has never been reviewed as a whole**. Before launch we owe a dedicated pass over the
+`packages/web` screens on small viewports — tables, dialogs, the nav shell, and the wider
+data-entry forms (journal entry, the match workbench, the Pay Bills window) are the likely
+trouble spots. Not scheduled yet; captured here so it is not rediscovered as a launch surprise.
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
