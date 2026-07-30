@@ -2956,6 +2956,107 @@ compares them to ledger actuals with variance, on the org's basis.
 
 **Critical path:** 180 → 181 → 182 → 184.
 
+### N execution — dev-ready, seam-pinned (scoped, not started)
+
+Budgets sits almost entirely on **existing seams** — the actuals aggregation (K/OB-041), the periods
+model, accounts, and dimensions. The only genuinely new thing is a `budgets` table and a thin
+service; the report is a projection of `getAccountBalances`. The forks below are settled so a build
+can start cold.
+
+**Forks settled (record as D-N1…D-N6 in [Decisions](#decisions) when built):**
+
+- **D-N1 — a budget row is `(account, period, optional dimension-value)` → an amount.** Table `budgets`
+  keyed by `(org_id, account_id, period_id, dimension_value_id?)`. A NULL dimension is the
+  **account-total** budget for the period; a non-null is a **per-slice** budget (B6 "slices +
+  unassigned = whole", the same shape the ledger's dimension grouping already takes). No ledger
+  effect (D-94). MySQL treats NULLs as distinct in a UNIQUE index, so uniqueness of the account-total
+  row is DB-enforced with a **generated stored column** `dimension_slice BINARY(16) AS
+(COALESCE(dimension_value_id, 0x{16 zero bytes})) STORED`, `UNIQUE (org_id, account_id, period_id,
+dimension_slice)`. (Alternative if the team dislikes a generated column: enforce single-slot in the
+  service under a `FOR UPDATE` read — but the generated column is the honest DB-level answer.) The
+  service is **upsert** (`setBudget` replaces the matching slot).
+- **D-N2 — v1 budgets are P&L only (revenue + expense accounts).** Movement of a P&L account over a
+  period is that period's P&L contribution — an unambiguous budget target. Balance-sheet budgeting is
+  deferred (flag it). The service validates the account exists + is active + `type IN
+('revenue','expense')` via the `assertAccountsPostable`/`selectPostableAccounts` pattern
+  (`ledger/posting.service.ts:402`, `posting.repository.ts:102`).
+- **D-N3 — a budget is basis-agnostic; the report is basis-aware.** A budget is one number; the report
+  compares it to actuals resolved on the org's basis. `resolveBasis(ctx, requestBasis)` (copy
+  `profit-and-loss.service.ts:163`, reading `org_accounting_settings.default_reporting_basis`), then
+  `getAccountBalances(query, ctx, { basis })`. Variance = `budget − actual` using the P&L sign
+  convention `statementAmount(type, movement)` (`profit-and-loss.service.ts:269`). **Cash-basis + a
+  dimension `groupBy` is unsupported** (the cash-basis path forbids slicing and returns
+  `groupValueId: null` — `assertCashBasisSupported`, P&L service :182), so a dimension-grouped
+  budget-vs-actual is **accrual-only** in v1 — the report reuses that same guard. Flag.
+- **D-N4 — v1 report takes a single `periodId`.** Resolve it to `{startDate,endDate}` via `getPeriod`
+  (`periods.service.ts:192`) and pass as `from`/`to` (the aggregation only speaks calendar dates — no
+  report takes a `period_id`). Sum the budget rows for that period. A YTD / period-range variant is a
+  follow-up.
+- **D-N5 — "import" is the batch write, not a CSV parser.** The budget write endpoint accepts an
+  **array** of `{ accountId, periodId, dimensionValueId?, amount }` and upserts each — that is the
+  import primitive. A CSV/paste UI is a screen-side follow-up on top of it; no server CSV parser in v1.
+- **D-N6 — reuse `reports.read`; add a `budgets.read`/`budgets.write` pair for the entry surface.**
+  The budget-vs-actual **report** gates on `reports.read` (every report does; the service self-checks,
+  the route only `requireOrgScope`). Entering/importing budgets is a distinct capability →
+  `budgets.read`/`budgets.write` (catalog 67 → **69**). `budgets.write` to owner + bookkeeper;
+  `budgets.read` reaches read_only/approver via `%.read` automatically. Not to ap_only/ar_only.
+
+**Schema — `0016_budgets` (author against `0015_procure_to_pay` + `0002_ledger`):** one MUTABLE table
+`budgets`: `id` BIN(16) PK · `org_id` NN · `account_id` NN · `period_id` NN · `dimension_id` NULL ·
+`dimension_value_id` NULL · `dimension_slice` BIN(16) generated-stored (above) · `amount_minor` BIGINT
+NN (no default) · `created_by_user_id` NN · `created_at`/`updated_at`. FKs: org CASCADE;
+`(org_id, account_id)`→accounts RESTRICT; `(org_id, period_id)`→fiscal_periods RESTRICT;
+`(org_id, dimension_id, dimension_value_id)`→dimension_values`(org_id, dimension_id, id)` RESTRICT
+(the 3-col axis-locked FK every line-dimension table uses); author→users RESTRICT. CHECK
+`chk_budgets_dimension_pairing ((dimension_id IS NULL) = (dimension_value_id IS NULL))`. Keys:
+`uq_budgets_org_id (org_id,id)`, `uq_budgets_slot (org_id, account_id, period_id, dimension_slice)`,
+`idx_budgets_org_period (org_id, period_id)`.
+
+**Tripwire checklist (all confirmed current; the M checklist one milestone on):** register in
+`db/migrations/index.ts` (before `0999`); add `budgets` to `TENANT_TABLES` (`db/tenant-tables.ts`,
+sorted — compile-enforced) and to `MUTABLE_TABLES` (`0999_app_grants.ts`); add `'0016_budgets'` to the
+`harness.test.ts` migration list and `budgets` to the `tenant-scope.test.ts` sorted literal
+(`grants.test.ts` parses the migration — no edit); `codegen.mjs` override `'budgets.amount_minor':
+'bigint'` (and confirm the generated `dimension_slice` column is typed `Generated<Buffer>` and omitted
+from inserts — the one codegen wrinkle to verify on a throwaway migrated DB). Permissions: append
+`budgets.read`/`budgets.write` to `catalog.ts` and bump `AssertCatalogSize<67>`→`<69>`; seed both in
+`0001_tenancy.ts` + add `budgets.write` to owner/bookkeeper (owner auto; bookkeeper via catch-all —
+do NOT exclude); bump `catalog.test.ts` (67→69) and `harness.test.ts` (67→69); add `GRANTED_TO` +
+`OPERATIONS` rows in `permission-matrix.test.ts` and A7 SURFACES + B11 reference rows in the cross-org
+suites for the new resource-id routes.
+
+**Shared-types + service + report:**
+
+- `shared-types/src/budgets/`: `budgetSchema` (`.meta({id:'Budget'})`), `setBudgetsRequestSchema`
+  (the batch upsert — array of entries), `listBudgetsQuerySchema` (by period/account), and
+  `budgetVsActualSchema` (`.meta({id:'BudgetVsActual'})`: grouped like `ProfitAndLoss` — per account
+  `{ code, name, type, budget, actual, variance, variancePercent }`, section totals, echoed `basis`)
+  - its querystring (`{ periodId, basis?, dimensions?, groupBy? }`, dimensions as url-encoded JSON like
+    P&L). Put budget response schemas here; querystrings carry no `id`.
+- `modules/budgets/`: `budgets.repository.ts` (upsert into the slot, list, delete) + `budgets.service.ts`
+  (`setBudgets` batch upsert with account/period/dimension validation, `listBudgets`, `deleteBudget` —
+  all `budgets.write`/`budgets.read`). `modules/reports/budget-vs-actual.service.ts`
+  (`getBudgetVsActual` — `reports.read`; resolveBasis → getAccountBalances → join budget rows → variance).
+- Transport: `routes/budgets.ts` (`setBudgets` POST `/v1/budgets` batch, `listBudgets` GET,
+  `deleteBudget` DELETE `/v1/budgets/{budgetId}`) + a `getBudgetVsActual` GET
+  `/v1/reports/budget-vs-actual` added to `routes/reports.ts`. Orchestrator regens `openapi.json` + web
+  client.
+- Web: a **Budgets** entry screen (grid: accounts × the period's amount, with a dimension selector;
+  save = one `setBudgets` batch) under `budgets.read`, and a **Budget vs actual** report view reusing
+  `screens/reports/statement.tsx` `StatementSection` + `filters.ts` encoders (add a period picker).
+
+**Wave plan** (mirrors M): Wave 0 trunk = `0016` + shared-types + the two permission keys + codegen +
+gate. Wave 1 = budgets service ‖ budget-vs-actual report service (2 authors). Wave 2 = routes +
+enforcement wiring (matrix/cross-org/openapi). Wave 3 = 2 screens ‖ property test (variance arithmetic;
+slices+unassigned=whole vs the account total). Wave 4 = E2E (enter a budget → post actuals → the report
+shows the exact variance, cents-exact, on both bases). Each wave gated through `yarn check`.
+
+**Codegen note:** pre-release a DB cannot take `0016` incrementally (it sorts before applied `0999`),
+so run `yarn codegen` against a **throwaway** MySQL migrated fresh with the full set — start a
+`mysql:8.4` container mounting `docker/mysql-init` on a spare port, `yarn migrate`, `yarn codegen`,
+tear it down (the M build's proven procedure — the persistent `openbooks-mysql-1` on 13307 is already
+migrated and will refuse an out-of-order migration).
+
 ---
 
 ## Bill capture (OCR)
