@@ -124,6 +124,20 @@ The responsive review above is a prerequisite: the wrapped web views must alread
 phone-sized viewport before a native shell is worth building. Also unscheduled; the decision
 between Capacitor and a fuller native/React-Native rewrite is itself deferred.
 
+### Product follow-up — a customizable landing page / launchpad (future)
+
+Today the app opens straight into a screen; there is no **home / landing page** that orients a
+user and gives them a launchpad to the features they use most — create an invoice, enter a bill,
+run Pay Bills, reconcile, open a report. We want a dashboard-style landing page that is a
+**launchpad to common features**, and that **adapts to the user**: it is customizable to their
+workflow (an AP clerk lands on bills and Pay Bills; an accountant on reports and close) and is
+**permission-aware**, surfacing only what the caller can actually do. This reuses the advisory
+permission set `GET /v1/me` already returns (the same set `nav.ts` gates on, D-25) so the
+launchpad never offers an action the service would refuse. Scope is a later product decision —
+at minimum a role-defaulted set of shortcuts, at most user-arrangeable tiles with saved layout.
+Unscheduled; captured so the home surface is designed deliberately rather than defaulting to
+whatever screen happens to load first.
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
