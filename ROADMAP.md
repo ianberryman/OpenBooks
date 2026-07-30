@@ -8,21 +8,21 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 
 ## Milestone map
 
-| Milestone | Spec phase | Outcome                                                                                                                   | Status                       |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                    | **Built — see Status below** |
-| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                               | **Built — see Status below** |
-| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                    | **Built — see Status below** |
-| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                     | **Built — see Status below** |
-| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                           | **Built — see Status below** |
-| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                   | Not scoped                   |
-| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                    | Not scoped                   |
-| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                           | **Built — gate-green**       |
-| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                           | **Scoped — see below**       |
-| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                | **Built — gate-green**       |
-| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                       | **Built — gate-green**       |
-| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals · procure-to-pay · budgets · OCR · accountant/close | **Scoped — see below**       |
-| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                            | **Scoped — see below**       |
+| Milestone | Spec phase | Outcome                                                                                                                                   | Status                       |
+| --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **M1**    | Phase 0    | Walking skeleton — tenancy, session auth, ledger kernel, trial balance, invariant tests, Docker/CI/IaC                                    | **Built — see Status below** |
+| M2        | Phase 1    | Manual bookkeeping usable — CoA, contacts, dimensions, JE UI, P&L / BS / GL                                                               | **Built — see Status below** |
+| M3        | Phase 2    | AR/AP — invoices, bills, credit notes, payment application, tax, aging                                                                    | **Built — see Status below** |
+| M4        | Phase 3    | Banking — import, matching pipeline, reconciliation _(largest phase)_                                                                     | **Built — see Status below** |
+| **M5**    | Phase 4    | Platform surface — OAuth AS, MCP tools, event bus, change feed, `external_refs`                                                           | **Built — see Status below** |
+| M6        | Phase 5    | Automations — workflow engine, dry run, activation flow                                                                                   | Not scoped                   |
+| M7        | Phase 6    | Launch readiness — QB import, onboarding, export, docs, published spec                                                                    | Not scoped                   |
+| **PB**    | _(none)_   | Pay Bills & disbursements — batch pay-bills, pending-payment queue, rails, settlement discounts                                           | **Built — gate-green**       |
+| **INV**   | _(none)_   | Invoicing — themed PDF + hosted-page delivery, recurring invoices, full dunning                                                           | **Scoped — see below**       |
+| **CA**    | _(none)_   | Cash application — payment terms, multi-entry bank clearing (lockbox), discount suggestion                                                | **Built — gate-green**       |
+| **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                                       | **Built — gate-green**       |
+| **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals **(L — built)** · procure-to-pay · budgets · OCR · accountant/close | **Scoped — L built**         |
+| **M6**    | Phase 5    | Automations — realised as the agent work queue + BYO model (Q)                                                                            | **Scoped — see below**       |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
 spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
@@ -2656,6 +2656,33 @@ gets the mutation testing the posting kernel got.
 
 Depreciation and amortisation, plus the recurring-journal machinery they ride on — both on the OB-127
 scheduler and the draft-vs-auto-approve pattern ([D-76](#d-76)). Criteria **L**; tickets OB-162…OB-169.
+
+**BUILT — gate-green (2,566 tests / 235 files), commits `7b37503…6166d53`.** All 8 tickets (OB-162…169,
+criteria L1–L6) shipped via orchestrated fan-out — foundation (`0014_fixed_assets` schema + in-place
+`org_accounting_settings` depreciation columns + 4 permission keys, catalog 56→60) → two parallel service
+streams (recurring-journal GL templates + sweep; fixed-asset register → pure schedule compute →
+depreciation sweep → disposal) → `/v1` routes + OpenAPI/client → two parallel web screens → property suite
+
+- E2E, each wave integrated through `yarn check`. What's in: `recurring_journal_templates`(+`_lines`),
+  `fixed_assets`, `fixed_asset_schedule` (all mutable); a **pure** `computeDepreciationSchedule` (straight-line
+- declining-balance, final-period true-up so **Σ = cost − salvage**, L6) posted by a daily depreciation
+  sweep idempotent on `posted_journal_id` (L3); recurring GL templates posted (or drafted, D-76) each period
+  by their own sweep, both under `runAsAutomation` with source `'depreciation'`/`'disposal'`/`'recurring'`
+  (free VARCHAR, no ALTER); full disposal ([D-116](#d-116)) recognising gain/loss vs proceeds and voiding the
+  remaining schedule; per-asset account nominations defaulting from new org settings ([D-115](#d-115), no
+  contra flag — an ordinary asset/credit account); the `/recurring-journals` and `/fixed-assets` screens; and
+  the DB property/concurrency suite proving the sum invariant across the bigint/string round-trip and both
+  sweeps' once-per-period guards **under real contention** (parked transaction, observed not-settled). Five
+  forks settled up front ([D-113](#d-113)…[D-117](#d-117)): depreciation as a precomputed schedule table (not
+  a fixed template), SL+DB methods, per-asset accounts defaulted from org settings, full-only disposal, and
+  two config key-pairs with no SoD. Integration caught **two real seam issues the isolated streams couldn't**:
+  a schedule-row id the fixed-asset stream assumed was `BIGINT AUTO_INCREMENT` but the authoritative schema
+  made a `BINARY(16)` UUID, and the disposal contract needing proceeds + gain/loss account seams the original
+  `{date, proceedsMinor}` couldn't express. **Deliberate scope edges, flagged:** recurring GL is fixed-amount
+  lines only ([D-90](#d-90)); methods SL+DB only; full disposal only; no mid-life re-forecast once a period
+  has posted (method/life change is disposal + re-register); the E2E is authored `yarn check`-clean but run by
+  `yarn e2e`, not the gate ([D-26](#d-26)), and asserts materialisation as `run-due-work → 200 + runDate` (the
+  in-process queue resolves the enqueue before the job settles). **Next: M, N, P — [Release plan](#release-plan--post-m4-sequencing) phase 6.**
 
 ### Definition of done
 
