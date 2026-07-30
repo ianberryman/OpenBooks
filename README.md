@@ -6,20 +6,29 @@ A real general ledger with immutable journals, arbitrary reporting dimensions, a
 point your own AI model at. Ships as a single Docker image you can self-host, and is operated as a
 hosted service from that same image — not a stripped-down community edition of something else.
 
-> ## Status: early. Not usable yet.
+> ## Status: pre-release, but real. The core is built.
 >
-> Milestone 1 — the walking skeleton — is **in progress**. There is no working API. The `api` role
-> currently throws `not implemented` on purpose, there are no screens, and no accounting has ever
-> been done with this software.
+> Milestones **M1–M5** are built and the QuickBooks CSV import is done, so the minimum credible
+> public-launch bar (M1–M4 + import) is **met**. The gate is green — `yarn check` passes 2,501 tests
+> across 222 files. There is a working API, a working React app, an MCP surface, and a Docker image
+> that runs the whole stack.
 >
-> What exists today is the monorepo, the toolchain gates, the Docker image and Compose stack, and the
-> licensing and contribution groundwork. What does not exist is everything in the ledger itself.
+> Concretely, what works today: tenancy and session/OAuth/API-key auth; the append-only ledger kernel
+> and trial balance; chart of accounts, contacts, dimensions, and fiscal periods; invoices, bills,
+> credit notes, payment application and tax; bank import, matching and reconciliation; the reporting
+> suite including cash-basis and cash flow; invoice delivery (PDF + hosted page + email), recurring
+> invoices and dunning; OCR bill capture; Stripe/Square payment processing; and the platform surface
+> (OAuth 2.1 AS, MCP tools, event feed, change feed, external refs, agent review queue).
 >
-> [**ROADMAP.md**](ROADMAP.md) is the honest inventory: seven milestones, a 27-ticket board for M1
-> with dependencies, and the design decisions taken so far with their reasoning. If you are
-> evaluating whether OpenBooks does something, read the roadmap and not this README.
+> Still ahead: **Pay Bills** disbursements (scaffolded, queue service not yet written), the
+> **automations** engine (M6), and launch-readiness polish (M7 — onboarding, export, published spec).
 >
-> Do not put real books in this yet.
+> The full, honest inventory is in [**ROADMAP.md**](ROADMAP.md) (the per-subsystem status and every
+> design decision, `D-01 … D-112`), and the developer/operator documentation is in
+> [**docs/**](docs/README.md). If you are evaluating whether OpenBooks does something, read those.
+>
+> It is pre-release software: the schema is not yet frozen and there has been no production hardening
+> pass. Do not put real books in this yet.
 
 ## What it is
 
@@ -79,8 +88,9 @@ integration as an external API client involves no combination with copyleft code
 
 ## Self-host quickstart
 
-**Reminder:** per the status note above, this brings up the stack; it does not yet bring up working
-accounting software.
+This brings up the full stack — a working API, worker, database, and web app. It is pre-release
+software (see the status note above), so it is for evaluation and development, not yet your real
+books.
 
 Requires Docker with Compose v2. Nothing else.
 
@@ -115,10 +125,11 @@ The short version — Node 22, Docker, and **do not install Yarn globally** (4.1
 ```sh
 nvm use
 yarn install
-yarn check      # format:check, lint, lint:deps, typecheck, test
+yarn check      # format:check, lint, lint:tokens, lint:deps, typecheck, drift, build, test
 ```
 
-`yarn test` runs against real MySQL 8 in testcontainers, so Docker has to be running.
+`yarn test` runs against real MySQL 8 in testcontainers, so Docker has to be running. Full developer
+and operator documentation lives in [docs/](docs/README.md).
 
 ## Stack
 
