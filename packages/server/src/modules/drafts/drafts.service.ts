@@ -30,7 +30,7 @@ import {
 import { postJournal } from '../ledger';
 import { requirePermission } from '../permissions';
 
-import type { DraftFilters, NewDraftLineRow } from './drafts.repository';
+import type { DraftEntryType, DraftFilters, NewDraftLineRow } from './drafts.repository';
 import {
   DRAFT_RESOURCE as RESOURCE,
   deleteDraftRow,
@@ -97,6 +97,7 @@ export async function createDraft(
       entryDate: request.entryDate ?? null,
       memo: request.memo ?? null,
       reference: request.reference ?? null,
+      ...(request.entryType === undefined ? {} : { entryType: request.entryType }),
     });
 
     if (request.lines !== undefined) {
@@ -179,6 +180,7 @@ export async function updateDraft(
         ...(request.entryDate === undefined ? {} : { entryDate: request.entryDate }),
         ...(request.memo === undefined ? {} : { memo: request.memo }),
         ...(request.reference === undefined ? {} : { reference: request.reference }),
+        ...(request.entryType === undefined ? {} : { entryType: request.entryType }),
       },
       new Date(),
     );
@@ -311,7 +313,7 @@ export async function postDraft(
     // records who posted, which is the fact an auditor asks about; who drafted
     // stays on the draft, and the draft is about to stop existing.
     const posted = await postJournal(
-      toPostJournalInput(draft.entry_date, draft.memo, lines, tags, ctx),
+      toPostJournalInput(draft.entry_date, draft.memo, draft.entry_type, lines, tags, ctx),
       ctx,
     );
 
@@ -488,6 +490,7 @@ interface PostableLine {
 function toPostJournalInput(
   entryDate: string | null,
   memo: string | null,
+  entryType: DraftEntryType,
   lines: readonly PostableLine[],
   tags: ReadonlyMap<string, readonly string[]>,
   ctx: RequestContext,
@@ -554,6 +557,11 @@ function toPostJournalInput(
   return {
     date: entryDate,
     ...(memo === null ? {} : { memo }),
+    // The draft's classification becomes the journal's `source` (P, OB-194/D-98):
+    // `standard` leaves it to `postJournal`'s `'manual'` default; `adjusting` and
+    // `reclassifying` mark the accountant's period-end corrections, which the audit
+    // report and the general ledger then read off `source`.
+    ...(entryType === 'standard' ? {} : { source: entryType }),
     actorType: ctx.actorType,
     actorId: ctx.actorId,
     ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),

@@ -78,12 +78,13 @@ describe('listMembers', () => {
 });
 
 describe('listAssignableRoles', () => {
-  it('returns the six seeded system roles', async () => {
+  it('returns the seven seeded system roles', async () => {
     const owner = await actorIn(db, 'owner');
 
     const roles = await listAssignableRoles(owner.ctx);
 
     expect(roles.map((role) => role.code)).toEqual([
+      'accountant',
       'ap_only',
       'approver',
       'ar_only',

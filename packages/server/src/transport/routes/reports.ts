@@ -4,6 +4,7 @@ import {
   CASH_FLOW_PROJECTION_HORIZON_MAX,
   MAX_DIMENSIONS_PER_ORG,
   agingSchema,
+  auditReportSchema,
   balanceSheetSchema,
   budgetVsActualSchema,
   calendarDateSchema,
@@ -17,13 +18,19 @@ import {
   trialBalanceQuerySchema,
   trialBalanceSchema,
 } from '@openbooks/shared-types';
-import type { Aging, CashFlowProjection, GeneralLedger } from '@openbooks/shared-types';
+import type {
+  Aging,
+  AuditReport,
+  CashFlowProjection,
+  GeneralLedger,
+} from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import { getTrialBalance } from '../../modules/ledger';
 import type { TrialBalance } from '../../modules/ledger';
 import {
+  getAuditReport,
   getBalanceSheet,
   getBudgetVsActual,
   getCashFlowProjection,
@@ -267,6 +274,21 @@ const cashFlowWireQuerySchema = z.strictObject({
 });
 
 /**
+ * The audit trail's filters (OB-196): a date window over the event date, an optional
+ * actor, and the keyset page. `limit` is `pageLimitQuery` — the querystring carries
+ * it as text and it has to coerce, exactly as the general ledger's does; the service
+ * schema (`auditReportQuerySchema` in `shared-types`) takes a real number for the
+ * caller that is not a route.
+ */
+const auditWireQuerySchema = z.strictObject({
+  from: calendarDateSchema.optional(),
+  to: calendarDateSchema.optional(),
+  actorId: z.uuid().optional(),
+  limit: pageLimitQuery('entries'),
+  cursor: pageCursorSchema.optional(),
+});
+
+/**
  * The cash-flow projection's filters (OB-158). `horizon` is the one numeric argument
  * on this surface's querystring, so it is the one field here that needs `z.coerce` —
  * every other query in this file is a date, a uuid or an enum, all of which arrive
@@ -497,6 +519,40 @@ export function registerReportRoutes(app: App): void {
           ...(to === undefined ? {} : { to }),
           ...(contactId === undefined ? {} : { contactId }),
           ...(dimensions === undefined ? {} : { dimensions }),
+          ...(cursor === undefined ? {} : { cursor }),
+        },
+        getContext(),
+      );
+    },
+  );
+
+  app.get(
+    '/v1/reports/audit',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getAuditReport',
+        summary: 'The audit trail — who changed what, and when',
+        description:
+          'One newest-first timeline unifying journal postings and reversals (each carries its ' +
+          'own actor provenance and `source`, which is how an adjusting or reclassifying entry is ' +
+          'flagged) with the period close/reopen history. It surfaces provenance that already ' +
+          'exists rather than capturing anything new (D-98). Keyset-paged like the general ledger. ' +
+          'Gated by `audit.read`, distinct from `reports.read` because it exposes activity across ' +
+          'the org rather than a figure.',
+        tags: [TAG],
+        querystring: auditWireQuerySchema,
+        response: { 200: auditReportSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<AuditReport> => {
+      const { from, to, actorId, limit, cursor } = request.query;
+      return getAuditReport(
+        {
+          limit,
+          ...(from === undefined ? {} : { from }),
+          ...(to === undefined ? {} : { to }),
+          ...(actorId === undefined ? {} : { actorId }),
           ...(cursor === undefined ? {} : { cursor }),
         },
         getContext(),

@@ -128,6 +128,16 @@ export const PERMISSION_KEYS = [
   // other report; these two govern only entering and importing the figures.
   'budgets.read',
   'budgets.write',
+  // Accountant access & period close (initiative P, OB-192…199). The audit-trail
+  // report surfaces the actor provenance every journal already carries plus the
+  // period close/reopen history (D-98) — a distinct read from `reports.read`
+  // because it exposes who-changed-what across the org, a controller/accountant
+  // capability rather than a figure any report reader needs. The other P
+  // capabilities reuse keys that already exist: `periods.close`/`periods.reopen`
+  // gate the close workflow, `journals.post` posts an adjusting entry (flagged by
+  // `journals.source`, not a permission), and `reports.read` gates the statement
+  // package (it renders reports the holder can already run).
+  'audit.read',
 ] as const;
 
 /**
@@ -157,12 +167,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 69 codes and the six system roles are set operations over
- * that number (Owner is the whole catalog). An entry deleted here by an errant
+ * Migration `0001` seeds 70 codes and the seven system roles are set operations
+ * over that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 69> = true;
+type AssertCatalogSize<_N extends 70> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

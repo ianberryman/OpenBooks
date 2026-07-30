@@ -100,6 +100,7 @@ describe('the /v1 route table', () => {
         'listFiscalPeriods',
         'closeFiscalPeriod',
         'reopenFiscalPeriod',
+        'getPeriodCloseChecklist',
         'postJournal',
         'reverseJournal',
         'listJournals',
@@ -152,6 +153,12 @@ describe('the /v1 route table', () => {
         'getCashFlowProjection',
         // N (budgets): the budget-vs-actual report (OB-182), reports.read like the rest.
         'getBudgetVsActual',
+        // P (accountant access & period close, OB-197): the audit trail (audit.read)
+        // and the statement package (reports.read). The close checklist rides with the
+        // fiscal-period operations above.
+        'getAuditReport',
+        'createStatementPackage',
+        'listStatementPackages',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',
         'updateControlAccounts',

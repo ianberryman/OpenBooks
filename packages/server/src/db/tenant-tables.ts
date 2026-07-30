@@ -100,6 +100,7 @@ export const TENANT_TABLES = [
   'payments',
   'pending_payment_intents',
   'pending_payments',
+  'period_close_events',
   'predocument_deliveries',
   'processor_connections',
   'processor_events',
@@ -112,6 +113,7 @@ export const TENANT_TABLES = [
   'recurring_journal_template_lines',
   'recurring_journal_templates',
   'security_events',
+  'statement_packages',
   'tax_rates',
 ] as const satisfies readonly TenantTableName[];
 

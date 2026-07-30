@@ -14,7 +14,7 @@ import { installApiStub, renderWithQueryClient } from './test-support';
 const { FiscalPeriodsSection } = await import('./periods');
 
 /**
- * Fiscal periods (OB-050; D-17).
+ * Fiscal periods (OB-050; D-17; initiative P's close workflow, OB-193, D-97).
  *
  * The case worth the harness is the **non-January org generating its first year**, because
  * it is where the two things this section exists for meet: an org with no periods can post
@@ -24,6 +24,12 @@ const { FiscalPeriodsSection } = await import('./periods');
  *
  * The clock is fixed, because "the current fiscal year" is otherwise a different answer in
  * March than in April and the test would pass or fail by the calendar.
+ *
+ * Close and reopen now open a dialog rather than firing immediately (P3). What is worth a
+ * test there: **a warning on the advisory checklist never disables the sign-off button** —
+ * D-97's whole point — and **the optional note reaches the wire only when the reader
+ * actually typed one**, matching `ClosePeriodRequest`/`ReopenPeriodRequest` sending `{}`
+ * rather than `{ note: '' }` for a blank field.
  */
 const APRIL = 4;
 const JANUARY = 1;
@@ -125,6 +131,46 @@ function routes(startMonth: number, initial: readonly Period[] = []): StubRoute[
         return { status: 200, body: target };
       },
     },
+    {
+      method: 'POST',
+      path: '/v1/fiscal-periods/:periodId/reopen',
+      reply: ({ params }): StubReply => {
+        const target = periods.find((period) => period.id === params['periodId']);
+        if (target === undefined) return { status: 404 };
+        target.status = 'open';
+        target.closedAt = null;
+        return { status: 200, body: target };
+      },
+    },
+    {
+      method: 'GET',
+      path: '/v1/fiscal-periods/:periodId/close-checklist',
+      reply: ({ params }): StubReply => {
+        const target = periods.find((period) => period.id === params['periodId']);
+        if (target === undefined) return { status: 404 };
+        return {
+          status: 200,
+          body: {
+            periodId: target.id,
+            checks: [
+              {
+                key: 'unposted_drafts',
+                label: 'Unposted drafts in this period',
+                status: 'pass',
+                detail: 'None outstanding.',
+              },
+              {
+                key: 'unreconciled_bank_lines',
+                label: 'Unreconciled bank lines',
+                status: 'warn',
+                detail: '3 lines not yet matched.',
+                count: 3,
+              },
+            ],
+          },
+        };
+      },
+    },
   ];
 }
 
@@ -216,7 +262,7 @@ describe('FiscalPeriodsSection', () => {
     expect(screen.queryByText(/cannot record anything yet/i)).not.toBeInTheDocument();
   });
 
-  it('closes a period and shows it closed', async () => {
+  it('shows the advisory checklist and closes with a sign-off note, over a warning', async () => {
     freezeClock('2026-02-15T09:00:00.000Z');
     const stub = installApiStub(routes(APRIL, twelveMonths(2025, APRIL)));
     const user = userEvent.setup();
@@ -225,9 +271,81 @@ describe('FiscalPeriodsSection', () => {
     await screen.findByText('2025-04');
     await user.click(within(rowContaining('2025-04')).getByRole('button', { name: 'Close' }));
 
+    // The checklist for this period, fetched once the dialog opens.
+    expect(await screen.findByText('Unreconciled bank lines')).toBeInTheDocument();
+    expect(screen.getByText('Warning')).toBeInTheDocument();
+    expect(screen.getByText('Unposted drafts in this period')).toBeInTheDocument();
+    expect(screen.getByText('Pass')).toBeInTheDocument();
+
+    const closeButton = screen.getByRole('button', { name: 'Close period' });
+    // A warning never disables the button (D-97) — no state to wait on here.
+    expect(closeButton).toBeEnabled();
+
+    await user.type(
+      screen.getByLabelText('Sign-off note (optional)'),
+      'Reviewed the outstanding bank lines.',
+    );
+    await user.click(closeButton);
+
     await waitFor(() => {
       expect(within(rowContaining('2025-04')).getByText('Closed')).toBeInTheDocument();
     });
     expect(stub.keysFor('POST', '/v1/fiscal-periods/:periodId/close')).toHaveLength(1);
+    const posted = stub.calls.find(
+      (call) => call.method === 'POST' && call.path === '/v1/fiscal-periods/period-2025-04/close',
+    );
+    expect(posted?.body).toEqual({ note: 'Reviewed the outstanding bank lines.' });
+  });
+
+  it('closes with no note when the sign-off field is left blank', async () => {
+    freezeClock('2026-02-15T09:00:00.000Z');
+    const stub = installApiStub(routes(APRIL, twelveMonths(2025, APRIL)));
+    const user = userEvent.setup();
+    renderWithQueryClient(<FiscalPeriodsSection />);
+
+    await screen.findByText('2025-04');
+    await user.click(within(rowContaining('2025-04')).getByRole('button', { name: 'Close' }));
+    await screen.findByText('Unreconciled bank lines');
+
+    await user.click(screen.getByRole('button', { name: 'Close period' }));
+
+    await waitFor(() => {
+      expect(within(rowContaining('2025-04')).getByText('Closed')).toBeInTheDocument();
+    });
+    const posted = stub.calls.find(
+      (call) => call.method === 'POST' && call.path === '/v1/fiscal-periods/period-2025-04/close',
+    );
+    // `{}`, not `{ note: '' }` — a blank field is the same as no note at all.
+    expect(posted?.body).toEqual({});
+  });
+
+  it('reopens a closed period with an optional reason', async () => {
+    freezeClock('2026-02-15T09:00:00.000Z');
+    const closed = twelveMonths(2025, APRIL).map((period, index) =>
+      index === 0
+        ? { ...period, status: 'closed' as const, closedAt: '2026-02-15T10:00:00.000Z' }
+        : period,
+    );
+    const stub = installApiStub(routes(APRIL, closed));
+    const user = userEvent.setup();
+    renderWithQueryClient(<FiscalPeriodsSection />);
+
+    await screen.findByText('2025-04');
+    await user.click(within(rowContaining('2025-04')).getByRole('button', { name: 'Reopen' }));
+
+    await user.type(
+      await screen.findByLabelText('Reason (optional)'),
+      'Correcting a posting made after close.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Reopen period' }));
+
+    await waitFor(() => {
+      expect(within(rowContaining('2025-04')).getByText('Open')).toBeInTheDocument();
+    });
+    expect(stub.keysFor('POST', '/v1/fiscal-periods/:periodId/reopen')).toHaveLength(1);
+    const posted = stub.calls.find(
+      (call) => call.method === 'POST' && call.path === '/v1/fiscal-periods/period-2025-04/reopen',
+    );
+    expect(posted?.body).toEqual({ note: 'Correcting a posting made after close.' });
   });
 });

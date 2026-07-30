@@ -44,6 +44,7 @@ export const SYSTEM_ROLE_UUIDS = {
   arOnly: '00000000-0000-4000-8000-000000000004',
   readOnly: '00000000-0000-4000-8000-000000000005',
   approver: '00000000-0000-4000-8000-000000000006',
+  accountant: '00000000-0000-4000-8000-000000000007',
 } as const;
 
 export type SystemRoleName = keyof typeof SYSTEM_ROLE_UUIDS;
@@ -645,4 +646,22 @@ function assertBalanced(lines: readonly JournalLineInput[]): void {
 
 function defaultNormalBalance(type: AccountType): NormalBalance {
   return type === 'asset' || type === 'expense' ? 'debit' : 'credit';
+}
+
+/**
+ * Backdates a posted journal's `created_at`.
+ *
+ * The posting instant is `now()` and cannot be chosen through the posting service,
+ * so a test that asserts audit-trail or event ordering needs to set it directly.
+ * Writing `journals` is permitted here and only here on the test side: the posting
+ * repository, the migrations, and these factories are the `openbooks/no-journal-writes`
+ * allowlist, precisely so a test controlling a fixture's timeline does not have to
+ * evade the rule that keeps every real write on one path.
+ */
+export async function backdateJournal(db: Kysely<DB>, journalId: string, at: Date): Promise<void> {
+  await db
+    .updateTable('journals')
+    .set({ created_at: at })
+    .where('id', '=', uuidToBuffer(journalId))
+    .execute();
 }

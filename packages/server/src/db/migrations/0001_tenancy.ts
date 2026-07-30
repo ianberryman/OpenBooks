@@ -342,7 +342,8 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('expenses.write',           'Enter and modify employee expenses (M)'),
       ('expenses.approve',         'Approve an employee expense into a payable (M)'),
       ('budgets.read',             'View budgets and budget-vs-actual (N)'),
-      ('budgets.write',            'Enter and import budget figures (N)')
+      ('budgets.write',            'Enter and import budget figures (N)'),
+      ('audit.read',               'View the audit trail — who changed what, and period close history (P)')
   `.execute(db);
 }
 
@@ -371,7 +372,9 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
       (UUID_TO_BIN('00000000-0000-4000-8000-000000000005', 0), NULL, 'read_only',
         'Read-only / Accountant', 'Read everything; change nothing.', 1),
       (UUID_TO_BIN('00000000-0000-4000-8000-000000000006', 0), NULL, 'approver',
-        'Approver', 'Read everything, and review scheduled agent proposals.', 1)
+        'Approver', 'Read everything, and review scheduled agent proposals.', 1),
+      (UUID_TO_BIN('00000000-0000-4000-8000-000000000007', 0), NULL, 'accountant',
+        'Accountant', 'Read everything, post adjusting entries, close periods, and see the audit trail.', 1)
   `.execute(db);
 
   // Owner: the entire catalog.
@@ -478,6 +481,38 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         -- Procure-to-pay (M): the AR clerk raises estimates/quotes, the sales mirror
         -- of the AP clerk's purchase orders.
         'estimates.read', 'estimates.write'
+      )
+  `.execute(db);
+
+  // Accountant (initiative P, D-96): read everything, plus the accountant's own
+  // write-side work — adjusting/reclassifying journal entries and the period-close
+  // workflow. Deliberately NOT operational document entry: no invoices, bills,
+  // payments, disbursements or banking, because an accountant reviews and adjusts
+  // the books rather than running day-to-day AP/AR. It is the read_only bundle plus
+  // four capabilities. The audit trail (`audit.read`), reports, and every other read
+  // arrive through the `%.read` pattern exactly as read_only's do; the four keys in
+  // the IN list are what make it an accountant rather than a reader —
+  // `journals.post`/`journals.reverse` carry the adjusting entry (its adjusting
+  // *nature* is `journals.source`, not a permission), and `periods.close`/
+  // `periods.reopen` run the close and its audited reopen (D-97). The statement
+  // package (P5) gates on `reports.read`, matched by the pattern, because it renders
+  // reports the holder can already run.
+  //
+  // A pre-baked bundle, not a special user type: a member holding it is a regular
+  // user and enforcement is the generic `requirePermission(ctx, key)` with no
+  // accountant-specific path. A custom-role builder that lets an admin compose these
+  // keys freely is the deferred follow-up (ROADMAP, P section).
+  await sql`
+    INSERT INTO role_permissions (role_id, permission_code)
+    SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
+    WHERE r.is_system = 1 AND r.code = 'accountant'
+      AND (
+        (p.code LIKE '%.read' AND p.code <> 'api_keys.read')
+        OR p.code IN (
+          'reports.read',
+          'journals.post', 'journals.reverse',
+          'periods.close', 'periods.reopen'
+        )
       )
   `.execute(db);
 }

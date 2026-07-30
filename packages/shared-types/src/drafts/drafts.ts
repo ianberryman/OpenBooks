@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { MAX_DIMENSIONS_PER_ORG } from '../dimensions';
-import { JOURNAL_SIDES } from '../journals';
+import { JOURNAL_SIDES, journalEntryTypeSchema } from '../journals';
 import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 /**
@@ -213,6 +213,9 @@ export const journalDraftSchema = z
     entryDate: calendarDateSchema.nullable(),
     memo: z.string().nullable(),
     reference: z.string().nullable(),
+    // How the posted journal will be classified (P, OB-194). Always present —
+    // `standard` unless the draft was flagged as an adjusting/reclassifying entry.
+    entryType: journalEntryTypeSchema,
     createdByUserId: z.uuid(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
@@ -264,6 +267,9 @@ export const createDraftRequestSchema = z
     entryDate: calendarDateSchema.nullish(),
     memo: draftMemoSchema.nullish(),
     reference: draftReferenceSchema.nullish(),
+    // Absent means `standard` (the column defaults it). Flags the entry the draft
+    // will post as adjusting or reclassifying (P, OB-194).
+    entryType: journalEntryTypeSchema.optional(),
     lines: z.array(draftLineInputSchema).max(DRAFT_MAX_LINES).optional(),
   })
   .meta({
@@ -293,6 +299,9 @@ export const updateDraftRequestSchema = z
     entryDate: calendarDateSchema.nullish(),
     memo: draftMemoSchema.nullish(),
     reference: draftReferenceSchema.nullish(),
+    // An absent value leaves the classification unchanged; a value re-flags the
+    // draft (P, OB-194). Not nullable — `standard` is the way to clear the flag.
+    entryType: journalEntryTypeSchema.optional(),
     lines: z.array(draftLineInputSchema).max(DRAFT_MAX_LINES).optional(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {

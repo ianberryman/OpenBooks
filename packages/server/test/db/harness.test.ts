@@ -46,6 +46,7 @@ describe('test database harness', () => {
         '0014_fixed_assets',
         '0015_procure_to_pay',
         '0016_budgets',
+        '0017_accountant_close',
         '0999_app_grants',
       ]);
     });
@@ -87,7 +88,7 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 69-permission catalog', async () => {
+    it('has the fixed 70-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
@@ -98,10 +99,11 @@ describe('test database harness', () => {
       // 67 since M added purchase_orders.read/write, estimates.read/write and
       // expenses.read/write/approve.
       // 69 since N (Budgets) added budgets.read/write.
-      expect(Number(row.count)).toBe(69);
+      // 70 since P (accountant access & period close) added audit.read.
+      expect(Number(row.count)).toBe(70);
     });
 
-    it('has the six system roles at their reserved ids', async () => {
+    it('has the seven system roles at their reserved ids', async () => {
       const rows = await db.app
         .selectFrom('roles')
         .select(['id', 'code'])
@@ -110,6 +112,7 @@ describe('test database harness', () => {
         .execute();
 
       expect(rows.map((row) => row.code)).toEqual([
+        'accountant',
         'ap_only',
         'approver',
         'ar_only',

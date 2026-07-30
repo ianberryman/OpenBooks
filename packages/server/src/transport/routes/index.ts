@@ -43,6 +43,7 @@ import { registerReportRoutes } from './reports';
 import { registerSchedulingRoutes } from './scheduling';
 import { registerSettingsRoutes } from './settings';
 import { registerStatementLineRoutes } from './statement-lines';
+import { registerStatementPackageRoutes } from './statement-packages';
 import { registerTaxRateRoutes } from './tax-rates';
 
 /**
@@ -599,4 +600,8 @@ export function registerV1Routes(app: App, config: Config): void {
   registerEstimateRoutes(app);
   registerExpenseRoutes(app);
   registerPredocumentDeliveryRoutes(app);
+  // Accountant access & period close (P, OB-197): the statement package. The
+  // period-close checklist + sign-off and the audit report are registered with the
+  // periods and reports routes above, on the surfaces they extend.
+  registerStatementPackageRoutes(app);
 }

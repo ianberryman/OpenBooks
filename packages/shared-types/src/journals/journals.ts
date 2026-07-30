@@ -76,6 +76,26 @@ export const journalLineRequestSchema = z
  * matters to the service, so a client would see two different error shapes for two
  * halves of one rule. The kernel answers both as `validation_failed` naming `lines`.
  */
+/**
+ * How a manual journal is classified (initiative P, D-98).
+ *
+ * `standard` is an ordinary manual entry; `adjusting` and `reclassifying` are the
+ * accountant's period-end corrections, flagged so the audit report and the close
+ * review can pick them out. The flag is a *nature*, not a permission — anyone who
+ * can post can mark one — and it lands on `journals.source` (`'manual'` for
+ * standard, `'adjusting'`/`'reclassifying'` otherwise), the free-form origin string
+ * beside `'reversal'` and `'opening'`. No new column and no ledger-kernel change.
+ */
+export const JOURNAL_ENTRY_TYPES = ['standard', 'adjusting', 'reclassifying'] as const;
+
+export type JournalEntryType = (typeof JOURNAL_ENTRY_TYPES)[number];
+
+export const journalEntryTypeSchema = z.enum(JOURNAL_ENTRY_TYPES).meta({
+  description:
+    'Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and ' +
+    '`reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).',
+});
+
 export const postJournalRequestSchema = z
   .strictObject({
     date: calendarDateSchema.meta({
@@ -84,6 +104,11 @@ export const postJournalRequestSchema = z
         'as a side effect of posting (ROADMAP D-17), so the year has to be generated first.',
     }),
     memo: z.string().optional(),
+    /**
+     * Absent means `standard`. Present, it flags the entry as an adjusting or
+     * reclassifying correction, which the service maps onto `journals.source`.
+     */
+    entryType: journalEntryTypeSchema.optional(),
     lines: z.array(journalLineRequestSchema),
   })
   .meta({

@@ -613,6 +613,14 @@ export async function up(db: MigrationDb): Promise<void> {
       entry_date         DATE         NULL,
       memo               VARCHAR(512) NULL,
       reference          VARCHAR(120) NULL,
+      -- The draft classification, carried through to the posted journal source
+      -- (initiative P, OB-194/D-98): standard posts as source manual, adjusting and
+      -- reclassifying as the accountant flagged period-end corrections. It lives on
+      -- the draft because the manual JE UI posts through the draft flow and postDraft
+      -- takes no body (a body would make posting a draft confusable with posting a
+      -- journal, D-19), so the flag has to be set while the draft is edited. DEFAULT
+      -- standard so every existing draft-create path is unchanged.
+      entry_type         ENUM('standard','adjusting','reclassifying') NOT NULL DEFAULT 'standard',
       created_by_user_id BINARY(16)   NOT NULL,
       created_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)

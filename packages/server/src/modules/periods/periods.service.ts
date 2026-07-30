@@ -1,4 +1,6 @@
 import type { CalendarDate, Instant } from '@openbooks/plugin-api';
+import type { ClosePeriodRequest, ReopenPeriodRequest } from '@openbooks/shared-types';
+import { closePeriodRequestSchema, reopenPeriodRequestSchema } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
 import { getContext } from '../../context';
@@ -9,8 +11,10 @@ import { assertFound, ConflictError, InternalError, PreconditionFailedError } fr
 import { requirePermission } from '../permissions';
 import type { MonthSpan } from './calendar';
 import { fiscalYearSpan, MONTHS_PER_YEAR, monthSpan } from './calendar';
+import { computeChecklistChecks } from './period-close.service';
 import type { NewPeriod, PeriodClosure, PeriodRecord } from './periods.repository';
 import {
+  insertPeriodCloseEvent,
   insertPeriods,
   selectFiscalYearStartMonth,
   selectPeriodById,
@@ -48,6 +52,21 @@ const RESOURCE = 'fiscal_period';
 
 /** mysql2's `errno` for a unique constraint violation (`ER_DUP_ENTRY`). */
 const DUPLICATE_ENTRY_ERRNO = 1062;
+
+/**
+ * `closePeriod` / `reopenPeriod`'s full input — `PeriodRef` plus the optional
+ * sign-off note, built with `.extend()` off `periodRefSchema` and off the wire
+ * schemas (`@openbooks/shared-types`) rather than restated field-by-field, so
+ * `note`'s length limit and `periodId`'s shape each have one source of truth.
+ * `.extend()` on a `strictObject` stays strict — an unrecognised third key is
+ * still rejected — so this loses none of `periodRefSchema`'s own guarantee.
+ *
+ * Declared here rather than lifted into `periods.schemas.ts`: OB-193 owns this
+ * request shape and that file's header describes itself as the boundary OB-019
+ * has owned since M1, not a place every later ticket adds to.
+ */
+const closePeriodInputSchema = periodRefSchema.extend(closePeriodRequestSchema.shape);
+const reopenPeriodInputSchema = periodRefSchema.extend(reopenPeriodRequestSchema.shape);
 
 export interface FiscalPeriod {
   readonly id: string;
@@ -203,14 +222,18 @@ export async function getPeriod(input: PeriodRef): Promise<FiscalPeriod> {
 }
 
 /**
- * Closes a period. Records `closed_at` and `closed_by_user_id` (ROADMAP D-08).
+ * Closes a period. Records `closed_at` and `closed_by_user_id` (ROADMAP D-08),
+ * and — since OB-193 — a `period_close_events` sign-off carrying a server-
+ * recomputed checklist snapshot and the caller's optional note (ROADMAP D-97).
+ * The checklist is advisory: every check below can only `warn`, never `fail`, so
+ * nothing it finds blocks this call. See `period-close.service.ts`'s header.
  */
-export async function closePeriod(input: PeriodRef): Promise<FiscalPeriod> {
+export async function closePeriod(input: PeriodRef & ClosePeriodRequest): Promise<FiscalPeriod> {
   const ctx = getContext('closePeriod()');
   await requirePermission(ctx, 'periods.close');
 
-  const { periodId } = parseServiceInput(periodRefSchema, input, 'period reference');
-  return transitionPeriod(ctx, periodId, 'closed');
+  const { periodId, note } = parseServiceInput(closePeriodInputSchema, input, 'close request');
+  return transitionPeriod(ctx, periodId, 'closed', note ?? null);
 }
 
 /**
@@ -244,13 +267,18 @@ export async function closePeriod(input: PeriodRef): Promise<FiscalPeriod> {
  * D-08 also has this module in mind when it says the richer, audited period-close
  * workflow arrives with M2/M3. That workflow attaches to reopen, and it attaches to
  * a permission that already exists.
+ *
+ * OB-193 is that workflow. A reopen records a `period_close_events` row with
+ * `action: 'reopen'` and `checklist: null` — there is nothing to warn over when a
+ * period is being reopened rather than closed — carrying only the caller's
+ * optional reason (ROADMAP D-97).
  */
-export async function reopenPeriod(input: PeriodRef): Promise<FiscalPeriod> {
+export async function reopenPeriod(input: PeriodRef & ReopenPeriodRequest): Promise<FiscalPeriod> {
   const ctx = getContext('reopenPeriod()');
   await requirePermission(ctx, 'periods.reopen');
 
-  const { periodId } = parseServiceInput(periodRefSchema, input, 'period reference');
-  return transitionPeriod(ctx, periodId, 'open');
+  const { periodId, note } = parseServiceInput(reopenPeriodInputSchema, input, 'reopen request');
+  return transitionPeriod(ctx, periodId, 'open', note ?? null);
 }
 
 /**
@@ -462,8 +490,12 @@ async function transitionPeriod(
   ctx: RequestContext,
   periodId: string,
   target: PeriodStatus,
+  note: string | null,
 ): Promise<FiscalPeriod> {
   const id = uuidToBuffer(periodId);
+  // Resolved before the transaction opens: a malformed context should surface
+  // before this takes the row lock below, not after.
+  const actorUserId = actingUserIdOrNull(ctx);
 
   return tenantDb(orgIdOf(ctx)).transaction(async (trx) => {
     // Locked, for the same reason `assertPostable` locks: a close racing a posting
@@ -486,7 +518,7 @@ async function transitionPeriod(
 
     const closure: PeriodClosure =
       target === 'closed'
-        ? { status: 'closed', closedAt: new Date(), closedByUserId: closingUserId(ctx) }
+        ? { status: 'closed', closedAt: new Date(), closedByUserId: actorUserId }
         : // Reopening clears the closer as well as the timestamp. Leaving
           // `closed_by_user_id` set would make the row say "closed by X" while open,
           // which reads as a record of a close rather than of a close that was undone;
@@ -501,19 +533,41 @@ async function transitionPeriod(
       );
     }
 
+    // OB-193 / D-97: the sign-off event is written in the same transaction as the
+    // status flip, so a close (or reopen) and its audit row are atomic — no reader
+    // can observe one without the other. The checklist is recomputed here, under
+    // the lock just taken on `current`, rather than trusted from any caller-
+    // supplied value; a reopen carries no checklist (`null`) because there is
+    // nothing to warn over when a period is being reopened rather than closed.
+    const isClose = target === 'closed';
+    const checklist = isClose ? await computeChecklistChecks(trx, current) : null;
+
+    await insertPeriodCloseEvent(trx, {
+      periodId: id,
+      action: isClose ? 'close' : 'reopen',
+      checklist,
+      note,
+      actorUserId,
+    });
+
     return toFiscalPeriod({ ...current, ...closure });
   });
 }
 
 /**
- * `closed_by_user_id` for the acting context, or null.
+ * The acting user for a close or reopen, or null.
  *
- * The column is a foreign key to `users`, and spec §6 admits automation and agent
- * actors that have no row there — so a null is the honest value rather than a missing
- * one. Actor provenance for non-user actors is recorded per posting on `journals`;
- * a period close is not a posting.
+ * Nullable, matching `fiscal_periods.closed_by_user_id` and `period_close_events.
+ * actor_user_id` (both `NULL`-able, `ON DELETE SET NULL`). OB-193 frames a close as
+ * a human **sign-off** (ROADMAP D-97) and that is the ordinary case, but an
+ * automation or an API-key session that legitimately holds `periods.close` may still
+ * transition a period, and it authenticates as an org and a role with no `users` row
+ * (`api-key-identity.ts`). Recording a null closer for it preserves the M1 capability
+ * rather than turning a granted action into a fault. A `userId` that is present but
+ * not a UUID is different — that is a context built from the wrong field, a wiring
+ * fault, and stays an `InternalError` (compare `orgIdOf` below).
  */
-function closingUserId(ctx: RequestContext): Buffer | null {
+function actingUserIdOrNull(ctx: RequestContext): Buffer | null {
   if (ctx.userId === null) return null;
 
   const id = tryUuidToBuffer(ctx.userId);

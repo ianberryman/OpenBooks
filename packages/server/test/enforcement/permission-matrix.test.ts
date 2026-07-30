@@ -189,6 +189,7 @@ import type { PermissionKey } from '../../src/modules/permissions';
 import { PERMISSION_KEYS, selectCatalogCodes } from '../../src/modules/permissions';
 import {
   closePeriod,
+  computeCloseChecklist,
   createPeriod,
   generateFiscalYear,
   getPeriod,
@@ -198,6 +199,7 @@ import {
 import { deleteBudget, listBudgets, setBudgets } from '../../src/modules/budgets';
 import {
   getAccountBalances,
+  getAuditReport,
   getBalanceSheet,
   getBudgetVsActual,
   getCashFlowProjection,
@@ -205,6 +207,7 @@ import {
   getProfitAndLoss,
   getStatementOfCashFlows,
 } from '../../src/modules/reports';
+import { createStatementPackage, listStatementPackages } from '../../src/modules/statements';
 /**
  * Not through `modules/reports`' index, and OB-067 did not change that.
  *
@@ -447,6 +450,7 @@ const ROLES = [
   'arOnly',
   'readOnly',
   'approver',
+  'accountant',
 ] as const satisfies readonly SystemRoleName[];
 
 /**
@@ -467,7 +471,15 @@ const ROLES = [
  * by a migration (C11, known gap 6).
  */
 const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
-  'accounts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'accounts.read': [
+    'owner',
+    'bookkeeper',
+    'apOnly',
+    'arOnly',
+    'readOnly',
+    'approver',
+    'accountant',
+  ],
   'accounts.write': ['owner', 'bookkeeper'],
   // M4 waves 1–3: the banking codes services now enforce. `banking.import` gates
   // saving a mapping and starting an import; `banking.read` gates the reads, the
@@ -479,33 +491,59 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // read-only roles. No banking code is latent any longer.
   'banking.import': ['owner', 'bookkeeper'],
   'banking.match': ['owner', 'bookkeeper'],
-  'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'banking.reconcile': ['owner', 'bookkeeper'],
   'banking.reopen': ['owner', 'bookkeeper'],
-  'contacts.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'contacts.read': [
+    'owner',
+    'bookkeeper',
+    'apOnly',
+    'arOnly',
+    'readOnly',
+    'approver',
+    'accountant',
+  ],
   // AP-only and AR-only hold `contacts.write` — a vendor or a customer is created
   // in the course of entering the bill or the invoice it belongs to.
   'contacts.write': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
-  'dimensions.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'dimensions.read': [
+    'owner',
+    'bookkeeper',
+    'apOnly',
+    'arOnly',
+    'readOnly',
+    'approver',
+    'accountant',
+  ],
   'dimensions.write': ['owner', 'bookkeeper'],
-  'journals.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'journals.read': [
+    'owner',
+    'bookkeeper',
+    'apOnly',
+    'arOnly',
+    'readOnly',
+    'approver',
+    'accountant',
+  ],
   // Approver holds it, and D-30 turns on exactly that: drafting reuses this code,
   // so a role whose bundle is `%.read` plus `journals.post` can compose a proposal
   // as well as post one. See `Approver composes and posts a draft` below.
-  'journals.post': ['owner', 'bookkeeper', 'approver', 'apOnly', 'arOnly'],
-  'journals.reverse': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
-  'members.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'journals.post': ['owner', 'bookkeeper', 'approver', 'apOnly', 'arOnly', 'accountant'],
+  'journals.reverse': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'accountant'],
+  'members.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   // One of the two codes Bookkeeper is excluded from — `orgs.write` below is the
   // other. A bookkeeper runs the books; they do not decide who has access.
   'members.write': ['owner'],
-  'periods.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'periods.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'periods.write': ['owner', 'bookkeeper'],
-  // Not Read-only / Accountant, even though closing writes no journal: `0001_tenancy`
-  // states that closing a period is a change.
-  'periods.close': ['owner', 'bookkeeper'],
-  'periods.reopen': ['owner', 'bookkeeper'],
-  'reports.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
-  'roles.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  // Not Read-only, even though closing writes no journal: `0001_tenancy` states that
+  // closing a period is a change. The `accountant` role does hold both, though — the
+  // period-close workflow (P, D-97) is the accountant capability the reopen split was
+  // always for, and reopen is the audited restatement half it holds alongside close.
+  'periods.close': ['owner', 'bookkeeper', 'accountant'],
+  'periods.reopen': ['owner', 'bookkeeper', 'accountant'],
+  'reports.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver', 'accountant'],
+  'roles.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
 
   // ---------------------------------------------------------------------------
   // M3 — the sixteen codes OB-062 … OB-066 gave an enforcement point.
@@ -519,30 +557,38 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // `journals.post` or `journals.reverse`.
   // ---------------------------------------------------------------------------
 
-  'invoices.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'invoices.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'invoices.write': ['owner', 'bookkeeper', 'arOnly'],
   'invoices.void': ['owner', 'bookkeeper', 'arOnly'],
-  'credit_notes.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'credit_notes.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver', 'accountant'],
   // Also what a credit note is *voided* with: the catalog holds no
   // `credit_notes.void`, argued on `ArDocumentKind` in `invoices/kinds.ts` and
   // asserted against the catalog under `the codes the catalog does not hold`.
   'credit_notes.write': ['owner', 'bookkeeper', 'arOnly'],
-  'bills.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'bills.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   // And what a bill is *approved* with, for the same reason: no `bills.approve`.
   'bills.write': ['owner', 'bookkeeper', 'apOnly'],
   'bills.void': ['owner', 'bookkeeper', 'apOnly'],
-  'vendor_credits.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'vendor_credits.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   'vendor_credits.write': ['owner', 'bookkeeper', 'apOnly'],
   // The direction split is authorization, not a filter: `payments.service.ts`
   // resolves the payment's own direction and then checks one of these two, so an
   // AR clerk is refused a vendor payment they can see the id of.
-  'payments_received.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'payments_received.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'payments_received.write': ['owner', 'bookkeeper', 'arOnly'],
-  'payments_made.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'payments_made.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   'payments_made.write': ['owner', 'bookkeeper', 'apOnly'],
   // The one M3 code every seeded role holds for reading: both clerks need the rate
   // list to enter a document at all, which is why it is in both `IN (…)` lists.
-  'tax_rates.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver'],
+  'tax_rates.read': [
+    'owner',
+    'bookkeeper',
+    'apOnly',
+    'arOnly',
+    'readOnly',
+    'approver',
+    'accountant',
+  ],
   // And the one M3 write neither clerk holds. A tax rate is configuration, not a
   // document — `0001_tenancy` gives the clerks `tax_rates.read` and stops there.
   'tax_rates.write': ['owner', 'bookkeeper'],
@@ -556,7 +602,7 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // delivery`) is the AR mirror of the M3 document writes — `0001_tenancy` adds it
   // to `ar_only`'s list so a clerk can send the invoices they raise.
   // ---------------------------------------------------------------------------
-  'branding.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'branding.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'branding.write': ['owner', 'bookkeeper'],
   'invoices.send': ['owner', 'bookkeeper', 'arOnly'],
 
@@ -574,7 +620,7 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
    * an org that has nominated nothing, and every approval in that org refuses until
    * an Owner acts.
    */
-  'orgs.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'orgs.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'orgs.write': ['owner'],
 
   /**
@@ -589,7 +635,7 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'agents.review': ['owner', 'bookkeeper', 'approver'],
   'api_keys.read': ['owner'],
   'api_keys.write': ['owner'],
-  'integrations.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'integrations.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'integrations.write': ['owner'],
 
   /**
@@ -600,7 +646,7 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
    * alone — bookkeeper is excluded from it by name, the same administration
    * exclusion `integrations.write` carries (D-101). No migration ran.
    */
-  'processing.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'processing.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'processing.write': ['owner'],
 
   /**
@@ -614,7 +660,7 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
    * that releases it. `ap_only` holds both queue keys and not `disbursements.issue`,
    * which is the split made real — a clerk can queue a payment and cannot pay it.
    */
-  'pending_payments.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'pending_payments.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   'pending_payments.write': ['owner', 'bookkeeper', 'apOnly'],
   'disbursements.issue': ['owner'],
 
@@ -627,9 +673,9 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // `.write` is the whole of the authority. The routes arrive in OB-167, but the
   // services gate now, so these are `GRANTED_TO` rather than latent.
   // ---------------------------------------------------------------------------
-  'recurring_journals.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'recurring_journals.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'recurring_journals.write': ['owner', 'bookkeeper'],
-  'fixed_assets.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'fixed_assets.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'fixed_assets.write': ['owner', 'bookkeeper'],
 
   // ---------------------------------------------------------------------------
@@ -643,11 +689,11 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // who entered it. Converting a pre-document also gates on the target document's
   // write (`bills.write`/`invoices.write`), captured as `thenRequires` below.
   // ---------------------------------------------------------------------------
-  'purchase_orders.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'purchase_orders.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   'purchase_orders.write': ['owner', 'bookkeeper', 'apOnly'],
-  'estimates.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'estimates.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'estimates.write': ['owner', 'bookkeeper', 'arOnly'],
-  'expenses.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'expenses.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver', 'accountant'],
   'expenses.write': ['owner', 'bookkeeper', 'apOnly'],
   'expenses.approve': ['owner', 'bookkeeper', 'approver'],
 
@@ -659,8 +705,20 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // report gates on `reports.read`, not on these. The service gates now, so these
   // are `GRANTED_TO` rather than latent.
   // ---------------------------------------------------------------------------
-  'budgets.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'budgets.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'budgets.write': ['owner', 'bookkeeper'],
+
+  // ---------------------------------------------------------------------------
+  // P — accountant access & period close (OB-192…199). One new code: `audit.read`
+  // gates the audit-trail report (`reports/audit.service.ts`). It reaches every
+  // role that holds the `%.read` bundle — owner, bookkeeper, and the two read-only
+  // roles readOnly/approver — plus the new `accountant` role, and not the AP/AR
+  // clerks whose `IN (…)` lists do not name it. The rest of P reuses codes already
+  // above: `periods.close`/`periods.reopen` (the close workflow), `journals.post`
+  // (an adjusting entry, flagged by `journals.source` not a permission), and
+  // `reports.read` (the statement package renders reports the holder can run).
+  // ---------------------------------------------------------------------------
+  'audit.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
 };
 
 /**
@@ -709,6 +767,11 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   arOnly: [],
   readOnly: ['workflows.read'],
   approver: ['workflows.read'],
+  // Accountant holds the `%.read` bundle, so `workflows.read` reaches it for the same
+  // reason it reaches readOnly/approver — and nothing else is latent: its four
+  // non-read grants (`journals.post`/`journals.reverse`, `periods.close`/
+  // `periods.reopen`) are all enforced.
+  accountant: ['workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -1209,6 +1272,14 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'periods.reopen',
     call: (s) => reopenPeriod({ periodId: s.periodId }),
   },
+  // P (OB-193): the advisory close checklist is a read gated on `periods.read` — a
+  // side-effect-free preview of what a close would record.
+  {
+    name: 'getPeriodCloseChecklist',
+    operationId: 'getPeriodCloseChecklist',
+    permission: 'periods.read',
+    call: (s) => computeCloseChecklist({ periodId: s.periodId }, s.ctx),
+  },
   /**
    * No route. `getPeriod` is the read a future period-detail screen is built on,
    * so it is in the matrix before it is on the wire — the alternative is that its
@@ -1257,6 +1328,28 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'getCashFlowProjection',
     permission: 'reports.read',
     call: (s) => getCashFlowProjection({}, s.ctx),
+  },
+  // P (OB-195, OB-196): the statement package renders reports the `reports.read`
+  // holder can already run, so it gates on `reports.read` and adds no new key. The
+  // audit report gates on the new `audit.read` — it exposes activity across the org,
+  // a capability distinct from any single figure (D-98).
+  {
+    name: 'createStatementPackage',
+    operationId: 'createStatementPackage',
+    permission: 'reports.read',
+    call: (s) => createStatementPackage({ periodStart: s.date, periodEnd: s.date }, s.ctx),
+  },
+  {
+    name: 'listStatementPackages',
+    operationId: 'listStatementPackages',
+    permission: 'reports.read',
+    call: (s) => listStatementPackages(s.ctx),
+  },
+  {
+    name: 'getAuditReport',
+    operationId: 'getAuditReport',
+    permission: 'audit.read',
+    call: (s) => getAuditReport({ limit: 50 }, s.ctx),
   },
   /**
    * No route either — the report *core* every projection above is assembled from.

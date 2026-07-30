@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ReactElement } from 'react';
+import type { ChangeEvent, ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
 import { api, idempotencyHeader, newIdempotencyKey, unwrap } from '../../api';
 import type { IdempotentVariables, components } from '../../api';
-import { Button, ErrorBanner, Select } from '../../components';
+import {
+  Button,
+  CONTROL_CLASSES,
+  Dialog,
+  DialogContent,
+  ErrorBanner,
+  Field,
+  FieldLabel,
+  Select,
+  useFieldControl,
+} from '../../components';
 import { cx } from '../../lib/cx';
 import { Notice, Pill, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
 import {
@@ -46,6 +56,11 @@ const IDENTITY_QUERY_KEY = ['settings', 'identity'] as const;
 const PERIODS_QUERY_KEY = ['settings', 'fiscal-periods'] as const;
 
 type FiscalPeriod = components['schemas']['FiscalPeriod'];
+type PeriodCloseCheck = components['schemas']['PeriodCloseCheck'];
+
+function closeChecklistQueryKey(periodId: string | null): readonly unknown[] {
+  return ['settings', 'fiscal-periods', 'close-checklist', periodId];
+}
 
 /** How many years either side of the current one the generator offers. */
 const YEAR_WINDOW = 2;
@@ -95,28 +110,85 @@ export function FiscalPeriodsSection(): ReactElement {
     },
   });
 
-  const setStatus = useMutation({
+  /**
+   * Close and reopen (initiative P, OB-193; ROADMAP D-97), each carrying an optional note
+   * — a sign-off on a close, a reason on a reopen. Two mutations rather than one with a
+   * computed path and a shared `action`, for the reason the pre-P version of this code
+   * already gave: close and reopen are separate operations with separate permissions on
+   * the server, and the generated client types each path independently.
+   */
+  const closePeriod = useMutation({
     mutationFn: async ({
       idempotencyKey,
       periodId,
-      action,
-    }: IdempotentVariables<{ periodId: string; action: 'close' | 'reopen' }>) => {
-      /**
-       * Two calls rather than one with a computed path. Close and reopen are separate
-       * operations with separate permissions on the server, and the generated client types
-       * each path independently — collapsing them into a variable would need a widened
-       * path type, which is the one route past the compile-time idempotency requirement.
-       */
-      const params = { path: { periodId }, header: idempotencyHeader(idempotencyKey) };
-
-      return action === 'close'
-        ? unwrap(await api.POST('/v1/fiscal-periods/{periodId}/close', { params }))
-        : unwrap(await api.POST('/v1/fiscal-periods/{periodId}/reopen', { params }));
-    },
+      note,
+    }: IdempotentVariables<{ periodId: string; note: string }>) =>
+      unwrap(
+        await api.POST('/v1/fiscal-periods/{periodId}/close', {
+          params: { path: { periodId }, header: idempotencyHeader(idempotencyKey) },
+          // An empty sign-off note is the same as none, so `{}` is sent rather than
+          // `{ note: '' }` — `note` is optional on `ClosePeriodRequest`, and a blank
+          // string recorded against the close event would read as a note someone typed.
+          body: note.trim() === '' ? {} : { note: note.trim() },
+        }),
+      ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: PERIODS_QUERY_KEY });
     },
   });
+
+  const reopenPeriod = useMutation({
+    mutationFn: async ({
+      idempotencyKey,
+      periodId,
+      note,
+    }: IdempotentVariables<{ periodId: string; note: string }>) =>
+      unwrap(
+        await api.POST('/v1/fiscal-periods/{periodId}/reopen', {
+          params: { path: { periodId }, header: idempotencyHeader(idempotencyKey) },
+          body: note.trim() === '' ? {} : { note: note.trim() },
+        }),
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PERIODS_QUERY_KEY });
+    },
+  });
+
+  const [closeTarget, setCloseTarget] = useState<FiscalPeriod | null>(null);
+  const [closeNote, setCloseNote] = useState('');
+  const [reopenTarget, setReopenTarget] = useState<FiscalPeriod | null>(null);
+  const [reopenNote, setReopenNote] = useState('');
+
+  const closingPeriodId = closeTarget?.id ?? null;
+
+  /**
+   * The advisory checklist (P3; `GET …/close-checklist`), fetched fresh every time the
+   * close dialog opens for a period — a side-effect-free preview, recomputed and recorded
+   * for real only when the close itself is confirmed (the route's own description).
+   */
+  const closeChecklist = useQuery({
+    queryKey: closeChecklistQueryKey(closingPeriodId),
+    enabled: closingPeriodId !== null,
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/v1/fiscal-periods/{periodId}/close-checklist', {
+          // `enabled` guarantees `closingPeriodId` is non-null whenever this actually runs.
+          params: { path: { periodId: closingPeriodId as string } },
+        }),
+      ),
+  });
+
+  function closeDialog(open: boolean): void {
+    if (open) return;
+    setCloseTarget(null);
+    setCloseNote('');
+  }
+
+  function reopenDialog(open: boolean): void {
+    if (open) return;
+    setReopenTarget(null);
+    setReopenNote('');
+  }
 
   const existingMonths = useMemo(
     () => new Set((periods.data?.periods ?? []).map((period) => period.startDate.slice(0, 7))),
@@ -217,8 +289,6 @@ export function FiscalPeriodsSection(): ReactElement {
         </Notice>
       )}
 
-      {setStatus.isError && <ErrorBanner error={setStatus.error} />}
-
       {groups.map((group) => (
         <div key={group.fiscalYear} className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-text">
@@ -247,8 +317,9 @@ export function FiscalPeriodsSection(): ReactElement {
             <tbody>
               {group.periods.map((period) => {
                 const closed = period.status === 'closed';
-                const action = closed ? 'reopen' : 'close';
-                const busy = setStatus.isPending && setStatus.variables?.periodId === period.id;
+                const busy = closed
+                  ? reopenPeriod.isPending && reopenPeriod.variables?.periodId === period.id
+                  : closePeriod.isPending && closePeriod.variables?.periodId === period.id;
 
                 return (
                   <tr key={period.id}>
@@ -269,11 +340,10 @@ export function FiscalPeriodsSection(): ReactElement {
                         size="sm"
                         disabled={busy}
                         onClick={() => {
-                          setStatus.mutate({
-                            periodId: period.id,
-                            action,
-                            idempotencyKey: newIdempotencyKey(),
-                          });
+                          // Opens the sign-off dialog rather than closing directly (P3):
+                          // the checklist is fetched once the target is set, below.
+                          if (closed) setReopenTarget(period);
+                          else setCloseTarget(period);
                         }}
                       >
                         {closed ? 'Reopen' : 'Close'}
@@ -294,7 +364,183 @@ export function FiscalPeriodsSection(): ReactElement {
           same switch in the other direction.
         </p>
       )}
+
+      <Dialog open={closeTarget !== null} onOpenChange={closeDialog}>
+        <DialogContent
+          title={closeTarget === null ? 'Close period' : `Close ${closeTarget.name}`}
+          description={
+            'The checks below are advisory — a warning never blocks the close. Sign off over ' +
+            'one if it is expected, and the note travels with the close event for whoever ' +
+            'reviews it later.'
+          }
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  closeDialog(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={closePeriod.isPending}
+                onClick={() => {
+                  if (closeTarget === null) return;
+                  closePeriod.mutate(
+                    {
+                      periodId: closeTarget.id,
+                      note: closeNote,
+                      idempotencyKey: newIdempotencyKey(),
+                    },
+                    { onSuccess: () => closeDialog(false) },
+                  );
+                }}
+              >
+                {closePeriod.isPending ? 'Closing…' : 'Close period'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            {closePeriod.isError && <ErrorBanner error={closePeriod.error} />}
+
+            {closeChecklist.isError && (
+              <ErrorBanner
+                error={closeChecklist.error}
+                onRetry={() => {
+                  void closeChecklist.refetch();
+                }}
+              />
+            )}
+            {closeChecklist.isPending && <p className="text-text-subtle">Checking…</p>}
+            {closeChecklist.isSuccess && (
+              <ul className="flex flex-col gap-2">
+                {closeChecklist.data.checks.map((check) => (
+                  <CloseCheckRow key={check.key} check={check} />
+                ))}
+              </ul>
+            )}
+
+            <Field>
+              <FieldLabel>Sign-off note (optional)</FieldLabel>
+              <TextArea
+                value={closeNote}
+                onChange={(event) => {
+                  setCloseNote(event.target.value);
+                }}
+              />
+            </Field>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reopenTarget !== null} onOpenChange={reopenDialog}>
+        <DialogContent
+          title={reopenTarget === null ? 'Reopen period' : `Reopen ${reopenTarget.name}`}
+          description={
+            'Reopening withdraws a statement that may already have been relied on. The reason ' +
+            'is recorded with the reopen event.'
+          }
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  reopenDialog(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={reopenPeriod.isPending}
+                onClick={() => {
+                  if (reopenTarget === null) return;
+                  reopenPeriod.mutate(
+                    {
+                      periodId: reopenTarget.id,
+                      note: reopenNote,
+                      idempotencyKey: newIdempotencyKey(),
+                    },
+                    { onSuccess: () => reopenDialog(false) },
+                  );
+                }}
+              >
+                {reopenPeriod.isPending ? 'Reopening…' : 'Reopen period'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            {reopenPeriod.isError && <ErrorBanner error={reopenPeriod.error} />}
+
+            <Field>
+              <FieldLabel>Reason (optional)</FieldLabel>
+              <TextArea
+                value={reopenNote}
+                onChange={(event) => {
+                  setReopenNote(event.target.value);
+                }}
+              />
+            </Field>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SettingsSection>
+  );
+}
+
+/**
+ * One advisory check (P3). `warn` never disables the sign-off button above it — that is
+ * the whole of D-97's "advisory" — so the only thing this row does is make a warning
+ * legible enough to sign off over on purpose rather than by not reading it.
+ */
+function CloseCheckRow({ check }: { readonly check: PeriodCloseCheck }): ReactElement {
+  const warn = check.status === 'warn';
+
+  return (
+    <li
+      className={cx(
+        'flex flex-col gap-0.5 rounded-md border px-3 py-2 text-sm',
+        warn
+          ? 'border-warning-border bg-warning-soft text-warning-text'
+          : 'border-border bg-surface-sunken text-text-muted',
+      )}
+    >
+      <span className="flex items-center justify-between gap-2 font-medium">
+        <span>{check.label}</span>
+        <span className="text-xs tracking-wide uppercase">{warn ? 'Warning' : 'Pass'}</span>
+      </span>
+      <span>
+        {check.detail}
+        {check.count !== undefined && ` — ${String(check.count)}`}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * The sign-off note and the reopen reason — `contacts/contact-form.tsx`'s own `TextArea`,
+ * copied rather than imported for the self-containment reason every screen folder here
+ * gives: no screen imports another's local control.
+ */
+function TextArea({
+  value,
+  onChange,
+}: {
+  readonly value: string;
+  readonly onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+}): ReactElement {
+  const control = useFieldControl();
+  return (
+    <textarea
+      {...control}
+      value={value}
+      rows={3}
+      maxLength={1000}
+      className={cx(CONTROL_CLASSES, 'border-border h-auto py-1.5')}
+      onChange={onChange}
+    />
   );
 }
 

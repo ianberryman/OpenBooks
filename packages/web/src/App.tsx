@@ -35,6 +35,7 @@ import { RecurringJournalsScreen } from './screens/recurring-journals';
 import { ReportsScreen } from './screens/reports';
 import { SalesScreen } from './screens/sales';
 import { SettingsScreen } from './screens/settings';
+import { StatementPackagesScreen } from './screens/statement-packages';
 import { AppShell } from './shell/app-shell';
 import { landingPath, visibleNav } from './shell/nav';
 import { OrgControls } from './shell/org-switcher';
@@ -212,6 +213,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/banking/*" element={<BankingScreen />} />
         <Route path="/processing" element={<ProcessingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
+        <Route path="/statement-packages" element={<StatementPackagesScreen />} />
         <Route path="/budgets" element={<BudgetsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />

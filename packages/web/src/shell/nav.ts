@@ -94,6 +94,12 @@ export const NAV_ITEMS: readonly PermissionedNavItem[] = [
    */
   { to: '/processing', label: 'Payment processing', permission: 'processing.read' },
   { to: '/reports', label: 'Reports', permission: 'reports.read' },
+  /**
+   * `reports.read` (initiative P, OB-195): a statement package stitches together the same
+   * three reports that permission already gates, stapled into one branded PDF, so it needs
+   * no permission those reports do not (`statement-packages.ts`'s own module header).
+   */
+  { to: '/statement-packages', label: 'Statement packages', permission: 'reports.read' },
   { to: '/budgets', label: 'Budgets', permission: 'budgets.read' },
   // `orgs.read` and not the union of dimensions/members/periods: the settings screen is the
   // organization's own administration, and the seeded roles that hold any of its parts hold

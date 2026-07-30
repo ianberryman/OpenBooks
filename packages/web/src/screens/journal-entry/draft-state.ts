@@ -25,11 +25,16 @@ export interface EditorLine {
   readonly dimensionValueIds: readonly string[];
 }
 
+/** How the posted journal is classified (P, OB-194) — the audit trail reads it. */
+export type DraftEntryType = JournalDraft['entryType'];
+
 export interface EditorState {
   /** `YYYY-MM-DD`, or `''` when the draft carries no date yet. */
   readonly entryDate: string;
   readonly reference: string;
   readonly memo: string;
+  /** `'standard'` unless flagged as an accountant's adjusting/reclassifying entry. */
+  readonly entryType: DraftEntryType;
   readonly lines: readonly EditorLine[];
 }
 
@@ -78,6 +83,7 @@ export function stateFromDraft(draft: JournalDraft): EditorState {
     entryDate: draft.entryDate ?? '',
     reference: draft.reference ?? '',
     memo: draft.memo ?? '',
+    entryType: draft.entryType,
     lines,
   };
 }
@@ -113,6 +119,7 @@ export function patchFromState(state: EditorState): UpdateDraftRequest {
     entryDate: blankToNull(state.entryDate),
     reference: blankToNull(state.reference),
     memo: blankToNull(state.memo),
+    entryType: state.entryType,
     lines: state.lines.map(toRequestLine),
   };
 }

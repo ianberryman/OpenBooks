@@ -1091,11 +1091,22 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/fiscal-periods/%s/close',
     id: (s) => s.periodId,
+    // An empty body: close now takes an optional sign-off note (P, OB-193), so the
+    // request must carry a valid (if empty) JSON body — without one Fastify answers
+    // 400 before the cross-org lookup, which is not the A7 answer under test.
+    payload: () => ({}),
   },
   {
     operationId: 'reopenFiscalPeriod',
     method: 'POST',
     path: '/v1/fiscal-periods/%s/reopen',
+    id: (s) => s.periodId,
+    payload: () => ({}),
+  },
+  {
+    operationId: 'getPeriodCloseChecklist',
+    method: 'GET',
+    path: '/v1/fiscal-periods/%s/close-checklist',
     id: (s) => s.periodId,
   },
   {

@@ -1832,9 +1832,29 @@ export interface paths {
         put?: never;
         /**
          * Close a fiscal period
-         * @description The routine monthly soft close. Records who closed it and when. A posting dated inside a closed period is refused (A4), and a posting racing this call either commits fully or not at all (A9).
+         * @description The routine monthly soft close. Records who closed it, when, and the advisory checklist at sign-off. A posting dated inside a closed period is refused (A4), and a posting racing this call either commits fully or not at all (A9).
          */
         post: operations["closeFiscalPeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/fiscal-periods/{periodId}/close-checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview the advisory close checklist for a period
+         * @description The completeness checks the close workflow surfaces — unposted drafts in the period, unreconciled bank lines, a still-open prior period (OB-193, D-97). Advisory: a warning never blocks the close, and this read has no side effect. The same snapshot is recomputed and recorded when the period is actually closed.
+         */
+        get: operations["getPeriodCloseChecklist"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1852,7 +1872,7 @@ export interface paths {
         put?: never;
         /**
          * Reopen a closed fiscal period
-         * @description Withdraws a statement that may already have been relied on, so it needs the separate `periods.reopen` permission rather than the one that closes.
+         * @description Withdraws a statement that may already have been relied on, so it needs the separate `periods.reopen` permission rather than the one that closes. The reason is recorded.
          */
         post: operations["reopenFiscalPeriod"];
         delete?: never;
@@ -3248,6 +3268,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The audit trail — who changed what, and when
+         * @description One newest-first timeline unifying journal postings and reversals (each carries its own actor provenance and `source`, which is how an adjusting or reclassifying entry is flagged) with the period close/reopen history. It surfaces provenance that already exists rather than capturing anything new (D-98). Keyset-paged like the general ledger. Gated by `audit.read`, distinct from `reports.read` because it exposes activity across the org rather than a figure.
+         */
+        get: operations["getAuditReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/balance-sheet": {
         parameters: {
             query?: never;
@@ -3535,6 +3575,30 @@ export interface paths {
          * @description Removes the clearing and, where it posted a journal, reverses that journal — never deletes it (D-16). `date` is the reversal’s own entry date and must fall in an open period. Undoing a clearing counted by a finalised session is `reconciliation_session_already_finalised`; the way in is a reopen (E6). A line with no clearing is `statement_line_not_cleared`.
          */
         delete: operations["removeBankLineClearing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/statement-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List rendered statement packages
+         * @description Every statement package this org has rendered, newest first, each with a freshly signed download URL minted on read.
+         */
+        get: operations["listStatementPackages"];
+        put?: never;
+        /**
+         * Render a branded statement package to PDF
+         * @description Renders the P&L, Balance Sheet and Cash Flow for a date range into one branded PDF (P5), stores it behind the StorageProvider, and records it so it can be re-downloaded. Returns the package with a short-lived signed download URL.
+         */
+        post: operations["createStatementPackage"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4154,6 +4218,96 @@ export interface components {
         /** @description The roles an invitation or a re-role may name. Reading this takes `roles.read` and not `members.read`: the catalog is a different subject from the people who hold entries in it. */
         AssignableRoleListInput: {
             roles: components["schemas"]["AssignableRoleInput"][];
+        };
+        /** @description One entry in the who-changed-what timeline. */
+        AuditEntry: {
+            action: string;
+            actor: {
+                id: string | null;
+                /** @description The user’s display name, or null for an automation/agent or a removed user. */
+                name: string | null;
+                /** @enum {string} */
+                type: "user" | "automation" | "agent";
+            };
+            /**
+             * Format: uuid
+             * @description The journal id or the close-event id.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "journal" | "period-close";
+            /** Format: date-time */
+            occurredAt: string;
+            reference: string | null;
+            source: string | null;
+            /** @description A human sentence, e.g. `Adjusting entry #128` or `Closed 2026-03`. */
+            summary: string;
+        };
+        /** @description One entry in the who-changed-what timeline. */
+        AuditEntryInput: {
+            action: string;
+            actor: {
+                id: string | null;
+                /** @description The user’s display name, or null for an automation/agent or a removed user. */
+                name: string | null;
+                /** @enum {string} */
+                type: "user" | "automation" | "agent";
+            };
+            /**
+             * Format: uuid
+             * @description The journal id or the close-event id.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "journal" | "period-close";
+            /** Format: date-time */
+            occurredAt: string;
+            reference: string | null;
+            source: string | null;
+            /** @description A human sentence, e.g. `Adjusting entry #128` or `Closed 2026-03`. */
+            summary: string;
+        };
+        /** @description A page of the who-changed-what timeline (P6). */
+        AuditReport: {
+            entries: components["schemas"]["AuditEntry"][];
+            /** @description Send back verbatim for the next page; null when the timeline is exhausted. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description A page of the who-changed-what timeline (P6). */
+        AuditReportInput: {
+            entries: components["schemas"]["AuditEntryInput"][];
+            /** @description Send back verbatim for the next page; null when the timeline is exhausted. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        AuditReportQuery: {
+            /**
+             * Format: uuid
+             * @description Restrict to one actor’s activity.
+             */
+            actorId?: string;
+            cursor?: components["schemas"]["PageCursor"];
+            from?: components["schemas"]["CalendarDate"];
+            /**
+             * @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.
+             * @default 50
+             */
+            limit: number;
+            to?: components["schemas"]["CalendarDate"];
+        };
+        AuditReportQueryInput: {
+            /**
+             * Format: uuid
+             * @description Restrict to one actor’s activity.
+             */
+            actorId?: string;
+            cursor?: components["schemas"]["PageCursorInput"];
+            from?: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.
+             * @default 50
+             */
+            limit: number;
+            to?: components["schemas"]["CalendarDateInput"];
         };
         /** @description The signed-in user. */
         AuthenticatedUser: {
@@ -5775,6 +5929,16 @@ export interface components {
                 targetType: "invoice" | "bill";
             })[];
         };
+        /** @description Sign off and lock a fiscal period (P3). */
+        ClosePeriodRequest: {
+            /** @description An optional sign-off note recorded with the close. */
+            note?: string;
+        };
+        /** @description Sign off and lock a fiscal period (P3). */
+        ClosePeriodRequestInput: {
+            /** @description An optional sign-off note recorded with the close. */
+            note?: string;
+        };
         /** @description A client the caller has authorized, as they see it under `integrations.read`. */
         ConnectedApp: {
             clientId: string;
@@ -6196,6 +6360,11 @@ export interface components {
         /** @description Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted. */
         CreateDraftRequest: {
             entryDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines?: components["schemas"]["JournalDraftLineRequest"][];
             memo?: string | null;
             reference?: string | null;
@@ -6203,6 +6372,11 @@ export interface components {
         /** @description Creates one draft. Nothing is required: a draft holds whatever has been entered so far, and everything is checked when it is posted. */
         CreateDraftRequestInput: {
             entryDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines?: components["schemas"]["JournalDraftLineRequestInput"][];
             memo?: string | null;
             reference?: string | null;
@@ -6786,6 +6960,26 @@ export interface components {
             name: string;
             /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response. */
             startDate: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5). */
+        CreateStatementPackageRequest: {
+            /**
+             * @description Overrides the org default for this package. Absent uses the org’s basis.
+             * @enum {string}
+             */
+            basis?: "accrual" | "cash";
+            periodEnd: components["schemas"]["CalendarDate"];
+            periodStart: components["schemas"]["CalendarDate"];
+        };
+        /** @description Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5). */
+        CreateStatementPackageRequestInput: {
+            /**
+             * @description Overrides the org default for this package. Absent uses the org’s basis.
+             * @enum {string}
+             */
+            basis?: "accrual" | "cash";
+            periodEnd: components["schemas"]["CalendarDateInput"];
+            periodStart: components["schemas"]["CalendarDateInput"];
         };
         /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
         CreateTaxRateRequest: {
@@ -8252,6 +8446,11 @@ export interface components {
             /** Format: uuid */
             createdByUserId: string;
             entryDate: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType: "standard" | "adjusting" | "reclassifying";
             /** Format: uuid */
             id: string;
             lines: components["schemas"]["JournalDraftLine"][];
@@ -8267,6 +8466,11 @@ export interface components {
             /** Format: uuid */
             createdByUserId: string;
             entryDate: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType: "standard" | "adjusting" | "reclassifying";
             /** Format: uuid */
             id: string;
             lines: components["schemas"]["JournalDraftLineInput"][];
@@ -9033,10 +9237,53 @@ export interface components {
         PendingPaymentListInput: {
             pendingPayments: components["schemas"]["PendingPaymentInput"][];
         };
+        /** @description One advisory completeness check. */
+        PeriodCloseCheck: {
+            /** @description Number of outstanding items, when the check counts. Absent for a yes/no check. */
+            count?: number;
+            /** @description What was found, in words. */
+            detail: string;
+            /** @description Stable identifier, e.g. `unposted_drafts`, `unreconciled_bank_lines`. */
+            key: string;
+            /** @description Human sentence describing the check. */
+            label: string;
+            /** @enum {string} */
+            status: "pass" | "warn";
+        };
+        /** @description One advisory completeness check. */
+        PeriodCloseCheckInput: {
+            /** @description Number of outstanding items, when the check counts. Absent for a yes/no check. */
+            count?: number;
+            /** @description What was found, in words. */
+            detail: string;
+            /** @description Stable identifier, e.g. `unposted_drafts`, `unreconciled_bank_lines`. */
+            key: string;
+            /** @description Human sentence describing the check. */
+            label: string;
+            /** @enum {string} */
+            status: "pass" | "warn";
+        };
+        /** @description The advisory checks the close workflow surfaces for a period (P3). */
+        PeriodCloseChecklist: {
+            checks: components["schemas"]["PeriodCloseCheck"][];
+            /** Format: uuid */
+            periodId: string;
+        };
+        /** @description The advisory checks the close workflow surfaces for a period (P3). */
+        PeriodCloseChecklistInput: {
+            checks: components["schemas"]["PeriodCloseCheckInput"][];
+            /** Format: uuid */
+            periodId: string;
+        };
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
             date: components["schemas"]["CalendarDate"];
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines: components["schemas"]["JournalLineRequest"][];
             memo?: string;
         };
@@ -9044,6 +9291,11 @@ export interface components {
         PostJournalRequestInput: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
             date: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines: components["schemas"]["JournalLineRequestInput"][];
             memo?: string;
         };
@@ -10230,6 +10482,16 @@ export interface components {
             date: components["schemas"]["CalendarDateInput"];
             memo?: string | null;
         };
+        /** @description Reopen a closed fiscal period (P3). */
+        ReopenPeriodRequest: {
+            /** @description An optional reason recorded with the reopen. */
+            note?: string;
+        };
+        /** @description Reopen a closed fiscal period (P3). */
+        ReopenPeriodRequestInput: {
+            /** @description An optional reason recorded with the reopen. */
+            note?: string;
+        };
         /** @description Reopens a finalised session. Takes exactly one field, `reason`, and it is required (E6) — who and when are known without asking; why is not. */
         ReopenReconciliationSessionRequest: {
             /** @description Why this finalised session is being reopened. Required, and kept on the event — the one part of E6’s record that cannot be reconstructed afterwards. */
@@ -10399,6 +10661,54 @@ export interface components {
             };
             /** @description `openingCash + netChangeInCash === closingCash` and `netIncome + adjustments === netChangeInCash`. True by construction — `adjustments` is defined as the figure that makes the second equality hold, and the first is `balanceOf`’s own invariant — so this is a live check rather than a literal, following the trial balance’s convention of reporting an invariant rather than asserting it inside a read. */
             reconciles: boolean;
+        };
+        /** @description A rendered statement package and its artifact. */
+        StatementPackage: {
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the stored PDF, minted on read. */
+            downloadUrl: string;
+            /** @description The author’s display name, or null if the user no longer resolves. */
+            generatedByName: string | null;
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            periodEnd: components["schemas"]["CalendarDate"];
+            periodStart: components["schemas"]["CalendarDate"];
+        };
+        /** @description A rendered statement package and its artifact. */
+        StatementPackageInput: {
+            /**
+             * @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.
+             * @enum {string}
+             */
+            basis: "accrual" | "cash";
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the stored PDF, minted on read. */
+            downloadUrl: string;
+            /** @description The author’s display name, or null if the user no longer resolves. */
+            generatedByName: string | null;
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            periodEnd: components["schemas"]["CalendarDateInput"];
+            periodStart: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description The org’s rendered statement packages, newest first. */
+        StatementPackageList: {
+            packages: components["schemas"]["StatementPackage"][];
+        };
+        /** @description The org’s rendered statement packages, newest first. */
+        StatementPackageListInput: {
+            packages: components["schemas"]["StatementPackageInput"][];
         };
         /** @description Switches the session’s active organization. The role returned is the one held in the new org, never carried across the switch. */
         SwitchActiveOrgRequest: {
@@ -10771,6 +11081,11 @@ export interface components {
         /** @description Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones. */
         UpdateDraftRequest: {
             entryDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines?: components["schemas"]["JournalDraftLineRequest"][];
             memo?: string | null;
             reference?: string | null;
@@ -10778,6 +11093,11 @@ export interface components {
         /** @description Partial update. An absent field is unchanged, `null` clears a header field, and `lines` replaces the whole set — send every line the draft should have, including the unchanged ones. */
         UpdateDraftRequestInput: {
             entryDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).
+             * @enum {string}
+             */
+            entryType?: "standard" | "adjusting" | "reclassifying";
             lines?: components["schemas"]["JournalDraftLineRequestInput"][];
             memo?: string | null;
             reference?: string | null;
@@ -15819,7 +16139,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClosePeriodRequestInput"];
+            };
+        };
         responses: {
             /** @description Default Response */
             200: {
@@ -15828,6 +16152,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FiscalPeriod"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPeriodCloseChecklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodCloseChecklist"];
                 };
             };
             /** @description Default Response */
@@ -15853,7 +16208,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReopenPeriodRequestInput"];
+            };
+        };
         responses: {
             /** @description Default Response */
             200: {
@@ -19347,6 +19706,42 @@ export interface operations {
             };
         };
     };
+    getAuditReport: {
+        parameters: {
+            query?: {
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                actorId?: string;
+                /** @description How many entries to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditReport"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getBalanceSheet: {
         parameters: {
             query: {
@@ -19926,6 +20321,71 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listStatementPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementPackageList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createStatementPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStatementPackageRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementPackage"];
+                };
             };
             /** @description Default Response */
             default: {

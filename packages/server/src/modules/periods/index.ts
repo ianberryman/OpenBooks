@@ -72,6 +72,12 @@ export {
   reopenPeriod,
 } from './periods.service';
 
+// The period-close workflow (initiative P, OB-193; ROADMAP D-97) — a checklist
+// computation and a recorded sign-off layered over the close/reopen above, which
+// remain the one mechanism that actually locks a period. See
+// `period-close.service.ts`'s header.
+export { computeChecklistChecks, computeCloseChecklist } from './period-close.service';
+
 /**
  * The org's fiscal-year start month (D-17), on the public surface because the
  * balance sheet needs it.

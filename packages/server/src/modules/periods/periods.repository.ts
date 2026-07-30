@@ -1,7 +1,8 @@
 import type { CalendarDate } from '@openbooks/plugin-api';
+import type { PeriodCloseCheck } from '@openbooks/shared-types';
 
 import type { OrgId, TenantDatabase } from '../../db';
-import { systemDb } from '../../db';
+import { newUuidBuffer, systemDb } from '../../db';
 import type { PeriodStatus } from './periods.schemas';
 
 /**
@@ -118,6 +119,31 @@ export async function selectPeriodById(
   return row === undefined ? undefined : toPeriodRecord(row);
 }
 
+/**
+ * The fiscal period immediately before `startDate` — the one with the greatest
+ * `start_date` less than it, rather than an assumption that periods abut exactly
+ * (`end_date = startDate − 1 day`). Used by the close checklist's
+ * `prior_period_open` check (OB-193; ROADMAP D-97): periods generated together by
+ * `generateFiscalYear` are contiguous by construction, but `createPeriod` admits
+ * a single month created by hand and can leave a gap (its own commentary says
+ * so), so "greatest start_date below" is the definition that still answers
+ * correctly across one.
+ */
+export async function selectPriorPeriod(
+  db: TenantDatabase,
+  startDate: CalendarDate,
+): Promise<PeriodRecord | undefined> {
+  const row = await db
+    .selectFrom('fiscal_periods')
+    .select(PERIOD_COLUMNS)
+    .where('start_date', '<', startDate)
+    .orderBy('start_date', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+
+  return row === undefined ? undefined : toPeriodRecord(row);
+}
+
 export async function selectPeriods(
   db: TenantDatabase,
   filter: { readonly status?: PeriodStatus } = {},
@@ -174,6 +200,49 @@ export async function updatePeriodClosure(
     .execute();
 
   return Number(results[0]?.numUpdatedRows ?? 0n);
+}
+
+/** A close's `action` is `'close'`; a reopen's is `'reopen'` (OB-193; D-97). */
+export type PeriodCloseAction = 'close' | 'reopen';
+
+/** The columns a new `period_close_events` row supplies; `id` and `created_at` are not. */
+export interface NewPeriodCloseEvent {
+  readonly periodId: Buffer;
+  readonly action: PeriodCloseAction;
+  /** `null` on a reopen — there is nothing to warn over when a period is being reopened. */
+  readonly checklist: readonly PeriodCloseCheck[] | null;
+  readonly note: string | null;
+  /** `null` for an automation/API-key closer with no `users` row (D-97). */
+  readonly actorUserId: Buffer | null;
+}
+
+/**
+ * Records one close or reopen sign-off.
+ *
+ * `period_close_events` is append-only at the grant level — no `UPDATE`/`DELETE`
+ * for the app user, the same mechanism that makes `journals` immutable
+ * (`0999_app_grants`) — so this is the only write this table gets; there is no
+ * update or delete counterpart to write.
+ *
+ * `checklist` is stringified here rather than by the caller, the same shape
+ * `processor-events.repository.ts`'s `insertProcessorEventIfNew` uses for its own
+ * `Json` column: one place knows the column is JSON-as-string, not every caller.
+ */
+export async function insertPeriodCloseEvent(
+  db: TenantDatabase,
+  row: NewPeriodCloseEvent,
+): Promise<void> {
+  await db
+    .insertInto('period_close_events')
+    .values({
+      id: newUuidBuffer(),
+      period_id: row.periodId,
+      action: row.action,
+      checklist: row.checklist === null ? null : JSON.stringify(row.checklist),
+      note: row.note,
+      actor_user_id: row.actorUserId,
+    })
+    .execute();
 }
 
 /**

@@ -432,6 +432,41 @@ describe('posting a draft', () => {
     });
   });
 
+  it('carries an adjusting draft classification onto the posted journal’s source (P, OB-194)', async () => {
+    const s = await scene();
+
+    const [adjusting, standard] = await withContext(s.actor.ctx, async () => {
+      const adjustingDraft = await createDraft({
+        entryDate: s.date,
+        entryType: 'adjusting',
+        lines: balancedLines(s),
+      });
+      // Round-trips on read before it is posted, so the UI can show the flag.
+      expect(adjustingDraft.entryType).toBe('adjusting');
+
+      const standardDraft = await createDraft({ entryDate: s.date, lines: balancedLines(s) });
+      // Absent means standard, the column default.
+      expect(standardDraft.entryType).toBe('standard');
+
+      const a = await postDraft(adjustingDraft.id);
+      const b = await postDraft(standardDraft.id);
+      return [a, b];
+    });
+
+    const rows = await db.app
+      .selectFrom('journals')
+      .select(['id', 'source'])
+      .where('org_id', '=', s.actor.orgId)
+      .execute();
+    const sourceOf = (journalId: string) =>
+      rows.find((row) => bufferToUuid(row.id) === journalId)?.source;
+
+    // The adjusting draft posts source 'adjusting' (the audit report and the general
+    // ledger read the flag off `source`); the standard one keeps the kernel default.
+    expect(sourceOf(adjusting.journalId)).toBe('adjusting');
+    expect(sourceOf(standard.journalId)).toBe('manual');
+  });
+
   it('takes its sequence number at post, not at draft (D-14)', async () => {
     const s = await scene();
 

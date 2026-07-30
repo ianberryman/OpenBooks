@@ -317,6 +317,16 @@ const OVERRIDES = {
     // nullability to spell out.
     'budgets.amount_minor': 'bigint',
     'budgets.dimension_slice': 'Generated<Buffer>',
+
+    // ── Accountant access & period close (0017_accountant_close) ──────────────
+    //
+    // `statement_packages.period_start`/`period_end` are calendar DATEs and map to
+    // `string`, the same correction `fiscal_periods.start_date` takes. No money or
+    // BIGINT here, and `period_close_events.checklist` is JSON, which the generator
+    // maps correctly (as `idempotency_keys.response_body` does) — so these two DATE
+    // columns are the only overrides P needs.
+    'statement_packages.period_start': 'string',
+    'statement_packages.period_end': 'string',
   },
 };
 

@@ -18,17 +18,29 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Select,
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { BalanceIndicator } from './balance-indicator';
 import { totalsOf } from './balance';
 import { blankLine, patchFromState, stateFromDraft } from './draft-state';
-import type { EditorLine, EditorState } from './draft-state';
+import type { DraftEntryType, EditorLine, EditorState } from './draft-state';
 import { idempotencyKeyFor, releaseIdempotencyKey } from './idempotency-keys';
 import { LineRow } from './line-row';
 import { journalEntryKeys } from './queries';
 import type { JournalDraft, PostedJournal, ReferenceData, UpdateDraftRequest } from './queries';
+
+const ENTRY_TYPE_OPTIONS: readonly { readonly value: DraftEntryType; readonly label: string }[] = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'adjusting', label: 'Adjusting' },
+  { value: 'reclassifying', label: 'Reclassifying' },
+];
+
+/** Narrows the Select's `string` back to the classification union; anything else is standard. */
+function toEntryType(value: string): DraftEntryType {
+  return value === 'adjusting' || value === 'reclassifying' ? value : 'standard';
+}
 
 /**
  * The draft editor — the screen M2 is named for.
@@ -277,6 +289,21 @@ export function DraftEditor({
             disabled={busy}
             onChange={(event) => {
               edit({ ...state, memo: event.target.value });
+            }}
+          />
+        </Field>
+
+        {/* The classification the posted journal carries (P, OB-194): an accountant flags
+            an adjusting or reclassifying entry here, and the audit trail reads it back. */}
+        <Field className="w-52" error={fieldErrors['entryType']}>
+          <FieldLabel>Entry type</FieldLabel>
+          <Select
+            aria-label="Entry type"
+            value={state.entryType}
+            disabled={busy}
+            options={ENTRY_TYPE_OPTIONS}
+            onValueChange={(value) => {
+              edit({ ...state, entryType: toEntryType(value) });
             }}
           />
         </Field>

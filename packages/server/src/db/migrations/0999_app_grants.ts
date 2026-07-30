@@ -149,6 +149,19 @@ const APPEND_ONLY_TABLES = [
   // siblings (`purchase_orders`, `estimates`, and their lines) are working state and
   // are mutable, below.
   'predocument_deliveries',
+  // ── Accountant access & period close (0017_accountant_close) ────────────────
+  //
+  // `period_close_events` is `reconciliation_session_events`' argument applied to
+  // the fiscal period (D-97): closing or reopening a period is permission-gated and
+  // must leave a record of who, when, and what was outstanding at sign-off, and a
+  // deletable audit trail satisfies neither half. The period's *status* is the
+  // mutable lock (`fiscal_periods`, below); its *history* is these immutable rows.
+  // `statement_packages` is `invoice_deliveries`' argument applied to an accountant
+  // deliverable (D-42): a re-render is a new row and the PDF it names was frozen at
+  // render time, so the record is never edited. The bytes live behind the
+  // StorageProvider, reached by `artifact_storage_key`.
+  'period_close_events',
+  'statement_packages',
 ] as const;
 
 /**

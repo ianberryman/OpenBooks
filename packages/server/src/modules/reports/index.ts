@@ -229,3 +229,23 @@ export type { CashFlowBucketGranularity } from '@openbooks/shared-types';
  * grouping.
  */
 export { getBudgetVsActual } from './budget-vs-actual.service';
+
+/**
+ * The audit trail (OB-196; D-98). Not a projection over `getAccountBalances` the
+ * way the reports above are — it reads `journals` and `period_close_events`
+ * directly and merges them into one newest-first timeline. Read
+ * `audit.service.ts` for why it gates on `audit.read` rather than `reports.read`,
+ * and `audit.repository.ts` for why its keyset cursor is its own rather than
+ * `db/keyset.ts`'s (that helper only ever orders ascending).
+ */
+export { getAuditReport } from './audit.service';
+
+export { AUDIT_ENTRY_KINDS, auditReportQuerySchema } from '@openbooks/shared-types';
+export type {
+  AuditActor,
+  AuditEntry,
+  AuditEntryKind,
+  AuditReport,
+  AuditReportQueryInput,
+  AuditReportQueryParams,
+} from '@openbooks/shared-types';

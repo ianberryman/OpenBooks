@@ -140,6 +140,7 @@ function emptyDraft(): JournalDraft {
     entryDate: '2026-07-01',
     memo: null,
     reference: null,
+    entryType: 'standard',
     lines: [],
     createdAt: TIMESTAMP,
     updatedAt: TIMESTAMP,
@@ -243,6 +244,7 @@ function createApiDouble(): ApiDouble {
       entryDate: patch.entryDate === undefined ? current.entryDate : patch.entryDate,
       memo: patch.memo === undefined ? current.memo : patch.memo,
       reference: patch.reference === undefined ? current.reference : patch.reference,
+      entryType: patch.entryType === undefined ? current.entryType : patch.entryType,
       lines:
         patch.lines === undefined
           ? current.lines
@@ -635,6 +637,25 @@ describe('per-line tagging', () => {
     expect(patch.lines?.[0]?.contactId).toBe('contact-acme');
     expect(patch.lines?.[0]?.dimensionValueIds).toEqual(['dv-sales']);
     expect(patch.lines?.[1]?.contactId).toBeNull();
+  });
+
+  it('flags an adjusting entry and carries it on the draft patch (P, OB-194)', async () => {
+    const user = userEvent.setup();
+    await startDraft(user);
+
+    await user.click(screen.getByRole('combobox', { name: 'Entry type' }));
+    await user.click(await screen.findByRole('option', { name: 'Adjusting' }));
+
+    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => {
+      expect(server.calls.some((call) => call.method === 'PATCH')).toBe(true);
+    });
+
+    const patch = asPatch(server.calls.filter((call) => call.method === 'PATCH')[0]?.body);
+    // The classification rides the patch — postDraft maps it to the journal's source,
+    // which is what the audit trail reads back.
+    expect(patch.entryType).toBe('adjusting');
   });
 
   it('offers an inactive account as a disabled option rather than hiding it', async () => {

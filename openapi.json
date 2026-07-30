@@ -1577,6 +1577,329 @@
         ],
         "type": "object"
       },
+      "AuditEntry": {
+        "additionalProperties": false,
+        "description": "One entry in the who-changed-what timeline.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The user’s display name, or null for an automation/agent or a removed user."
+              },
+              "type": {
+                "enum": [
+                  "user",
+                  "automation",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "description": "The journal id or the close-event id.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "journal",
+              "period-close"
+            ],
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "description": "A human sentence, e.g. `Adjusting entry #128` or `Closed 2026-03`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "action",
+          "occurredAt",
+          "actor",
+          "summary",
+          "reference",
+          "source"
+        ],
+        "type": "object"
+      },
+      "AuditEntryInput": {
+        "additionalProperties": false,
+        "description": "One entry in the who-changed-what timeline.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The user’s display name, or null for an automation/agent or a removed user."
+              },
+              "type": {
+                "enum": [
+                  "user",
+                  "automation",
+                  "agent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "description": "The journal id or the close-event id.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "journal",
+              "period-close"
+            ],
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "description": "A human sentence, e.g. `Adjusting entry #128` or `Closed 2026-03`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "action",
+          "occurredAt",
+          "actor",
+          "summary",
+          "reference",
+          "source"
+        ],
+        "type": "object"
+      },
+      "AuditReport": {
+        "additionalProperties": false,
+        "description": "A page of the who-changed-what timeline (P6).",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send back verbatim for the next page; null when the timeline is exhausted."
+          }
+        },
+        "required": [
+          "entries",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "AuditReportInput": {
+        "additionalProperties": false,
+        "description": "A page of the who-changed-what timeline (P6).",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEntryInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send back verbatim for the next page; null when the timeline is exhausted."
+          }
+        },
+        "required": [
+          "entries",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "AuditReportQuery": {
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "description": "Restrict to one actor’s activity.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/PageCursor"
+          },
+          "from": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "limit": {
+            "default": 50,
+            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "to": {
+            "$ref": "#/components/schemas/CalendarDate"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "type": "object"
+      },
+      "AuditReportQueryInput": {
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "description": "Restrict to one actor’s activity.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/PageCursorInput"
+          },
+          "from": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "limit": {
+            "default": 50,
+            "description": "How many items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "to": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          }
+        },
+        "type": "object"
+      },
       "AuthenticatedUser": {
         "additionalProperties": false,
         "description": "The signed-in user.",
@@ -7623,6 +7946,30 @@
         ],
         "type": "object"
       },
+      "ClosePeriodRequest": {
+        "additionalProperties": false,
+        "description": "Sign off and lock a fiscal period (P3).",
+        "properties": {
+          "note": {
+            "description": "An optional sign-off note recorded with the close.",
+            "maxLength": 1000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClosePeriodRequestInput": {
+        "additionalProperties": false,
+        "description": "Sign off and lock a fiscal period (P3).",
+        "properties": {
+          "note": {
+            "description": "An optional sign-off note recorded with the close.",
+            "maxLength": 1000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ConnectedApp": {
         "additionalProperties": false,
         "description": "A client the caller has authorized, as they see it under `integrations.read`.",
@@ -9395,6 +9742,15 @@
               }
             ]
           },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/JournalDraftLineRequest"
@@ -9442,6 +9798,15 @@
                 "type": "null"
               }
             ]
+          },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
           },
           "lines": {
             "items": {
@@ -11331,6 +11696,56 @@
           "frequency",
           "lines",
           "startDate"
+        ],
+        "type": "object"
+      },
+      "CreateStatementPackageRequest": {
+        "additionalProperties": false,
+        "description": "Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5).",
+        "properties": {
+          "basis": {
+            "description": "Overrides the org default for this package. Absent uses the org’s basis.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "periodEnd": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "periodStart": {
+            "$ref": "#/components/schemas/CalendarDate"
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd"
+        ],
+        "type": "object"
+      },
+      "CreateStatementPackageRequestInput": {
+        "additionalProperties": false,
+        "description": "Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5).",
+        "properties": {
+          "basis": {
+            "description": "Overrides the org default for this package. Absent uses the org’s basis.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "periodEnd": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "periodStart": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd"
         ],
         "type": "object"
       },
@@ -17116,6 +17531,15 @@
               }
             ]
           },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -17158,6 +17582,7 @@
           "entryDate",
           "memo",
           "reference",
+          "entryType",
           "createdByUserId",
           "createdAt",
           "updatedAt",
@@ -17188,6 +17613,15 @@
                 "type": "null"
               }
             ]
+          },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -17231,6 +17665,7 @@
           "entryDate",
           "memo",
           "reference",
+          "entryType",
           "createdByUserId",
           "createdAt",
           "updatedAt",
@@ -20106,6 +20541,126 @@
         ],
         "type": "object"
       },
+      "PeriodCloseCheck": {
+        "additionalProperties": false,
+        "description": "One advisory completeness check.",
+        "properties": {
+          "count": {
+            "description": "Number of outstanding items, when the check counts. Absent for a yes/no check.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "detail": {
+            "description": "What was found, in words.",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable identifier, e.g. `unposted_drafts`, `unreconciled_bank_lines`.",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human sentence describing the check.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "warn"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "status",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "PeriodCloseCheckInput": {
+        "additionalProperties": false,
+        "description": "One advisory completeness check.",
+        "properties": {
+          "count": {
+            "description": "Number of outstanding items, when the check counts. Absent for a yes/no check.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "detail": {
+            "description": "What was found, in words.",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable identifier, e.g. `unposted_drafts`, `unreconciled_bank_lines`.",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human sentence describing the check.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "warn"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "status",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "PeriodCloseChecklist": {
+        "additionalProperties": false,
+        "description": "The advisory checks the close workflow surfaces for a period (P3).",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodCloseCheck"
+            },
+            "type": "array"
+          },
+          "periodId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "periodId",
+          "checks"
+        ],
+        "type": "object"
+      },
+      "PeriodCloseChecklistInput": {
+        "additionalProperties": false,
+        "description": "The advisory checks the close workflow surfaces for a period (P3).",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodCloseCheckInput"
+            },
+            "type": "array"
+          },
+          "periodId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "periodId",
+          "checks"
+        ],
+        "type": "object"
+      },
       "PostJournalRequest": {
         "additionalProperties": false,
         "description": "Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb.",
@@ -20113,6 +20668,15 @@
           "date": {
             "$ref": "#/components/schemas/CalendarDate",
             "description": "The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first."
+          },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
           },
           "lines": {
             "items": {
@@ -20137,6 +20701,15 @@
           "date": {
             "$ref": "#/components/schemas/CalendarDateInput",
             "description": "The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first."
+          },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
           },
           "lines": {
             "items": {
@@ -24530,6 +25103,30 @@
         ],
         "type": "object"
       },
+      "ReopenPeriodRequest": {
+        "additionalProperties": false,
+        "description": "Reopen a closed fiscal period (P3).",
+        "properties": {
+          "note": {
+            "description": "An optional reason recorded with the reopen.",
+            "maxLength": 1000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReopenPeriodRequestInput": {
+        "additionalProperties": false,
+        "description": "Reopen a closed fiscal period (P3).",
+        "properties": {
+          "note": {
+            "description": "An optional reason recorded with the reopen.",
+            "maxLength": 1000,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReopenReconciliationSessionRequest": {
         "additionalProperties": false,
         "description": "Reopens a finalised session. Takes exactly one field, `reason`, and it is required (E6) — who and when are known without asking; why is not.",
@@ -25038,6 +25635,160 @@
           "netChangeInCash",
           "adjustments",
           "reconciles"
+        ],
+        "type": "object"
+      },
+      "StatementPackage": {
+        "additionalProperties": false,
+        "description": "A rendered statement package and its artifact.",
+        "properties": {
+          "basis": {
+            "description": "The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "downloadUrl": {
+            "description": "A short-lived signed URL to the stored PDF, minted on read.",
+            "type": "string"
+          },
+          "generatedByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The author’s display name, or null if the user no longer resolves."
+          },
+          "generatedByUserId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "periodEnd": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "periodStart": {
+            "$ref": "#/components/schemas/CalendarDate"
+          }
+        },
+        "required": [
+          "id",
+          "periodStart",
+          "periodEnd",
+          "basis",
+          "downloadUrl",
+          "generatedByUserId",
+          "generatedByName",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "StatementPackageInput": {
+        "additionalProperties": false,
+        "description": "A rendered statement package and its artifact.",
+        "properties": {
+          "basis": {
+            "description": "The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers.",
+            "enum": [
+              "accrual",
+              "cash"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "downloadUrl": {
+            "description": "A short-lived signed URL to the stored PDF, minted on read.",
+            "type": "string"
+          },
+          "generatedByName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The author’s display name, or null if the user no longer resolves."
+          },
+          "generatedByUserId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "periodEnd": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "periodStart": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          }
+        },
+        "required": [
+          "id",
+          "periodStart",
+          "periodEnd",
+          "basis",
+          "downloadUrl",
+          "generatedByUserId",
+          "generatedByName",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "StatementPackageList": {
+        "additionalProperties": false,
+        "description": "The org’s rendered statement packages, newest first.",
+        "properties": {
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/StatementPackage"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "type": "object"
+      },
+      "StatementPackageListInput": {
+        "additionalProperties": false,
+        "description": "The org’s rendered statement packages, newest first.",
+        "properties": {
+          "packages": {
+            "items": {
+              "$ref": "#/components/schemas/StatementPackageInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
         ],
         "type": "object"
       },
@@ -26494,6 +27245,15 @@
               }
             ]
           },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/JournalDraftLineRequest"
@@ -26541,6 +27301,15 @@
                 "type": "null"
               }
             ]
+          },
+          "entryType": {
+            "description": "Classifies a manual entry. `standard` posts as `source: manual`; `adjusting` and `reclassifying` are the accountant’s flagged period-end corrections (initiative P, D-98).",
+            "enum": [
+              "standard",
+              "adjusting",
+              "reclassifying"
+            ],
+            "type": "string"
           },
           "lines": {
             "items": {
@@ -36815,7 +37584,7 @@
     },
     "/v1/fiscal-periods/{periodId}/close": {
       "post": {
-        "description": "The routine monthly soft close. Records who closed it and when. A posting dated inside a closed period is refused (A4), and a posting racing this call either commits fully or not at all (A9).",
+        "description": "The routine monthly soft close. Records who closed it, when, and the advisory checklist at sign-off. A posting dated inside a closed period is refused (A4), and a posting racing this call either commits fully or not at all (A9).",
         "operationId": "closeFiscalPeriod",
         "parameters": [
           {
@@ -36839,6 +37608,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePeriodRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -36867,9 +37646,53 @@
         ]
       }
     },
+    "/v1/fiscal-periods/{periodId}/close-checklist": {
+      "get": {
+        "description": "The completeness checks the close workflow surfaces — unposted drafts in the period, unreconciled bank lines, a still-open prior period (OB-193, D-97). Advisory: a warning never blocks the close, and this read has no side effect. The same snapshot is recomputed and recorded when the period is actually closed.",
+        "operationId": "getPeriodCloseChecklist",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "periodId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodCloseChecklist"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Preview the advisory close checklist for a period",
+        "tags": [
+          "fiscal-periods"
+        ]
+      }
+    },
     "/v1/fiscal-periods/{periodId}/reopen": {
       "post": {
-        "description": "Withdraws a statement that may already have been relied on, so it needs the separate `periods.reopen` permission rather than the one that closes.",
+        "description": "Withdraws a statement that may already have been relied on, so it needs the separate `periods.reopen` permission rather than the one that closes. The reason is recorded.",
         "operationId": "reopenFiscalPeriod",
         "parameters": [
           {
@@ -36893,6 +37716,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenPeriodRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -42783,6 +43616,86 @@
         ]
       }
     },
+    "/v1/reports/audit": {
+      "get": {
+        "description": "One newest-first timeline unifying journal postings and reversals (each carries its own actor provenance and `source`, which is how an adjusting or reclassifying entry is flagged) with the period close/reopen history. It surfaces provenance that already exists rather than capturing anything new (D-98). Keyset-paged like the general ledger. Gated by `audit.read`, distinct from `reports.read` because it exposes activity across the org rather than a figure.",
+        "operationId": "getAuditReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many entries to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditReport"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The audit trail — who changed what, and when",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
     "/v1/reports/balance-sheet": {
       "get": {
         "description": "Assets, liabilities and equity as at `asOf`, with hierarchy subtotals and the two derived earnings lines that make the sheet balance without a year-end closing journal (D-20): `priorYearEarnings` for every fiscal year before the one containing `asOf`, and `currentYearEarnings` for that year to date. Neither is an account — an org’s own retained-earnings account is an ordinary equity account and is counted once, in `equity`. `asOf` is required, unlike the trial balance’s: the fiscal year the derivation is scoped to is resolved from it, so an omitted date would have to come from the process clock and the same request would return different numbers on either side of a year end. There is no `types` filter, and could not be: the derived lines are computed from the revenue and expense accounts one would remove.",
@@ -43818,6 +44731,90 @@
         "summary": "Clear a statement line",
         "tags": [
           "statement-lines"
+        ]
+      }
+    },
+    "/v1/statement-packages": {
+      "get": {
+        "description": "Every statement package this org has rendered, newest first, each with a freshly signed download URL minted on read.",
+        "operationId": "listStatementPackages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementPackageList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List rendered statement packages",
+        "tags": [
+          "statement-packages"
+        ]
+      },
+      "post": {
+        "description": "Renders the P&L, Balance Sheet and Cash Flow for a date range into one branded PDF (P5), stores it behind the StorageProvider, and records it so it can be re-downloaded. Returns the package with a short-lived signed download URL.",
+        "operationId": "createStatementPackage",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStatementPackageRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementPackage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Render a branded statement package to PDF",
+        "tags": [
+          "statement-packages"
         ]
       }
     },

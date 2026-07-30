@@ -455,12 +455,25 @@ describe('close and reopen', () => {
     expect((await readPeriodRow(db, period.id)).status).toBe('open');
   });
 
-  it('records a null closer for an actor that is not a user', async () => {
+  /**
+   * OB-193 (ROADMAP D-97) frames a close as a human sign-off, but it does not
+   * withdraw M1's capability: an automation or API-key session that legitimately
+   * holds `periods.close` (it authenticates as an org and a role but never a user —
+   * `api-key-identity.ts`) may still transition a period. That records a *null*
+   * closer, exactly as `fiscal_periods.closed_by_user_id` and `period_close_events.
+   * actor_user_id` are both nullable for — turning a granted action into a fault
+   * would be the regression, not the guardrail.
+   */
+  it('records a null closer and a null-actor event for an actor that is not a user', async () => {
     const tenant = await tenantWithFiscalYearStart(db, 1);
-    const period = await db.factories.fiscalPeriod({ orgId: tenant.orgId });
+    const openPeriod = await db.factories.fiscalPeriod({ orgId: tenant.orgId });
+    const closedPeriod = await db.factories.fiscalPeriod({
+      orgId: tenant.orgId,
+      startDate: '2027-01-01',
+      endDate: '2027-12-31',
+      status: 'closed',
+    });
 
-    // `closed_by_user_id` is a foreign key to `users`, and spec §6 admits automation
-    // actors that have no row there. A null is the honest value.
     const automation = contextFor(tenant.orgUuid, OWNER_ROLE_UUID, tenant.userUuid);
     const asAutomation = {
       ...automation,
@@ -469,12 +482,18 @@ describe('close and reopen', () => {
       actorId: newUuid(),
     };
 
-    const closed = await runInContext(asAutomation, () => closePeriod({ periodId: period.uuid }));
+    await runInContext(asAutomation, () => closePeriod({ periodId: openPeriod.uuid }));
+    await runInContext(asAutomation, () => reopenPeriod({ periodId: closedPeriod.uuid }));
 
-    expect(closed.status).toBe('closed');
-    expect(closed.closedAt).not.toBeNull();
-    expect(closed.closedByUserId).toBeNull();
-    expect((await readPeriodRow(db, period.id)).closed_by_user_id).toBeNull();
+    // Both transitions took effect, and both left a sign-off event whose actor is
+    // null — the row records that a period changed, with no user behind it.
+    expect((await readPeriodRow(db, openPeriod.id)).status).toBe('closed');
+    expect((await readPeriodRow(db, closedPeriod.id)).status).toBe('open');
+    for (const period of [openPeriod, closedPeriod]) {
+      const events = await selectCloseEvents(db, period.id);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.actor_user_id).toBeNull();
+    }
   });
 });
 
@@ -600,4 +619,16 @@ async function readPeriodRow(
     .select(['status', 'closed_at', 'closed_by_user_id'])
     .where('id', '=', id)
     .executeTakeFirstOrThrow();
+}
+
+async function selectCloseEvents(
+  db: TestDatabase,
+  periodId: Buffer,
+): Promise<{ action: string; actor_user_id: Buffer | null }[]> {
+  return db.app
+    .selectFrom('period_close_events')
+    .select(['action', 'actor_user_id'])
+    .where('period_id', '=', periodId)
+    .orderBy('created_at')
+    .execute();
 }

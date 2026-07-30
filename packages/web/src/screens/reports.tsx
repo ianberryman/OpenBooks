@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { cx } from '../lib/cx';
+import { AuditView } from './reports/audit';
 import { BalanceSheetView } from './reports/balance-sheet';
 import { BudgetVsActualView } from './reports/budget-vs-actual';
 import { CashFlowView } from './reports/cash-flow';
@@ -42,6 +43,14 @@ import { TrialBalanceView } from './reports/trial-balance';
  * the shared toolbar, while still reading `basis`/`groupBy`/dimensions from the shared
  * state set on another tab — see `budget-vs-actual.tsx` for the fuller explanation.
  *
+ * Audit is the seventh (initiative P, OB-196) and carries no entry for the same shape of
+ * reason: its filters are a date window over *when an event happened* plus an optional
+ * actor, neither of which `ReportControls` expresses, so it owns its own toolbar — see
+ * `audit.tsx`. It also takes a second permission, `audit.read`, distinct from the
+ * `reports.read` that gates this whole screen's nav link (`nav.ts`), so a caller who can
+ * open Reports but not the trail sees that tab render a plain access notice rather than an
+ * error, which is `audit.tsx`'s own concern and not this screen's.
+ *
  * ## Drill-through
  *
  * Every account line is a control. Clicking one opens the general ledger for that account
@@ -63,7 +72,8 @@ type ReportView =
   | 'general-ledger'
   | 'cash-flow'
   | 'cash-flow-projection'
-  | 'budget-vs-actual';
+  | 'budget-vs-actual'
+  | 'audit';
 
 const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
   { id: 'trial-balance', label: 'Trial balance' },
@@ -73,6 +83,7 @@ const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
   { id: 'cash-flow', label: 'Cash flow' },
   { id: 'cash-flow-projection', label: 'Cash-flow projection' },
   { id: 'budget-vs-actual', label: 'Budget vs actual' },
+  { id: 'audit', label: 'Audit' },
 ];
 
 /**
@@ -193,6 +204,7 @@ export function ReportsScreen(): ReactElement {
       {view === 'cash-flow' && <CashFlowView state={filters} />}
       {view === 'cash-flow-projection' && <CashFlowProjectionView />}
       {view === 'budget-vs-actual' && <BudgetVsActualView state={filters} />}
+      {view === 'audit' && <AuditView />}
     </div>
   );
 }

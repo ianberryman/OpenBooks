@@ -136,6 +136,15 @@ export function registerJournalRoutes(app: App): void {
             {
               date: body.date,
               ...(body.memo === undefined ? {} : { memo: body.memo }),
+              // OB-194/D-98: an adjusting or reclassifying entry is an ordinary
+              // manual journal marked as such, and the mark rides on `journals.source`
+              // (the free-form origin string) rather than a new column or permission.
+              // `standard` (and absent) is the ordinary manual entry, whose source
+              // stays the kernel default `'manual'`. A pure argument map — the
+              // classification is the client's, the ledger kernel is untouched.
+              ...(body.entryType === undefined || body.entryType === 'standard'
+                ? {}
+                : { source: body.entryType }),
               actorType: ctx.actorType,
               actorId: ctx.actorId,
               lines: body.lines.map((line) => ({

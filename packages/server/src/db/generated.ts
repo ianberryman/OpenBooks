@@ -620,6 +620,7 @@ export interface JournalDrafts {
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
   entry_date: string | null;
+  entry_type: Generated<"adjusting" | "reclassifying" | "standard">;
   id: Buffer;
   memo: string | null;
   org_id: Buffer;
@@ -851,6 +852,17 @@ export interface PendingPayments {
   updated_at: Generated<Date>;
 }
 
+export interface PeriodCloseEvents {
+  action: "close" | "reopen";
+  actor_user_id: Buffer | null;
+  checklist: Json | null;
+  created_at: Generated<Date>;
+  id: Buffer;
+  note: string | null;
+  org_id: Buffer;
+  period_id: Buffer;
+}
+
 export interface Permissions {
   code: string;
   description: string;
@@ -1071,6 +1083,17 @@ export interface Sessions {
   user_id: Buffer;
 }
 
+export interface StatementPackages {
+  artifact_storage_key: string;
+  basis: "accrual" | "cash";
+  created_at: Generated<Date>;
+  generated_by_user_id: Buffer;
+  id: Buffer;
+  org_id: Buffer;
+  period_end: string;
+  period_start: string;
+}
+
 export interface TaxRates {
   applies_to: Generated<"both" | "purchases" | "sales">;
   created_at: Generated<Date>;
@@ -1156,6 +1179,7 @@ export interface DB {
   payments: Payments;
   pending_payment_intents: PendingPaymentIntents;
   pending_payments: PendingPayments;
+  period_close_events: PeriodCloseEvents;
   permissions: Permissions;
   predocument_deliveries: PredocumentDeliveries;
   processor_connections: ProcessorConnections;
@@ -1173,6 +1197,7 @@ export interface DB {
   secrets: Secrets;
   security_events: SecurityEvents;
   sessions: Sessions;
+  statement_packages: StatementPackages;
   tax_rates: TaxRates;
   users: Users;
 }

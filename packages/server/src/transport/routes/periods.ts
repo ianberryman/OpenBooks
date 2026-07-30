@@ -1,16 +1,20 @@
 import {
+  closePeriodRequestSchema,
   createFiscalPeriodRequestSchema,
   fiscalPeriodListSchema,
   fiscalPeriodSchema,
   generateFiscalYearRequestSchema,
   generatedFiscalYearSchema,
   listFiscalPeriodsQuerySchema,
+  periodCloseChecklistSchema,
+  reopenPeriodRequestSchema,
 } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { withIdempotency } from '../../modules/idempotency';
 import {
   closePeriod,
+  computeCloseChecklist,
   createPeriod,
   generateFiscalYear,
   listPeriods,
@@ -138,15 +142,40 @@ export function registerPeriodRoutes(app: App): void {
     },
   );
 
+  app.get(
+    '/v1/fiscal-periods/:periodId/close-checklist',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getPeriodCloseChecklist',
+        summary: 'Preview the advisory close checklist for a period',
+        description:
+          'The completeness checks the close workflow surfaces — unposted drafts in the period, ' +
+          'unreconciled bank lines, a still-open prior period (OB-193, D-97). Advisory: a warning ' +
+          'never blocks the close, and this read has no side effect. The same snapshot is ' +
+          'recomputed and recorded when the period is actually closed.',
+        tags: [TAG],
+        params: periodParamsSchema,
+        response: { 200: periodCloseChecklistSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request) => computeCloseChecklist({ periodId: request.params.periodId }),
+  );
+
+  // Close and reopen each take an optional note — a sign-off note on a close, a reason
+  // on a reopen (OB-193, D-97) — so their bodies differ by schema id even though both
+  // are `{ note? }`. The workflow (the checklist recompute + the recorded
+  // `period_close_events` row) lives in the service; this only carries the note in.
   for (const route of [
     {
       path: '/v1/fiscal-periods/:periodId/close',
       operationId: 'closeFiscalPeriod',
       summary: 'Close a fiscal period',
       description:
-        'The routine monthly soft close. Records who closed it and when. A posting dated inside ' +
-        'a closed period is refused (A4), and a posting racing this call either commits fully ' +
-        'or not at all (A9).',
+        'The routine monthly soft close. Records who closed it, when, and the advisory checklist ' +
+        'at sign-off. A posting dated inside a closed period is refused (A4), and a posting racing ' +
+        'this call either commits fully or not at all (A9).',
+      body: closePeriodRequestSchema,
       run: closePeriod,
     },
     {
@@ -155,7 +184,8 @@ export function registerPeriodRoutes(app: App): void {
       summary: 'Reopen a closed fiscal period',
       description:
         'Withdraws a statement that may already have been relied on, so it needs the separate ' +
-        '`periods.reopen` permission rather than the one that closes.',
+        '`periods.reopen` permission rather than the one that closes. The reason is recorded.',
+      body: reopenPeriodRequestSchema,
       run: reopenPeriod,
     },
   ] as const) {
@@ -170,14 +200,17 @@ export function registerPeriodRoutes(app: App): void {
           tags: [TAG],
           headers: idempotencyKeyHeaderSchema,
           params: periodParamsSchema,
+          body: route.body,
           response: { 200: fiscalPeriodSchema, ...ERROR_RESPONSES },
         },
       },
       async (request, reply) => {
         const { periodId } = request.params;
+        const { note } = request.body;
+        const input = { periodId, ...(note === undefined ? {} : { note }) };
         const result = await withIdempotency(
-          { endpoint: route.operationId, request: { periodId }, successStatus: 200 },
-          () => route.run({ periodId }),
+          { endpoint: route.operationId, request: input, successStatus: 200 },
+          () => route.run(input),
         );
 
         return reply.status(result.status).send(idempotentBody<WireFiscalPeriod>(result));

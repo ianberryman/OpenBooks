@@ -38,10 +38,14 @@ const DRAFT_COLUMNS = [
   'entry_date',
   'memo',
   'reference',
+  'entry_type',
   'created_by_user_id',
   'created_at',
   'updated_at',
 ] as const;
+
+/** The draft's classification, carried to the posted journal's `source` (P, OB-194). */
+export type DraftEntryType = 'standard' | 'adjusting' | 'reclassifying';
 
 const DRAFT_LINE_COLUMNS = [
   'id',
@@ -58,6 +62,7 @@ export interface DraftRow {
   readonly entry_date: string | null;
   readonly memo: string | null;
   readonly reference: string | null;
+  readonly entry_type: DraftEntryType;
   readonly created_by_user_id: Buffer;
   readonly created_at: Date;
   readonly updated_at: Date;
@@ -78,12 +83,15 @@ export interface NewDraftRow {
   readonly entryDate: string | null;
   readonly memo: string | null;
   readonly reference: string | null;
+  /** Absent lets the column default to `standard`. */
+  readonly entryType?: DraftEntryType;
 }
 
 export interface DraftPatch {
   readonly entryDate?: string | null;
   readonly memo?: string | null;
   readonly reference?: string | null;
+  readonly entryType?: DraftEntryType;
 }
 
 /** A line as the service has resolved it: ids as bytes, amount split across the two columns. */
@@ -131,6 +139,7 @@ export async function insertDraft(
       entry_date: input.entryDate,
       memo: input.memo,
       reference: input.reference,
+      ...(input.entryType === undefined ? {} : { entry_type: input.entryType }),
     })
     .execute();
 }
@@ -188,6 +197,7 @@ export async function updateDraftRow(
       ...(patch.entryDate === undefined ? {} : { entry_date: patch.entryDate }),
       ...(patch.memo === undefined ? {} : { memo: patch.memo }),
       ...(patch.reference === undefined ? {} : { reference: patch.reference }),
+      ...(patch.entryType === undefined ? {} : { entry_type: patch.entryType }),
       updated_at: now,
     })
     .where('journal_drafts.id', '=', id)
@@ -437,7 +447,11 @@ export function toDraft(
   lines: readonly DraftLineRow[],
   tags: ReadonlyMap<string, readonly string[]>,
 ): JournalDraft {
-  return { ...toDraftSummary(row), lines: lines.map((line) => toDraftLine(line, tags)) };
+  return {
+    ...toDraftSummary(row),
+    entryType: row.entry_type,
+    lines: lines.map((line) => toDraftLine(line, tags)),
+  };
 }
 
 function toDraftLine(

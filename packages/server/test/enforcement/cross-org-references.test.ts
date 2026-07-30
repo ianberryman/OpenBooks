@@ -3412,6 +3412,11 @@ const EXEMPT: Readonly<Record<string, string>> = {
   // confirm the id names something somewhere (A7).
   'listBudgets.periodId': 'a filter over the caller’s own org — empty, not 404',
   'listBudgets.accountId': 'a filter over the caller’s own org — empty, not 404',
+  // Accountant access & period close (P): the audit report's `actorId` narrows the
+  // timeline to one actor over the caller's own org. It is `listDrafts.createdByUserId`'s
+  // shape exactly — a tenant-scoped filter, so a cross-org or unknown id yields an empty
+  // page rather than the 404 that would confirm the id names someone somewhere (A7).
+  'getAuditReport.actorId': 'a filter over the caller’s own org — empty, not 404',
   /**
    * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
    * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`

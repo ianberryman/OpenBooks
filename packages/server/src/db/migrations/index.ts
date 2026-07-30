@@ -16,6 +16,7 @@ import * as m0013 from './0013_pay_bills';
 import * as m0014 from './0014_fixed_assets';
 import * as m0015 from './0015_procure_to_pay';
 import * as m0016 from './0016_budgets';
+import * as m0017 from './0017_accountant_close';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -70,6 +71,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0014_fixed_assets': m0014,
   '0015_procure_to_pay': m0015,
   '0016_budgets': m0016,
+  '0017_accountant_close': m0017,
   '0999_app_grants': m0999,
 };
 
