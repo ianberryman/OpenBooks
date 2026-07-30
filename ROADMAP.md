@@ -138,6 +138,21 @@ at minimum a role-defaulted set of shortcuts, at most user-arrangeable tiles wit
 Unscheduled; captured so the home surface is designed deliberately rather than defaulting to
 whatever screen happens to load first.
 
+### Follow-up — import & reconcile should work for any account type (future)
+
+The M4 banking module (import, matching, reconciliation) is built and tested for **asset bank
+accounts**: `createBankAccount` accepts any ledger account at the service, but the web picker
+filters to `asset` (D-46), reconciliation's balance math assumes a debit-normal account, and
+`feed_source` is `ENUM('file')` — CSV upload only, no live link. Users will need to **import and
+reconcile credit cards** (and, in principle, any balance-sheet account), so the harness should
+generalise: (1) let registration/picker accept **liability** accounts — a credit card is the
+first case; (2) make the reconciliation balance/sign **normal-balance-aware** so a credit-normal
+account reconciles correctly; (3) add a live-feed provider (a new `feed_source` + an aggregator
+integration) for "link," distinct from the CSV path. The UI can still **favour common paths**
+(default to bank accounts, surface cards secondarily) — the point is the engine must not be
+asset-only. Unscheduled; adjacent to the fixed-assets/recurring initiative (L) and the banking
+work already shipped.
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
