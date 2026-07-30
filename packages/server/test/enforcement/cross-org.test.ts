@@ -86,6 +86,15 @@ interface Scene {
   readonly dunningPolicyId: string;
   readonly recurringJournalTemplateId: string;
   readonly fixedAssetId: string;
+  /**
+   * Procure-to-pay (M, OB-177): a draft purchase order, estimate, and expense. A
+   * draft suffices for every id-addressed row — the route resolves it for the owner
+   * and 404s for the stranger regardless of lifecycle — and `discard` is last in each
+   * group so the control pass never deletes what a later row of the same group reads.
+   */
+  readonly purchaseOrderId: string;
+  readonly estimateId: string;
+  readonly expenseId: string;
 
   /**
    * M3's fixtures (OB-067's routes, OB-062 … OB-066's services).
@@ -418,6 +427,33 @@ async function scene(app: App): Promise<Scene> {
     intents: [{ billId: subledger.targetBillId, payAmount: '100' }],
   });
 
+  // Procure-to-pay (M): a draft purchase order (against the owner's vendor), a draft
+  // estimate, and a draft expense (against a fresh employee contact, the one party
+  // `requireEmployee` accepts). Drafts, because the id-addressed rows only need the
+  // row to exist for the owner and not the stranger.
+  const employeeContactId = await created('employee', '/v1/contacts', {
+    displayName: 'Employee One',
+    isEmployee: true,
+  });
+  const purchaseOrderId = await created('purchase-order', '/v1/purchase-orders', {
+    contactId: subledger.partyId,
+    issueDate: '2026-01-15',
+    taxMode: 'exclusive',
+    lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId }],
+  });
+  const estimateId = await created('estimate', '/v1/estimates', {
+    contactId,
+    issueDate: '2026-01-15',
+    taxMode: 'exclusive',
+    lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId: revenueId }],
+  });
+  const expenseId = await created('expense', '/v1/expenses', {
+    contactId: employeeContactId,
+    issueDate: '2026-01-15',
+    taxMode: 'exclusive',
+    lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId }],
+  });
+
   return {
     owner,
     stranger,
@@ -442,6 +478,9 @@ async function scene(app: App): Promise<Scene> {
     rejectableProposalId,
     processorConnectionId,
     pendingPaymentId,
+    purchaseOrderId,
+    estimateId,
+    expenseId,
     ...subledger,
     ...banking,
     ...captures,
@@ -1152,6 +1191,113 @@ const SURFACES: readonly Surface[] = [
       proceedsMinor: '0',
       gainLossAccountId: s.accountId,
     }),
+  },
+  // Procure-to-pay (M, OB-177). Purchase orders and estimates are non-posting
+  // pre-documents that convert into a bill/invoice; an employee expense is an
+  // ap_documents bill against an employee contact. `discard` is last in each group,
+  // so the control pass's approve/convert/send leave the row present (not a 404) for
+  // the rows above them — the `disposeFixedAsset`-is-last constraint, three resources
+  // over. The stranger 404s at the row load in every case, before lifecycle matters.
+  {
+    operationId: 'getPurchaseOrder',
+    method: 'GET',
+    path: '/v1/purchase-orders/%s',
+    id: (s) => s.purchaseOrderId,
+  },
+  {
+    operationId: 'updatePurchaseOrder',
+    method: 'PATCH',
+    path: '/v1/purchase-orders/%s',
+    id: (s) => s.purchaseOrderId,
+    payload: () => ({ memo: 'Renamed' }),
+  },
+  {
+    operationId: 'approvePurchaseOrder',
+    method: 'POST',
+    path: '/v1/purchase-orders/%s/approve',
+    id: (s) => s.purchaseOrderId,
+  },
+  {
+    operationId: 'convertPurchaseOrderToBill',
+    method: 'POST',
+    path: '/v1/purchase-orders/%s/convert',
+    id: (s) => s.purchaseOrderId,
+  },
+  {
+    operationId: 'sendPurchaseOrder',
+    method: 'POST',
+    path: '/v1/purchase-orders/%s/send',
+    id: (s) => s.purchaseOrderId,
+    payload: () => ({}),
+  },
+  {
+    operationId: 'discardPurchaseOrder',
+    method: 'DELETE',
+    path: '/v1/purchase-orders/%s',
+    id: (s) => s.purchaseOrderId,
+  },
+  {
+    operationId: 'getEstimate',
+    method: 'GET',
+    path: '/v1/estimates/%s',
+    id: (s) => s.estimateId,
+  },
+  {
+    operationId: 'updateEstimate',
+    method: 'PATCH',
+    path: '/v1/estimates/%s',
+    id: (s) => s.estimateId,
+    payload: () => ({ memo: 'Renamed' }),
+  },
+  {
+    operationId: 'approveEstimate',
+    method: 'POST',
+    path: '/v1/estimates/%s/approve',
+    id: (s) => s.estimateId,
+  },
+  {
+    operationId: 'convertEstimateToInvoice',
+    method: 'POST',
+    path: '/v1/estimates/%s/convert',
+    id: (s) => s.estimateId,
+  },
+  {
+    operationId: 'sendEstimate',
+    method: 'POST',
+    path: '/v1/estimates/%s/send',
+    id: (s) => s.estimateId,
+    payload: () => ({}),
+  },
+  {
+    operationId: 'discardEstimate',
+    method: 'DELETE',
+    path: '/v1/estimates/%s',
+    id: (s) => s.estimateId,
+  },
+  {
+    operationId: 'getExpense',
+    method: 'GET',
+    path: '/v1/expenses/%s',
+    id: (s) => s.expenseId,
+  },
+  {
+    operationId: 'updateExpense',
+    method: 'PATCH',
+    path: '/v1/expenses/%s',
+    id: (s) => s.expenseId,
+    payload: () => ({ memo: 'Renamed' }),
+  },
+  {
+    operationId: 'approveExpense',
+    method: 'POST',
+    path: '/v1/expenses/%s/approve',
+    id: (s) => s.expenseId,
+  },
+  {
+    operationId: 'discardExpense',
+    method: 'DELETE',
+    path: '/v1/expenses/%s',
+    id: (s) => s.expenseId,
   },
   {
     operationId: 'getDunningPolicy',

@@ -1534,6 +1534,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/estimates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List estimates
+         * @description One page of headers with totals, and no lines. Ordered by `(created_at, id)` and not by document number: a draft has none until approval, and `issueDate` is editable while it is a draft — a keyset over a mutable column silently drops the rows that moved behind the cursor.
+         */
+        get: operations["listEstimates"];
+        put?: never;
+        /**
+         * Create a draft estimate
+         * @description Creates a draft. Nothing is posted — an estimate never touches a journal (D-M3) — and no number is allocated: a number reserved by a draft that was then discarded would leave a gap in the estimate series (D-36).
+         */
+        post: operations["createEstimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/estimates/{estimateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One estimate, with its lines */
+        get: operations["getEstimate"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a draft estimate
+         * @description Deletes a draft and its lines. An approved or converted estimate is refused with `estimate_approved`.
+         */
+        delete: operations["discardEstimate"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft estimate
+         * @description Drafts only. An approved or converted estimate answers `precondition_failed` with `estimate_approved`. `lines` replaces the whole set, and changing `taxMode` reprices them rather than converting them.
+         */
+        patch: operations["updateEstimate"];
+        trace?: never;
+    };
+    "/v1/estimates/{estimateId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an estimate and allocate its number
+         * @description Allocates the estimate’s gapless number and stamps `approvedAt`. No journal — an estimate never posts one (D-M3) — so this is strictly narrower than approving an invoice. No body: the actor is the session and the lines are the estimate’s own. An estimate with no lines is refused with `validation_failed`, and one already approved with `precondition_failed` naming `estimate_already_approved`.
+         */
+        post: operations["approveEstimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/estimates/{estimateId}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Convert an approved estimate into a draft invoice
+         * @description Builds a draft invoice from the estimate’s header and lines and returns it — never the estimate (D-M4). The invoice is a draft: nothing is posted here, and it is approved through the ordinary invoice flow. Requires the estimate to be approved (`precondition_failed`/`estimate_not_approved` otherwise) and unconverted (`precondition_failed`/`estimate_already_converted` on a second attempt — conversion happens at most once).
+         */
+        post: operations["convertEstimateToInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/estimates/{estimateId}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email an approved estimate to its customer
+         * @description The AR mirror of `sendPurchaseOrder`: emails `recipientEmail` or, if absent, the estimate’s own customer contact email, and records the attempt as an append-only `predocument_deliveries` row. `estimate_not_approved` and `no_recipient` are the same two refusals. Takes `estimates.write`.
+         */
+        post: operations["sendEstimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List expenses
+         * @description One page of headers with totals and settlement, and no lines. Ordered by `(created_at, id)`. Only bills whose contact carries `isEmployee` appear here — a contact flagged both a vendor and an employee appears on this list and on `GET /v1/bills` both (D-M8).
+         */
+        get: operations["listExpenses"];
+        put?: never;
+        /**
+         * Create a draft expense
+         * @description Creates a draft bill whose contact is an employee (D-M2). `contactId` must carry `isEmployee` — `contact_is_not_an_employee` otherwise. Reimbursement is Pay Bills settling this same document once approved; there is no separate reimbursement request.
+         */
+        post: operations["createExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/expenses/{expenseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One expense, with its lines and allocations */
+        get: operations["getExpense"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a draft expense
+         * @description Deletes a draft and its lines. Nothing reached the ledger and no number was allocated, so nothing is restated and no gap is left.
+         */
+        delete: operations["discardExpense"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft expense
+         * @description Drafts only; an approved expense answers `document_approved`. `lines` replaces the whole set. The correction after approval is a vendor credit or a void, never an edit (D-38).
+         */
+        patch: operations["updateExpense"];
+        trace?: never;
+    };
+    "/v1/expenses/{expenseId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve an expense and post its journal
+         * @description The irreversible step (D-38). In one transaction it allocates the expense’s gapless number, posts a balanced journal debiting the expense lines and **crediting** the org’s payables control account, and records both. Gated by `expenses.approve`, not `expenses.write` — the separation-of-duties split between entering an expense and approving it into a payable. Refusals worth branching on: `payable_control_account_not_set` and `payable_control_account_unusable` naming the org setting to fix, and `document_already_approved` when it has already happened.
+         */
+        post: operations["approveExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/external-refs": {
         parameters: {
             query?: never;
@@ -2656,6 +2834,115 @@ export interface paths {
          * @description The only way back in (D-103) — never a second `connectProcessor`, which `processor_already_connected` would refuse. Idempotent: an already-active connection is returned unchanged rather than refused.
          */
         post: operations["reactivateProcessorConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List purchase orders
+         * @description One page of headers with totals, no lines. Ordered by `(created_at, id)` (D-21). `status` is stored, not computed (D-M6): `draft`, `approved`, or `converted`.
+         */
+        get: operations["listPurchaseOrders"];
+        put?: never;
+        /**
+         * Create a draft purchase order
+         * @description Creates a draft. `contactId` must be a vendor — `contact_is_not_a_vendor` otherwise. `lines` is optional: "New purchase order" produces an empty one, and the arity and value checks belong at approval.
+         */
+        post: operations["createPurchaseOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders/{purchaseOrderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One purchase order, with its lines */
+        get: operations["getPurchaseOrder"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard a draft purchase order
+         * @description Deletes a draft and its lines. Nothing was approved and no number was allocated, so nothing is restated and no gap is left.
+         */
+        delete: operations["discardPurchaseOrder"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a draft purchase order
+         * @description Drafts only; an approved purchase order answers `purchase_order_approved`. `lines` replaces the whole set.
+         */
+        patch: operations["updatePurchaseOrder"];
+        trace?: never;
+    };
+    "/v1/purchase-orders/{purchaseOrderId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a purchase order
+         * @description Allocates the purchase order’s gapless number and stamps `approvedAt` (D-M6). Posts no journal (D-M3) — that happens only once it is converted and the resulting bill is itself approved. Refused with `purchase_order_already_approved` when it has already happened, or as a validation failure when the purchase order has no lines with value.
+         */
+        post: operations["approvePurchaseOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders/{purchaseOrderId}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Convert an approved purchase order into a draft bill
+         * @description Builds a draft bill from the purchase order’s header and stored lines and returns it (D-M4). Requires the purchase order to be approved (`purchase_order_not_approved` otherwise) and requires `bills.write` in its own right, since producing a bill is a separate grant from converting the purchase order. Convert-once: a second attempt answers `purchase_order_already_converted` naming the bill already produced.
+         */
+        post: operations["convertPurchaseOrderToBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders/{purchaseOrderId}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email an approved purchase order to its vendor
+         * @description Emails an HTML summary to `recipientEmail` or, if absent, the purchase order’s own vendor contact email, and records the attempt as an append-only `predocument_deliveries` row. A draft cannot be sent — there is nothing approved to summarise (`purchase_order_not_approved`) — and a document with no recipient email on either side answers `no_recipient`. Takes `purchase_orders.write`.
+         */
+        post: operations["sendPurchaseOrder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8592,6 +8879,67 @@ export interface components {
              */
             side: "debit" | "credit";
         };
+        /** @description The record of one predocument send: which purchase order or estimate, where it went, and whether the provider took it. No rendered artifact and no hosted-page link (D-M5, lean v1) — those are deferred follow-ups. */
+        PredocumentDelivery: {
+            /**
+             * Format: uuid
+             * @description The purchase order or estimate that was sent.
+             */
+            documentId: string;
+            /**
+             * @description Which pre-document this delivery is for: a purchase order or an estimate.
+             * @enum {string}
+             */
+            documentKind: "purchase_order" | "estimate";
+            /** Format: uuid */
+            id: string;
+            /** @description The email provider’s own id for this message, when it accepted one. Null on a `failed` send, or when the provider returns none. */
+            providerMessageId: string | null;
+            /**
+             * Format: email
+             * @description Where this send went — the override if one was given, else the document’s own contact email.
+             */
+            recipientEmail: string;
+            /**
+             * Format: date-time
+             * @description When the send was attempted.
+             */
+            sentAt: string;
+            /**
+             * @description Whether the provider accepted the send. `sent` on acceptance, `failed` otherwise. Not delivery confirmation.
+             * @enum {string}
+             */
+            status: "sent" | "failed";
+        };
+        /** @description The record of one predocument send: which purchase order or estimate, where it went, and whether the provider took it. No rendered artifact and no hosted-page link (D-M5, lean v1) — those are deferred follow-ups. */
+        PredocumentDeliveryInput: {
+            /**
+             * Format: uuid
+             * @description The purchase order or estimate that was sent.
+             */
+            documentId: string;
+            /**
+             * @description Which pre-document this delivery is for: a purchase order or an estimate.
+             * @enum {string}
+             */
+            documentKind: "purchase_order" | "estimate";
+            /** Format: uuid */
+            id: string;
+            /** @description The email provider’s own id for this message, when it accepted one. Null on a `failed` send, or when the provider returns none. */
+            providerMessageId: string | null;
+            /** @description Where this send went — the override if one was given, else the document’s own contact email. */
+            recipientEmail: string;
+            /**
+             * Format: date-time
+             * @description When the send was attempted.
+             */
+            sentAt: string;
+            /**
+             * @description Whether the provider accepted the send. `sent` on acceptance, `failed` otherwise. Not delivery confirmation.
+             * @enum {string}
+             */
+            status: "sent" | "failed";
+        };
         /** @description One line on a purchase order or an estimate. The same shape as a document line request minus `dimensionValueIds` (D-M7) — POs and estimates carry no dimension tags in v1; a converted draft bill or invoice can have them added before it is approved. */
         PredocumentLineRequest: {
             /**
@@ -9693,6 +10041,14 @@ export interface components {
              * @description The calendar date the sweeps were enqueued for — the process’s own today.
              */
             runDate: string;
+        };
+        /** @description Sends a purchase order to its vendor, or an estimate to its customer. `recipientEmail` overrides the destination for this one send; absent or null, the server uses the document’s own contact email. */
+        SendPredocumentRequest: {
+            recipientEmail?: string | null;
+        };
+        /** @description Sends a purchase order to its vendor, or an estimate to its customer. `recipientEmail` overrides the destination for this one send; absent or null, the server uses the document’s own contact email. */
+        SendPredocumentRequestInput: {
+            recipientEmail?: string | null;
         };
         /** @description The complete set of dimension values a posted line carries after the call. A value names its own axis, so a tag filed under the wrong one is unrepresentable rather than refused. */
         SetJournalLineDimensionsRequest: {
@@ -14400,6 +14756,494 @@ export interface operations {
             };
         };
     };
+    listEstimates: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                status?: "draft" | "approved" | "converted";
+                /** @description How many estimates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimatePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createEstimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEstimateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getEstimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardEstimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateEstimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEstimateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveEstimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Estimate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    convertEstimateToInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sendEstimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                estimateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendPredocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredocumentDelivery"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listExpenses: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                /** @description Computed, never stored (D-38). `draft` until a journal is posted, `approved` once it is, `part_paid`/`paid` derived by comparing the total against the allocations applied, and `void` once a reversing journal exists. Not a field a client may write. */
+                status?: "draft" | "approved" | "part_paid" | "paid" | "void";
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                dueBefore?: components["schemas"]["CalendarDateInput"];
+                /** @description How many expenses to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createExpense: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExpenseRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardExpense: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                expenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateExpense: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                expenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExpenseRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approveExpense: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                expenseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listExternalRefs: {
         parameters: {
             query?: {
@@ -17189,6 +18033,284 @@ export interface operations {
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
                     };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listPurchaseOrders: {
+        parameters: {
+            query?: {
+                contactId?: string;
+                status?: "draft" | "approved" | "converted";
+                /** @description How many purchase orders to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createPurchaseOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePurchaseOrderRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPurchaseOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discardPurchaseOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePurchaseOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePurchaseOrderRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    approvePurchaseOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    convertPurchaseOrderToBill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sendPurchaseOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                purchaseOrderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendPredocumentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredocumentDelivery"];
                 };
             };
             /** @description Default Response */

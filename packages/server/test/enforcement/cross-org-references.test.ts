@@ -84,6 +84,13 @@ import {
   createRecurringJournalTemplate,
   updateRecurringJournalTemplate,
 } from '../../src/modules/recurring-journals';
+import { createEstimate, listEstimates, updateEstimate } from '../../src/modules/estimates';
+import { createExpense, listExpenses, updateExpense } from '../../src/modules/expenses';
+import {
+  createPurchaseOrder,
+  listPurchaseOrders,
+  updatePurchaseOrder,
+} from '../../src/modules/purchase-orders';
 import {
   updateControlAccounts,
   updateDepreciationAccounts,
@@ -185,11 +192,22 @@ interface Org {
   readonly receivableId: string;
   readonly payableId: string;
   readonly taxAccountId: string;
-  /** Both flags, because the AR services refuse a non-customer and AP a non-vendor. */
+  /**
+   * All three flags, because the AR services refuse a non-customer, AP a non-vendor,
+   * and procure-to-pay's expense path (M) a non-employee.
+   */
   readonly partyId: string;
   readonly taxRateId: string;
   /** Cash application (OB-139): `createInvoice`/`createBill`'s `paymentTermId` field. */
   readonly paymentTermId: string;
+  /**
+   * Procure-to-pay (M): a draft purchase order, estimate, and expense, so the M
+   * `update*` reference rows have an owned row to edit while naming a stranger's
+   * contact/account/tax rate in the patch. None posts anything (all drafts).
+   */
+  readonly draftPurchaseOrderId: string;
+  readonly draftEstimateId: string;
+  readonly draftExpenseId: string;
   /** A draft-mode recurring template, so the `update*` reference rows have one to edit. */
   readonly recurringTemplateId: string;
   /** Initiative L: a draft recurring journal template and fixed assets for the L reference rows. */
@@ -544,6 +562,9 @@ type SubledgerFixtures = Pick<
   | 'draftCreditNoteId'
   | 'draftInvoiceId'
   | 'draftVendorCreditId'
+  | 'draftPurchaseOrderId'
+  | 'draftEstimateId'
+  | 'draftExpenseId'
   | 'invoiceId'
   | 'partyId'
   | 'paymentId'
@@ -580,7 +601,13 @@ async function subledgerFixtures(
   const asOwner = <T>(body: () => Promise<T>): Promise<T> => runInContext(ctx, body);
 
   const party = await asOwner(() =>
-    createContact({ displayName: 'Subledger Party', isCustomer: true, isVendor: true }, ctx),
+    createContact(
+      // All three flags: the AR services refuse a non-customer, AP a non-vendor, and
+      // procure-to-pay's expense path (M) a non-employee — so one party serves the
+      // createBill/createInvoice/createExpense reference rows alike.
+      { displayName: 'Subledger Party', isCustomer: true, isVendor: true, isEmployee: true },
+      ctx,
+    ),
   );
   const taxRate = await asOwner(() =>
     createTaxRate({ name: 'VAT 20%', percentage: '20', accountId: accounts.taxAccountId }, ctx),
@@ -698,7 +725,21 @@ async function subledgerFixtures(
   const disposableFixedAssetGainLossId = (await registerScratchAsset()).id;
   const disposableFixedAssetProceedsId = (await registerScratchAsset()).id;
 
+  // Procure-to-pay (M): a draft PO/estimate/expense for the `update*` reference rows to
+  // edit. POs/estimates carry no dimension tags (D-M7), so their lines are `apLines`
+  // minus nothing it does not already lack; the expense is an ap_documents bill against
+  // `party` (an employee here), so it takes `apLines` unchanged.
+  const purchaseOrder = (): Promise<string> =>
+    asOwner(async () => (await createPurchaseOrder({ ...arInput, lines: apLines }, ctx)).id);
+  const estimateDoc = (): Promise<string> =>
+    asOwner(async () => (await createEstimate({ ...arInput, lines: arLines }, ctx)).id);
+  const expenseDoc = (): Promise<string> =>
+    asOwner(async () => (await createExpense({ ...arInput, lines: apLines }, ctx)).id);
+
   return {
+    draftPurchaseOrderId: await purchaseOrder(),
+    draftEstimateId: await estimateDoc(),
+    draftExpenseId: await expenseDoc(),
     partyId: party.id,
     taxRateId: taxRate.id,
     paymentTermId: paymentTerm.id,
@@ -1737,6 +1778,382 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       updateBill(
         s.caller.draftBillId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  // ---------------------------------------------------------------------------
+  // Procure-to-pay (M, OB-177). Purchase orders and estimates are non-posting
+  // pre-documents; an employee expense is an ap_documents bill against an employee
+  // contact. Each create/update carries the same contact/account/tax-rate references
+  // its posting sibling does (the expense adds dimension/term, as a bill), resolved
+  // the same way — so a stranger's id in any of these fields is a 404. The `update*`
+  // rows edit the org's own draft PO/estimate/expense.
+  // ---------------------------------------------------------------------------
+  {
+    operationId: 'createPurchaseOrder',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createPurchaseOrder(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createPurchaseOrder',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      createPurchaseOrder(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createPurchaseOrder',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createPurchaseOrder(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePurchaseOrder',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      updatePurchaseOrder(s.caller.draftPurchaseOrderId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updatePurchaseOrder',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updatePurchaseOrder(
+        s.caller.draftPurchaseOrderId,
+        { lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePurchaseOrder',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updatePurchaseOrder(
+        s.caller.draftPurchaseOrderId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createEstimate',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createEstimate(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createEstimate',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      createEstimate(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            { description: 'Consulting', quantity: '1', unitAmount: '100000', accountId: id },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createEstimate',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createEstimate(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateEstimate',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => updateEstimate(s.caller.draftEstimateId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateEstimate',
+    field: 'accountId',
+    subject: (o) => o.revenueId,
+    reach: (id, s) =>
+      updateEstimate(
+        s.caller.draftEstimateId,
+        {
+          lines: [
+            { description: 'Consulting', quantity: '1', unitAmount: '100000', accountId: id },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateEstimate',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateEstimate(
+        s.caller.draftEstimateId,
+        {
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: id,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              dimensionValueIds: [id],
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'paymentTermId',
+    subject: (o) => o.paymentTermId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          paymentTermId: id,
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateExpense',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => updateExpense(s.caller.draftExpenseId, { contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateExpense',
+    field: 'accountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updateExpense(
+        s.caller.draftExpenseId,
+        { lines: [{ description: 'Paper', quantity: '1', unitAmount: '100000', accountId: id }] },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateExpense',
+    field: 'taxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateExpense(
+        s.caller.draftExpenseId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              taxRateId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateExpense',
+    field: 'dimensionValueIds',
+    subject: (o) => o.dimensionValueId,
+    reach: (id, s) =>
+      updateExpense(
+        s.caller.draftExpenseId,
         {
           lines: [
             {
@@ -2929,6 +3346,10 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'listBills.contactId': 'a filter over the caller’s own org, asserted separately',
   'listVendorCredits.contactId': 'a filter over the caller’s own org, asserted separately',
   'listPayments.contactId': 'a filter over the caller’s own org, asserted separately',
+  // Procure-to-pay (M): the same contact filter, one on each pre-document/expense list.
+  'listPurchaseOrders.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listEstimates.contactId': 'a filter over the caller’s own org, asserted separately',
+  'listExpenses.contactId': 'a filter over the caller’s own org, asserted separately',
   /**
    * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
    * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`
@@ -3165,6 +3586,18 @@ describe('B11 — a cross-org id in a body or a query answers as a nonexistent o
         {
           field: 'listPayments.contactId',
           list: (id) => listPayments({ contactId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listPurchaseOrders.contactId',
+          list: (id) => listPurchaseOrders({ contactId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listEstimates.contactId',
+          list: (id) => listEstimates({ contactId: id }, s.caller.ctx),
+        },
+        {
+          field: 'listExpenses.contactId',
+          list: (id) => listExpenses({ contactId: id }, s.caller.ctx),
         },
       ];
 

@@ -398,7 +398,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
     WHERE r.is_system = 1 AND r.code = 'approver'
       AND (
         (p.code LIKE '%.read' AND p.code <> 'api_keys.read')
-        OR p.code IN ('reports.read', 'agents.review', 'journals.post')
+        OR p.code IN ('reports.read', 'agents.review', 'journals.post', 'expenses.approve')
       )
   `.execute(db);
 
@@ -449,12 +449,12 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'contacts.read', 'contacts.write',
         'accounts.read', 'periods.read', 'journals.read',
         'journals.post', 'journals.reverse',
-        'tax_rates.read', 'dimensions.read', 'reports.read'
-        -- Procure-to-pay (M) grants — purchase_orders.read/write, expenses.read/write —
-        -- are added when the M services enforce them (the same catalog-before-
-        -- enforcement pattern the roadmap records for every prior milestone). Seeding a
-        -- code a clerk cannot yet exercise buys nothing, and it would break the
-        -- "two roles that emptied" invariant in permission-matrix.test.ts.
+        'tax_rates.read', 'dimensions.read', 'reports.read',
+        -- Procure-to-pay (M): the AP clerk raises purchase orders and enters employee
+        -- expenses. expenses.approve is withheld — approving an expense into a payable
+        -- is a separate duty (the disbursements.issue split, applied to expenses).
+        'purchase_orders.read', 'purchase_orders.write',
+        'expenses.read', 'expenses.write'
       )
   `.execute(db);
 
@@ -472,9 +472,10 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'contacts.read', 'contacts.write',
         'accounts.read', 'periods.read', 'journals.read',
         'journals.post', 'journals.reverse',
-        'tax_rates.read', 'dimensions.read', 'reports.read'
-        -- Procure-to-pay (M): estimates.read/write are added when the M services
-        -- enforce them (see the AP-only note above).
+        'tax_rates.read', 'dimensions.read', 'reports.read',
+        -- Procure-to-pay (M): the AR clerk raises estimates/quotes, the sales mirror
+        -- of the AP clerk's purchase orders.
+        'estimates.read', 'estimates.write'
       )
   `.execute(db);
 }

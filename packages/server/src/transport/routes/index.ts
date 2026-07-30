@@ -17,6 +17,8 @@ import { registerContactRoutes } from './contacts';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
 import { registerDunningRoutes } from './dunning';
+import { registerEstimateRoutes } from './estimates';
+import { registerExpenseRoutes } from './expenses';
 import { registerExternalRefRoutes } from './external-refs';
 import { registerFixedAssetRoutes } from './fixed-assets';
 import { registerImportRoutes } from './imports';
@@ -30,7 +32,9 @@ import { registerPayBillsRoutes } from './pay-bills';
 import { registerPaymentTermsRoutes } from './payment-terms';
 import { registerPaymentRoutes } from './payments';
 import { registerPeriodRoutes } from './periods';
+import { registerPredocumentDeliveryRoutes } from './predocument-delivery';
 import { registerProcessingRoutes } from './processing';
+import { registerPurchaseOrderRoutes } from './purchase-orders';
 import { registerReconciliationRoutes } from './reconciliation';
 import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerRecurringJournalRoutes } from './recurring-journals';
@@ -585,4 +589,10 @@ export function registerV1Routes(app: App, config: Config): void {
   registerProcessingRoutes(app);
   registerRecurringJournalRoutes(app);
   registerFixedAssetRoutes(app);
+  // Procure-to-pay (M, OB-175): purchase orders, estimates, employee expenses, and
+  // the lean send path for the two pre-documents.
+  registerPurchaseOrderRoutes(app);
+  registerEstimateRoutes(app);
+  registerExpenseRoutes(app);
+  registerPredocumentDeliveryRoutes(app);
 }

@@ -167,6 +167,27 @@ per-line fields (account, price, tax) a user can already type. New tenant table(
 the line editors; no change to how lines post (each still carries its own `account_id`).
 Unscheduled.
 
+### Follow-up — receipt capture for employee-expense reimbursements (future)
+
+The bill-capture pipeline (initiative **O**, built) — snap or email-forward a document →
+`StorageProvider` → `DocumentExtractionProvider` → a `document_captures` staging row → human
+review → a **draft bill** → approve — is **vendor-only today**. Vendor matching filters
+`contacts.is_vendor = 1` (`capture.repository.ts`) and `namesMatch`es vendor display names
+(`extraction.job.ts`), and the review step creates the draft via `createBill`, which runs
+`requireVendor` (`capture.service.ts`). A receipt for an **employee** never matches and could not
+be filed as a reimbursement.
+
+Initiative **M** makes this a small, natural extension: an employee expense **is** an
+`ap_documents` bill (`document_type='bill'`) against an employee contact, raised through
+`createExpense`/`requireEmployee` instead of `createBill`/`requireVendor` ([D-M2](#where-things-stand)).
+So "receipt capture for reimbursements" reuses the whole existing pipeline with a small delta: (1) the
+capture reviewer picks a **destination** — vendor bill (today) or employee expense; (2) for an expense,
+match against `is_employee` contacts (reuse `namesMatch`) and call `createExpense`; (3) the
+`document_captures` staging, `bill_attachments`, and the review UI are unchanged, because an
+expense-bill is a bill so attachments and the draft container already fit. No new tables. Unscheduled;
+captured here so the receipt→reimbursement path is designed deliberately once M lands, rather than
+rediscovered. Adjacent to M (expenses) and O (bill capture).
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes

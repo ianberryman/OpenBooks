@@ -6,8 +6,22 @@
  * estimates share (D-M3, D-M6, D-M7) and for `predocumentLineInputSchema`,
  * `estimates.ts` for the AR mirror, and `expenses.ts` for why an expense's
  * responses are `Bill`/`BillSummary`/`BillPage` under new names rather than
- * a fourth document shape (D-M2).
+ * a fourth document shape (D-M2). `deliveries.ts` is the fourth: sending
+ * either pre-document to its counterparty, lean by decision (D-M5).
  */
+
+export {
+  PREDOCUMENT_DELIVERY_STATUSES,
+  PREDOCUMENT_KINDS,
+  predocumentDeliverySchema,
+  sendPredocumentRequestSchema,
+} from './deliveries';
+export type {
+  PredocumentDelivery,
+  PredocumentDeliveryStatus,
+  PredocumentKind,
+  SendPredocumentRequest,
+} from './deliveries';
 
 export {
   ESTIMATE_STATUSES,

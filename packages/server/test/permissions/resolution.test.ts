@@ -43,21 +43,22 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // Every `.read` except api_keys.read (27, now including branding.read,
   // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,
   // and M's purchase_orders.read/estimates.read/expenses.read via `%.read`), plus
-  // agents.review and journals.post. expenses.approve (M) is added to the approver when
-  // the expense service enforces it, so it is not counted yet.
-  ['approver', 29],
+  // agents.review, journals.post, and expenses.approve (M — the approver is the
+  // expense-approval gate, the disbursements.issue split applied to expenses).
+  ['approver', 30],
   // Every `.read` except api_keys.read (now including branding.read, processing.read,
   // pending_payments.read, recurring_journals.read, fixed_assets.read, and M's
   // purchase_orders.read/estimates.read/expenses.read).
   ['readOnly', 27],
-  // 15 document/read codes plus journals.post and journals.reverse (OB-093), plus the
-  // Pay Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the
-  // queue but cannot issue), so a clerk can finish — approve, void, pay, queue — the
-  // documents they enter. M's purchase_orders.*/expenses.* arrive with the M services.
-  ['apOnly', 19],
+  // 15 document/read codes plus journals.post and journals.reverse (OB-093), the Pay
+  // Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the queue
+  // but cannot issue), and M's purchase_orders.read/write + expenses.read/write (raise
+  // POs, enter expenses; expenses.approve withheld — the SoD split), so a clerk can
+  // finish — approve, void, pay, queue — the documents they enter.
+  ['apOnly', 23],
   // The AR mirror of apOnly, plus invoices.send (INV) so a clerk can send the invoices
-  // they raise. M's estimates.* arrive with the M services.
-  ['arOnly', 18],
+  // they raise, and M's estimates.read/write (the sales pre-document).
+  ['arOnly', 20],
 ];
 
 describe('the six system roles resolve to the bundles migration 0001 gives them', () => {
@@ -254,11 +255,10 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 29 since M: the `%.read` bundle now also picks up `purchase_orders.read`,
-    // `estimates.read` and `expenses.read` (was 26 after L added
-    // `recurring_journals.read`/`fixed_assets.read`). expenses.approve joins the
-    // approver when the expense service enforces it.
-    expect(resolution.permissions.size).toBe(29);
+    // 30 since M: the `%.read` bundle now also picks up `purchase_orders.read`,
+    // `estimates.read` and `expenses.read`, and the approver holds `expenses.approve`
+    // (was 26 after L added `recurring_journals.read`/`fixed_assets.read`).
+    expect(resolution.permissions.size).toBe(30);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

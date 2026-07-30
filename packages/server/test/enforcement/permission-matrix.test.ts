@@ -259,6 +259,33 @@ import {
   updateRecurringJournalTemplate,
 } from '../../src/modules/recurring-journals';
 import {
+  approveEstimate,
+  convertEstimateToInvoice,
+  createEstimate,
+  discardEstimate,
+  getEstimate,
+  listEstimates,
+  updateEstimate,
+} from '../../src/modules/estimates';
+import {
+  approveExpense,
+  createExpense,
+  discardExpense,
+  getExpense,
+  listExpenses,
+  updateExpense,
+} from '../../src/modules/expenses';
+import {
+  approvePurchaseOrder,
+  convertPurchaseOrderToBill,
+  createPurchaseOrder,
+  discardPurchaseOrder,
+  getPurchaseOrder,
+  listPurchaseOrders,
+  updatePurchaseOrder,
+} from '../../src/modules/purchase-orders';
+import { sendEstimate, sendPurchaseOrder } from '../../src/modules/predocument-delivery';
+import {
   getControlAccounts,
   getDepreciationAccounts,
   getDiscountAccounts,
@@ -602,6 +629,25 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'recurring_journals.write': ['owner', 'bookkeeper'],
   'fixed_assets.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
   'fixed_assets.write': ['owner', 'bookkeeper'],
+
+  // ---------------------------------------------------------------------------
+  // M — procure-to-pay (OB-170…179). Purchase orders and estimates are
+  // non-posting pre-documents; an employee expense is an ap_documents bill
+  // against an employee contact. The clerk who owns each side gets its write:
+  // apOnly raises purchase orders and enters expenses, arOnly raises estimates.
+  // Reads reach the two read-only roles through `%.read`. `expenses.approve` is a
+  // real separation of duties (like `disbursements.issue`): approving an expense
+  // into a payable is held by owner, bookkeeper and approver — NOT the ap clerk
+  // who entered it. Converting a pre-document also gates on the target document's
+  // write (`bills.write`/`invoices.write`), captured as `thenRequires` below.
+  // ---------------------------------------------------------------------------
+  'purchase_orders.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'purchase_orders.write': ['owner', 'bookkeeper', 'apOnly'],
+  'estimates.read': ['owner', 'bookkeeper', 'arOnly', 'readOnly', 'approver'],
+  'estimates.write': ['owner', 'bookkeeper', 'arOnly'],
+  'expenses.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
+  'expenses.write': ['owner', 'bookkeeper', 'apOnly'],
+  'expenses.approve': ['owner', 'bookkeeper', 'approver'],
 };
 
 /**
@@ -637,44 +683,19 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
   // the same catalog-before-enforcement pattern `agents.review` followed through M5.
   //
-  // `workflows.*` remains latent with no milestone scoped. Procure-to-pay's seven
-  // codes (`purchase_orders.*`, `estimates.*`, `expenses.*`, initiative M) are latent
-  // in this wave: `0001_tenancy` seeds them to the roles below, but the services that
-  // will `requirePermission` them land in a later wave — the same catalog-before-
-  // enforcement pattern. They move to `GRANTED_TO` (with matching `OPERATIONS` rows)
-  // once the routes exist.
-  owner: [
-    'estimates.read',
-    'estimates.write',
-    'expenses.approve',
-    'expenses.read',
-    'expenses.write',
-    'purchase_orders.read',
-    'purchase_orders.write',
-    'workflows.activate',
-    'workflows.read',
-    'workflows.write',
-  ],
-  bookkeeper: [
-    'estimates.read',
-    'estimates.write',
-    'expenses.approve',
-    'expenses.read',
-    'expenses.write',
-    'purchase_orders.read',
-    'purchase_orders.write',
-    'workflows.read',
-    'workflows.write',
-  ],
-  // Empty since M3 and still empty: procure-to-pay's clerk grants
-  // (purchase_orders.*/expenses.* for AP, estimates.* for AR) are seeded when the M
-  // services enforce them, not before — so these two roles hold nothing latent. The
-  // set-op roles above cannot avoid picking the M codes up (owner/bookkeeper by the
-  // catch-all, readOnly/approver by `%.read`), which is why they list them.
+  // `workflows.*` is the only family still latent, with no milestone scoped at all.
+  // Procure-to-pay's seven codes (M) were latent for exactly one wave — the schema
+  // wave seeded them ahead of enforcement — and moved into `GRANTED_TO` the moment
+  // the M services gated them (this commit), so they are not here.
+  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
+  bookkeeper: ['workflows.read', 'workflows.write'],
+  // Empty since M3. Every code `0001_tenancy` grants an AP/AR clerk now has an
+  // enforcement point — procure-to-pay's purchase_orders.*/expenses.*/estimates.*
+  // gate the moment they are seeded (M), so neither clerk holds anything latent.
   apOnly: [],
   arOnly: [],
-  readOnly: ['estimates.read', 'expenses.read', 'purchase_orders.read', 'workflows.read'],
-  approver: ['estimates.read', 'expenses.read', 'purchase_orders.read', 'workflows.read'],
+  readOnly: ['workflows.read'],
+  approver: ['workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -2739,6 +2760,177 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'orgs.write',
     call: (s) => updateDepreciationAccounts({ depreciationExpenseAccountId: s.revenueId }, s.ctx),
   },
+  // ---------------------------------------------------------------------------
+  // M — procure-to-pay (OB-170…179). Purchase orders and estimates are
+  // non-posting pre-documents that convert into a bill/invoice; an employee
+  // expense is an ap_documents bill against an employee contact. These rows
+  // exercise the *gate*: a dummy id 404s (or, for createExpense against a vendor
+  // fixture, precondition-fails on `requireEmployee`) past the permission check,
+  // which is all this matrix asserts. The convert rows' downstream
+  // `bills.write`/`invoices.write` gate and approveExpense's `journals.post` are
+  // proven in the modules' own service suites.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'createPurchaseOrder',
+    operationId: 'createPurchaseOrder',
+    permission: 'purchase_orders.write',
+    call: (s) =>
+      createPurchaseOrder(
+        {
+          contactId: s.partyId,
+          issueDate: s.date,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId: s.cashId }],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listPurchaseOrders',
+    operationId: 'listPurchaseOrders',
+    permission: 'purchase_orders.read',
+    call: (s) => listPurchaseOrders({}, s.ctx),
+  },
+  {
+    name: 'getPurchaseOrder',
+    operationId: 'getPurchaseOrder',
+    permission: 'purchase_orders.read',
+    call: (s) => getPurchaseOrder(newUuid(), s.ctx),
+  },
+  {
+    name: 'updatePurchaseOrder',
+    operationId: 'updatePurchaseOrder',
+    permission: 'purchase_orders.write',
+    call: (s) => updatePurchaseOrder(newUuid(), { memo: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'approvePurchaseOrder',
+    operationId: 'approvePurchaseOrder',
+    permission: 'purchase_orders.write',
+    call: (s) => approvePurchaseOrder(newUuid(), s.ctx),
+  },
+  {
+    name: 'convertPurchaseOrderToBill',
+    operationId: 'convertPurchaseOrderToBill',
+    permission: 'purchase_orders.write',
+    call: (s) => convertPurchaseOrderToBill(newUuid(), s.ctx),
+  },
+  {
+    name: 'discardPurchaseOrder',
+    operationId: 'discardPurchaseOrder',
+    permission: 'purchase_orders.write',
+    call: (s) => discardPurchaseOrder(newUuid(), s.ctx),
+  },
+  {
+    name: 'createEstimate',
+    operationId: 'createEstimate',
+    permission: 'estimates.write',
+    call: (s) =>
+      createEstimate(
+        {
+          contactId: s.partyId,
+          issueDate: s.date,
+          taxMode: 'exclusive',
+          lines: [
+            { description: 'Item', quantity: '1', unitAmount: '1000', accountId: s.revenueId },
+          ],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listEstimates',
+    operationId: 'listEstimates',
+    permission: 'estimates.read',
+    call: (s) => listEstimates({}, s.ctx),
+  },
+  {
+    name: 'getEstimate',
+    operationId: 'getEstimate',
+    permission: 'estimates.read',
+    call: (s) => getEstimate(newUuid(), s.ctx),
+  },
+  {
+    name: 'updateEstimate',
+    operationId: 'updateEstimate',
+    permission: 'estimates.write',
+    call: (s) => updateEstimate(newUuid(), { memo: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'approveEstimate',
+    operationId: 'approveEstimate',
+    permission: 'estimates.write',
+    call: (s) => approveEstimate(newUuid(), s.ctx),
+  },
+  {
+    name: 'convertEstimateToInvoice',
+    operationId: 'convertEstimateToInvoice',
+    permission: 'estimates.write',
+    call: (s) => convertEstimateToInvoice(newUuid(), s.ctx),
+  },
+  {
+    name: 'discardEstimate',
+    operationId: 'discardEstimate',
+    permission: 'estimates.write',
+    call: (s) => discardEstimate(newUuid(), s.ctx),
+  },
+  {
+    name: 'createExpense',
+    operationId: 'createExpense',
+    permission: 'expenses.write',
+    call: (s) =>
+      createExpense(
+        {
+          contactId: s.partyId,
+          issueDate: s.date,
+          taxMode: 'exclusive',
+          lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId: s.cashId }],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listExpenses',
+    operationId: 'listExpenses',
+    permission: 'expenses.read',
+    call: (s) => listExpenses({}, s.ctx),
+  },
+  {
+    name: 'getExpense',
+    operationId: 'getExpense',
+    permission: 'expenses.read',
+    call: (s) => getExpense(newUuid(), s.ctx),
+  },
+  {
+    name: 'updateExpense',
+    operationId: 'updateExpense',
+    permission: 'expenses.write',
+    call: (s) => updateExpense(newUuid(), { memo: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'approveExpense',
+    operationId: 'approveExpense',
+    permission: 'expenses.approve',
+    call: (s) => approveExpense(newUuid(), s.ctx),
+  },
+  {
+    name: 'discardExpense',
+    operationId: 'discardExpense',
+    permission: 'expenses.write',
+    call: (s) => discardExpense(newUuid(), s.ctx),
+  },
+  {
+    name: 'sendPurchaseOrder',
+    operationId: 'sendPurchaseOrder',
+    permission: 'purchase_orders.write',
+    call: (s) => sendPurchaseOrder(newUuid(), {}, s.ctx),
+  },
+  {
+    name: 'sendEstimate',
+    operationId: 'sendEstimate',
+    permission: 'estimates.write',
+    call: (s) => sendEstimate(newUuid(), {}, s.ctx),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -3724,12 +3916,10 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // This number is the only place the count is asserted rather than described, so it
     // moves once per wave that wires a code.
     //
-    // 3 → 10 with procure-to-pay's schema wave (M): the catalog gains
-    // purchase_orders.read/write, estimates.read/write and expenses.read/write/approve,
-    // seeded (to the set-op roles) ahead of the services that will enforce them — the
-    // same catalog-before-enforcement pattern. They return this count to 3 once the M
-    // services move them into `GRANTED_TO`.
-    expect(latent).toHaveLength(10);
+    // Procure-to-pay (M) added seven codes and enforced them in the same milestone,
+    // so they never lingered here past their one schema-only wave — the count is back
+    // to the three `workflows.*` codes, still the only family with no milestone.
+    expect(latent).toHaveLength(3);
   });
 
   /**
@@ -3743,8 +3933,8 @@ describe('gap 6 — the grants that nothing checks yet', () => {
    * codes each clerk *holds* is asserted alongside it.
    */
   it.each([
-    ['apOnly', 19],
-    ['arOnly', 18],
+    ['apOnly', 23],
+    ['arOnly', 20],
   ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
     const rows = await db.app
       .selectFrom('role_permissions')
