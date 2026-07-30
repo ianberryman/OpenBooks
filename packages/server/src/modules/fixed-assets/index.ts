@@ -11,10 +11,11 @@
  * provides (D-89). Disposal (`fixed-assets.service.ts`, OB-166) posts the gain
  * or loss against proceeds and stops the schedule for good (D-116).
  *
- * There are no routes here: `/v1` for this initiative is OB-167, a later wave.
- * What is exported below is the service surface an HTTP handler, an MCP tool,
- * or the workflow engine (spec §12) all reach identically, plus the sweep's own
- * wiring for `entrypoints/worker.ts` and `entrypoints/api.ts`.
+ * There are no routes here: `/v1` for this initiative is OB-167, registered by
+ * `transport/routes/fixed-assets.ts`. What is exported below is the service surface
+ * an HTTP handler, an MCP tool, or the workflow engine (spec §12) all reach
+ * identically, plus the sweep's own wiring for `entrypoints/worker.ts` and
+ * `entrypoints/api.ts`.
  */
 
 export {

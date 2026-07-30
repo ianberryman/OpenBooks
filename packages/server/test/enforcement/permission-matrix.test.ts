@@ -260,8 +260,10 @@ import {
 } from '../../src/modules/recurring-journals';
 import {
   getControlAccounts,
+  getDepreciationAccounts,
   getDiscountAccounts,
   updateControlAccounts,
+  updateDepreciationAccounts,
   updateDiscountAccounts,
 } from '../../src/modules/settings';
 import {
@@ -2592,14 +2594,12 @@ const OPERATIONS: readonly Operation[] = [
     call: (s) =>
       updateVendorDisbursementDetails(s.contactId, { preferredPaymentRail: 'check' }, s.ctx),
   },
-  // Fixed assets & recurring journals (initiative L, OB-162…166). `operationId` is
-  // null on every row: the services gate now, but OB-167's `/v1` routes have not
-  // landed, so none of these is an OpenAPI operation yet. Each id-taking read passes
-  // a throwaway `newUuid()` — the 404 that follows is a non-permission error the judge
-  // reads as `allowed`, so the row exercises the gate and nothing downstream.
+  // Fixed assets & recurring journals (initiative L, OB-162…167). Each id-taking read
+  // passes a throwaway `newUuid()` — the 404 that follows is a non-permission error the
+  // judge reads as `allowed`, so the row exercises the gate and nothing downstream.
   {
     name: 'createRecurringJournalTemplate',
-    operationId: null,
+    operationId: 'createRecurringJournalTemplate',
     permission: 'recurring_journals.write',
     call: (s) =>
       createRecurringJournalTemplate(
@@ -2619,31 +2619,31 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getRecurringJournalTemplate',
-    operationId: null,
+    operationId: 'getRecurringJournalTemplate',
     permission: 'recurring_journals.read',
     call: (s) => getRecurringJournalTemplate(newUuid(), s.ctx),
   },
   {
     name: 'listRecurringJournalTemplates',
-    operationId: null,
+    operationId: 'listRecurringJournalTemplates',
     permission: 'recurring_journals.read',
     call: (s) => listRecurringJournalTemplates({}, s.ctx),
   },
   {
     name: 'updateRecurringJournalTemplate',
-    operationId: null,
+    operationId: 'updateRecurringJournalTemplate',
     permission: 'recurring_journals.write',
     call: (s) => updateRecurringJournalTemplate(newUuid(), { name: 'Renamed' }, s.ctx),
   },
   {
     name: 'deactivateRecurringJournalTemplate',
-    operationId: null,
+    operationId: 'deactivateRecurringJournalTemplate',
     permission: 'recurring_journals.write',
     call: (s) => deactivateRecurringJournalTemplate(newUuid(), s.ctx),
   },
   {
     name: 'registerFixedAsset',
-    operationId: null,
+    operationId: 'registerFixedAsset',
     permission: 'fixed_assets.write',
     call: (s) =>
       registerFixedAsset(
@@ -2663,31 +2663,31 @@ const OPERATIONS: readonly Operation[] = [
   },
   {
     name: 'getFixedAsset',
-    operationId: null,
+    operationId: 'getFixedAsset',
     permission: 'fixed_assets.read',
     call: (s) => getFixedAsset(newUuid(), s.ctx),
   },
   {
     name: 'listFixedAssets',
-    operationId: null,
+    operationId: 'listFixedAssets',
     permission: 'fixed_assets.read',
     call: (s) => listFixedAssets({}, s.ctx),
   },
   {
     name: 'getFixedAssetSchedule',
-    operationId: null,
+    operationId: 'getFixedAssetSchedule',
     permission: 'fixed_assets.read',
     call: (s) => getFixedAssetSchedule(newUuid(), s.ctx),
   },
   {
     name: 'updateFixedAsset',
-    operationId: null,
+    operationId: 'updateFixedAsset',
     permission: 'fixed_assets.write',
     call: (s) => updateFixedAsset(newUuid(), { name: 'Renamed asset' }, s.ctx),
   },
   {
     name: 'disposeFixedAsset',
-    operationId: null,
+    operationId: 'disposeFixedAsset',
     permission: 'fixed_assets.write',
     call: (s) =>
       disposeFixedAsset(
@@ -2695,6 +2695,21 @@ const OPERATIONS: readonly Operation[] = [
         { date: s.date, proceedsMinor: '0', gainLossAccountId: s.revenueId },
         s.ctx,
       ),
+  },
+  // The org-default depreciation-account nominations (D-115) reuse `orgs.read`/`orgs.write`
+  // — the same `getControlAccounts`/`updateDiscountAccounts` shape, a setup decision the
+  // bookkeeper who runs the books does not make.
+  {
+    name: 'getDepreciationAccounts',
+    operationId: 'getDepreciationAccounts',
+    permission: 'orgs.read',
+    call: (s) => getDepreciationAccounts(s.ctx),
+  },
+  {
+    name: 'updateDepreciationAccounts',
+    operationId: 'updateDepreciationAccounts',
+    permission: 'orgs.write',
+    call: (s) => updateDepreciationAccounts({ depreciationExpenseAccountId: s.revenueId }, s.ctx),
   },
 ];
 

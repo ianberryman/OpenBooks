@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { JOURNAL_SIDES } from '../journals';
-import { calendarDateSchema, minorUnitsSchema, pageQueryShape } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 /**
  * Recurring journal templates (initiative L, OB-162; ROADMAP D-90, D-113…D-117, for
@@ -73,6 +73,7 @@ export const recurringJournalLineSchema = z
     }),
   })
   .meta({
+    id: 'RecurringJournalLine',
     description:
       'One posting instruction of a recurring journal template: an account, a side, and a ' +
       'positive amount, posted verbatim each cycle (D-90).',
@@ -138,7 +139,14 @@ export const createRecurringJournalTemplateRequestSchema = z
         'on the response.',
     }),
   })
-  .superRefine((value, ctx) => assertBalancedLines(value.lines, ctx));
+  .superRefine((value, ctx) => assertBalancedLines(value.lines, ctx))
+  .meta({
+    id: 'CreateRecurringJournalTemplateRequest',
+    description:
+      'Creates a recurring GL journal template (OB-162): a schedule and the balanced lines it ' +
+      'posts, verbatim, each cycle. `startDate` seeds `nextRunDate` and is not itself stored, so ' +
+      'it never reappears on the response.',
+  });
 
 export type CreateRecurringJournalTemplateRequest = z.infer<
   typeof createRecurringJournalTemplateRequestSchema
@@ -165,33 +173,49 @@ export const updateRecurringJournalTemplateRequestSchema = z
     if (!Object.values(value).some((field) => field !== undefined)) {
       ctx.addIssue({ code: 'custom', message: 'Supply at least one field to change.' });
     }
+  })
+  .meta({
+    id: 'UpdateRecurringJournalTemplateRequest',
+    description:
+      'Partial update; `lines`, when present, replaces the whole set and must itself balance. ' +
+      '`isActive` is the by-hand retire/reinstate — the engine clears it automatically once ' +
+      '`nextRunDate` passes `endDate`.',
   });
 
 export type UpdateRecurringJournalTemplateRequest = z.infer<
   typeof updateRecurringJournalTemplateRequestSchema
 >;
 
-export const recurringJournalTemplateSchema = z.strictObject({
-  id: z.uuid(),
-  name: recurringJournalNameSchema,
-  memo: z.string().nullable(),
-  materializationMode: recurringJournalMaterializationModeSchema,
-  frequency: recurringJournalFrequencySchema,
-  intervalCount: z.int().min(1),
-  nextRunDate: calendarDateSchema.meta({
+export const recurringJournalTemplateSchema = z
+  .strictObject({
+    id: z.uuid(),
+    name: recurringJournalNameSchema,
+    memo: z.string().nullable(),
+    materializationMode: recurringJournalMaterializationModeSchema,
+    frequency: recurringJournalFrequencySchema,
+    intervalCount: z.int().min(1),
+    nextRunDate: calendarDateSchema.meta({
+      description:
+        'The next date a cycle fires. Each cycle materialises the journal and advances this by ' +
+        '`frequency` × `intervalCount`.',
+    }),
+    lastRunDate: calendarDateSchema.nullable().meta({
+      description:
+        'The date of the most recently materialised cycle, or null before the first. The ' +
+        'once-per-cycle guard (D-76).',
+    }),
+    endDate: calendarDateSchema.nullable(),
+    isActive: z.boolean(),
+    lines: z.array(recurringJournalLineSchema),
+  })
+  .meta({
+    id: 'RecurringJournalTemplate',
     description:
-      'The next date a cycle fires. Each cycle materialises the journal and advances this by ' +
-      '`frequency` × `intervalCount`.',
-  }),
-  lastRunDate: calendarDateSchema.nullable().meta({
-    description:
-      'The date of the most recently materialised cycle, or null before the first. The ' +
-      'once-per-cycle guard (D-76).',
-  }),
-  endDate: calendarDateSchema.nullable(),
-  isActive: z.boolean(),
-  lines: z.array(recurringJournalLineSchema),
-});
+      'A recurring GL journal template (D-90): fixed accounts and fixed amounts, posted ' +
+      'verbatim each cycle. `nextRunDate`/`lastRunDate` are the schedule state the engine reads ' +
+      'and advances; `startDate` from the create request is not a field here — it seeded ' +
+      '`nextRunDate` once and is gone.',
+  });
 
 export type RecurringJournalTemplate = z.infer<typeof recurringJournalTemplateSchema>;
 
@@ -204,6 +228,15 @@ export type ListRecurringJournalTemplatesQuery = z.input<
   typeof listRecurringJournalTemplatesQuerySchema
 >;
 
-// The keyset page schema (`pageSchema(...)`) carries a `.meta({ id })` and so enters
-// `components.schemas`; it is added with the `/v1` routes in OB-167 (Wave 2), when the
-// OpenAPI artifact is regenerated in the same change — see this package's index header.
+/**
+ * Ordered `(created_at, id)`, `recurringInvoiceTemplatePageSchema`'s own reasoning: a
+ * template's mutable fields (`name`, `nextRunDate`, `isActive`) are exactly the ones a
+ * keyset must not sort on, on pain of a page silently dropping a row that moved behind
+ * the cursor.
+ */
+export const recurringJournalTemplatePageSchema = pageSchema(recurringJournalTemplateSchema, {
+  id: 'RecurringJournalTemplatePage',
+  description: 'One page of recurring journal templates, oldest first by creation.',
+});
+
+export type RecurringJournalTemplatePage = z.infer<typeof recurringJournalTemplatePageSchema>;

@@ -3,6 +3,7 @@ import type {
   ListRecurringJournalTemplatesQuery,
   RecurringJournalLine,
   RecurringJournalTemplate,
+  RecurringJournalTemplatePage,
   UpdateRecurringJournalTemplateRequest,
 } from '@openbooks/shared-types';
 import {
@@ -138,16 +139,7 @@ export async function getRecurringJournalTemplate(
   return hydrate(db, id);
 }
 
-/**
- * One page of the org's templates, oldest first (D-21).
- *
- * There is no `RecurringJournalTemplatePage` wire schema yet: OB-167 (Wave 2) is where
- * `/v1` routes and their `pageSchema(...)` land, `recurring-journals.ts`'s own header
- * explains why none of this module's schemas carry a `.meta({ id })` before then. This
- * function's return shape is the plain `{ items, nextCursor }` envelope every list
- * already uses (D-21) — declared locally below rather than invented twice when the
- * wire schema does arrive.
- */
+/** One page of the org's templates, oldest first (D-21). */
 export async function listRecurringJournalTemplates(
   query: ListRecurringJournalTemplatesQuery,
   ctx: RequestContext = getContext('listRecurringJournalTemplates()'),
@@ -223,12 +215,6 @@ export async function deactivateRecurringJournalTemplate(
 
     return hydrate(trx, id);
   });
-}
-
-/** One page of recurring journal templates — see `listRecurringJournalTemplates` above. */
-export interface RecurringJournalTemplatePage {
-  readonly items: readonly RecurringJournalTemplate[];
-  readonly nextCursor: string | null;
 }
 
 async function hydrate(db: TenantDatabase, id: Buffer): Promise<RecurringJournalTemplate> {

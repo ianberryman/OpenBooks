@@ -75,7 +75,20 @@ import { getBalanceSheet, getGeneralLedger, getProfitAndLoss } from '../../src/m
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
 import { connectProcessor } from '../../src/modules/payments-processing';
 import { getAging } from '../../src/modules/reports/aging.service';
-import { updateControlAccounts, updateDiscountAccounts } from '../../src/modules/settings';
+import {
+  disposeFixedAsset,
+  registerFixedAsset,
+  updateFixedAsset,
+} from '../../src/modules/fixed-assets';
+import {
+  createRecurringJournalTemplate,
+  updateRecurringJournalTemplate,
+} from '../../src/modules/recurring-journals';
+import {
+  updateControlAccounts,
+  updateDepreciationAccounts,
+  updateDiscountAccounts,
+} from '../../src/modules/settings';
 import { createTaxRate, updateTaxRate } from '../../src/modules/tax';
 import {
   createLocalSecretsProvider,
@@ -179,6 +192,11 @@ interface Org {
   readonly paymentTermId: string;
   /** A draft-mode recurring template, so the `update*` reference rows have one to edit. */
   readonly recurringTemplateId: string;
+  /** Initiative L: a draft recurring journal template and fixed assets for the L reference rows. */
+  readonly recurringJournalTemplateId: string;
+  readonly fixedAssetId: string;
+  readonly disposableFixedAssetGainLossId: string;
+  readonly disposableFixedAssetProceedsId: string;
   /** Approved, so it can be an allocation target and has room for three. */
   readonly invoiceId: string;
   readonly billId: string;
@@ -531,6 +549,10 @@ type SubledgerFixtures = Pick<
   | 'paymentId'
   | 'paymentTermId'
   | 'recurringTemplateId'
+  | 'recurringJournalTemplateId'
+  | 'fixedAssetId'
+  | 'disposableFixedAssetGainLossId'
+  | 'disposableFixedAssetProceedsId'
   | 'taxRateId'
   | 'vendorCreditId'
 >;
@@ -630,11 +652,61 @@ async function subledgerFixtures(
       ).id,
   );
 
+  // Initiative L (OB-167): a draft-mode recurring journal template and three fixed assets,
+  // so the `update*`/`dispose*` reference rows have owned rows to edit while naming a
+  // stranger's account/contact in the body. The template posts nothing (draft), and
+  // registration only computes a schedule. Disposal commits on the *own* pass, so each
+  // `dispose*` field gets its own asset — a shared one would be `disposed` by the first
+  // row's own pass and answer the next row `precondition_failed` rather than the `404`
+  // the reference under test must produce.
+  const registerScratchAsset = (): Promise<{ id: string }> =>
+    asOwner(() =>
+      registerFixedAsset(
+        {
+          name: 'Server',
+          assetAccountId: accounts.bankId,
+          accumulatedDepreciationAccountId: accounts.bankId,
+          depreciationExpenseAccountId: accounts.expenseId,
+          acquisitionCostMinor: '120000',
+          salvageValueMinor: '0',
+          method: 'straight_line',
+          usefulLifeMonths: 12,
+          inServiceDate: DATE,
+        },
+        ctx,
+      ),
+    );
+  const recurringJournalTemplateId = (
+    await asOwner(() =>
+      createRecurringJournalTemplate(
+        {
+          name: 'Monthly accrual',
+          materializationMode: 'draft',
+          frequency: 'monthly',
+          intervalCount: 1,
+          startDate: DATE,
+          lines: [
+            { accountId: accounts.revenueId, side: 'debit', amount: '10000' },
+            { accountId: accounts.expenseId, side: 'credit', amount: '10000' },
+          ],
+        },
+        ctx,
+      ),
+    )
+  ).id;
+  const fixedAssetId = (await registerScratchAsset()).id;
+  const disposableFixedAssetGainLossId = (await registerScratchAsset()).id;
+  const disposableFixedAssetProceedsId = (await registerScratchAsset()).id;
+
   return {
     partyId: party.id,
     taxRateId: taxRate.id,
     paymentTermId: paymentTerm.id,
     recurringTemplateId,
+    recurringJournalTemplateId,
+    fixedAssetId,
+    disposableFixedAssetGainLossId,
+    disposableFixedAssetProceedsId,
     invoiceId,
     billId: await approved(bill, (id) => approveBill(id, ctx)),
     creditNoteId: await approved(creditNote, (id) => approveCreditNote(id, ctx)),
@@ -1967,6 +2039,210 @@ const REFERENCES: readonly Reference[] = [
     field: 'discountReceivedAccountId',
     subject: (o) => o.revenueId,
     reach: (id, s) => updateDiscountAccounts({ discountReceivedAccountId: id }, s.caller.ctx),
+  },
+  // ---------------------------------------------------------------------------
+  // Initiative L (OB-167) — every id a recurring-journal or fixed-asset request body
+  // accepts. A cross-org account or contact in any of these resolves through
+  // `tenantDb`/`assertFound` to the same 404 a nonexistent one does (A7). The
+  // non-tested fields carry the caller's own valid ids so the request reaches the one
+  // field under test rather than failing earlier on a different one.
+  // ---------------------------------------------------------------------------
+  {
+    operationId: 'updateDepreciationAccounts',
+    field: 'depreciationExpenseAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updateDepreciationAccounts({ depreciationExpenseAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateDepreciationAccounts',
+    field: 'accumulatedDepreciationAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updateDepreciationAccounts({ accumulatedDepreciationAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'createRecurringJournalTemplate',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      createRecurringJournalTemplate(
+        {
+          name: 'Accrual',
+          materializationMode: 'draft',
+          frequency: 'monthly',
+          intervalCount: 1,
+          startDate: DATE,
+          lines: [
+            { accountId: id, side: 'debit', amount: '10000' },
+            { accountId: s.caller.accountId, side: 'credit', amount: '10000' },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createRecurringJournalTemplate',
+    field: 'contactId',
+    subject: (o) => o.contactId,
+    reach: (id, s) =>
+      createRecurringJournalTemplate(
+        {
+          name: 'Accrual',
+          materializationMode: 'draft',
+          frequency: 'monthly',
+          intervalCount: 1,
+          startDate: DATE,
+          lines: [
+            { accountId: s.caller.accountId, side: 'debit', amount: '10000', contactId: id },
+            { accountId: s.caller.accountId, side: 'credit', amount: '10000' },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateRecurringJournalTemplate',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updateRecurringJournalTemplate(
+        s.caller.recurringJournalTemplateId,
+        {
+          lines: [
+            { accountId: id, side: 'debit', amount: '10000' },
+            { accountId: s.caller.accountId, side: 'credit', amount: '10000' },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateRecurringJournalTemplate',
+    field: 'contactId',
+    subject: (o) => o.contactId,
+    reach: (id, s) =>
+      updateRecurringJournalTemplate(
+        s.caller.recurringJournalTemplateId,
+        {
+          lines: [
+            { accountId: s.caller.accountId, side: 'debit', amount: '10000', contactId: id },
+            { accountId: s.caller.accountId, side: 'credit', amount: '10000' },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'registerFixedAsset',
+    field: 'assetAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      registerFixedAsset(
+        {
+          name: 'Server',
+          assetAccountId: id,
+          accumulatedDepreciationAccountId: s.caller.accountId,
+          depreciationExpenseAccountId: s.caller.expenseId,
+          acquisitionCostMinor: '120000',
+          salvageValueMinor: '0',
+          method: 'straight_line',
+          usefulLifeMonths: 12,
+          inServiceDate: DATE,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'registerFixedAsset',
+    field: 'accumulatedDepreciationAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      registerFixedAsset(
+        {
+          name: 'Server',
+          assetAccountId: s.caller.accountId,
+          accumulatedDepreciationAccountId: id,
+          depreciationExpenseAccountId: s.caller.expenseId,
+          acquisitionCostMinor: '120000',
+          salvageValueMinor: '0',
+          method: 'straight_line',
+          usefulLifeMonths: 12,
+          inServiceDate: DATE,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'registerFixedAsset',
+    field: 'depreciationExpenseAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      registerFixedAsset(
+        {
+          name: 'Server',
+          assetAccountId: s.caller.accountId,
+          accumulatedDepreciationAccountId: s.caller.accountId,
+          depreciationExpenseAccountId: id,
+          acquisitionCostMinor: '120000',
+          salvageValueMinor: '0',
+          method: 'straight_line',
+          usefulLifeMonths: 12,
+          inServiceDate: DATE,
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateFixedAsset',
+    field: 'assetAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) => updateFixedAsset(s.caller.fixedAssetId, { assetAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateFixedAsset',
+    field: 'accumulatedDepreciationAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updateFixedAsset(
+        s.caller.fixedAssetId,
+        { accumulatedDepreciationAccountId: id },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateFixedAsset',
+    field: 'depreciationExpenseAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      updateFixedAsset(s.caller.fixedAssetId, { depreciationExpenseAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'disposeFixedAsset',
+    field: 'gainLossAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      disposeFixedAsset(
+        s.caller.disposableFixedAssetGainLossId,
+        { date: DATE, proceedsMinor: '0', gainLossAccountId: id },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'disposeFixedAsset',
+    field: 'proceedsAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      disposeFixedAsset(
+        s.caller.disposableFixedAssetProceedsId,
+        {
+          date: DATE,
+          proceedsMinor: '5000',
+          proceedsAccountId: id,
+          gainLossAccountId: s.caller.expenseId,
+        },
+        s.caller.ctx,
+      ),
   },
   /**
    * Aging's one id, and the row that says a *report* is not a way around the rule.

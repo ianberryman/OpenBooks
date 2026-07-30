@@ -5,15 +5,11 @@ import { calendarDateSchema, minorUnitsSchema, pageCursorSchema, pageQueryShape 
 
 /**
  * Fixed assets: the register, its precomputed depreciation schedule, and disposal
- * (initiative L, OB-163…166; ROADMAP D-113…D-117).
+ * (initiative L, OB-163…166; ROADMAP D-113…D-117; `/v1` routes OB-167).
  *
- * ## No `.meta({ id })` here yet
- *
- * The routes arrive in a later stream (OB-167), and an `id` with no route
- * publishes a `components.schemas` entry nothing can reach — the sequence
- * `payments-processing/connections.ts` already describes for the same reason. The
- * ids land in the same diff as the routes; until then these carry descriptions and
- * no id.
+ * Every schema below now carries a `.meta({ id })` — added in the same diff as the
+ * routes, `payments-processing/connections.ts`'s own sequence, so an id never enters
+ * `components.schemas` with nothing yet able to reach it.
  *
  * ## Why registration takes cost, salvage, method and life, and never a schedule
  *
@@ -194,6 +190,7 @@ export const createFixedAssetRequestSchema = z
     },
   )
   .meta({
+    id: 'CreateFixedAssetRequest',
     description:
       'Registers a fixed asset and computes its depreciation schedule (OB-163, OB-164). The ' +
       'schedule itself is never supplied — it is computed from the fields here and nothing else.',
@@ -231,6 +228,7 @@ export const updateFixedAssetRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateFixedAssetRequest',
     description:
       'Partial update of a fixed asset. Account repointing and the name/description are always ' +
       'accepted; changing a depreciation parameter once a period has posted is a ' +
@@ -260,6 +258,7 @@ export const fixedAssetSchema = z
     updatedAt: z.iso.datetime(),
   })
   .meta({
+    id: 'FixedAsset',
     description:
       'A registered fixed asset (OB-163). `accumulatedDepreciationAccountId` and ' +
       '`depreciationExpenseAccountId` are always concrete ids on the response even when the ' +
@@ -281,17 +280,16 @@ export type ListFixedAssetsQuery = z.input<typeof listFixedAssetsQuerySchema>;
  * One page of the register, oldest first (D-21) — `accountPageSchema`'s own
  * ordering reasoning: `name` and every depreciation field are mutable up to the
  * point a period posts, so a keyset must not sort on any of them.
- *
- * Built by hand rather than through `pageSchema()`: that helper requires a
- * `.meta({ id })`, and this file's own header is explicit that no id lands before
- * OB-167's routes do.
  */
 export const fixedAssetPageSchema = z
   .strictObject({
     items: z.array(fixedAssetSchema),
     nextCursor: pageCursorSchema.nullable(),
   })
-  .meta({ description: 'One page of the org’s fixed-asset register, oldest first by creation.' });
+  .meta({
+    id: 'FixedAssetPage',
+    description: 'One page of the org’s fixed-asset register, oldest first by creation.',
+  });
 
 export type FixedAssetPage = z.infer<typeof fixedAssetPageSchema>;
 
@@ -311,6 +309,7 @@ export const fixedAssetScheduleRowSchema = z
       }),
   })
   .meta({
+    id: 'FixedAssetScheduleRow',
     description:
       'One period of a fixed asset’s precomputed depreciation schedule. `Σ depreciationAmountMinor` ' +
       'over every row equals `acquisitionCostMinor − salvageValueMinor` exactly (L6).',
@@ -319,6 +318,7 @@ export const fixedAssetScheduleRowSchema = z
 export type FixedAssetScheduleRow = z.infer<typeof fixedAssetScheduleRowSchema>;
 
 export const fixedAssetScheduleSchema = z.array(fixedAssetScheduleRowSchema).meta({
+  id: 'FixedAssetSchedule',
   description: 'A fixed asset’s whole depreciation schedule, ordered by `periodIndex`.',
 });
 
@@ -391,6 +391,7 @@ export const disposeFixedAssetRequestSchema = z
     },
   )
   .meta({
+    id: 'DisposeFixedAssetRequest',
     description:
       'Disposes a fixed asset (D-116): a fresh journal recognises the gain or loss against ' +
       'proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are ' +
@@ -427,6 +428,7 @@ export const depreciationAccountsSchema = z
       }),
   })
   .meta({
+    id: 'DepreciationAccounts',
     description:
       'The org’s default depreciation accounts (D-115), consulted only when a fixed asset does ' +
       'not nominate its own. Either may be null — an org with no registered assets yet has ' +
@@ -448,6 +450,7 @@ export const updateDepreciationAccountsRequestSchema = z
     message: 'Supply at least one field to change.',
   })
   .meta({
+    id: 'UpdateDepreciationAccountsRequest',
     description:
       'Partial update of the org’s default depreciation accounts. An omitted field is left as it ' +
       'is; an explicit `null` clears the nomination. Changing a default reaches only assets ' +

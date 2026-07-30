@@ -18,6 +18,7 @@ import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
 import { registerDunningRoutes } from './dunning';
 import { registerExternalRefRoutes } from './external-refs';
+import { registerFixedAssetRoutes } from './fixed-assets';
 import { registerImportRoutes } from './imports';
 import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
@@ -32,6 +33,7 @@ import { registerPeriodRoutes } from './periods';
 import { registerProcessingRoutes } from './processing';
 import { registerReconciliationRoutes } from './reconciliation';
 import { registerRecurringInvoiceRoutes } from './recurring-invoices';
+import { registerRecurringJournalRoutes } from './recurring-journals';
 import { registerReportRoutes } from './reports';
 import { registerSchedulingRoutes } from './scheduling';
 import { registerSettingsRoutes } from './settings';
@@ -372,6 +374,44 @@ import { registerTaxRateRoutes } from './tax-rates';
  * contact's default term for that one document, create-only — a term already
  * resolved onto a document is not reachable through either update shape.
  *
+ * ### Initiative L — fixed assets & recurring journals (OB-162…169)
+ *
+ * | Method   | Path                                              | operationId                       | Idempotency-Key | Claim scope |
+ * | -------- | --------------------------------------------------- | ----------------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/recurring-journals`                            | `createRecurringJournalTemplate`    | required        | org         |
+ * | `GET`    | `/v1/recurring-journals`                            | `listRecurringJournalTemplates`     | —                | —           |
+ * | `GET`    | `/v1/recurring-journals/:templateId`                | `getRecurringJournalTemplate`       | —                | —           |
+ * | `PATCH`  | `/v1/recurring-journals/:templateId`                | `updateRecurringJournalTemplate`    | required        | org         |
+ * | `POST`   | `/v1/recurring-journals/:templateId/deactivate`     | `deactivateRecurringJournalTemplate`| required        | org         |
+ * | `POST`   | `/v1/fixed-assets`                                  | `registerFixedAsset`                | required        | org         |
+ * | `GET`    | `/v1/fixed-assets`                                  | `listFixedAssets`                   | —                | —           |
+ * | `GET`    | `/v1/fixed-assets/:fixedAssetId`                    | `getFixedAsset`                     | —                | —           |
+ * | `GET`    | `/v1/fixed-assets/:fixedAssetId/schedule`           | `getFixedAssetSchedule`             | —                | —           |
+ * | `PATCH`  | `/v1/fixed-assets/:fixedAssetId`                    | `updateFixedAsset`                  | required        | org         |
+ * | `POST`   | `/v1/fixed-assets/:fixedAssetId/dispose`            | `disposeFixedAsset`                 | required        | org         |
+ * | `GET`    | `/v1/settings/depreciation-accounts`                | `getDepreciationAccounts`           | —                | —           |
+ * | `PATCH`  | `/v1/settings/depreciation-accounts`                | `updateDepreciationAccounts`        | required        | org         |
+ *
+ * Every recurring-journal operation takes `recurring_journals.read`/
+ * `recurring_journals.write`; every fixed-asset operation takes `fixed_assets.read`/
+ * `fixed_assets.write` — `recurring-journals.service.ts` and `fixed-assets.service.ts`
+ * enforce each, not repeated here. `getDepreciationAccounts`/`updateDepreciationAccounts`
+ * take `orgs.read`/`orgs.write`, the same pair `getDiscountAccounts`/
+ * `updateDiscountAccounts` take immediately above and for the same reason (D-115); both
+ * are registered by `registerSettingsRoutes` in `settings.ts`, beside the control and
+ * discount accounts they share a table with, not by `fixed-assets.ts` — the resource is
+ * a setting, and this surface already owns the org's other two.
+ *
+ * `deactivateRecurringJournalTemplate` is its own `POST …/deactivate`,
+ * `deactivateRecurringInvoiceTemplate`'s own shape, for the symmetry argued in
+ * `recurring-journals.ts`'s own header. `disposeFixedAsset` is likewise its own `POST
+ * …/dispose` rather than a `status` field on `PATCH`: D-116 makes disposal a one-way
+ * status change that also posts a journal, so it takes the same shape
+ * `deactivateAccount` and `approveInvoice` already do on this surface, and the same
+ * idempotency reasoning `approveInvoice`'s own note below gives — a double-clicked
+ * dispose replays the first disposal's journal rather than posting a second removal of
+ * the same asset.
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -543,4 +583,6 @@ export function registerV1Routes(app: App, config: Config): void {
   registerExternalRefRoutes(app);
   registerAgentProposalRoutes(app);
   registerProcessingRoutes(app);
+  registerRecurringJournalRoutes(app);
+  registerFixedAssetRoutes(app);
 }

@@ -84,6 +84,8 @@ interface Scene {
   readonly inviteId: string;
   readonly recurringTemplateId: string;
   readonly dunningPolicyId: string;
+  readonly recurringJournalTemplateId: string;
+  readonly fixedAssetId: string;
 
   /**
    * M3's fixtures (OB-067's routes, OB-062 … OB-066's services).
@@ -319,6 +321,39 @@ async function scene(app: App): Promise<Scene> {
     ],
   });
 
+  // Initiative L (OB-167): a recurring journal template and a fixed asset, so the matrix
+  // can prove their id-addressed routes 404 across orgs. The template is `draft`-mode so it
+  // posts nothing; registering the asset only computes a schedule and posts nothing either.
+  // A depreciation-expense account is created for the asset's own expense nomination.
+  const depreciationExpenseId = await createAccount(app, owner, {
+    code: '6500',
+    name: 'Depreciation expense',
+    type: 'expense',
+    normalBalance: 'debit',
+  });
+  const recurringJournalTemplateId = await created('recurring-journal', '/v1/recurring-journals', {
+    name: 'Monthly accrual',
+    materializationMode: 'draft',
+    frequency: 'monthly',
+    intervalCount: 1,
+    startDate: '2026-01-15',
+    lines: [
+      { accountId, side: 'debit', amount: '10000' },
+      { accountId: revenueId, side: 'credit', amount: '10000' },
+    ],
+  });
+  const fixedAssetId = await created('fixed-asset', '/v1/fixed-assets', {
+    name: 'Server',
+    assetAccountId: accountId,
+    accumulatedDepreciationAccountId: accountId,
+    depreciationExpenseAccountId: depreciationExpenseId,
+    acquisitionCostMinor: '120000',
+    salvageValueMinor: '0',
+    method: 'straight_line',
+    usefulLifeMonths: 12,
+    inServiceDate: '2026-01-15',
+  });
+
   const subledger = await subledgerScene(app, owner, created, revenueId);
   const banking = await bankingScene(app, owner, created, revenueId, journalId);
   const captures = await captureScene(owner, subledger.targetBillId);
@@ -398,6 +433,8 @@ async function scene(app: App): Promise<Scene> {
     inviteId,
     recurringTemplateId,
     dunningPolicyId,
+    recurringJournalTemplateId,
+    fixedAssetId,
     apiKeyId,
     oauthClientId,
     oauthClientPublicId,
@@ -1062,6 +1099,59 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/recurring-invoices/%s/deactivate',
     id: (s) => s.recurringTemplateId,
+  },
+  // Initiative L (OB-167): the recurring-journal and fixed-asset id-addressed routes.
+  // `disposeFixedAsset` is last of the fixed-asset rows because the owner's control pass
+  // disposes the asset — a later read of the same id would then answer the owner a `404`
+  // and trip `ownerGetsNotFound` (the `deleteContact`-is-last constraint, one resource over).
+  {
+    operationId: 'getRecurringJournalTemplate',
+    method: 'GET',
+    path: '/v1/recurring-journals/%s',
+    id: (s) => s.recurringJournalTemplateId,
+  },
+  {
+    operationId: 'updateRecurringJournalTemplate',
+    method: 'PATCH',
+    path: '/v1/recurring-journals/%s',
+    id: (s) => s.recurringJournalTemplateId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'deactivateRecurringJournalTemplate',
+    method: 'POST',
+    path: '/v1/recurring-journals/%s/deactivate',
+    id: (s) => s.recurringJournalTemplateId,
+  },
+  {
+    operationId: 'getFixedAsset',
+    method: 'GET',
+    path: '/v1/fixed-assets/%s',
+    id: (s) => s.fixedAssetId,
+  },
+  {
+    operationId: 'getFixedAssetSchedule',
+    method: 'GET',
+    path: '/v1/fixed-assets/%s/schedule',
+    id: (s) => s.fixedAssetId,
+  },
+  {
+    operationId: 'updateFixedAsset',
+    method: 'PATCH',
+    path: '/v1/fixed-assets/%s',
+    id: (s) => s.fixedAssetId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'disposeFixedAsset',
+    method: 'POST',
+    path: '/v1/fixed-assets/%s/dispose',
+    id: (s) => s.fixedAssetId,
+    payload: (_id, s) => ({
+      date: '2026-02-15',
+      proceedsMinor: '0',
+      gainLossAccountId: s.accountId,
+    }),
   },
   {
     operationId: 'getDunningPolicy',

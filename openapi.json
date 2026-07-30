@@ -9003,6 +9003,188 @@
         ],
         "type": "object"
       },
+      "CreateFixedAssetRequest": {
+        "additionalProperties": false,
+        "description": "Registers a fixed asset and computes its depreciation schedule (OB-163, OB-164). The schedule itself is never supplied — it is computed from the fields here and nothing else.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "description": "The account depreciation credits, period after period. Absent falls back to the org’s default (`depreciation-accounts.ts`); absent with no default is a `precondition_failed`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "What the asset cost. Must exceed `salvageValueMinor` — there is nothing to depreciate otherwise."
+          },
+          "assetAccountId": {
+            "description": "The ledger account this asset’s cost sits on.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required, and only meaningful, when `method` is `declining_balance` — the fixed rate of remaining book value each period charges, in parts per million. Must be omitted or null for `straight_line`."
+          },
+          "depreciationExpenseAccountId": {
+            "description": "The account each posted period debits. Absent falls back to the org’s default.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date depreciation begins. Period 0 of the schedule is dated here."
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The residual value the schedule depreciates down to and never below (L6)."
+          },
+          "usefulLifeMonths": {
+            "description": "How many monthly periods the schedule runs — `computeDepreciationSchedule`’s own period count.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "assetAccountId",
+          "acquisitionCostMinor",
+          "salvageValueMinor",
+          "method",
+          "usefulLifeMonths",
+          "inServiceDate"
+        ],
+        "type": "object"
+      },
+      "CreateFixedAssetRequestInput": {
+        "additionalProperties": false,
+        "description": "Registers a fixed asset and computes its depreciation schedule (OB-163, OB-164). The schedule itself is never supplied — it is computed from the fields here and nothing else.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "description": "The account depreciation credits, period after period. Absent falls back to the org’s default (`depreciation-accounts.ts`); absent with no default is a `precondition_failed`.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "What the asset cost. Must exceed `salvageValueMinor` — there is nothing to depreciate otherwise."
+          },
+          "assetAccountId": {
+            "description": "The ledger account this asset’s cost sits on.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required, and only meaningful, when `method` is `declining_balance` — the fixed rate of remaining book value each period charges, in parts per million. Must be omitted or null for `straight_line`."
+          },
+          "depreciationExpenseAccountId": {
+            "description": "The account each posted period debits. Absent falls back to the org’s default.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date depreciation begins. Period 0 of the schedule is dated here."
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The residual value the schedule depreciates down to and never below (L6)."
+          },
+          "usefulLifeMonths": {
+            "description": "How many monthly periods the schedule runs — `computeDepreciationSchedule`’s own period count.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "assetAccountId",
+          "acquisitionCostMinor",
+          "salvageValueMinor",
+          "method",
+          "usefulLifeMonths",
+          "inServiceDate"
+        ],
+        "type": "object"
+      },
       "CreateInvoiceRequest": {
         "additionalProperties": false,
         "description": "Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only.",
@@ -9835,6 +10017,163 @@
         ],
         "type": "object"
       },
+      "CreateRecurringJournalTemplateRequest": {
+        "additionalProperties": false,
+        "description": "Creates a recurring GL journal template (OB-162): a schedule and the balanced lines it posts, verbatim, each cycle. `startDate` seeds `nextRunDate` and is not itself stored, so it never reappears on the response.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last date a cycle may fire. Null is open-ended."
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "default": 1,
+            "description": "How many `frequency` units between cycles. `1` is every cycle; `3` is every third.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLine"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A memo carried onto each cycle’s journal header. Null or absent for none."
+          },
+          "name": {
+            "description": "The template’s own label — what an operator picks it out by.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response."
+          }
+        },
+        "required": [
+          "name",
+          "materializationMode",
+          "frequency",
+          "intervalCount",
+          "lines",
+          "startDate"
+        ],
+        "type": "object"
+      },
+      "CreateRecurringJournalTemplateRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a recurring GL journal template (OB-162): a schedule and the balanced lines it posts, verbatim, each cycle. `startDate` seeds `nextRunDate` and is not itself stored, so it never reappears on the response.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last date a cycle may fire. Null is open-ended."
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "default": 1,
+            "description": "How many `frequency` units between cycles. `1` is every cycle; `3` is every third.",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLineInput"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A memo carried onto each cycle’s journal header. Null or absent for none."
+          },
+          "name": {
+            "description": "The template’s own label — what an operator picks it out by.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response."
+          }
+        },
+        "required": [
+          "name",
+          "materializationMode",
+          "frequency",
+          "lines",
+          "startDate"
+        ],
+        "type": "object"
+      },
       "CreateTaxRateRequest": {
         "additionalProperties": false,
         "description": "Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`.",
@@ -10537,6 +10876,80 @@
         ],
         "type": "object"
       },
+      "DepreciationAccounts": {
+        "additionalProperties": false,
+        "description": "The org’s default depreciation accounts (D-115), consulted only when a fixed asset does not nominate its own. Either may be null — an org with no registered assets yet has nominated neither.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The org-default account depreciation credits, when an asset does not name its own. Null until nominated."
+          },
+          "depreciationExpenseAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The org-default account each posted depreciation period debits, when an asset does not name its own. Null until nominated."
+          }
+        },
+        "required": [
+          "depreciationExpenseAccountId",
+          "accumulatedDepreciationAccountId"
+        ],
+        "type": "object"
+      },
+      "DepreciationAccountsInput": {
+        "additionalProperties": false,
+        "description": "The org’s default depreciation accounts (D-115), consulted only when a fixed asset does not nominate its own. Either may be null — an org with no registered assets yet has nominated neither.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The org-default account depreciation credits, when an asset does not name its own. Null until nominated."
+          },
+          "depreciationExpenseAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The org-default account each posted depreciation period debits, when an asset does not name its own. Null until nominated."
+          }
+        },
+        "required": [
+          "depreciationExpenseAccountId",
+          "accumulatedDepreciationAccountId"
+        ],
+        "type": "object"
+      },
       "Dimension": {
         "additionalProperties": false,
         "description": "One reporting axis: a way of dividing the business that the chart should not carry.",
@@ -11002,6 +11415,70 @@
           "discountAmountMinor",
           "deadline",
           "accountId"
+        ],
+        "type": "object"
+      },
+      "DisposeFixedAssetRequest": {
+        "additionalProperties": false,
+        "description": "Disposes a fixed asset (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the disposal journal posts on."
+          },
+          "gainLossAccountId": {
+            "description": "The account the gain or loss on disposal posts to. Always required; a disposal that happens to break exactly even simply posts no line to it.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "proceedsAccountId": {
+            "description": "The account debited for proceeds received (cash, or a receivable). Required when `proceedsMinor` is greater than zero; meaningless and ignored at zero.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "proceedsMinor": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "What was received for the asset, if anything. `\"0\"` for a scrapped asset."
+          }
+        },
+        "required": [
+          "date",
+          "proceedsMinor",
+          "gainLossAccountId"
+        ],
+        "type": "object"
+      },
+      "DisposeFixedAssetRequestInput": {
+        "additionalProperties": false,
+        "description": "Disposes a fixed asset (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted.",
+        "properties": {
+          "date": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the disposal journal posts on."
+          },
+          "gainLossAccountId": {
+            "description": "The account the gain or loss on disposal posts to. Always required; a disposal that happens to break exactly even simply posts no line to it.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "proceedsAccountId": {
+            "description": "The account debited for proceeds received (cash, or a receivable). Required when `proceedsMinor` is greater than zero; meaningless and ignored at zero.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "proceedsMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "What was received for the asset, if anything. `\"0\"` for a scrapped asset."
+          }
+        },
+        "required": [
+          "date",
+          "proceedsMinor",
+          "gainLossAccountId"
         ],
         "type": "object"
       },
@@ -12500,6 +12977,420 @@
         },
         "required": [
           "periods"
+        ],
+        "type": "object"
+      },
+      "FixedAsset": {
+        "additionalProperties": false,
+        "description": "A registered fixed asset (OB-163). `accumulatedDepreciationAccountId` and `depreciationExpenseAccountId` are always concrete ids on the response even when the create request left one to the org’s default — the resolved id, not the absence, is what a client needs to show.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "assetAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposalJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "status": {
+            "description": "Whether the asset is still depreciating. `disposed` is set once, by `disposeFixedAsset` (D-116) — there is no path back to `active`, the same one-way shape a voided document takes.",
+            "enum": [
+              "active",
+              "disposed"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "usefulLifeMonths": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "assetAccountId",
+          "accumulatedDepreciationAccountId",
+          "depreciationExpenseAccountId",
+          "acquisitionCostMinor",
+          "salvageValueMinor",
+          "method",
+          "usefulLifeMonths",
+          "decliningRatePpm",
+          "inServiceDate",
+          "status",
+          "disposedDate",
+          "disposalJournalId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "FixedAssetInput": {
+        "additionalProperties": false,
+        "description": "A registered fixed asset (OB-163). `accumulatedDepreciationAccountId` and `depreciationExpenseAccountId` are always concrete ids on the response even when the create request left one to the org’s default — the resolved id, not the absence, is what a client needs to show.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "assetAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposalJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "status": {
+            "description": "Whether the asset is still depreciating. `disposed` is set once, by `disposeFixedAsset` (D-116) — there is no path back to `active`, the same one-way shape a voided document takes.",
+            "enum": [
+              "active",
+              "disposed"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "usefulLifeMonths": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "assetAccountId",
+          "accumulatedDepreciationAccountId",
+          "depreciationExpenseAccountId",
+          "acquisitionCostMinor",
+          "salvageValueMinor",
+          "method",
+          "usefulLifeMonths",
+          "decliningRatePpm",
+          "inServiceDate",
+          "status",
+          "disposedDate",
+          "disposalJournalId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "FixedAssetPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s fixed-asset register, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FixedAsset"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "FixedAssetPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s fixed-asset register, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FixedAssetInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "FixedAssetSchedule": {
+        "description": "A fixed asset’s whole depreciation schedule, ordered by `periodIndex`.",
+        "items": {
+          "$ref": "#/components/schemas/FixedAssetScheduleRow"
+        },
+        "type": "array"
+      },
+      "FixedAssetScheduleInput": {
+        "description": "A fixed asset’s whole depreciation schedule, ordered by `periodIndex`.",
+        "items": {
+          "$ref": "#/components/schemas/FixedAssetScheduleRowInput"
+        },
+        "type": "array"
+      },
+      "FixedAssetScheduleRow": {
+        "additionalProperties": false,
+        "description": "One period of a fixed asset’s precomputed depreciation schedule. `Σ depreciationAmountMinor` over every row equals `acquisitionCostMinor − salvageValueMinor` exactly (L6).",
+        "properties": {
+          "depreciationAmountMinor": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "periodDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "periodIndex": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "postedJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the period is still due; set once the daily sweep posts it (D-113). Set is permanent — a posted period is never reopened."
+          }
+        },
+        "required": [
+          "periodIndex",
+          "periodDate",
+          "depreciationAmountMinor",
+          "postedJournalId"
+        ],
+        "type": "object"
+      },
+      "FixedAssetScheduleRowInput": {
+        "additionalProperties": false,
+        "description": "One period of a fixed asset’s precomputed depreciation schedule. `Σ depreciationAmountMinor` over every row equals `acquisitionCostMinor − salvageValueMinor` exactly (L6).",
+        "properties": {
+          "depreciationAmountMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "periodDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "periodIndex": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "postedJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the period is still due; set once the daily sweep posts it (D-113). Set is permanent — a posted period is never reopened."
+          }
+        },
+        "required": [
+          "periodIndex",
+          "periodDate",
+          "depreciationAmountMinor",
+          "postedJournalId"
         ],
         "type": "object"
       },
@@ -20492,6 +21383,368 @@
         ],
         "type": "object"
       },
+      "RecurringJournalLine": {
+        "additionalProperties": false,
+        "description": "One posting instruction of a recurring journal template: an account, a side, and a positive amount, posted verbatim each cycle (D-90).",
+        "properties": {
+          "accountId": {
+            "description": "The account this line posts to each cycle.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The line’s amount in minor units, always positive — `side` carries the sign."
+          },
+          "contactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The counterparty this line is with, or null. A `journal_lines` column (OB-059)."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the line is for, carried onto the journal line’s memo each cycle."
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "side",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "RecurringJournalLineInput": {
+        "additionalProperties": false,
+        "description": "One posting instruction of a recurring journal template: an account, a side, and a positive amount, posted verbatim each cycle (D-90).",
+        "properties": {
+          "accountId": {
+            "description": "The account this line posts to each cycle.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The line’s amount in minor units, always positive — `side` carries the sign."
+          },
+          "contactId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The counterparty this line is with, or null. A `journal_lines` column (OB-059)."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the line is for, carried onto the journal line’s memo each cycle."
+          },
+          "side": {
+            "description": "Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is a caller that has confused the two models.",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "side",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "RecurringJournalTemplate": {
+        "additionalProperties": false,
+        "description": "A recurring GL journal template (D-90): fixed accounts and fixed amounts, posted verbatim each cycle. `nextRunDate`/`lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lastRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the most recently materialised cycle, or null before the first. The once-per-cycle guard (D-76)."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLine"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextRunDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The next date a cycle fires. Each cycle materialises the journal and advances this by `frequency` × `intervalCount`."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "memo",
+          "materializationMode",
+          "frequency",
+          "intervalCount",
+          "nextRunDate",
+          "lastRunDate",
+          "endDate",
+          "isActive",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "RecurringJournalTemplateInput": {
+        "additionalProperties": false,
+        "description": "A recurring GL journal template (D-90): fixed accounts and fixed amounts, posted verbatim each cycle. `nextRunDate`/`lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lastRunDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the most recently materialised cycle, or null before the first. The once-per-cycle guard (D-76)."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLineInput"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "nextRunDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The next date a cycle fires. Each cycle materialises the journal and advances this by `frequency` × `intervalCount`."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "memo",
+          "materializationMode",
+          "frequency",
+          "intervalCount",
+          "nextRunDate",
+          "lastRunDate",
+          "endDate",
+          "isActive",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "RecurringJournalTemplatePage": {
+        "additionalProperties": false,
+        "description": "One page of recurring journal templates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalTemplate"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "RecurringJournalTemplatePageInput": {
+        "additionalProperties": false,
+        "description": "One page of recurring journal templates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalTemplateInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "RegisterOAuthClientRequest": {
         "additionalProperties": false,
         "description": "Registers a third-party client, admin-registered and never self-service (D-53).",
@@ -22249,6 +23502,68 @@
         },
         "type": "object"
       },
+      "UpdateDepreciationAccountsRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of the org’s default depreciation accounts. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a default reaches only assets registered after the change — an asset already registered keeps the accounts it resolved at registration.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "UpdateDepreciationAccountsRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of the org’s default depreciation accounts. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a default reaches only assets registered after the change — an asset already registered keeps the accounts it resolved at registration.",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
       "UpdateDimensionRequest": {
         "additionalProperties": false,
         "description": "Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending either is a `validation_failed` naming the field.",
@@ -22619,6 +23934,156 @@
             },
             "minItems": 1,
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateFixedAssetRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1).",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "assetAccountId": {
+            "description": "The ledger account this asset’s cost sits on.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnits"
+          },
+          "usefulLifeMonths": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateFixedAssetRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1).",
+        "properties": {
+          "accumulatedDepreciationAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "acquisitionCostMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "assetAccountId": {
+            "description": "The ledger account this asset’s cost sits on.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "decliningRatePpm": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depreciationExpenseAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inServiceDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "method": {
+            "description": "How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.",
+            "enum": [
+              "straight_line",
+              "declining_balance"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What this asset is called in the register — a label, not an accounting code.",
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "salvageValueMinor": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          },
+          "usefulLifeMonths": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -23192,6 +24657,136 @@
               "exclusive",
               "inclusive"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateRecurringJournalTemplateRequest": {
+        "additionalProperties": false,
+        "description": "Partial update; `lines`, when present, replaces the whole set and must itself balance. `isActive` is the by-hand retire/reinstate — the engine clears it automatically once `nextRunDate` passes `endDate`.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLine"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateRecurringJournalTemplateRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update; `lines`, when present, replaces the whole set and must itself balance. `isActive` is the by-hand retire/reinstate — the engine clears it automatically once `nextRunDate` passes `endDate`.",
+        "properties": {
+          "endDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frequency": {
+            "description": "How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "type": "string"
+          },
+          "intervalCount": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecurringJournalLineInput"
+            },
+            "type": "array"
+          },
+          "materializationMode": {
+            "description": "What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.",
+            "enum": [
+              "draft",
+              "posted"
+            ],
+            "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -31274,6 +32869,337 @@
         ]
       }
     },
+    "/v1/fixed-assets": {
+      "get": {
+        "description": "One page of the register, ordered by `(created_at, id)`, oldest first.",
+        "operationId": "listFixedAssets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "disposed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many fixed assets to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAssetPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List the fixed-asset register",
+        "tags": [
+          "fixed-assets"
+        ]
+      },
+      "post": {
+        "description": "Cost, salvage, method, life and in-service date (OB-163, OB-164). Registration computes the whole depreciation schedule from these five fields and nothing else — the schedule itself is never supplied, fetched separately through `getFixedAssetSchedule`.",
+        "operationId": "registerFixedAsset",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFixedAssetRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAsset"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Register a fixed asset",
+        "tags": [
+          "fixed-assets"
+        ]
+      }
+    },
+    "/v1/fixed-assets/{fixedAssetId}": {
+      "get": {
+        "operationId": "getFixedAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixedAssetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAsset"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One registered fixed asset",
+        "tags": [
+          "fixed-assets"
+        ]
+      },
+      "patch": {
+        "description": "Account repointing and `name`/`description` are always accepted. Changing anything the schedule was computed from — `method`, `salvageValueMinor`, `usefulLifeMonths`, `decliningRatePpm`, `acquisitionCostMinor` or `inServiceDate` — is accepted only while no period has posted; once one has, this is refused with `fixed_asset_has_posted_depreciation` rather than silently re-forecasting periods that already posted under the old numbers (ROADMAP: no mid-life re-forecast in v1).",
+        "operationId": "updateFixedAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixedAssetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFixedAssetRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAsset"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Edit a fixed asset",
+        "tags": [
+          "fixed-assets"
+        ]
+      }
+    },
+    "/v1/fixed-assets/{fixedAssetId}/dispose": {
+      "post": {
+        "description": "Full disposal only (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted, and a second dispose of an already-disposed asset is refused with `fixed_asset_already_disposed` rather than posting a second removal.",
+        "operationId": "disposeFixedAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixedAssetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisposeFixedAssetRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAsset"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Dispose of a fixed asset",
+        "tags": [
+          "fixed-assets"
+        ]
+      }
+    },
+    "/v1/fixed-assets/{fixedAssetId}/schedule": {
+      "get": {
+        "description": "Every period, ordered by `periodIndex` (OB-164). `postedJournalId` is null on a period still due and set once the daily sweep posts it (D-113); a set value is permanent — a posted period is never reopened.",
+        "operationId": "getFixedAssetSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixedAssetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixedAssetSchedule"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "A fixed asset’s whole depreciation schedule",
+        "tags": [
+          "fixed-assets"
+        ]
+      }
+    },
     "/v1/import-mappings": {
       "get": {
         "description": "One page, oldest first (D-21), for the `bankAccountId` given. A malformed or cross-org account id answers with an empty page rather than a 404, so a filter that matches nothing behaves like an unknown one (E9) — which is why `bankAccountId` is a query filter here and not a path segment.",
@@ -35942,6 +37868,280 @@
         ]
       }
     },
+    "/v1/recurring-journals": {
+      "get": {
+        "description": "One page of templates, ordered by `(created_at, id)`, oldest first.",
+        "operationId": "listRecurringJournalTemplates",
+        "parameters": [
+          {
+            "description": "Only active templates when `true`, only retired ones when `false`.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many recurring journal templates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringJournalTemplatePage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List recurring GL journal templates",
+        "tags": [
+          "recurring-journals"
+        ]
+      },
+      "post": {
+        "description": "A schedule and the balanced lines it posts, verbatim, each cycle (D-90). At least two lines and debits equal credits are checked at authoring time — the same rule the ledger kernel would otherwise refuse each cycle. `startDate` seeds `nextRunDate` and is not stored as its own field — the response carries `nextRunDate`/`lastRunDate` instead, the schedule state the engine advances.",
+        "operationId": "createRecurringJournalTemplate",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecurringJournalTemplateRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringJournalTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a recurring GL journal template",
+        "tags": [
+          "recurring-journals"
+        ]
+      }
+    },
+    "/v1/recurring-journals/{templateId}": {
+      "get": {
+        "operationId": "getRecurringJournalTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringJournalTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One recurring GL journal template, with its lines",
+        "tags": [
+          "recurring-journals"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is unchanged, and `lines` — when present — replaces the whole set and must itself balance. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary journal from here on and this endpoint cannot reach it.",
+        "operationId": "updateRecurringJournalTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecurringJournalTemplateRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringJournalTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update a recurring GL journal template",
+        "tags": [
+          "recurring-journals"
+        ]
+      }
+    },
+    "/v1/recurring-journals/{templateId}/deactivate": {
+      "post": {
+        "description": "The engine stops materialising journals from this template. Idempotent: an already-inactive template is returned unchanged rather than refused. Nothing already materialised is affected — this reaches only future cycles.",
+        "operationId": "deactivateRecurringJournalTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringJournalTemplate"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Retire a recurring GL journal template",
+        "tags": [
+          "recurring-journals"
+        ]
+      }
+    },
     "/v1/reports/aging": {
       "get": {
         "description": "What is owed and how late it is, per contact, split into current / 1–30 / 31–60 / 61–90 / 90+ days past due — measured from the **due** date rather than the issue date, because that is what \"overdue\" means to the person chasing it (D-40). Aggregated over documents and allocations rather than over journal lines, which is what makes C8 worth asserting: `totals` must equal the control account’s balance at `asOf`, and an aging report that does not tie to the ledger is a list of hopes. That is why unapplied credit is in here at all — an unallocated payment or credit note is money already sitting in the control account, so it appears as a **negative** amount in `current` on the contact holding it, and a report that omitted it would overstate what the business is owed by exactly that much. The report deliberately does not state the control-account balance itself: an org that has nominated nothing has none to state, and a reconciliation that is sometimes reported is one nobody trusts. Everything is computed as at `asOf`, including each document’s `outstanding`, so last month’s aging still prints last month’s figures next year. Not paginated, on purpose: a page of buckets sums to nothing in particular. Takes `reports.read` and only that.",
@@ -36540,6 +38740,90 @@
         "summary": "Run due background work now",
         "tags": [
           "scheduling"
+        ]
+      }
+    },
+    "/v1/settings/depreciation-accounts": {
+      "get": {
+        "description": "The account each posted depreciation period debits by default, and the account it credits, consulted only when a fixed asset does not nominate its own at registration (D-115). Either may be null — the two sides are separately usable. Reading this takes `orgs.read` rather than `fixed_assets.read`, mirroring `getDiscountAccounts`: what is being read is a decision the organization made.",
+        "operationId": "getDepreciationAccounts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationAccounts"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The org’s default depreciation-account nominations",
+        "tags": [
+          "depreciation-accounts"
+        ]
+      },
+      "patch": {
+        "description": "An omitted side is left as it is; an explicit `null` clears it. A nomination must be an active account of the right kind — an expense account for the debited side, an asset account for the credited side — refused with `depreciation_expense_account_wrong_type`, `accumulated_depreciation_account_wrong_type` or `account_inactive`. Both nominations land in one transaction. Changing a default reaches only assets registered after the change: an asset already registered stored the concrete account it resolved at registration, not \"the default\", so there is no way to ask whether an existing asset depends on the previous nomination and, mirroring `updateDiscountAccounts`, this is not refused while one might.",
+        "operationId": "updateDepreciationAccounts",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepreciationAccountsRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationAccounts"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Nominate, repoint or clear a default depreciation account",
+        "tags": [
+          "depreciation-accounts"
         ]
       }
     },

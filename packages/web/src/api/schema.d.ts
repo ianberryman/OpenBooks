@@ -1659,6 +1659,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/fixed-assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the fixed-asset register
+         * @description One page of the register, ordered by `(created_at, id)`, oldest first.
+         */
+        get: operations["listFixedAssets"];
+        put?: never;
+        /**
+         * Register a fixed asset
+         * @description Cost, salvage, method, life and in-service date (OB-163, OB-164). Registration computes the whole depreciation schedule from these five fields and nothing else — the schedule itself is never supplied, fetched separately through `getFixedAssetSchedule`.
+         */
+        post: operations["registerFixedAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/fixed-assets/{fixedAssetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One registered fixed asset */
+        get: operations["getFixedAsset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a fixed asset
+         * @description Account repointing and `name`/`description` are always accepted. Changing anything the schedule was computed from — `method`, `salvageValueMinor`, `usefulLifeMonths`, `decliningRatePpm`, `acquisitionCostMinor` or `inServiceDate` — is accepted only while no period has posted; once one has, this is refused with `fixed_asset_has_posted_depreciation` rather than silently re-forecasting periods that already posted under the old numbers (ROADMAP: no mid-life re-forecast in v1).
+         */
+        patch: operations["updateFixedAsset"];
+        trace?: never;
+    };
+    "/v1/fixed-assets/{fixedAssetId}/dispose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispose of a fixed asset
+         * @description Full disposal only (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted, and a second dispose of an already-disposed asset is refused with `fixed_asset_already_disposed` rather than posting a second removal.
+         */
+        post: operations["disposeFixedAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/fixed-assets/{fixedAssetId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A fixed asset’s whole depreciation schedule
+         * @description Every period, ordered by `periodIndex` (OB-164). `postedJournalId` is null on a period still due and set once the daily sweep posts it (D-113); a set value is permanent — a posted period is never reopened.
+         */
+        get: operations["getFixedAssetSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/import-mappings": {
         parameters: {
             query?: never;
@@ -2747,6 +2832,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/recurring-journals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recurring GL journal templates
+         * @description One page of templates, ordered by `(created_at, id)`, oldest first.
+         */
+        get: operations["listRecurringJournalTemplates"];
+        put?: never;
+        /**
+         * Create a recurring GL journal template
+         * @description A schedule and the balanced lines it posts, verbatim, each cycle (D-90). At least two lines and debits equal credits are checked at authoring time — the same rule the ledger kernel would otherwise refuse each cycle. `startDate` seeds `nextRunDate` and is not stored as its own field — the response carries `nextRunDate`/`lastRunDate` instead, the schedule state the engine advances.
+         */
+        post: operations["createRecurringJournalTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recurring-journals/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recurring GL journal template, with its lines */
+        get: operations["getRecurringJournalTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a recurring GL journal template
+         * @description An absent field is unchanged, and `lines` — when present — replaces the whole set and must itself balance. Changing the schedule reaches only the *next* cycle — a cycle already materialised is an ordinary journal from here on and this endpoint cannot reach it.
+         */
+        patch: operations["updateRecurringJournalTemplate"];
+        trace?: never;
+    };
+    "/v1/recurring-journals/{templateId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retire a recurring GL journal template
+         * @description The engine stops materialising journals from this template. Idempotent: an already-inactive template is returned unchanged rather than refused. Nothing already materialised is affected — this reaches only future cycles.
+         */
+        post: operations["deactivateRecurringJournalTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/reports/aging": {
         parameters: {
             query?: never;
@@ -2925,6 +3075,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/depreciation-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org’s default depreciation-account nominations
+         * @description The account each posted depreciation period debits by default, and the account it credits, consulted only when a fixed asset does not nominate its own at registration (D-115). Either may be null — the two sides are separately usable. Reading this takes `orgs.read` rather than `fixed_assets.read`, mirroring `getDiscountAccounts`: what is being read is a decision the organization made.
+         */
+        get: operations["getDepreciationAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Nominate, repoint or clear a default depreciation account
+         * @description An omitted side is left as it is; an explicit `null` clears it. A nomination must be an active account of the right kind — an expense account for the debited side, an asset account for the credited side — refused with `depreciation_expense_account_wrong_type`, `accumulated_depreciation_account_wrong_type` or `account_inactive`. Both nominations land in one transaction. Changing a default reaches only assets registered after the change: an asset already registered stored the concrete account it resolved at registration, not "the default", so there is no way to ask whether an existing asset depends on the previous nomination and, mirroring `updateDiscountAccounts`, this is not refused while one might.
+         */
+        patch: operations["updateDepreciationAccounts"];
         trace?: never;
     };
     "/v1/settings/discount-accounts": {
@@ -5564,6 +5738,78 @@ export interface components {
             /** @description The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026. */
             year: number;
         };
+        /** @description Registers a fixed asset and computes its depreciation schedule (OB-163, OB-164). The schedule itself is never supplied — it is computed from the fields here and nothing else. */
+        CreateFixedAssetRequest: {
+            /**
+             * Format: uuid
+             * @description The account depreciation credits, period after period. Absent falls back to the org’s default (`depreciation-accounts.ts`); absent with no default is a `precondition_failed`.
+             */
+            accumulatedDepreciationAccountId?: string;
+            /** @description What the asset cost. Must exceed `salvageValueMinor` — there is nothing to depreciate otherwise. */
+            acquisitionCostMinor: components["schemas"]["MinorUnits"];
+            /**
+             * Format: uuid
+             * @description The ledger account this asset’s cost sits on.
+             */
+            assetAccountId: string;
+            /** @description Required, and only meaningful, when `method` is `declining_balance` — the fixed rate of remaining book value each period charges, in parts per million. Must be omitted or null for `straight_line`. */
+            decliningRatePpm?: number | null;
+            /**
+             * Format: uuid
+             * @description The account each posted period debits. Absent falls back to the org’s default.
+             */
+            depreciationExpenseAccountId?: string;
+            description?: string | null;
+            /** @description The date depreciation begins. Period 0 of the schedule is dated here. */
+            inServiceDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name: string;
+            /** @description The residual value the schedule depreciates down to and never below (L6). */
+            salvageValueMinor: components["schemas"]["MinorUnits"];
+            /** @description How many monthly periods the schedule runs — `computeDepreciationSchedule`’s own period count. */
+            usefulLifeMonths: number;
+        };
+        /** @description Registers a fixed asset and computes its depreciation schedule (OB-163, OB-164). The schedule itself is never supplied — it is computed from the fields here and nothing else. */
+        CreateFixedAssetRequestInput: {
+            /**
+             * Format: uuid
+             * @description The account depreciation credits, period after period. Absent falls back to the org’s default (`depreciation-accounts.ts`); absent with no default is a `precondition_failed`.
+             */
+            accumulatedDepreciationAccountId?: string;
+            /** @description What the asset cost. Must exceed `salvageValueMinor` — there is nothing to depreciate otherwise. */
+            acquisitionCostMinor: components["schemas"]["MinorUnitsInput"];
+            /**
+             * Format: uuid
+             * @description The ledger account this asset’s cost sits on.
+             */
+            assetAccountId: string;
+            /** @description Required, and only meaningful, when `method` is `declining_balance` — the fixed rate of remaining book value each period charges, in parts per million. Must be omitted or null for `straight_line`. */
+            decliningRatePpm?: number | null;
+            /**
+             * Format: uuid
+             * @description The account each posted period debits. Absent falls back to the org’s default.
+             */
+            depreciationExpenseAccountId?: string;
+            description?: string | null;
+            /** @description The date depreciation begins. Period 0 of the schedule is dated here. */
+            inServiceDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name: string;
+            /** @description The residual value the schedule depreciates down to and never below (L6). */
+            salvageValueMinor: components["schemas"]["MinorUnitsInput"];
+            /** @description How many monthly periods the schedule runs — `computeDepreciationSchedule`’s own period count. */
+            usefulLifeMonths: number;
+        };
         /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only. */
         CreateInvoiceRequest: {
             /** Format: uuid */
@@ -5834,6 +6080,60 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
+        /** @description Creates a recurring GL journal template (OB-162): a schedule and the balanced lines it posts, verbatim, each cycle. `startDate` seeds `nextRunDate` and is not itself stored, so it never reappears on the response. */
+        CreateRecurringJournalTemplateRequest: {
+            /** @description The last date a cycle may fire. Null is open-ended. */
+            endDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /**
+             * @description How many `frequency` units between cycles. `1` is every cycle; `3` is every third.
+             * @default 1
+             */
+            intervalCount: number;
+            lines: components["schemas"]["RecurringJournalLine"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "posted";
+            /** @description A memo carried onto each cycle’s journal header. Null or absent for none. */
+            memo?: string | null;
+            /** @description The template’s own label — what an operator picks it out by. */
+            name: string;
+            /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response. */
+            startDate: components["schemas"]["CalendarDate"];
+        };
+        /** @description Creates a recurring GL journal template (OB-162): a schedule and the balanced lines it posts, verbatim, each cycle. `startDate` seeds `nextRunDate` and is not itself stored, so it never reappears on the response. */
+        CreateRecurringJournalTemplateRequestInput: {
+            /** @description The last date a cycle may fire. Null is open-ended. */
+            endDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /**
+             * @description How many `frequency` units between cycles. `1` is every cycle; `3` is every third.
+             * @default 1
+             */
+            intervalCount: number;
+            lines: components["schemas"]["RecurringJournalLineInput"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "posted";
+            /** @description A memo carried onto each cycle’s journal header. Null or absent for none. */
+            memo?: string | null;
+            /** @description The template’s own label — what an operator picks it out by. */
+            name: string;
+            /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response. */
+            startDate: components["schemas"]["CalendarDateInput"];
+        };
         /** @description Creates a rate. `accountId` must be an active asset or liability account: tax collected is owed to the authority and tax paid is reclaimable from it, and both are balance-sheet positions. `appliesTo` defaults to `both`. */
         CreateTaxRateRequest: {
             /** Format: uuid */
@@ -6010,6 +6310,20 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @description The org’s default depreciation accounts (D-115), consulted only when a fixed asset does not nominate its own. Either may be null — an org with no registered assets yet has nominated neither. */
+        DepreciationAccounts: {
+            /** @description The org-default account depreciation credits, when an asset does not name its own. Null until nominated. */
+            accumulatedDepreciationAccountId: string | null;
+            /** @description The org-default account each posted depreciation period debits, when an asset does not name its own. Null until nominated. */
+            depreciationExpenseAccountId: string | null;
+        };
+        /** @description The org’s default depreciation accounts (D-115), consulted only when a fixed asset does not nominate its own. Either may be null — an org with no registered assets yet has nominated neither. */
+        DepreciationAccountsInput: {
+            /** @description The org-default account depreciation credits, when an asset does not name its own. Null until nominated. */
+            accumulatedDepreciationAccountId: string | null;
+            /** @description The org-default account each posted depreciation period debits, when an asset does not name its own. Null until nominated. */
+            depreciationExpenseAccountId: string | null;
+        };
         /** @description One reporting axis: a way of dividing the business that the chart should not carry. */
         Dimension: {
             /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
@@ -6137,6 +6451,40 @@ export interface components {
             discountAmountMinor: string;
             /** Format: uuid */
             targetId: string;
+        };
+        /** @description Disposes a fixed asset (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted. */
+        DisposeFixedAssetRequest: {
+            /** @description The date the disposal journal posts on. */
+            date: components["schemas"]["CalendarDate"];
+            /**
+             * Format: uuid
+             * @description The account the gain or loss on disposal posts to. Always required; a disposal that happens to break exactly even simply posts no line to it.
+             */
+            gainLossAccountId: string;
+            /**
+             * Format: uuid
+             * @description The account debited for proceeds received (cash, or a receivable). Required when `proceedsMinor` is greater than zero; meaningless and ignored at zero.
+             */
+            proceedsAccountId?: string;
+            /** @description What was received for the asset, if anything. `"0"` for a scrapped asset. */
+            proceedsMinor: components["schemas"]["MinorUnits"];
+        };
+        /** @description Disposes a fixed asset (D-116): a fresh journal recognises the gain or loss against proceeds, the asset moves to `disposed`, and its remaining unposted schedule rows are discarded. There is no reversal of depreciation already posted. */
+        DisposeFixedAssetRequestInput: {
+            /** @description The date the disposal journal posts on. */
+            date: components["schemas"]["CalendarDateInput"];
+            /**
+             * Format: uuid
+             * @description The account the gain or loss on disposal posts to. Always required; a disposal that happens to break exactly even simply posts no line to it.
+             */
+            gainLossAccountId: string;
+            /**
+             * Format: uuid
+             * @description The account debited for proceeds received (cash, or a receivable). Required when `proceedsMinor` is greater than zero; meaningless and ignored at zero.
+             */
+            proceedsAccountId?: string;
+            /** @description What was received for the asset, if anything. `"0"` for a scrapped asset. */
+            proceedsMinor: components["schemas"]["MinorUnitsInput"];
         };
         /** @description An uploaded or emailed document and what extraction made of it. A proposal, never a posting: nothing here creates a bill on its own — see `POST .../draft`. */
         DocumentCapture: {
@@ -6515,6 +6863,106 @@ export interface components {
         /** @description The org’s fiscal periods in ascending date order. Unpaginated in M1. */
         FiscalPeriodListInput: {
             periods: components["schemas"]["FiscalPeriodInput"][];
+        };
+        /** @description A registered fixed asset (OB-163). `accumulatedDepreciationAccountId` and `depreciationExpenseAccountId` are always concrete ids on the response even when the create request left one to the org’s default — the resolved id, not the absence, is what a client needs to show. */
+        FixedAsset: {
+            /** Format: uuid */
+            accumulatedDepreciationAccountId: string;
+            acquisitionCostMinor: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            assetAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            decliningRatePpm: number | null;
+            /** Format: uuid */
+            depreciationExpenseAccountId: string;
+            description: string | null;
+            disposalJournalId: string | null;
+            disposedDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            inServiceDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name: string;
+            salvageValueMinor: components["schemas"]["MinorUnits"];
+            /**
+             * @description Whether the asset is still depreciating. `disposed` is set once, by `disposeFixedAsset` (D-116) — there is no path back to `active`, the same one-way shape a voided document takes.
+             * @enum {string}
+             */
+            status: "active" | "disposed";
+            /** Format: date-time */
+            updatedAt: string;
+            usefulLifeMonths: number;
+        };
+        /** @description A registered fixed asset (OB-163). `accumulatedDepreciationAccountId` and `depreciationExpenseAccountId` are always concrete ids on the response even when the create request left one to the org’s default — the resolved id, not the absence, is what a client needs to show. */
+        FixedAssetInput: {
+            /** Format: uuid */
+            accumulatedDepreciationAccountId: string;
+            acquisitionCostMinor: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            assetAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            decliningRatePpm: number | null;
+            /** Format: uuid */
+            depreciationExpenseAccountId: string;
+            description: string | null;
+            disposalJournalId: string | null;
+            disposedDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            inServiceDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name: string;
+            salvageValueMinor: components["schemas"]["MinorUnitsInput"];
+            /**
+             * @description Whether the asset is still depreciating. `disposed` is set once, by `disposeFixedAsset` (D-116) — there is no path back to `active`, the same one-way shape a voided document takes.
+             * @enum {string}
+             */
+            status: "active" | "disposed";
+            /** Format: date-time */
+            updatedAt: string;
+            usefulLifeMonths: number;
+        };
+        /** @description One page of the org’s fixed-asset register, oldest first by creation. */
+        FixedAssetPage: {
+            items: components["schemas"]["FixedAsset"][];
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s fixed-asset register, oldest first by creation. */
+        FixedAssetPageInput: {
+            items: components["schemas"]["FixedAssetInput"][];
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A fixed asset’s whole depreciation schedule, ordered by `periodIndex`. */
+        FixedAssetSchedule: components["schemas"]["FixedAssetScheduleRow"][];
+        /** @description A fixed asset’s whole depreciation schedule, ordered by `periodIndex`. */
+        FixedAssetScheduleInput: components["schemas"]["FixedAssetScheduleRowInput"][];
+        /** @description One period of a fixed asset’s precomputed depreciation schedule. `Σ depreciationAmountMinor` over every row equals `acquisitionCostMinor − salvageValueMinor` exactly (L6). */
+        FixedAssetScheduleRow: {
+            depreciationAmountMinor: components["schemas"]["MinorUnits"];
+            periodDate: components["schemas"]["CalendarDate"];
+            periodIndex: number;
+            /** @description Null while the period is still due; set once the daily sweep posts it (D-113). Set is permanent — a posted period is never reopened. */
+            postedJournalId: string | null;
+        };
+        /** @description One period of a fixed asset’s precomputed depreciation schedule. `Σ depreciationAmountMinor` over every row equals `acquisitionCostMinor − salvageValueMinor` exactly (L6). */
+        FixedAssetScheduleRowInput: {
+            depreciationAmountMinor: components["schemas"]["MinorUnitsInput"];
+            periodDate: components["schemas"]["CalendarDateInput"];
+            periodIndex: number;
+            /** @description Null while the period is still due; set once the daily sweep posts it (D-113). Set is permanent — a posted period is never reopened. */
+            postedJournalId: string | null;
         };
         /** @description One account over a date range: the balance it was carrying, one page of the lines that moved it, and the balance it ended on. The three balances are recomputed on every page, so a client can tell that the ledger moved between two fetches. */
         GeneralLedger: {
@@ -8590,6 +9038,106 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description One posting instruction of a recurring journal template: an account, a side, and a positive amount, posted verbatim each cycle (D-90). */
+        RecurringJournalLine: {
+            /**
+             * Format: uuid
+             * @description The account this line posts to each cycle.
+             */
+            accountId: string;
+            /** @description The line’s amount in minor units, always positive — `side` carries the sign. */
+            amount: components["schemas"]["MinorUnits"];
+            /** @description The counterparty this line is with, or null. A `journal_lines` column (OB-059). */
+            contactId?: string | null;
+            /** @description What the line is for, carried onto the journal line’s memo each cycle. */
+            description?: string | null;
+            /**
+             * @description Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is a caller that has confused the two models.
+             * @enum {string}
+             */
+            side: "debit" | "credit";
+        };
+        /** @description One posting instruction of a recurring journal template: an account, a side, and a positive amount, posted verbatim each cycle (D-90). */
+        RecurringJournalLineInput: {
+            /**
+             * Format: uuid
+             * @description The account this line posts to each cycle.
+             */
+            accountId: string;
+            /** @description The line’s amount in minor units, always positive — `side` carries the sign. */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** @description The counterparty this line is with, or null. A `journal_lines` column (OB-059). */
+            contactId?: string | null;
+            /** @description What the line is for, carried onto the journal line’s memo each cycle. */
+            description?: string | null;
+            /**
+             * @description Which side of the ledger this line moves. The side carries the sign, so `amount` is always positive — a negative credit is a caller that has confused the two models.
+             * @enum {string}
+             */
+            side: "debit" | "credit";
+        };
+        /** @description A recurring GL journal template (D-90): fixed accounts and fixed amounts, posted verbatim each cycle. `nextRunDate`/`lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone. */
+        RecurringJournalTemplate: {
+            endDate: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /** Format: uuid */
+            id: string;
+            intervalCount: number;
+            isActive: boolean;
+            /** @description The date of the most recently materialised cycle, or null before the first. The once-per-cycle guard (D-76). */
+            lastRunDate: components["schemas"]["CalendarDate"] | null;
+            lines: components["schemas"]["RecurringJournalLine"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "posted";
+            memo: string | null;
+            name: string;
+            /** @description The next date a cycle fires. Each cycle materialises the journal and advances this by `frequency` × `intervalCount`. */
+            nextRunDate: components["schemas"]["CalendarDate"];
+        };
+        /** @description A recurring GL journal template (D-90): fixed accounts and fixed amounts, posted verbatim each cycle. `nextRunDate`/`lastRunDate` are the schedule state the engine reads and advances; `startDate` from the create request is not a field here — it seeded `nextRunDate` once and is gone. */
+        RecurringJournalTemplateInput: {
+            endDate: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency: "weekly" | "monthly" | "quarterly" | "yearly";
+            /** Format: uuid */
+            id: string;
+            intervalCount: number;
+            isActive: boolean;
+            /** @description The date of the most recently materialised cycle, or null before the first. The once-per-cycle guard (D-76). */
+            lastRunDate: components["schemas"]["CalendarDateInput"] | null;
+            lines: components["schemas"]["RecurringJournalLineInput"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode: "draft" | "posted";
+            memo: string | null;
+            name: string;
+            /** @description The next date a cycle fires. Each cycle materialises the journal and advances this by `frequency` × `intervalCount`. */
+            nextRunDate: components["schemas"]["CalendarDateInput"];
+        };
+        /** @description One page of recurring journal templates, oldest first by creation. */
+        RecurringJournalTemplatePage: {
+            items: components["schemas"]["RecurringJournalTemplate"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of recurring journal templates, oldest first by creation. */
+        RecurringJournalTemplatePageInput: {
+            items: components["schemas"]["RecurringJournalTemplateInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description Registers a third-party client, admin-registered and never self-service (D-53). */
         RegisterOAuthClientRequest: {
             /** @description Display name for the client, shown to a user on the consent screen. */
@@ -9076,6 +9624,16 @@ export interface components {
              */
             taxMode?: "exclusive" | "inclusive";
         };
+        /** @description Partial update of the org’s default depreciation accounts. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a default reaches only assets registered after the change — an asset already registered keeps the accounts it resolved at registration. */
+        UpdateDepreciationAccountsRequest: {
+            accumulatedDepreciationAccountId?: string | null;
+            depreciationExpenseAccountId?: string | null;
+        };
+        /** @description Partial update of the org’s default depreciation accounts. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a default reaches only assets registered after the change — an asset already registered keeps the accounts it resolved at registration. */
+        UpdateDepreciationAccountsRequestInput: {
+            accumulatedDepreciationAccountId?: string | null;
+            depreciationExpenseAccountId?: string | null;
+        };
         /** @description Rename, and nothing else. `code` is immutable and `isActive` is archiving’s, so sending either is a `validation_failed` naming the field. */
         UpdateDimensionRequest: {
             description?: string | null;
@@ -9157,6 +9715,56 @@ export interface components {
                 /** @description The reminder email’s subject line. */
                 subject: string;
             }[];
+        };
+        /** @description Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1). */
+        UpdateFixedAssetRequest: {
+            /** Format: uuid */
+            accumulatedDepreciationAccountId?: string;
+            acquisitionCostMinor?: components["schemas"]["MinorUnits"];
+            /**
+             * Format: uuid
+             * @description The ledger account this asset’s cost sits on.
+             */
+            assetAccountId?: string;
+            decliningRatePpm?: number | null;
+            /** Format: uuid */
+            depreciationExpenseAccountId?: string;
+            description?: string | null;
+            inServiceDate?: components["schemas"]["CalendarDate"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method?: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name?: string;
+            salvageValueMinor?: components["schemas"]["MinorUnits"];
+            usefulLifeMonths?: number;
+        };
+        /** @description Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1). */
+        UpdateFixedAssetRequestInput: {
+            /** Format: uuid */
+            accumulatedDepreciationAccountId?: string;
+            acquisitionCostMinor?: components["schemas"]["MinorUnitsInput"];
+            /**
+             * Format: uuid
+             * @description The ledger account this asset’s cost sits on.
+             */
+            assetAccountId?: string;
+            decliningRatePpm?: number | null;
+            /** Format: uuid */
+            depreciationExpenseAccountId?: string;
+            description?: string | null;
+            inServiceDate?: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description How the asset depreciates. `straight_line` charges an equal amount every period; `declining_balance` charges a fixed rate of the remaining book value, floored at salvage (D-114). Units-of-production is deferred.
+             * @enum {string}
+             */
+            method?: "straight_line" | "declining_balance";
+            /** @description What this asset is called in the register — a label, not an accounting code. */
+            name?: string;
+            salvageValueMinor?: components["schemas"]["MinorUnitsInput"];
+            usefulLifeMonths?: number;
         };
         /** @description Partial update of a draft. An absent field is unchanged, `null` clears a nullable one, and `lines` replaces the whole set — send every line the invoice should have, including the unchanged ones. Changing `taxMode` reprices the lines rather than converting them. */
         UpdateInvoiceRequest: {
@@ -9333,6 +9941,44 @@ export interface components {
              * @enum {string}
              */
             taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update; `lines`, when present, replaces the whole set and must itself balance. `isActive` is the by-hand retire/reinstate — the engine clears it automatically once `nextRunDate` passes `endDate`. */
+        UpdateRecurringJournalTemplateRequest: {
+            endDate?: components["schemas"]["CalendarDate"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency?: "weekly" | "monthly" | "quarterly" | "yearly";
+            intervalCount?: number;
+            isActive?: boolean;
+            lines?: components["schemas"]["RecurringJournalLine"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode?: "draft" | "posted";
+            memo?: string | null;
+            name?: string;
+        };
+        /** @description Partial update; `lines`, when present, replaces the whole set and must itself balance. `isActive` is the by-hand retire/reinstate — the engine clears it automatically once `nextRunDate` passes `endDate`. */
+        UpdateRecurringJournalTemplateRequestInput: {
+            endDate?: components["schemas"]["CalendarDateInput"] | null;
+            /**
+             * @description How often the template cycles, combined with `intervalCount` — the same vocabulary a recurring invoice uses, so a business reads one cadence across both.
+             * @enum {string}
+             */
+            frequency?: "weekly" | "monthly" | "quarterly" | "yearly";
+            intervalCount?: number;
+            isActive?: boolean;
+            lines?: components["schemas"]["RecurringJournalLineInput"][];
+            /**
+             * @description What a cycle does with the journal it materialises (D-76). `posted` posts it directly under the org’s automation actor, so provenance lands on the journal. `draft` lands an editable journal draft (M2) for a human to post.
+             * @enum {string}
+             */
+            materializationMode?: "draft" | "posted";
+            memo?: string | null;
+            name?: string;
         };
         /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
         UpdateTaxRateRequest: {
@@ -13485,6 +14131,214 @@ export interface operations {
             };
         };
     };
+    listFixedAssets: {
+        parameters: {
+            query?: {
+                status?: "active" | "disposed";
+                /** @description How many fixed assets to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAssetPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    registerFixedAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFixedAssetRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAsset"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getFixedAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fixedAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAsset"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateFixedAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                fixedAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFixedAssetRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAsset"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    disposeFixedAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                fixedAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisposeFixedAssetRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAsset"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getFixedAssetSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fixedAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FixedAssetSchedule"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listBankImportMappings: {
         parameters: {
             query: {
@@ -16222,6 +17076,180 @@ export interface operations {
             };
         };
     };
+    listRecurringJournalTemplates: {
+        parameters: {
+            query?: {
+                /** @description Only active templates when `true`, only retired ones when `false`. */
+                isActive?: string;
+                /** @description How many recurring journal templates to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringJournalTemplatePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createRecurringJournalTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecurringJournalTemplateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringJournalTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRecurringJournalTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringJournalTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateRecurringJournalTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecurringJournalTemplateRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringJournalTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateRecurringJournalTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringJournalTemplate"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getAging: {
         parameters: {
             query: {
@@ -16526,6 +17554,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDueWorkResult"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getDepreciationAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepreciationAccounts"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateDepreciationAccounts: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDepreciationAccountsRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepreciationAccounts"];
                 };
             };
             /** @description Default Response */

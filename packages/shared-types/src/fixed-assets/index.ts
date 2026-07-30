@@ -1,10 +1,10 @@
 /**
- * Fixed assets (initiative L, OB-163…166; ROADMAP D-113…D-117).
+ * Fixed assets (initiative L, OB-163…166; ROADMAP D-113…D-117; `/v1` routes OB-167).
  *
  * `fixed-assets.ts` is the whole of it: the register, its create/update requests,
  * the depreciation schedule, disposal, and the org's depreciation-account
- * defaults. See that file's header for which schemas carry `.meta({ id })` and
- * why none of them do yet — OB-167's routes have not landed.
+ * defaults — every one of them now carrying a `.meta({ id })`, added alongside
+ * OB-167's routes.
  */
 
 export {

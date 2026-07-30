@@ -8,7 +8,8 @@
  * for a human or an MCP caller, `engine.ts` is the sweep the daily tick (OB-127) drives,
  * and `job.ts` is the queue name and payload both sides share with no cycle between them.
  *
- * There are no routes here: `/v1` for recurring journals is OB-167 (Wave 2).
+ * `/v1` routes for recurring journals are OB-167, registered by
+ * `transport/routes/recurring-journals.ts`.
  */
 
 export {
@@ -18,7 +19,6 @@ export {
   listRecurringJournalTemplates,
   updateRecurringJournalTemplate,
 } from './recurring-journals.service';
-export type { RecurringJournalTemplatePage } from './recurring-journals.service';
 
 export { advance, registerRecurringJournalJob } from './engine';
 export type { RecurringJournalEngineDeps } from './engine';

@@ -1,17 +1,25 @@
 import {
   controlAccountsSchema,
+  depreciationAccountsSchema,
   discountAccountsSchema,
   updateControlAccountsRequestSchema,
+  updateDepreciationAccountsRequestSchema,
   updateDiscountAccountsRequestSchema,
 } from '@openbooks/shared-types';
-import type { ControlAccounts, DiscountAccounts } from '@openbooks/shared-types';
+import type {
+  ControlAccounts,
+  DepreciationAccounts,
+  DiscountAccounts,
+} from '@openbooks/shared-types';
 
 import { getContext } from '../../context';
 import { withIdempotency } from '../../modules/idempotency';
 import {
   getControlAccounts,
+  getDepreciationAccounts,
   getDiscountAccounts,
   updateControlAccounts,
+  updateDepreciationAccounts,
   updateDiscountAccounts,
 } from '../../modules/settings';
 import type { App } from '../types';
@@ -94,10 +102,26 @@ import {
  * refused while a discount already posted to the previous account is outstanding, for
  * the same reason a control-account repoint is not: refusing would strand exactly the
  * org that nominated the wrong account and has already confirmed something.
+ *
+ * ## `/v1/settings/depreciation-accounts` (OB-167, initiative L; D-115)
+ *
+ * The org's default depreciation accounts, added below as their own path for the same
+ * reason `discount-accounts.ts` got one rather than two more fields on
+ * `/v1/accounting-settings`: both nominations live in the one `org_accounting_settings`
+ * row `depreciation-accounts.ts` shares with the control and discount accounts, and
+ * `depreciation-accounts.ts`'s own header is explicit that this is the same *kind* of
+ * setting — mirroring `discount-accounts.ts` verbatim, down to `PATCH`'s absent-vs-`null`
+ * three-valued shape (an omitted side is left alone, an explicit `null` clears it, `{}`
+ * is refused) and to not refusing while an asset already depends on the previous
+ * nomination. The one thing that differs is what the setting is *for*: it is
+ * consulted only as a fallback, when a fixed asset's own registration or edit leaves an
+ * account unset (`fixed-assets.service.ts`), unlike the control accounts every document
+ * uses unconditionally.
  */
 
 const TAG = 'accounting-settings';
 const DISCOUNT_TAG = 'discount-accounts';
+const DEPRECIATION_TAG = 'depreciation-accounts';
 
 export function registerSettingsRoutes(app: App): void {
   app.get(
@@ -203,6 +227,61 @@ export function registerSettingsRoutes(app: App): void {
       );
 
       return reply.status(result.status).send(idempotentBody<DiscountAccounts>(result));
+    },
+  );
+
+  app.get(
+    '/v1/settings/depreciation-accounts',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getDepreciationAccounts',
+        summary: 'The org’s default depreciation-account nominations',
+        description:
+          'The account each posted depreciation period debits by default, and the account it ' +
+          'credits, consulted only when a fixed asset does not nominate its own at registration ' +
+          '(D-115). Either may be null — the two sides are separately usable. Reading this takes ' +
+          '`orgs.read` rather than `fixed_assets.read`, mirroring `getDiscountAccounts`: what is ' +
+          'being read is a decision the organization made.',
+        tags: [DEPRECIATION_TAG],
+        response: { 200: depreciationAccountsSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (): Promise<DepreciationAccounts> => getDepreciationAccounts(getContext()),
+  );
+
+  app.patch(
+    '/v1/settings/depreciation-accounts',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'updateDepreciationAccounts',
+        summary: 'Nominate, repoint or clear a default depreciation account',
+        description:
+          'An omitted side is left as it is; an explicit `null` clears it. A nomination must be ' +
+          'an active account of the right kind — an expense account for the debited side, an ' +
+          'asset account for the credited side — refused with ' +
+          '`depreciation_expense_account_wrong_type`, ' +
+          '`accumulated_depreciation_account_wrong_type` or `account_inactive`. Both nominations ' +
+          'land in one transaction. Changing a default reaches only assets registered after the ' +
+          'change: an asset already registered stored the concrete account it resolved at ' +
+          'registration, not "the default", so there is no way to ask whether an existing asset ' +
+          'depends on the previous nomination and, mirroring `updateDiscountAccounts`, this is ' +
+          'not refused while one might.',
+        tags: [DEPRECIATION_TAG],
+        headers: idempotencyKeyHeaderSchema,
+        body: updateDepreciationAccountsRequestSchema,
+        response: { 200: depreciationAccountsSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const result = await withIdempotency(
+        { endpoint: 'updateDepreciationAccounts', request: request.body, successStatus: 200 },
+        () => updateDepreciationAccounts(request.body, ctx),
+      );
+
+      return reply.status(result.status).send(idempotentBody<DepreciationAccounts>(result));
     },
   );
 }
