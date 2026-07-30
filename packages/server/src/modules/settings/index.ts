@@ -107,3 +107,18 @@ export {
   resolveDiscountAccount,
   updateDiscountAccounts,
 } from './discount-accounts';
+
+/**
+ * The org's default depreciation-account nominations (initiative L, OB-163…166;
+ * ROADMAP D-115), added beside the control accounts and the discount accounts
+ * above for the same reason the discount accounts were — see
+ * `depreciation-accounts.ts`'s header for why they are the same *kind* of
+ * setting, and for why this one is a *default* rather than the only source of
+ * an asset's accounts.
+ */
+export type { DepreciationAccountSide } from './depreciation-accounts';
+export {
+  getDepreciationAccounts,
+  resolveDepreciationAccount,
+  updateDepreciationAccounts,
+} from './depreciation-accounts';

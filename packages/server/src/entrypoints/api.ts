@@ -20,7 +20,9 @@ import {
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
+import { registerFixedAssetDepreciationJob } from '../modules/fixed-assets';
 import { registerProcessorPollJob } from '../modules/payments-processing';
+import { registerRecurringJournalJob } from '../modules/recurring-journals';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
 import { buildApp } from '../transport';
@@ -110,6 +112,10 @@ export async function startApi(): Promise<void> {
     await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
     await registerRecurringJob(queueProvider(), { logger });
     await registerDunningJob(queueProvider(), { logger });
+    // The recurring GL journal sweep (initiative L, OB-162), beside recurring invoices.
+    await registerRecurringJournalJob(queueProvider(), { logger });
+    // The fixed-asset depreciation sweep (initiative L, OB-165), same daily-tick shape.
+    await registerFixedAssetDepreciationJob(queueProvider(), { logger });
     // Event-driven (initiative O, OB-186), registered here for the same reason as the
     // other three: under the in-process adapter, this is the process that consumes what
     // it enqueues — `createCaptureFromUpload` and the inbound webhook both run here.

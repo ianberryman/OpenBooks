@@ -43,6 +43,12 @@ export interface DiscountAccountsRow {
   readonly discountReceivedAccountId: Buffer | null;
 }
 
+/** The org-default depreciation-account nominations (initiative L; ROADMAP D-115). */
+export interface DepreciationAccountsRow {
+  readonly depreciationExpenseAccountId: Buffer | null;
+  readonly accumulatedDepreciationAccountId: Buffer | null;
+}
+
 /** What validating a nomination needs, and nothing more. */
 export interface NominatedAccountRow {
   readonly type: AccountType;
@@ -66,6 +72,12 @@ export interface ControlAccountsPatch {
 export interface DiscountAccountsPatch {
   readonly discountGivenAccountId?: Buffer | null;
   readonly discountReceivedAccountId?: Buffer | null;
+}
+
+/** The depreciation-nomination twin of `ControlAccountsPatch`, same two rules. */
+export interface DepreciationAccountsPatch {
+  readonly depreciationExpenseAccountId?: Buffer | null;
+  readonly accumulatedDepreciationAccountId?: Buffer | null;
 }
 
 export function orgScope(ctx: RequestContext): TenantDatabase {
@@ -116,6 +128,25 @@ export async function selectDiscountAccounts(db: TenantDatabase): Promise<Discou
   return {
     discountGivenAccountId: row?.discount_given_account_id ?? null,
     discountReceivedAccountId: row?.discount_received_account_id ?? null,
+  };
+}
+
+/**
+ * The org's depreciation-account nominations, or both null when it has never
+ * made one — `selectDiscountAccounts`'s own reasoning, on the two columns
+ * `0005_subledger` added in place beside the four above (D-115).
+ */
+export async function selectDepreciationAccounts(
+  db: TenantDatabase,
+): Promise<DepreciationAccountsRow> {
+  const row = await db
+    .selectFrom('org_accounting_settings')
+    .select(['depreciation_expense_account_id', 'accumulated_depreciation_account_id'])
+    .executeTakeFirst();
+
+  return {
+    depreciationExpenseAccountId: row?.depreciation_expense_account_id ?? null,
+    accumulatedDepreciationAccountId: row?.accumulated_depreciation_account_id ?? null,
   };
 }
 
@@ -180,6 +211,27 @@ export async function upsertDiscountAccounts(
     ...(patch.discountReceivedAccountId === undefined
       ? {}
       : { discount_received_account_id: patch.discountReceivedAccountId }),
+  };
+
+  await db
+    .insertInto('org_accounting_settings')
+    .values(columns)
+    .onDuplicateKeyUpdate(columns)
+    .execute();
+}
+
+/** `upsertControlAccounts`'s own statement, over the two depreciation columns (D-115). */
+export async function upsertDepreciationAccounts(
+  db: TenantDatabase,
+  patch: DepreciationAccountsPatch,
+): Promise<void> {
+  const columns = {
+    ...(patch.depreciationExpenseAccountId === undefined
+      ? {}
+      : { depreciation_expense_account_id: patch.depreciationExpenseAccountId }),
+    ...(patch.accumulatedDepreciationAccountId === undefined
+      ? {}
+      : { accumulated_depreciation_account_id: patch.accumulatedDepreciationAccountId }),
   };
 
   await db

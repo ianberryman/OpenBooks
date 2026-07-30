@@ -244,6 +244,21 @@ import {
   updateVendorDisbursementDetails,
 } from '../../src/modules/pay-bills';
 import {
+  disposeFixedAsset,
+  getFixedAsset,
+  getFixedAssetSchedule,
+  listFixedAssets,
+  registerFixedAsset,
+  updateFixedAsset,
+} from '../../src/modules/fixed-assets';
+import {
+  createRecurringJournalTemplate,
+  deactivateRecurringJournalTemplate,
+  getRecurringJournalTemplate,
+  listRecurringJournalTemplates,
+  updateRecurringJournalTemplate,
+} from '../../src/modules/recurring-journals';
+import {
   getControlAccounts,
   getDiscountAccounts,
   updateControlAccounts,
@@ -571,6 +586,20 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'pending_payments.read': ['owner', 'bookkeeper', 'apOnly', 'readOnly', 'approver'],
   'pending_payments.write': ['owner', 'bookkeeper', 'apOnly'],
   'disbursements.issue': ['owner'],
+
+  // ---------------------------------------------------------------------------
+  // L — the four codes initiative L's services enforce (OB-162…166). No SoD
+  // split (D-117): the writes are Owner and Bookkeeper, and the reads reach the
+  // two read-only roles through `%.read`, read straight off `0001_tenancy`'s
+  // seeds. Unlike Pay Bills there is no release key held back — the automated
+  // posts run through `postJournal` under the automation's own Owner role, so a
+  // `.write` is the whole of the authority. The routes arrive in OB-167, but the
+  // services gate now, so these are `GRANTED_TO` rather than latent.
+  // ---------------------------------------------------------------------------
+  'recurring_journals.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'recurring_journals.write': ['owner', 'bookkeeper'],
+  'fixed_assets.read': ['owner', 'bookkeeper', 'readOnly', 'approver'],
+  'fixed_assets.write': ['owner', 'bookkeeper'],
 };
 
 /**
@@ -606,36 +635,16 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
   // the same catalog-before-enforcement pattern `agents.review` followed through M5.
   // `workflows.*` is the only family still latent, with no milestone scoped at all.
-  // `recurring_journals.*` and `fixed_assets.*` join `workflows.*` as latent: the L
-  // catalog keys exist (D-117) but no service enforces them until OB-167 wires the
-  // `/v1` routes, at which point they move into `GRANTED_TO` with an `OPERATIONS` row —
-  // the same catalog-before-enforcement path every family here has taken.
-  owner: [
-    'fixed_assets.read',
-    'fixed_assets.write',
-    'recurring_journals.read',
-    'recurring_journals.write',
-    'workflows.activate',
-    'workflows.read',
-    'workflows.write',
-  ],
-  bookkeeper: [
-    'fixed_assets.read',
-    'fixed_assets.write',
-    'recurring_journals.read',
-    'recurring_journals.write',
-    'workflows.read',
-    'workflows.write',
-  ],
+  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
+  bookkeeper: ['workflows.read', 'workflows.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
-  // code it is missing was never in its bundle to begin with. L adds nothing here —
-  // fixed assets and recurring journals are a bookkeeping function, not a clerk's.
+  // code it is missing was never in its bundle to begin with.
   apOnly: [],
   arOnly: [],
-  readOnly: ['fixed_assets.read', 'recurring_journals.read', 'workflows.read'],
-  approver: ['fixed_assets.read', 'recurring_journals.read', 'workflows.read'],
+  readOnly: ['workflows.read'],
+  approver: ['workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -2583,6 +2592,110 @@ const OPERATIONS: readonly Operation[] = [
     call: (s) =>
       updateVendorDisbursementDetails(s.contactId, { preferredPaymentRail: 'check' }, s.ctx),
   },
+  // Fixed assets & recurring journals (initiative L, OB-162…166). `operationId` is
+  // null on every row: the services gate now, but OB-167's `/v1` routes have not
+  // landed, so none of these is an OpenAPI operation yet. Each id-taking read passes
+  // a throwaway `newUuid()` — the 404 that follows is a non-permission error the judge
+  // reads as `allowed`, so the row exercises the gate and nothing downstream.
+  {
+    name: 'createRecurringJournalTemplate',
+    operationId: null,
+    permission: 'recurring_journals.write',
+    call: (s) =>
+      createRecurringJournalTemplate(
+        {
+          name: 'Monthly accrual',
+          materializationMode: 'posted',
+          frequency: 'monthly',
+          intervalCount: 1,
+          startDate: s.date,
+          lines: [
+            { accountId: s.cashId, side: 'debit', amount: '10000' },
+            { accountId: s.revenueId, side: 'credit', amount: '10000' },
+          ],
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getRecurringJournalTemplate',
+    operationId: null,
+    permission: 'recurring_journals.read',
+    call: (s) => getRecurringJournalTemplate(newUuid(), s.ctx),
+  },
+  {
+    name: 'listRecurringJournalTemplates',
+    operationId: null,
+    permission: 'recurring_journals.read',
+    call: (s) => listRecurringJournalTemplates({}, s.ctx),
+  },
+  {
+    name: 'updateRecurringJournalTemplate',
+    operationId: null,
+    permission: 'recurring_journals.write',
+    call: (s) => updateRecurringJournalTemplate(newUuid(), { name: 'Renamed' }, s.ctx),
+  },
+  {
+    name: 'deactivateRecurringJournalTemplate',
+    operationId: null,
+    permission: 'recurring_journals.write',
+    call: (s) => deactivateRecurringJournalTemplate(newUuid(), s.ctx),
+  },
+  {
+    name: 'registerFixedAsset',
+    operationId: null,
+    permission: 'fixed_assets.write',
+    call: (s) =>
+      registerFixedAsset(
+        {
+          name: 'Laptop',
+          assetAccountId: s.cashId,
+          accumulatedDepreciationAccountId: s.cashId,
+          depreciationExpenseAccountId: s.revenueId,
+          acquisitionCostMinor: '120000',
+          salvageValueMinor: '0',
+          method: 'straight_line',
+          usefulLifeMonths: 12,
+          inServiceDate: s.date,
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getFixedAsset',
+    operationId: null,
+    permission: 'fixed_assets.read',
+    call: (s) => getFixedAsset(newUuid(), s.ctx),
+  },
+  {
+    name: 'listFixedAssets',
+    operationId: null,
+    permission: 'fixed_assets.read',
+    call: (s) => listFixedAssets({}, s.ctx),
+  },
+  {
+    name: 'getFixedAssetSchedule',
+    operationId: null,
+    permission: 'fixed_assets.read',
+    call: (s) => getFixedAssetSchedule(newUuid(), s.ctx),
+  },
+  {
+    name: 'updateFixedAsset',
+    operationId: null,
+    permission: 'fixed_assets.write',
+    call: (s) => updateFixedAsset(newUuid(), { name: 'Renamed asset' }, s.ctx),
+  },
+  {
+    name: 'disposeFixedAsset',
+    operationId: null,
+    permission: 'fixed_assets.write',
+    call: (s) =>
+      disposeFixedAsset(
+        newUuid(),
+        { date: s.date, proceedsMinor: '0', gainLossAccountId: s.revenueId },
+        s.ctx,
+      ),
+  },
 ];
 
 /** One line worth 1,000.00, on the revenue account an AR document credits. */
@@ -3562,12 +3675,12 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, and OB-150
     // (initiative J, PAY) wired `processing.read`/`processing.write` the moment
     // `connections.service.ts` enforced them, leaving only
-    // `workflows.activate`/`workflows.read`/`workflows.write` (M6). Initiative L
-    // (OB-162…169) then added four more latent codes — `fixed_assets.read`/`.write`
-    // and `recurring_journals.read`/`.write` — which OB-167's `/v1` routes will wire.
+    // `workflows.activate`/`workflows.read`/`workflows.write` (M6). Initiative L's four
+    // codes are NOT here: L's services enforce them (OB-162…166), so they are in
+    // `GRANTED_TO` from the moment the service gates them, ahead of OB-167's routes.
     // This number is the only place the count is asserted rather than described, so it
     // moves once per wave that wires a code.
-    expect(latent).toHaveLength(7);
+    expect(latent).toHaveLength(3);
   });
 
   /**

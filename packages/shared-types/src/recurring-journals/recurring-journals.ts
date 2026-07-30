@@ -65,7 +65,8 @@ export const recurringJournalLineSchema = z
       description: 'The line’s amount in minor units, always positive — `side` carries the sign.',
     }),
     contactId: z.uuid().nullish().meta({
-      description: 'The counterparty this line is with, or null. A `journal_lines` column (OB-059).',
+      description:
+        'The counterparty this line is with, or null. A `journal_lines` column (OB-059).',
     }),
     description: recurringJournalLineDescriptionSchema.nullish().meta({
       description: 'What the line is for, carried onto the journal line’s memo each cycle.',
@@ -119,7 +120,8 @@ const recurringJournalCreateShape = {
   materializationMode: recurringJournalMaterializationModeSchema,
   frequency: recurringJournalFrequencySchema,
   intervalCount: z.int().min(1).default(1).meta({
-    description: 'How many `frequency` units between cycles. `1` is every cycle; `3` is every third.',
+    description:
+      'How many `frequency` units between cycles. `1` is every cycle; `3` is every third.',
   }),
   endDate: calendarDateSchema.nullish().meta({
     description: 'The last date a cycle may fire. Null is open-ended.',

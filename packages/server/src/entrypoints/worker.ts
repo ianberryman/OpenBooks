@@ -35,7 +35,9 @@ import type { Logger } from '../logging';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
+import { registerFixedAssetDepreciationJob } from '../modules/fixed-assets';
 import { registerProcessorPollJob } from '../modules/payments-processing';
+import { registerRecurringJournalJob } from '../modules/recurring-journals';
 import { startDailyTick } from '../modules/scheduling';
 import { queueProvider } from '../providers';
 
@@ -62,6 +64,12 @@ export async function startWorker(): Promise<void> {
   await registerStatementImportJob(queueProvider(), { parse: parseStatement, logger });
   await registerRecurringJob(queueProvider(), { logger });
   await registerDunningJob(queueProvider(), { logger });
+  // The recurring GL journal sweep (initiative L, OB-162): a daily task beside recurring
+  // invoices, posting each due template's fixed journal under a system/automation actor.
+  await registerRecurringJournalJob(queueProvider(), { logger });
+  // The fixed-asset depreciation sweep (initiative L, OB-165): posts each due, unposted
+  // schedule period once, idempotent on `posted_journal_id` (D-113).
+  await registerFixedAssetDepreciationJob(queueProvider(), { logger });
   // Event-driven, not the daily tick (initiative O, OB-186): a capture enqueues this
   // the moment it is uploaded or received by email, exactly as the statement import
   // enqueues off the request rather than waiting for a clock.

@@ -1,33 +1,39 @@
 /**
- * Fixed assets and depreciation schedules (initiative L, OB-163…166; ROADMAP D-113…D-116).
+ * Fixed assets (initiative L, OB-163…166; ROADMAP D-113…D-117).
  *
- * `fixed-assets.ts` holds the whole wire surface: the register (create/update), the
- * computed schedule and its rows, the disposal request, and the list query. OB-167's
- * `/v1` routes are where these gain their `.meta({ id })` and the keyset page schema —
- * see that ticket for why none does yet (this package's index header explains the rule).
+ * `fixed-assets.ts` is the whole of it: the register, its create/update requests,
+ * the depreciation schedule, disposal, and the org's depreciation-account
+ * defaults. See that file's header for which schemas carry `.meta({ id })` and
+ * why none of them do yet — OB-167's routes have not landed.
  */
 
 export {
   FIXED_ASSET_METHODS,
   FIXED_ASSET_STATUSES,
   createFixedAssetRequestSchema,
+  depreciationAccountsSchema,
   disposeFixedAssetRequestSchema,
   fixedAssetMethodSchema,
+  fixedAssetPageSchema,
   fixedAssetScheduleRowSchema,
   fixedAssetScheduleSchema,
   fixedAssetSchema,
   fixedAssetStatusSchema,
   listFixedAssetsQuerySchema,
+  updateDepreciationAccountsRequestSchema,
   updateFixedAssetRequestSchema,
 } from './fixed-assets';
 export type {
   CreateFixedAssetRequest,
+  DepreciationAccounts,
   DisposeFixedAssetRequest,
   FixedAsset,
   FixedAssetMethod,
+  FixedAssetPage,
   FixedAssetSchedule,
   FixedAssetScheduleRow,
   FixedAssetStatus,
   ListFixedAssetsQuery,
+  UpdateDepreciationAccountsRequest,
   UpdateFixedAssetRequest,
 } from './fixed-assets';
