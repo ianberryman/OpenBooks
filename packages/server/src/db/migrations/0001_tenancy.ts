@@ -329,7 +329,11 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('workflows.activate',     'Activate an automation (M6)'),
       ('pending_payments.read',  'View the Pay Bills queue (PB)'),
       ('pending_payments.write', 'Build, edit, and cancel pending payments (PB)'),
-      ('disbursements.issue',    'Release a pending payment — post it and cut the check (PB)')
+      ('disbursements.issue',    'Release a pending payment — post it and cut the check (PB)'),
+      ('recurring_journals.read',  'View recurring journal templates (L)'),
+      ('recurring_journals.write', 'Create and modify recurring journal templates (L)'),
+      ('fixed_assets.read',        'View fixed assets and depreciation schedules (L)'),
+      ('fixed_assets.write',       'Register, depreciate, and dispose fixed assets (L)')
   `.execute(db);
 }
 

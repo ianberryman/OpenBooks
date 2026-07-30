@@ -606,16 +606,36 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
   // the same catalog-before-enforcement pattern `agents.review` followed through M5.
   // `workflows.*` is the only family still latent, with no milestone scoped at all.
-  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
-  bookkeeper: ['workflows.read', 'workflows.write'],
+  // `recurring_journals.*` and `fixed_assets.*` join `workflows.*` as latent: the L
+  // catalog keys exist (D-117) but no service enforces them until OB-167 wires the
+  // `/v1` routes, at which point they move into `GRANTED_TO` with an `OPERATIONS` row —
+  // the same catalog-before-enforcement path every family here has taken.
+  owner: [
+    'fixed_assets.read',
+    'fixed_assets.write',
+    'recurring_journals.read',
+    'recurring_journals.write',
+    'workflows.activate',
+    'workflows.read',
+    'workflows.write',
+  ],
+  bookkeeper: [
+    'fixed_assets.read',
+    'fixed_assets.write',
+    'recurring_journals.read',
+    'recurring_journals.write',
+    'workflows.read',
+    'workflows.write',
+  ],
   // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
   // enforcement point — which is also what makes the gap at the foot of this file
   // legible: the role is fully wired and still cannot approve a bill, because the
-  // code it is missing was never in its bundle to begin with.
+  // code it is missing was never in its bundle to begin with. L adds nothing here —
+  // fixed assets and recurring journals are a bookkeeping function, not a clerk's.
   apOnly: [],
   arOnly: [],
-  readOnly: ['workflows.read'],
-  approver: ['workflows.read'],
+  readOnly: ['fixed_assets.read', 'recurring_journals.read', 'workflows.read'],
+  approver: ['fixed_assets.read', 'recurring_journals.read', 'workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -3542,10 +3562,12 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // the unscoped `api_keys.*`. OB-104 wired all five M5 codes at once, and OB-150
     // (initiative J, PAY) wired `processing.read`/`processing.write` the moment
     // `connections.service.ts` enforced them, leaving only
-    // `workflows.activate`/`workflows.read`/`workflows.write` (M6). This number is
-    // the only place the count is asserted rather than described, so it moves once
-    // per wave that wires a code.
-    expect(latent).toHaveLength(3);
+    // `workflows.activate`/`workflows.read`/`workflows.write` (M6). Initiative L
+    // (OB-162…169) then added four more latent codes — `fixed_assets.read`/`.write`
+    // and `recurring_journals.read`/`.write` — which OB-167's `/v1` routes will wire.
+    // This number is the only place the count is asserted rather than described, so it
+    // moves once per wave that wires a code.
+    expect(latent).toHaveLength(7);
   });
 
   /**

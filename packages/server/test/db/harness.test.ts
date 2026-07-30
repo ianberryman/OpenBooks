@@ -43,6 +43,7 @@ describe('test database harness', () => {
         '0011_payment_processing',
         '0012_cash_application',
         '0013_pay_bills',
+        '0014_fixed_assets',
         '0999_app_grants',
       ]);
     });
@@ -84,14 +85,15 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 56-permission catalog', async () => {
+    it('has the fixed 60-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
         .executeTakeFirstOrThrow();
 
-      // 56 since PB (D-109) added pending_payments.read/write and disbursements.issue.
-      expect(Number(row.count)).toBe(56);
+      // 56 since PB (D-109) added pending_payments.read/write and disbursements.issue;
+      // 60 since L (D-117) added recurring_journals.read/write and fixed_assets.read/write.
+      expect(Number(row.count)).toBe(60);
     });
 
     it('has the six system roles at their reserved ids', async () => {

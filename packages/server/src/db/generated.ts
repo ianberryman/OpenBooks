@@ -482,6 +482,40 @@ export interface FiscalPeriods {
   updated_at: Generated<Date>;
 }
 
+export interface FixedAssets {
+  accumulated_depreciation_account_id: Buffer;
+  acquisition_cost_minor: bigint;
+  asset_account_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  declining_rate_ppm: number | null;
+  depreciation_expense_account_id: Buffer;
+  description: string | null;
+  disposal_journal_id: Buffer | null;
+  disposed_date: string | null;
+  id: Buffer;
+  in_service_date: string;
+  method: "declining_balance" | "straight_line";
+  name: string;
+  org_id: Buffer;
+  salvage_value_minor: bigint;
+  status: Generated<"active" | "disposed">;
+  updated_at: Generated<Date>;
+  useful_life_months: number;
+}
+
+export interface FixedAssetSchedule {
+  created_at: Generated<Date>;
+  depreciation_amount_minor: bigint;
+  fixed_asset_id: Buffer;
+  id: Buffer;
+  org_id: Buffer;
+  period_date: string;
+  period_index: number;
+  posted_journal_id: Buffer | null;
+  updated_at: Generated<Date>;
+}
+
 export interface IdempotencyKeys {
   claim_scope: Generated<Buffer>;
   completed_at: Date | null;
@@ -645,8 +679,10 @@ export interface OauthTokens {
 }
 
 export interface OrgAccountingSettings {
+  accumulated_depreciation_account_id: Buffer | null;
   created_at: Generated<Date>;
   default_reporting_basis: Generated<"accrual" | "cash">;
+  depreciation_expense_account_id: Buffer | null;
   discount_given_account_id: Buffer | null;
   discount_received_account_id: Buffer | null;
   org_id: Buffer;
@@ -862,6 +898,37 @@ export interface RecurringInvoiceTemplates {
   updated_at: Generated<Date>;
 }
 
+export interface RecurringJournalTemplateLines {
+  account_id: Buffer;
+  amount_minor: bigint;
+  contact_id: Buffer | null;
+  created_at: Generated<Date>;
+  description: string | null;
+  id: Generated<bigint>;
+  line_number: number;
+  org_id: Buffer;
+  side: "credit" | "debit";
+  template_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface RecurringJournalTemplates {
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  end_date: string | null;
+  frequency: "monthly" | "quarterly" | "weekly" | "yearly";
+  id: Buffer;
+  interval_count: Generated<number>;
+  is_active: Generated<number>;
+  last_run_date: string | null;
+  materialization_mode: "draft" | "posted";
+  memo: string | null;
+  name: string;
+  next_run_date: string;
+  org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
 export interface RolePermissions {
   permission_code: string;
   role_id: Buffer;
@@ -966,6 +1033,8 @@ export interface DB {
   event_positions: EventPositions;
   external_refs: ExternalRefs;
   fiscal_periods: FiscalPeriods;
+  fixed_asset_schedule: FixedAssetSchedule;
+  fixed_assets: FixedAssets;
   idempotency_keys: IdempotencyKeys;
   invoice_deliveries: InvoiceDeliveries;
   journal_draft_line_dimensions: JournalDraftLineDimensions;
@@ -995,6 +1064,8 @@ export interface DB {
   reconciliation_sessions: ReconciliationSessions;
   recurring_invoice_template_lines: RecurringInvoiceTemplateLines;
   recurring_invoice_templates: RecurringInvoiceTemplates;
+  recurring_journal_template_lines: RecurringJournalTemplateLines;
+  recurring_journal_templates: RecurringJournalTemplates;
   role_permissions: RolePermissions;
   roles: Roles;
   secrets: Secrets;

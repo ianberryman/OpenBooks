@@ -254,6 +254,29 @@ const OVERRIDES = {
     'pending_payment_intents.pay_amount_minor': 'bigint',
     'pending_payment_intents.discount_amount_minor': 'bigint | null',
     'check_number_sequences.next_value': 'Generated<bigint>',
+
+    // ── Fixed assets & recurring journals (0014_fixed_assets) ─────────────────
+    //
+    // The same three column kinds one last time. The schedule dates are calendar
+    // DATEs and map to `string` (nullability spelled out, since an override replaces
+    // the whole mapped type). The template line's amount and the asset's cost and
+    // salvage are money BIGINTs — plain `bigint`, not `Generated<>`, because an
+    // amount that silently defaulted to zero is the bug no CHECK here can catch. The
+    // template line id is `BIGINT AUTO_INCREMENT`, so `Generated<bigint>` as
+    // `ar_document_lines.id` is. `interval_count`, `useful_life_months`,
+    // `declining_rate_ppm`, `period_index` and `line_number` need no entry — all are
+    // `INT UNSIGNED`/`SMALLINT UNSIGNED`, well inside 2^53, like `tax_rates.rate_ppm`.
+    'recurring_journal_templates.next_run_date': 'string',
+    'recurring_journal_templates.last_run_date': 'string | null',
+    'recurring_journal_templates.end_date': 'string | null',
+    'recurring_journal_template_lines.id': 'Generated<bigint>',
+    'recurring_journal_template_lines.amount_minor': 'bigint',
+    'fixed_assets.acquisition_cost_minor': 'bigint',
+    'fixed_assets.salvage_value_minor': 'bigint',
+    'fixed_assets.in_service_date': 'string',
+    'fixed_assets.disposed_date': 'string | null',
+    'fixed_asset_schedule.period_date': 'string',
+    'fixed_asset_schedule.depreciation_amount_minor': 'bigint',
   },
 };
 

@@ -387,6 +387,21 @@ const MUTABLE_TABLES = [
   'pending_payments',
   'pending_payment_intents',
   'check_number_sequences',
+  // ── Fixed assets & recurring journals (0014_fixed_assets) ──────────────────
+  //
+  // All four are standing instructions and plans, not ledger facts (D-113…D-116),
+  // so all four are mutable and none is append-only. A `recurring_journal_template`
+  // and its lines are a setting, edited freely; changing one changes the next cycle
+  // and reaches no journal already posted. A `fixed_asset` carries its status and the
+  // disposal journal that discharged it, both UPDATEs. `fixed_asset_schedule` is the
+  // one that needs UPDATE for the pointed reason journals cannot have one: the
+  // depreciation sweep stamps `posted_journal_id` onto the row it just discharged —
+  // the once-per-period idempotency key — which is an UPDATE the append-only grant
+  // would refuse. The immutable record of every posting is the `journals` each raises.
+  'recurring_journal_templates',
+  'recurring_journal_template_lines',
+  'fixed_assets',
+  'fixed_asset_schedule',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

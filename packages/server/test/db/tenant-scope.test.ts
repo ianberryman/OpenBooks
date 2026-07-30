@@ -193,6 +193,8 @@ describe('the tenant table set is derived from the schema', () => {
       'event_positions',
       'external_refs',
       'fiscal_periods',
+      'fixed_asset_schedule',
+      'fixed_assets',
       'idempotency_keys',
       'invoice_deliveries',
       'journal_draft_line_dimensions',
@@ -220,6 +222,8 @@ describe('the tenant table set is derived from the schema', () => {
       'reconciliation_sessions',
       'recurring_invoice_template_lines',
       'recurring_invoice_templates',
+      'recurring_journal_template_lines',
+      'recurring_journal_templates',
       'security_events',
       'tax_rates',
     ]);

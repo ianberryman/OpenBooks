@@ -175,6 +175,16 @@ export async function up(db: MigrationDb): Promise<void> {
       payable_control_account_id    BINARY(16)  NULL,
       discount_given_account_id     BINARY(16)  NULL,
       discount_received_account_id  BINARY(16)  NULL,
+      -- The org's default fixed-asset depreciation accounts (L, D-115), added in place
+      -- (D-15) for the discount pair's reason exactly: they nominate control accounts,
+      -- their target (accounts) already exists in this migration's predecessor, and an
+      -- org that registers no asset need name neither — so both are nullable and
+      -- separately so. The expense account is where a period's charge lands (an
+      -- expense); the accumulated account is where it accrues — an ordinary asset
+      -- account carrying a credit balance, no contra flag (D-115). Each asset may
+      -- override these; unset, registration defaults from here.
+      depreciation_expense_account_id      BINARY(16)  NULL,
+      accumulated_depreciation_account_id  BINARY(16)  NULL,
       -- The basis a report renders on unless the request overrides it (K1, D-87).
       -- Defaults to 'accrual': the ledger is accrual-capable and every M2 report was
       -- accrual (D-22), so an org sees no change until it opts into cash. NOT NULL: there
@@ -190,6 +200,8 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_oas_payable (org_id, payable_control_account_id),
       KEY idx_oas_discount_given (org_id, discount_given_account_id),
       KEY idx_oas_discount_received (org_id, discount_received_account_id),
+      KEY idx_oas_depreciation_expense (org_id, depreciation_expense_account_id),
+      KEY idx_oas_accumulated_depreciation (org_id, accumulated_depreciation_account_id),
       CONSTRAINT fk_oas_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE,
       CONSTRAINT fk_oas_receivable
         FOREIGN KEY (org_id, receivable_control_account_id) REFERENCES accounts (org_id, id)
@@ -202,6 +214,12 @@ export async function up(db: MigrationDb): Promise<void> {
         ON DELETE RESTRICT,
       CONSTRAINT fk_oas_discount_received
         FOREIGN KEY (org_id, discount_received_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_oas_depreciation_expense
+        FOREIGN KEY (org_id, depreciation_expense_account_id) REFERENCES accounts (org_id, id)
+        ON DELETE RESTRICT,
+      CONSTRAINT fk_oas_accumulated_depreciation
+        FOREIGN KEY (org_id, accumulated_depreciation_account_id) REFERENCES accounts (org_id, id)
         ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);

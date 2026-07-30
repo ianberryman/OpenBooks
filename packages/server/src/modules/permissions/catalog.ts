@@ -101,6 +101,14 @@ export const PERMISSION_KEYS = [
   'pending_payments.read',
   'pending_payments.write',
   'disbursements.issue',
+  // Fixed assets & recurring journals (initiative L, OB-162…169). Two independent
+  // config surfaces, each a plain read/write pair with no separation-of-duties split
+  // (D-117): unlike Pay Bills there is no release gate to withhold, because the
+  // automated posts run through `postJournal` under the automation's own Owner role.
+  'recurring_journals.read',
+  'recurring_journals.write',
+  'fixed_assets.read',
+  'fixed_assets.write',
 ] as const;
 
 /**
@@ -130,12 +138,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 56 codes and the six system roles are set operations over
+ * Migration `0001` seeds 60 codes and the six system roles are set operations over
  * that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 56> = true;
+type AssertCatalogSize<_N extends 60> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

@@ -30,20 +30,22 @@ import { contextFor, useServiceDatabase } from './support';
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
   // The entire catalog.
-  ['owner', 56],
+  ['owner', 60],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate, and now
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only) — eight
   // exclusions. Gains branding.read, branding.write and invoices.send (INV),
-  // processing.read (PAY), and pending_payments.read/write (PB — the queue keys),
+  // processing.read (PAY), pending_payments.read/write (PB — the queue keys), and
+  // recurring_journals.read/write + fixed_assets.read/write (L — no SoD, D-117),
   // none of them excluded.
-  ['bookkeeper', 48],
-  // Every `.read` except api_keys.read (22, now including branding.read,
-  // processing.read and pending_payments.read), plus agents.review and journals.post.
-  ['approver', 24],
-  // Every `.read` except api_keys.read (now including branding.read,
-  // processing.read and pending_payments.read).
-  ['readOnly', 22],
+  ['bookkeeper', 52],
+  // Every `.read` except api_keys.read (24, now including branding.read,
+  // processing.read, pending_payments.read, recurring_journals.read and
+  // fixed_assets.read), plus agents.review and journals.post.
+  ['approver', 26],
+  // Every `.read` except api_keys.read (now including branding.read, processing.read,
+  // pending_payments.read, recurring_journals.read and fixed_assets.read).
+  ['readOnly', 24],
   // 15 document/read codes plus journals.post and journals.reverse (OB-093), plus
   // the Pay Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds
   // the queue but cannot issue), so a clerk can finish — approve, void, pay, queue —
@@ -248,9 +250,9 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 24 since PB: the `%.read` bundle now also picks up `pending_payments.read`
-    // (was 23 after PAY added `processing.read`).
-    expect(resolution.permissions.size).toBe(24);
+    // 26 since L: the `%.read` bundle now also picks up `recurring_journals.read`
+    // and `fixed_assets.read` (was 24 after PB added `pending_payments.read`).
+    expect(resolution.permissions.size).toBe(26);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 
