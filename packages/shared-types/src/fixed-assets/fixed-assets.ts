@@ -199,16 +199,37 @@ export const fixedAssetScheduleSchema = z.strictObject({
 
 export type FixedAssetSchedule = z.infer<typeof fixedAssetScheduleSchema>;
 
-export const disposeFixedAssetRequestSchema = z.strictObject({
-  date: calendarDateSchema.meta({
-    description: 'The disposal date; the disposal journal posts as of it (must fall in an open period).',
-  }),
-  proceedsMinor: minorUnitsSchema.meta({
-    description:
-      'What was received on disposal, in minor units. Gain or loss is proceeds less the asset’s ' +
-      'net book value; send `"0"` for a write-off.',
-  }),
-});
+export const disposeFixedAssetRequestSchema = z
+  .strictObject({
+    date: calendarDateSchema.meta({
+      description:
+        'The disposal date; the disposal journal posts as of it (must fall in an open period).',
+    }),
+    proceedsMinor: minorUnitsSchema.meta({
+      description:
+        'What was received on disposal, in minor units. Gain or loss is proceeds less the asset’s ' +
+        'net book value; send `"0"` for a write-off.',
+    }),
+    proceedsAccountId: z.uuid().nullish().meta({
+      description:
+        'Where the disposal proceeds land — a cash, bank, or clearing account. Required when ' +
+        '`proceedsMinor` is non-zero; null or absent for a write-off with no proceeds.',
+    }),
+    gainLossAccountId: z.uuid().meta({
+      description:
+        'The P&L account the disposal gain or loss posts to. A gain credits it, a loss debits ' +
+        'it; a break-even disposal posts no line to it.',
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (BigInt(value.proceedsMinor) > 0n && (value.proceedsAccountId ?? null) === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'proceedsAccountId is required when proceedsMinor is non-zero.',
+        path: ['proceedsAccountId'],
+      });
+    }
+  });
 
 export type DisposeFixedAssetRequest = z.infer<typeof disposeFixedAssetRequestSchema>;
 
