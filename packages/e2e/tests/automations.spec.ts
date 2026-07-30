@@ -202,7 +202,9 @@ test('an automation composes annotate and agent_task in order, the agent propose
     await page.getByRole('button', { name: 'New automation' }).click();
     const dialog = page.getByRole('dialog', { name: 'New automation' });
 
-    await dialog.getByLabel('Name').fill(AUTOMATION_NAME);
+    // Exact, because the dialog's event-trigger row carries an 'Event name' field and a
+    // substring `getByLabel('Name')` matches both it and this one (`form-dialog.tsx`).
+    await dialog.getByLabel('Name', { exact: true }).fill(AUTOMATION_NAME);
     // Trigger defaults to `manual` (`blankFormState`) — this automation only ever fires
     // from "Run now", so the radio is left as it is.
 
@@ -338,7 +340,10 @@ test('an automation composes annotate and agent_task in order, the agent propose
     ).toBeTruthy();
     const token = (await tokenResponse.json()) as OAuthTokenResponse;
     expect(token.token_type).toBe('Bearer');
-    expect(token.scope).toBe(scope);
+    // Order-independent: a scope is a set, and D-54 intersects the request with the user's
+    // live role and returns the granted scopes in its own canonical order, not the order
+    // they were asked for. The token carries the same two scopes either way.
+    expect(token.scope.split(' ').sort()).toEqual(scope.split(' ').sort());
     accessToken = token.access_token;
   });
 
@@ -425,7 +430,10 @@ test('an automation composes annotate and agent_task in order, the agent propose
     const secondPollBody = (await secondPollResponse.json()) as McpPollResponse;
     expect(secondPollBody.error).toBeUndefined();
     expect(secondPollBody.result?.kind).toBe('executed');
-    expect(secondPollBody.result?.result?.item ?? 'not present').toBeNull();
+    // An empty queue leases nothing: `pollWorkQueue` returns `{ item: null }` (D-118). Assert
+    // that null directly — the earlier `?? 'not present'` guard was self-defeating, since `??`
+    // fires on null too and turned the very value under test into a non-null string.
+    expect(secondPollBody.result?.result?.item).toBeNull();
   });
 
   await test.step('the work item now shows as proposed, and a human approves it in the review queue (Q5, Q4)', async () => {

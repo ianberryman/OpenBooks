@@ -92,7 +92,12 @@ test('a recurring-invoice template is built and scheduled, and a dunning ladder 
     await page.getByRole('button', { name: 'New recurring invoice' }).click();
     const dialog = page.getByRole('dialog', { name: 'New recurring invoice' });
 
-    await chooseInCombobox(page, 'Customer', CUSTOMER);
+    // A unique prefix rather than the full name: the combobox renders the committed
+    // option's label back into the input, and `chooseInCombobox` proves the commit by
+    // asserting the input no longer holds the typed query — which only holds when the
+    // query is a prefix of the label, the same shape `cash-basis`/`month-of-books` use
+    // when they type 'Northwind' for a longer contact name.
+    await chooseInCombobox(page, 'Customer', 'Harbor');
     await dialog.getByLabel('Name', { exact: true }).fill(TEMPLATE_NAME);
     // Frequency defaults to monthly with an interval of 1 — exactly the cadence this
     // template wants (`vocabulary.ts`'s `cadenceLabel` renders that pair as "Monthly"), so

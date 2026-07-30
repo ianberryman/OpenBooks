@@ -25,7 +25,10 @@ test('a budgeted revenue account reads back its exact variance against actuals',
   // Service revenue (4020) in the "General small business" starter chart — a credit-normal
   // revenue account, and the one the actual below posts to.
   const REVENUE_ACCOUNT = 'Service revenue';
-  const BUDGET = '1000';
+  // Written with the cents already in place: the money input normalises to canonical
+  // two-decimal form on blur (`money-input.tsx`), so a bare '1000' round-trips to '1000.00'
+  // and the read-back assertion must expect what the field actually redisplays.
+  const BUDGET = '1000.00';
   const ACTUAL = '400';
 
   await test.step('register, which creates the login and the first organization together', async () => {

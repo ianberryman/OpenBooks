@@ -149,7 +149,9 @@ test('a hosted invoice is paid through a fake processor, the fee posts, a redeli
       type: 'expense',
       normalBalance: 'debit',
     });
-    customerId = await createCustomer(page.request, CUSTOMER);
+    // With an address on file, so the invoice this narrative sends has a recipient and
+    // `POST …/send` returns the hosted link rather than 412 (`sendInvoiceAndGetToken`).
+    customerId = await createCustomer(page.request, CUSTOMER, 'billing@beacon-analytics.example');
   });
 
   await test.step('connect a fake payment processor to those two accounts', async () => {
@@ -186,7 +188,11 @@ test('a hosted invoice is paid through a fake processor, the fee posts, a redeli
     // read 1500.00 with no tax), so it is asserted cents-exact off the JSON below
     // instead of scraped as page text that would match three elements at once.
     await page.goto(`/i/${token}`);
-    await expect(page.getByText(/^Invoice /)).toBeVisible();
+    // The invoice-number line and the right-aligned column that wraps it both begin
+    // "Invoice <number>" (`public-invoice.tsx` renders the number span first inside a
+    // div that continues "Issued…/Due…"), so the prefix regex matches parent and child —
+    // `.first()` pins the outer of the two rather than tripping strict mode.
+    await expect(page.getByText(/^Invoice /).first()).toBeVisible();
     await expect(page.getByText('Billed to')).toBeVisible();
     await expect(page.getByText(CUSTOMER, { exact: true })).toBeVisible();
 

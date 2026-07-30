@@ -62,6 +62,11 @@ const stackEnv = {
   DATABASE_MIGRATOR_USER: 'openbooks_migrator',
   DATABASE_MIGRATOR_PASSWORD: 'change-me-migrator',
   SESSION_SECRET: 'e2e-only-secret-0123456789abcdef0123456789abcdef',
+  // Required since PAY's `SECRETS_PROVIDER=local` seam (OB-143a): the default self-host
+  // secrets provider AES-GCM-encrypts per-org processor keys and refuses to start without
+  // a >=32-char key. The literal is `.env.example`'s, so the stack matches the documented
+  // self-host defaults the rest of this env block mirrors.
+  SECRETS_ENCRYPTION_KEY: 'dev-only-change-me-fedcba9876543210fedcba9876543210',
   // Plain HTTP, so a Secure cookie would never be stored and every request after register
   // would be a 401 with nothing in the browser to say why (spec §5, `auth/cookie.ts`).
   SESSION_COOKIE_SECURE: 'false',
@@ -72,6 +77,13 @@ const stackEnv = {
   STORAGE_LOCAL_PATH: path.join(repoRoot, 'packages', 'e2e', 'dist', 'storage'),
   HTTP_HOST: '127.0.0.1',
   HTTP_PORT: String(API_PORT),
+  // The app's public origin, where the customer's browser lands. Optional in general, but
+  // the pay-link route (`public-pay-link.ts`) builds the processor return URL as
+  // `${appBaseUrl}/i/{token}` and the `fake` processor's checkout link is that URL with a
+  // session query — and `payLinkResponseSchema` validates it with `z.url()`, which rejects
+  // a relative path. So the payment narrative needs an absolute base here; it is the web
+  // app's own origin, since `/i/{token}` is a route in the web app, not this API.
+  APP_BASE_URL: WEB_ORIGIN,
 };
 
 export default defineConfig({

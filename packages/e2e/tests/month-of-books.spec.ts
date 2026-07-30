@@ -230,6 +230,15 @@ test('a solo owner runs a month of books, unassisted, in a browser', async ({ pa
 
     await expect(row.getByText('Open')).toBeVisible();
     await row.getByRole('button', { name: 'Close' }).click();
+
+    // Closing goes through an advisory sign-off dialog (initiative P, D-97): the row's
+    // Close button opens it, and the period is not closed until 'Close period' inside it is
+    // confirmed. A brand-new org trips no blocking check, so the sign-off is a formality
+    // here — but it is the real flow the product ships (`settings/periods.tsx`), so the
+    // narrative drives it rather than the pre-P one-click close it used to.
+    const closeDialog = page.getByRole('dialog', { name: `Close ${month.periodName}` });
+    await closeDialog.getByRole('button', { name: 'Close period' }).click();
+
     await expect(row.getByText('Closed')).toBeVisible();
   });
 

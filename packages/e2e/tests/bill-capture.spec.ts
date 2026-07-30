@@ -11,8 +11,10 @@ import { chooseInCombobox, currentMonth, newRegistration } from './support/books
  * found, and turn it into a draft bill in `purchases` — sitting on top of the extraction
  * pipeline `deterministic.ts` already proves headless. This is that screen's one browser
  * proof: register, put a vendor in Contacts, upload a bill whose bytes are the deterministic
- * `key: value` format extraction understands, watch it settle from "Extracting…" to matched
- * and ready for review, confirm the match and post an expense account, create the draft, and
+ * `key: value` format extraction understands, wait for it to settle to matched and ready for
+ * review (the `extracting` state is momentary under the in-process queue, so it is the
+ * settled state that is asserted), confirm the match and post an expense account, create the
+ * draft, and
  * find that exact draft sitting in Purchases afterwards.
  *
  * ## What this narrative does not claim
@@ -111,16 +113,13 @@ line: Consulting | 1 | 120000
     // `quickbooks-import.spec.ts` uses for its three CSV exports.
     await page.getByLabel('Bill file').setInputFiles(bill(BILL_TEXT));
 
-    // The queue defaults to the `extracted` filter ("Needs review"), and a freshly
-    // uploaded capture starts life as `extracting` (`capture.service.ts` stages it there
-    // before the extraction job runs), so it will not appear until the filter widens —
-    // the same "widen the filter to see a transitional state" story
-    // `recurring-and-dunning.spec.ts` tells for a just-paused template.
-    await page.getByRole('combobox', { name: 'Status' }).click();
-    await page.getByRole('option', { name: 'All statuses' }).click();
-
-    const row = page.getByRole('row').filter({ has: page.getByText('bill.pdf', { exact: true }) });
-    await expect(row.getByText('Extracting…')).toBeVisible();
+    // The transient `extracting` state is deliberately not asserted. With
+    // QUEUE_PROVIDER=in-process and the deterministic extraction provider (the e2e
+    // defaults), the capture settles to `extracted` synchronously-fast inside the API
+    // process — the same event-loop turn — so 'Extracting…' is not reliably observable in
+    // the browser, which only refetches on the upload's success and on a filter change.
+    // The next step reloads and asserts the settled 'Needs review' state; that is what
+    // proves the capture was created, extracted and vendor-matched.
   });
 
   await test.step('wait for extraction to settle, then find the matched vendor in the review queue', async () => {

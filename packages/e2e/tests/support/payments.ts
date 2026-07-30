@@ -86,10 +86,15 @@ interface ContactResponse {
 export async function createCustomer(
   request: APIRequestContext,
   displayName: string,
+  // Optional so callers that never send an invoice (cash-application seeds three customers
+  // it only ever receives money against) stay unchanged, while the payment narrative — which
+  // raises and *sends* an invoice — can put an address on file so `POST …/send` has a
+  // recipient rather than answering 412 "customer has no email on file".
+  email?: string,
 ): Promise<string> {
   const response = await request.post('/v1/contacts', {
     headers: writeHeaders(),
-    data: { displayName, isCustomer: true },
+    data: { displayName, isCustomer: true, ...(email === undefined ? {} : { email }) },
   });
   expect(response.ok(), `POST /v1/contacts → ${String(response.status())}`).toBeTruthy();
   const contact = (await response.json()) as ContactResponse;
@@ -493,7 +498,11 @@ export async function clearLineToAccount(
 ): Promise<LineClearing> {
   const response = await request.post(`/v1/statement-lines/${lineId}/clearing`, {
     headers: writeHeaders(),
-    data: { method: 'post_entry', accountId },
+    // The single-target clear, in the D-105 array shape: one `post_entry` entry with no
+    // `amount`, which the schema defines as "the whole of the line when this is the only
+    // entry" (`clearing.ts`). The pre-D-105 flat `{ method, accountId }` body no longer
+    // validates — `entries: [oneEntry]` is exactly how that restructure re-expressed it.
+    data: { entries: [{ method: 'post_entry', accountId }] },
   });
   expect(
     response.ok(),
