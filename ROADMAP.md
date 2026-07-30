@@ -153,6 +153,20 @@ integration) for "link," distinct from the CSV path. The UI can still **favour c
 asset-only. Unscheduled; adjacent to the fixed-assets/recurring initiative (L) and the banking
 work already shipped.
 
+### Product follow-up — an optional product/service catalog (future)
+
+Invoice and bill lines are free-form today by deliberate decision (no product/item table — see
+`subledger/documents.ts`, "no product policy invented in a schema file"). We want an **optional**
+reusable **catalog** of products/services for **both AR and AP** — a saved item carrying a name,
+a default GL account, a default unit price, and a default tax rate — that a line can be filled
+from with one pick, then still edited per line. It buys faster entry and **coding consistency**
+(the same item always lands in the same account, so reporting doesn't fragment on typos), and it
+is the natural anchor for later inventory/COGS if that is ever scoped. It stays **optional**:
+free-form lines remain first-class, and a catalog item is a convenience that pre-fills the same
+per-line fields (account, price, tax) a user can already type. New tenant table(s) + a picker on
+the line editors; no change to how lines post (each still carries its own `account_id`).
+Unscheduled.
+
 ### Environment notes that cost time to rediscover
 
 - A host `mysqld` owns `127.0.0.1:3306` on the development machine, so Compose publishes
