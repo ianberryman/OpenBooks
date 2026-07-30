@@ -167,6 +167,17 @@ export async function up(db: MigrationDb): Promise<void> {
   // numbers, not API-key secrets — an encryption-at-rest follow-up is noted in the
   // ROADMAP. No foreign key, so unlike `default_payment_term_id` no composite
   // constraint is deferred to `0013_pay_bills`; the enum and the strings stand alone.
+  //
+  // ## is_employee — added in place for procure-to-pay (D-15, D-91)
+  //
+  // A third boolean beside `is_customer`/`is_vendor`, following their own reasoning
+  // exactly: an employee expense (`0015_procure_to_pay`'s D-M2) is an `ap_documents`
+  // bill whose contact happens to be an employee, so the party needs no entity of
+  // its own — only a flag `expenses.service` can require against, the way
+  // `requireVendor` already checks `is_vendor`. No `CHECK` ties it to the other two
+  // for the reason none ties `is_customer` to `is_vendor`: the flags say which
+  // subledgers a contact takes part in, and a contact can be any combination,
+  // including none yet.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE contacts (
@@ -179,6 +190,7 @@ export async function up(db: MigrationDb): Promise<void> {
       phone                  VARCHAR(64)  NULL,
       is_customer            TINYINT(1)   NOT NULL DEFAULT 0,
       is_vendor              TINYINT(1)   NOT NULL DEFAULT 0,
+      is_employee            TINYINT(1)   NOT NULL DEFAULT 0,
       notes                  VARCHAR(512) NULL,
       is_active              TINYINT(1)   NOT NULL DEFAULT 1,
       default_payment_term_id BINARY(16)  NULL,
@@ -201,6 +213,7 @@ export async function up(db: MigrationDb): Promise<void> {
       KEY idx_contacts_org_name (org_id, display_name),
       KEY idx_contacts_org_customer (org_id, is_customer),
       KEY idx_contacts_org_vendor (org_id, is_vendor),
+      KEY idx_contacts_org_employee (org_id, is_employee),
       KEY idx_contacts_org_default_term (org_id, default_payment_term_id),
       CONSTRAINT fk_contacts_org FOREIGN KEY (org_id) REFERENCES orgs (id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

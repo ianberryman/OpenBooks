@@ -30,29 +30,33 @@ import { contextFor, useServiceDatabase } from './support';
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
   // The entire catalog.
-  ['owner', 60],
+  ['owner', 67],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate, and now
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only) — eight
   // exclusions. Gains branding.read, branding.write and invoices.send (INV),
-  // processing.read (PAY), pending_payments.read/write (PB — the queue keys), and
-  // recurring_journals.read/write + fixed_assets.read/write (L — no SoD, D-117),
-  // none of them excluded.
-  ['bookkeeper', 52],
-  // Every `.read` except api_keys.read (24, now including branding.read,
-  // processing.read, pending_payments.read, recurring_journals.read and
-  // fixed_assets.read), plus agents.review and journals.post.
-  ['approver', 26],
+  // processing.read (PAY), pending_payments.read/write (PB — the queue keys),
+  // recurring_journals.read/write + fixed_assets.read/write (L — no SoD, D-117), and
+  // procure-to-pay's purchase_orders.read/write, estimates.read/write and
+  // expenses.read/write/approve (M — all seven, none excluded).
+  ['bookkeeper', 59],
+  // Every `.read` except api_keys.read (27, now including branding.read,
+  // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,
+  // and M's purchase_orders.read/estimates.read/expenses.read via `%.read`), plus
+  // agents.review and journals.post. expenses.approve (M) is added to the approver when
+  // the expense service enforces it, so it is not counted yet.
+  ['approver', 29],
   // Every `.read` except api_keys.read (now including branding.read, processing.read,
-  // pending_payments.read, recurring_journals.read and fixed_assets.read).
-  ['readOnly', 24],
-  // 15 document/read codes plus journals.post and journals.reverse (OB-093), plus
-  // the Pay Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds
-  // the queue but cannot issue), so a clerk can finish — approve, void, pay, queue —
-  // the documents they enter.
+  // pending_payments.read, recurring_journals.read, fixed_assets.read, and M's
+  // purchase_orders.read/estimates.read/expenses.read).
+  ['readOnly', 27],
+  // 15 document/read codes plus journals.post and journals.reverse (OB-093), plus the
+  // Pay Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the
+  // queue but cannot issue), so a clerk can finish — approve, void, pay, queue — the
+  // documents they enter. M's purchase_orders.*/expenses.* arrive with the M services.
   ['apOnly', 19],
-  // The AR mirror of apOnly, plus invoices.send (INV) so a clerk can send the
-  // invoices they raise. Unchanged by PB — the pay-bills keys are payables-side.
+  // The AR mirror of apOnly, plus invoices.send (INV) so a clerk can send the invoices
+  // they raise. M's estimates.* arrive with the M services.
   ['arOnly', 18],
 ];
 
@@ -250,9 +254,11 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 26 since L: the `%.read` bundle now also picks up `recurring_journals.read`
-    // and `fixed_assets.read` (was 24 after PB added `pending_payments.read`).
-    expect(resolution.permissions.size).toBe(26);
+    // 29 since M: the `%.read` bundle now also picks up `purchase_orders.read`,
+    // `estimates.read` and `expenses.read` (was 26 after L added
+    // `recurring_journals.read`/`fixed_assets.read`). expenses.approve joins the
+    // approver when the expense service enforces it.
+    expect(resolution.permissions.size).toBe(29);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

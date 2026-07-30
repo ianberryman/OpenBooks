@@ -62,6 +62,7 @@ function contact(overrides: Partial<Contact> = {}): Contact {
     phone: null,
     isCustomer: false,
     isVendor: false,
+    isEmployee: false,
     notes: null,
     isActive: true,
     createdAt: '2026-01-05T09:00:00.000Z',

@@ -34,6 +34,7 @@ const CONTACT: Contact = {
   isActive: true,
   isCustomer: true,
   isVendor: false,
+  isEmployee: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

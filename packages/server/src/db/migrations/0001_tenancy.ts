@@ -333,7 +333,14 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('recurring_journals.read',  'View recurring journal templates (L)'),
       ('recurring_journals.write', 'Create and modify recurring journal templates (L)'),
       ('fixed_assets.read',        'View fixed assets and depreciation schedules (L)'),
-      ('fixed_assets.write',       'Register, depreciate, and dispose fixed assets (L)')
+      ('fixed_assets.write',       'Register, depreciate, and dispose fixed assets (L)'),
+      ('purchase_orders.read',     'View purchase orders (M)'),
+      ('purchase_orders.write',    'Create, approve, send, and convert purchase orders (M)'),
+      ('estimates.read',           'View estimates and quotes (M)'),
+      ('estimates.write',          'Create, approve, send, and convert estimates (M)'),
+      ('expenses.read',            'View employee expenses (M)'),
+      ('expenses.write',           'Enter and modify employee expenses (M)'),
+      ('expenses.approve',         'Approve an employee expense into a payable (M)')
   `.execute(db);
 }
 
@@ -443,6 +450,11 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'accounts.read', 'periods.read', 'journals.read',
         'journals.post', 'journals.reverse',
         'tax_rates.read', 'dimensions.read', 'reports.read'
+        -- Procure-to-pay (M) grants — purchase_orders.read/write, expenses.read/write —
+        -- are added when the M services enforce them (the same catalog-before-
+        -- enforcement pattern the roadmap records for every prior milestone). Seeding a
+        -- code a clerk cannot yet exercise buys nothing, and it would break the
+        -- "two roles that emptied" invariant in permission-matrix.test.ts.
       )
   `.execute(db);
 
@@ -461,6 +473,8 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'accounts.read', 'periods.read', 'journals.read',
         'journals.post', 'journals.reverse',
         'tax_rates.read', 'dimensions.read', 'reports.read'
+        -- Procure-to-pay (M): estimates.read/write are added when the M services
+        -- enforce them (see the AP-only note above).
       )
   `.execute(db);
 }

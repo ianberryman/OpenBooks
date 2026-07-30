@@ -345,6 +345,7 @@ export interface Contacts {
   id: Buffer;
   is_active: Generated<number>;
   is_customer: Generated<number>;
+  is_employee: Generated<number>;
   is_vendor: Generated<number>;
   legal_name: string | null;
   notes: string | null;
@@ -400,7 +401,7 @@ export interface DocumentCaptures {
 }
 
 export interface DocumentSequences {
-  document_type: "bill" | "credit_note" | "invoice" | "payment_paid" | "payment_received" | "vendor_credit";
+  document_type: "bill" | "credit_note" | "estimate" | "invoice" | "payment_paid" | "payment_received" | "purchase_order" | "vendor_credit";
   next_value: Generated<bigint>;
   org_id: Buffer;
   updated_at: Generated<Date>;
@@ -437,6 +438,40 @@ export interface DunningStages {
   policy_id: Buffer;
   stage_number: number;
   subject: string;
+  updated_at: Generated<Date>;
+}
+
+export interface EstimateLines {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  description: string | null;
+  estimate_id: Buffer;
+  id: Generated<bigint>;
+  line_amount_minor: bigint;
+  line_number: number;
+  org_id: Buffer;
+  quantity_micros: bigint;
+  tax_amount_minor: bigint;
+  tax_rate_id: Buffer | null;
+  unit_amount_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface Estimates {
+  approved_at: Date | null;
+  contact_id: Buffer;
+  converted_at: Date | null;
+  converted_invoice_id: Buffer | null;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  expiry_date: string | null;
+  id: Buffer;
+  issue_date: string;
+  memo: string | null;
+  org_id: Buffer;
+  reference: string | null;
+  sequence_number: bigint | null;
+  tax_mode: "exclusive" | "inclusive";
   updated_at: Generated<Date>;
 }
 
@@ -807,6 +842,19 @@ export interface Permissions {
   description: string;
 }
 
+export interface PredocumentDeliveries {
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  document_id: Buffer;
+  document_kind: "estimate" | "purchase_order";
+  id: Buffer;
+  org_id: Buffer;
+  provider_message_id: string | null;
+  recipient_email: string;
+  sent_at: Generated<Date>;
+  status: "failed" | "sent";
+}
+
 export interface ProcessorConnections {
   clearing_account_id: Buffer;
   created_at: Generated<Date>;
@@ -838,6 +886,40 @@ export interface ProcessorEvents {
   processor: "fake" | "square" | "stripe";
   received_at: Generated<Date>;
   status: "failed" | "ignored" | "processed" | "received";
+}
+
+export interface PurchaseOrderLines {
+  account_id: Buffer;
+  created_at: Generated<Date>;
+  description: string | null;
+  id: Generated<bigint>;
+  line_amount_minor: bigint;
+  line_number: number;
+  org_id: Buffer;
+  purchase_order_id: Buffer;
+  quantity_micros: bigint;
+  tax_amount_minor: bigint;
+  tax_rate_id: Buffer | null;
+  unit_amount_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface PurchaseOrders {
+  approved_at: Date | null;
+  contact_id: Buffer;
+  converted_at: Date | null;
+  converted_bill_id: Buffer | null;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  expected_date: string | null;
+  id: Buffer;
+  issue_date: string;
+  memo: string | null;
+  org_id: Buffer;
+  reference: string | null;
+  sequence_number: bigint | null;
+  tax_mode: "exclusive" | "inclusive";
+  updated_at: Generated<Date>;
 }
 
 export interface ReconciliationSessionEvents {
@@ -1029,6 +1111,8 @@ export interface DB {
   dunning_policies: DunningPolicies;
   dunning_sends: DunningSends;
   dunning_stages: DunningStages;
+  estimate_lines: EstimateLines;
+  estimates: Estimates;
   event_log: EventLog;
   event_positions: EventPositions;
   external_refs: ExternalRefs;
@@ -1058,8 +1142,11 @@ export interface DB {
   pending_payment_intents: PendingPaymentIntents;
   pending_payments: PendingPayments;
   permissions: Permissions;
+  predocument_deliveries: PredocumentDeliveries;
   processor_connections: ProcessorConnections;
   processor_events: ProcessorEvents;
+  purchase_order_lines: PurchaseOrderLines;
+  purchase_orders: PurchaseOrders;
   reconciliation_session_events: ReconciliationSessionEvents;
   reconciliation_sessions: ReconciliationSessions;
   recurring_invoice_template_lines: RecurringInvoiceTemplateLines;

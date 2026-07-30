@@ -141,6 +141,14 @@ const APPEND_ONLY_TABLES = [
   // …) is mutable, below.
   'event_log',
   'security_events',
+  // ── Procure-to-pay (0015_procure_to_pay) ───────────────────────────────────
+  //
+  // `predocument_deliveries` is the record that a PO or estimate was emailed to a
+  // counterparty — `invoice_deliveries`' argument applied to a pre-document (D-M5):
+  // a delivery a re-send instead of an edit, so nothing here is ever rewritten. Its
+  // siblings (`purchase_orders`, `estimates`, and their lines) are working state and
+  // are mutable, below.
+  'predocument_deliveries',
 ] as const;
 
 /**
@@ -402,6 +410,19 @@ const MUTABLE_TABLES = [
   'recurring_journal_template_lines',
   'fixed_assets',
   'fixed_asset_schedule',
+  // ── Procure-to-pay (0015_procure_to_pay) ───────────────────────────────────
+  //
+  // POs and estimates post no journal (D-92) — they are operational pre-documents,
+  // not ledger events — so, like the M3 subledger they mirror, none of these four
+  // holds a financial fact and editing one restates nothing. Converting is the one
+  // financial event either causes, and that event is a row in `journals`, append-only
+  // above, reached through the ordinary `createBill`/`createInvoice` path. The record
+  // that one was *sent* is `predocument_deliveries`, append-only above for
+  // `invoice_deliveries`' own reason.
+  'purchase_orders',
+  'purchase_order_lines',
+  'estimates',
+  'estimate_lines',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

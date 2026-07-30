@@ -109,6 +109,19 @@ export const PERMISSION_KEYS = [
   'recurring_journals.write',
   'fixed_assets.read',
   'fixed_assets.write',
+  // Procure-to-pay & pre-sale (initiative M, OB-170…179). Purchase orders and
+  // estimates are non-posting pre-documents (D-92) with their own read/write pairs;
+  // an employee expense is an ap_documents bill against an employee contact, so it
+  // reuses the bill posting path but is gated by its own keys — and `expenses.approve`
+  // is the separation-of-duties gate (like `disbursements.issue`): the clerk who
+  // enters an expense is not necessarily the one who approves it into a payable.
+  'purchase_orders.read',
+  'purchase_orders.write',
+  'estimates.read',
+  'estimates.write',
+  'expenses.read',
+  'expenses.write',
+  'expenses.approve',
 ] as const;
 
 /**
@@ -138,12 +151,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 60 codes and the six system roles are set operations over
+ * Migration `0001` seeds 67 codes and the six system roles are set operations over
  * that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 60> = true;
+type AssertCatalogSize<_N extends 67> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

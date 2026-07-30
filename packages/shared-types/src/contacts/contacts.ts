@@ -120,6 +120,14 @@ const isVendorSchema = z.boolean().meta({
     'case. See the `contacts` commentary in migration 0002_ledger.',
 });
 
+const isEmployeeSchema = z.boolean().meta({
+  description:
+    'Whether this contact is an employee who can be reimbursed. A third independent flag, not a ' +
+    'third table (D-M1): an expense is a bill whose contact carries this flag, so the same ' +
+    'directory row that is billed by a vendor may also be an employee, and one contact may hold ' +
+    'any combination of `isCustomer`, `isVendor` and `isEmployee`.',
+});
+
 /**
  * A contact as the API returns it.
  *
@@ -141,6 +149,7 @@ export const contactSchema = z
     phone: phoneSchema.nullable(),
     isCustomer: isCustomerSchema,
     isVendor: isVendorSchema,
+    isEmployee: isEmployeeSchema,
     notes: notesSchema.nullable(),
     isActive: z.boolean().meta({
       description:
@@ -179,12 +188,13 @@ export const createContactRequestSchema = z
     phone: phoneSchema.nullish(),
     isCustomer: isCustomerSchema.optional(),
     isVendor: isVendorSchema.optional(),
+    isEmployee: isEmployeeSchema.optional(),
     notes: notesSchema.nullish(),
   })
   .meta({
     id: 'CreateContactRequest',
     description:
-      'Creates one contact. Only `displayName` is required; both subledger flags default to ' +
+      'Creates one contact. Only `displayName` is required; all three subledger flags default to ' +
       'false, because a party named on a journal line need take part in no subledger at all.',
   });
 
@@ -244,6 +254,7 @@ export const updateContactRequestSchema = z
     phone: phoneSchema.nullish(),
     isCustomer: isCustomerSchema.optional(),
     isVendor: isVendorSchema.optional(),
+    isEmployee: isEmployeeSchema.optional(),
     notes: notesSchema.nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
@@ -261,19 +272,21 @@ export type UpdateContactRequest = z.infer<typeof updateContactRequestSchema>;
 /**
  * List filters, plus the pagination shared by every list endpoint (D-21).
  *
- * The three filters are real booleans and not query-string flags, for the reason
+ * The filters are real booleans and not query-string flags, for the reason
  * `listAccountsQuerySchema` gives: a shared schema that accepted `'false'` would
  * accept it from a JSON body too, and `'false'` is truthy in every language an
  * integrator might use. Coercing a querystring is the route's job (OB-045).
  *
- * `isCustomer` and `isVendor` are independent filters rather than one `role`
- * enum, because the flags are independent — an entity that is both must appear
- * under either filter, and an enum would force it to pick.
+ * `isCustomer`, `isVendor` and `isEmployee` are independent filters rather than
+ * one `role` enum, because the flags are independent — an entity flagged more
+ * than one of them must appear under either filter, and an enum would force it
+ * to pick.
  */
 export const listContactsQuerySchema = z.strictObject({
   ...pageQueryShape,
   isCustomer: z.boolean().optional(),
   isVendor: z.boolean().optional(),
+  isEmployee: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 

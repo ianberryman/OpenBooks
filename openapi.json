@@ -7092,6 +7092,10 @@
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
             "type": "boolean"
           },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
+            "type": "boolean"
+          },
           "isVendor": {
             "description": "Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger.",
             "type": "boolean"
@@ -7149,6 +7153,7 @@
           "phone",
           "isCustomer",
           "isVendor",
+          "isEmployee",
           "notes",
           "isActive",
           "createdAt",
@@ -7208,6 +7213,10 @@
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
             "type": "boolean"
           },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
+            "type": "boolean"
+          },
           "isVendor": {
             "description": "Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger.",
             "type": "boolean"
@@ -7265,6 +7274,7 @@
           "phone",
           "isCustomer",
           "isVendor",
+          "isEmployee",
           "notes",
           "isActive",
           "createdAt",
@@ -8104,7 +8114,7 @@
       },
       "CreateContactRequest": {
         "additionalProperties": false,
-        "description": "Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
+        "description": "Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
         "properties": {
           "code": {
             "anyOf": [
@@ -8141,6 +8151,10 @@
           },
           "isCustomer": {
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
+            "type": "boolean"
+          },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
             "type": "boolean"
           },
           "isVendor": {
@@ -8193,7 +8207,7 @@
       },
       "CreateContactRequestInput": {
         "additionalProperties": false,
-        "description": "Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
+        "description": "Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
         "properties": {
           "code": {
             "anyOf": [
@@ -8227,6 +8241,10 @@
           },
           "isCustomer": {
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
+            "type": "boolean"
+          },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
             "type": "boolean"
           },
           "isVendor": {
@@ -8866,6 +8884,282 @@
         "required": [
           "name",
           "stages"
+        ],
+        "type": "object"
+      },
+      "CreateEstimateRequest": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** estimate. `lines` is optional — “New estimate” produces an empty one, and the arity and account checks belong at approval.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateEstimateRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** estimate. `lines` is optional — “New estimate” produces an empty one, and the arity and account checks belong at approval.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateExpenseRequest": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** expense — a bill whose contact is an employee (D-M2). Reimbursement is Pay Bills settling this same document once approved; there is no separate reimbursement request.",
+        "properties": {
+          "contactId": {
+            "description": "The employee this expense reimburses.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paymentTermId": {
+            "description": "Overrides the employee’s default payment term for this expense, exactly as `CreateBillRequest.paymentTermId` does for a vendor. Create-only.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateExpenseRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** expense — a bill whose contact is an employee (D-M2). Reimbursement is Pay Bills settling this same document once approved; there is no separate reimbursement request.",
+        "properties": {
+          "contactId": {
+            "description": "The employee this expense reimburses.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paymentTermId": {
+            "description": "Overrides the employee’s default payment term for this expense, exactly as `CreateBillRequest.paymentTermId` does for a vendor. Create-only.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
         ],
         "type": "object"
       },
@@ -9740,6 +10034,144 @@
           "bankAccountId",
           "rail",
           "intents"
+        ],
+        "type": "object"
+      },
+      "CreatePurchaseOrderRequest": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** purchase order. `lines` is optional — “New purchase order” produces an empty one, and the arity and account checks belong at approval.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreatePurchaseOrderRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates a **draft** purchase order. `lines` is optional — “New purchase order” produces an empty one, and the arity and account checks belong at approval.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "issueDate",
+          "taxMode"
         ],
         "type": "object"
       },
@@ -12597,6 +13029,632 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "Estimate": {
+        "additionalProperties": false,
+        "description": "An estimate: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertEstimateToInvoice` builds a draft invoice from its header and lines; nothing here ever posts a journal directly. Converting is the only form of acceptance modelled in v1.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the estimate was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The customer this estimate is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedInvoiceId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this estimate lapses, if given. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLine"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotals"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expiryDate",
+          "taxMode",
+          "status",
+          "memo",
+          "lines",
+          "totals",
+          "convertedInvoiceId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "EstimateInput": {
+        "additionalProperties": false,
+        "description": "An estimate: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertEstimateToInvoice` builds a draft invoice from its header and lines; nothing here ever posts a journal directly. Converting is the only form of acceptance modelled in v1.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the estimate was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The customer this estimate is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedInvoiceId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this estimate lapses, if given. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineInput"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotalsInput"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expiryDate",
+          "taxMode",
+          "status",
+          "memo",
+          "lines",
+          "totals",
+          "convertedInvoiceId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "EstimatePage": {
+        "additionalProperties": false,
+        "description": "One page of estimates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "EstimatePageInput": {
+        "additionalProperties": false,
+        "description": "One page of estimates, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateSummaryInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "EstimateSummary": {
+        "additionalProperties": false,
+        "description": "An estimate in a list, without its lines.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the estimate was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The customer this estimate is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedInvoiceId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this estimate lapses, if given. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotals"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expiryDate",
+          "taxMode",
+          "status",
+          "memo",
+          "totals",
+          "convertedInvoiceId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "EstimateSummaryInput": {
+        "additionalProperties": false,
+        "description": "An estimate in a list, without its lines.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the estimate was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The customer this estimate is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedInvoiceId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this estimate lapses, if given. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotalsInput"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expiryDate",
+          "taxMode",
+          "status",
+          "memo",
+          "totals",
+          "convertedInvoiceId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -18692,6 +19750,96 @@
         ],
         "type": "object"
       },
+      "PredocumentLineRequest": {
+        "additionalProperties": false,
+        "description": "One line on a purchase order or an estimate. The same shape as a document line request minus `dimensionValueIds` (D-M7) — POs and estimates carry no dimension tags in v1; a converted draft bill or invoice can have them added before it is approved.",
+        "properties": {
+          "accountId": {
+            "description": "The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the line is for. This is what prints on the document.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "taxRateId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing."
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning."
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unitAmount",
+          "accountId"
+        ],
+        "type": "object"
+      },
+      "PredocumentLineRequestInput": {
+        "additionalProperties": false,
+        "description": "One line on a purchase order or an estimate. The same shape as a document line request minus `dimensionValueIds` (D-M7) — POs and estimates carry no dimension tags in v1; a converted draft bill or invoice can have them added before it is approved.",
+        "properties": {
+          "accountId": {
+            "description": "The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the line is for. This is what prints on the document.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/QuantityInput"
+          },
+          "taxRateId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing."
+          },
+          "unitAmount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning."
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unitAmount",
+          "accountId"
+        ],
+        "type": "object"
+      },
       "PreviewBankStatementImportRequest": {
         "additionalProperties": false,
         "description": "Reads the file and reports what importing it would do, writing nothing. Same reading rules as the real import: a CSV takes exactly one of `mappingId`/`mapping`, an OFX takes neither.",
@@ -19294,6 +20442,632 @@
           "revenue",
           "expenses",
           "netIncome"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrder": {
+        "additionalProperties": false,
+        "description": "A purchase order: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertPurchaseOrderToBill` builds a draft bill from its header and lines; nothing here ever posts a journal directly.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the PO was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The vendor this purchase order is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the vendor is expected to deliver, if known. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLine"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotals"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expectedDate",
+          "taxMode",
+          "status",
+          "memo",
+          "lines",
+          "totals",
+          "convertedBillId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrderInput": {
+        "additionalProperties": false,
+        "description": "A purchase order: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertPurchaseOrderToBill` builds a draft bill from its header and lines; nothing here ever posts a journal directly.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the PO was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The vendor this purchase order is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the vendor is expected to deliver, if known. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineInput"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotalsInput"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expectedDate",
+          "taxMode",
+          "status",
+          "memo",
+          "lines",
+          "totals",
+          "convertedBillId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrderPage": {
+        "additionalProperties": false,
+        "description": "One page of purchase orders, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOrderSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrderPageInput": {
+        "additionalProperties": false,
+        "description": "One page of purchase orders, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOrderSummaryInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrderSummary": {
+        "additionalProperties": false,
+        "description": "A purchase order in a list, without its lines.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the PO was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The vendor this purchase order is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the vendor is expected to deliver, if known. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotals"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expectedDate",
+          "taxMode",
+          "status",
+          "memo",
+          "totals",
+          "convertedBillId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrderSummaryInput": {
+        "additionalProperties": false,
+        "description": "A purchase order in a list, without its lines.",
+        "properties": {
+          "approvedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the PO was approved and its gapless number allocated. Null while draft."
+          },
+          "contactId": {
+            "description": "The vendor this purchase order is issued to.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "convertedBillId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "documentNumber": {
+            "anyOf": [
+              {
+                "description": "The org’s own gapless number for this document, unique per org and per document type (D-36). Null until the document is approved — a number reserved by a draft that was then discarded would leave a gap, and a gap is indistinguishable from a deletion.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the vendor is expected to deliver, if known. Purely informational."
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.",
+            "enum": [
+              "draft",
+              "approved",
+              "converted"
+            ],
+            "type": "string"
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DocumentTotalsInput"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentNumber",
+          "reference",
+          "contactId",
+          "issueDate",
+          "expectedDate",
+          "taxMode",
+          "status",
+          "memo",
+          "totals",
+          "convertedBillId",
+          "approvedAt",
+          "createdAt",
+          "updatedAt"
         ],
         "type": "object"
       },
@@ -23204,6 +24978,10 @@
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
             "type": "boolean"
           },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
+            "type": "boolean"
+          },
           "isVendor": {
             "description": "Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger.",
             "type": "boolean"
@@ -23285,6 +25063,10 @@
           },
           "isCustomer": {
             "description": "Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two.",
+            "type": "boolean"
+          },
+          "isEmployee": {
+            "description": "Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`.",
             "type": "boolean"
           },
           "isVendor": {
@@ -23938,6 +25720,248 @@
         },
         "type": "object"
       },
+      "UpdateEstimateRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved estimate accepts none of this — approve, send and convert are the only operations left to it.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateEstimateRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved estimate accepts none of this — approve, send and convert are the only operations left to it.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expiryDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateExpenseRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved expense accepts none of this, for the reason `UpdateBillRequest` gives: the correction is a vendor credit or a void, never an edit (D-38).",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateExpenseRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved expense accepts none of this, for the reason `UpdateBillRequest` gives: the correction is a vendor credit or a void, never an edit (D-38).",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateFixedAssetRequest": {
         "additionalProperties": false,
         "description": "Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1).",
@@ -24458,6 +26482,134 @@
               "check",
               "ach",
               "wire"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePurchaseOrderRequest": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved purchase order accepts none of this — approve, send and convert are the only operations left to it.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequest"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePurchaseOrderRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update of a draft. `lines` replaces the whole set. An approved purchase order accepts none of this — approve, send and convert are the only operations left to it.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "expectedDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issueDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PredocumentLineRequestInput"
+            },
+            "maxItems": 65535,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "description": "Free text carried on the document and onto its journal. Send `null` to clear it.",
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxMode": {
+            "description": "Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.",
+            "enum": [
+              "exclusive",
+              "inclusive"
             ],
             "type": "string"
           }

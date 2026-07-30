@@ -95,6 +95,7 @@ export async function createContact(
     // `CreateContactRequest`'s output type and oblige every caller to state them.
     isCustomer: request.isCustomer ?? false,
     isVendor: request.isVendor ?? false,
+    isEmployee: request.isEmployee ?? false,
     notes: request.notes ?? null,
   });
 
@@ -184,6 +185,7 @@ export async function updateContact(
       ...(request.phone === undefined ? {} : { phone: request.phone }),
       ...(request.isCustomer === undefined ? {} : { isCustomer: request.isCustomer }),
       ...(request.isVendor === undefined ? {} : { isVendor: request.isVendor }),
+      ...(request.isEmployee === undefined ? {} : { isEmployee: request.isEmployee }),
       ...(request.notes === undefined ? {} : { notes: request.notes }),
     };
 

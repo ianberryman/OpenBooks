@@ -77,6 +77,7 @@ const CUSTOMER: Contact = {
   phone: null,
   isCustomer: true,
   isVendor: false,
+  isEmployee: false,
   notes: null,
   isActive: true,
   createdAt: '2026-01-05T09:00:00.000Z',

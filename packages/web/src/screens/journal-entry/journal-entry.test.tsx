@@ -92,6 +92,7 @@ function contact(id: string, displayName: string): Contact {
     isActive: true,
     isCustomer: true,
     isVendor: false,
+    isEmployee: false,
     legalName: null,
     notes: null,
     phone: null,

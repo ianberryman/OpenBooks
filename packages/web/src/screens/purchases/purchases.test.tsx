@@ -79,6 +79,7 @@ const VENDOR: Contact = {
   isActive: true,
   isCustomer: false,
   isVendor: true,
+  isEmployee: false,
   legalName: null,
   notes: null,
   phone: null,

@@ -636,17 +636,45 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // moved to `GRANTED_TO` at M5 (OB-104); `processing.read`/`processing.write` moved
   // this milestone (OB-150) — the `connections.service.ts` routes enforce them now,
   // the same catalog-before-enforcement pattern `agents.review` followed through M5.
-  // `workflows.*` is the only family still latent, with no milestone scoped at all.
-  owner: ['workflows.activate', 'workflows.read', 'workflows.write'],
-  bookkeeper: ['workflows.read', 'workflows.write'],
-  // Empty since M3. Every code `0001_tenancy` grants an AP clerk now has an
-  // enforcement point — which is also what makes the gap at the foot of this file
-  // legible: the role is fully wired and still cannot approve a bill, because the
-  // code it is missing was never in its bundle to begin with.
+  //
+  // `workflows.*` remains latent with no milestone scoped. Procure-to-pay's seven
+  // codes (`purchase_orders.*`, `estimates.*`, `expenses.*`, initiative M) are latent
+  // in this wave: `0001_tenancy` seeds them to the roles below, but the services that
+  // will `requirePermission` them land in a later wave — the same catalog-before-
+  // enforcement pattern. They move to `GRANTED_TO` (with matching `OPERATIONS` rows)
+  // once the routes exist.
+  owner: [
+    'estimates.read',
+    'estimates.write',
+    'expenses.approve',
+    'expenses.read',
+    'expenses.write',
+    'purchase_orders.read',
+    'purchase_orders.write',
+    'workflows.activate',
+    'workflows.read',
+    'workflows.write',
+  ],
+  bookkeeper: [
+    'estimates.read',
+    'estimates.write',
+    'expenses.approve',
+    'expenses.read',
+    'expenses.write',
+    'purchase_orders.read',
+    'purchase_orders.write',
+    'workflows.read',
+    'workflows.write',
+  ],
+  // Empty since M3 and still empty: procure-to-pay's clerk grants
+  // (purchase_orders.*/expenses.* for AP, estimates.* for AR) are seeded when the M
+  // services enforce them, not before — so these two roles hold nothing latent. The
+  // set-op roles above cannot avoid picking the M codes up (owner/bookkeeper by the
+  // catch-all, readOnly/approver by `%.read`), which is why they list them.
   apOnly: [],
   arOnly: [],
-  readOnly: ['workflows.read'],
-  approver: ['workflows.read'],
+  readOnly: ['estimates.read', 'expenses.read', 'purchase_orders.read', 'workflows.read'],
+  approver: ['estimates.read', 'expenses.read', 'purchase_orders.read', 'workflows.read'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -3695,7 +3723,13 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // `GRANTED_TO` from the moment the service gates them, ahead of OB-167's routes.
     // This number is the only place the count is asserted rather than described, so it
     // moves once per wave that wires a code.
-    expect(latent).toHaveLength(3);
+    //
+    // 3 → 10 with procure-to-pay's schema wave (M): the catalog gains
+    // purchase_orders.read/write, estimates.read/write and expenses.read/write/approve,
+    // seeded (to the set-op roles) ahead of the services that will enforce them — the
+    // same catalog-before-enforcement pattern. They return this count to 3 once the M
+    // services move them into `GRANTED_TO`.
+    expect(latent).toHaveLength(10);
   });
 
   /**

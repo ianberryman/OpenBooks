@@ -165,6 +165,7 @@ export interface TaxRateRow {
 export interface ContactRow {
   readonly id: Buffer;
   readonly is_vendor: number;
+  readonly is_employee: number;
   readonly is_active: number;
 }
 
@@ -599,7 +600,7 @@ export async function selectContact(
 ): Promise<ContactRow | undefined> {
   return db
     .selectFrom('contacts')
-    .select(['id', 'is_vendor', 'is_active'])
+    .select(['id', 'is_vendor', 'is_employee', 'is_active'])
     .where('contacts.id', '=', id)
     .executeTakeFirst();
 }

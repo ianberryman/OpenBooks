@@ -1077,6 +1077,30 @@ export async function requireVendor(db: TenantDatabase, contactId: Buffer): Prom
   }
 }
 
+/**
+ * The employee an expense is with (initiative M, D-M2).
+ *
+ * The mirror of `requireVendor` for the one AP document whose counterparty is an
+ * employee rather than a supplier. An employee expense reuses the whole bill posting
+ * path — it *is* an `ap_documents` bill (`document_type='bill'`) — and the only thing
+ * that differs is which flag the contact must carry: a reimbursement belongs to
+ * someone the org employs, not a vendor. `is_employee` and `is_vendor` are
+ * independent flags (`0002_ledger`), so this is a separate guard, not a widening of
+ * the vendor one. Checked at entry *and* at approval for `requireVendor`'s reason —
+ * the flag is editable in between.
+ */
+export async function requireEmployee(db: TenantDatabase, contactId: Buffer): Promise<void> {
+  const contact = assertFound(await selectContact(db, contactId), 'contact');
+
+  if (contact.is_employee !== 1) {
+    throw new PreconditionFailedError(
+      'contact_is_not_an_employee',
+      'This contact is not marked as an employee. An expense reimbursement is owed to someone the ' +
+        'org employs; mark the contact as an employee first.',
+    );
+  }
+}
+
 export function assertDraft(row: ApDocumentRow): void {
   if (row.journal_id === null) return;
 

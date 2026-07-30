@@ -5280,6 +5280,8 @@ export interface components {
             isActive: boolean;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor: boolean;
             legalName: string | null;
@@ -5302,6 +5304,8 @@ export interface components {
             isActive: boolean;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor: boolean;
             legalName: string | null;
@@ -5530,7 +5534,7 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
-        /** @description Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
+        /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequest: {
             code?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
@@ -5538,13 +5542,15 @@ export interface components {
             email?: string | null;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer?: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee?: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor?: boolean;
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
         };
-        /** @description Creates one contact. Only `displayName` is required; both subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
+        /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequestInput: {
             code?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
@@ -5552,6 +5558,8 @@ export interface components {
             email?: string | null;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer?: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee?: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor?: boolean;
             legalName?: string | null;
@@ -5695,6 +5703,82 @@ export interface components {
                 /** @description The reminder email’s subject line. */
                 subject: string;
             }[];
+        };
+        /** @description Creates a **draft** estimate. `lines` is optional — “New estimate” produces an empty one, and the arity and account checks belong at approval. */
+        CreateEstimateRequest: {
+            /** Format: uuid */
+            contactId: string;
+            expiryDate?: components["schemas"]["CalendarDate"] | null;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["PredocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** estimate. `lines` is optional — “New estimate” produces an empty one, and the arity and account checks belong at approval. */
+        CreateEstimateRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            expiryDate?: components["schemas"]["CalendarDateInput"] | null;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["PredocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** expense — a bill whose contact is an employee (D-M2). Reimbursement is Pay Bills settling this same document once approved; there is no separate reimbursement request. */
+        CreateExpenseRequest: {
+            /**
+             * Format: uuid
+             * @description The employee this expense reimburses.
+             */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the employee’s default payment term for this expense, exactly as `CreateBillRequest.paymentTermId` does for a vendor. Create-only.
+             */
+            paymentTermId?: string;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** expense — a bill whose contact is an employee (D-M2). Reimbursement is Pay Bills settling this same document once approved; there is no separate reimbursement request. */
+        CreateExpenseRequestInput: {
+            /**
+             * Format: uuid
+             * @description The employee this expense reimburses.
+             */
+            contactId: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            /**
+             * Format: uuid
+             * @description Overrides the employee’s default payment term for this expense, exactly as `CreateBillRequest.paymentTermId` does for a vendor. Create-only.
+             */
+            paymentTermId?: string;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
         };
         /** @description Creates a correlation, idempotent by external identity (D-58): a create naming a pair already on file returns the existing entity rather than a conflict. */
         CreateExternalRefRequest: {
@@ -5979,6 +6063,36 @@ export interface components {
              * @enum {string}
              */
             rail: "check" | "ach" | "wire";
+        };
+        /** @description Creates a **draft** purchase order. `lines` is optional — “New purchase order” produces an empty one, and the arity and account checks belong at approval. */
+        CreatePurchaseOrderRequest: {
+            /** Format: uuid */
+            contactId: string;
+            expectedDate?: components["schemas"]["CalendarDate"] | null;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["PredocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates a **draft** purchase order. `lines` is optional — “New purchase order” produces an empty one, and the arity and account checks belong at approval. */
+        CreatePurchaseOrderRequestInput: {
+            /** Format: uuid */
+            contactId: string;
+            expectedDate?: components["schemas"]["CalendarDateInput"] | null;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["PredocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
         };
         /** @description Opens a session. `startDate` is derived (carry on from the last session) and is accepted only as an assertion — a value disagreeing with the derived start is `reconciliation_session_overlaps`. */
         CreateReconciliationSessionRequest: {
@@ -6765,6 +6879,160 @@ export interface components {
                 };
                 message: string;
             };
+        };
+        /** @description An estimate: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertEstimateToInvoice` builds a draft invoice from its header and lines; nothing here ever posts a journal directly. Converting is the only form of acceptance modelled in v1. */
+        Estimate: {
+            /** @description When the estimate was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The customer this estimate is issued to.
+             */
+            contactId: string;
+            /** @description The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once. */
+            convertedInvoiceId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When this estimate lapses, if given. Purely informational. */
+            expiryDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description An estimate: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertEstimateToInvoice` builds a draft invoice from its header and lines; nothing here ever posts a journal directly. Converting is the only form of acceptance modelled in v1. */
+        EstimateInput: {
+            /** @description When the estimate was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The customer this estimate is issued to.
+             */
+            contactId: string;
+            /** @description The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once. */
+            convertedInvoiceId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When this estimate lapses, if given. Purely informational. */
+            expiryDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of estimates, oldest first by creation. */
+        EstimatePage: {
+            items: components["schemas"]["EstimateSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of estimates, oldest first by creation. */
+        EstimatePageInput: {
+            items: components["schemas"]["EstimateSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description An estimate in a list, without its lines. */
+        EstimateSummary: {
+            /** @description When the estimate was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The customer this estimate is issued to.
+             */
+            contactId: string;
+            /** @description The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once. */
+            convertedInvoiceId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When this estimate lapses, if given. Purely informational. */
+            expiryDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description An estimate in a list, without its lines. */
+        EstimateSummaryInput: {
+            /** @description When the estimate was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The customer this estimate is issued to.
+             */
+            contactId: string;
+            /** @description The invoice this estimate produced, once converted (D-M4). Null until then, and permanent after — an estimate converts at most once. */
+            convertedInvoiceId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When this estimate lapses, if given. Purely informational. */
+            expiryDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed: `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced an invoice. An estimate posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @description A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58). */
         ExternalRef: {
@@ -8324,6 +8592,36 @@ export interface components {
              */
             side: "debit" | "credit";
         };
+        /** @description One line on a purchase order or an estimate. The same shape as a document line request minus `dimensionValueIds` (D-M7) — POs and estimates carry no dimension tags in v1; a converted draft bill or invoice can have them added before it is approved. */
+        PredocumentLineRequest: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
+             */
+            accountId: string;
+            /** @description What the line is for. This is what prints on the document. */
+            description: string;
+            quantity: components["schemas"]["Quantity"];
+            /** @description The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning. */
+            unitAmount: components["schemas"]["MinorUnits"];
+        };
+        /** @description One line on a purchase order or an estimate. The same shape as a document line request minus `dimensionValueIds` (D-M7) — POs and estimates carry no dimension tags in v1; a converted draft bill or invoice can have them added before it is approved. */
+        PredocumentLineRequestInput: {
+            /**
+             * Format: uuid
+             * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
+             */
+            accountId: string;
+            /** @description What the line is for. This is what prints on the document. */
+            description: string;
+            quantity: components["schemas"]["QuantityInput"];
+            /** @description The single rate this line is taxed at (D-35). Absent or null means no tax — there is no default rate, because a rate nobody chose is a rate that ends up on a filing. */
+            taxRateId?: string | null;
+            /** @description The price of one unit, in minor units. Tax-inclusive exactly when the document’s `taxMode` is `inclusive`; that flag is what gives this field its meaning. */
+            unitAmount: components["schemas"]["MinorUnitsInput"];
+        };
         /** @description Reads the file and reports what importing it would do, writing nothing. Same reading rules as the real import: a CSV takes exactly one of `mappingId`/`mapping`, an OFX takes neither. */
         PreviewBankStatementImportRequest: {
             /** Format: uuid */
@@ -8481,6 +8779,160 @@ export interface components {
             expenses: components["schemas"]["MinorUnitsInput"];
             netIncome: components["schemas"]["MinorUnitsInput"];
             revenue: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description A purchase order: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertPurchaseOrderToBill` builds a draft bill from its header and lines; nothing here ever posts a journal directly. */
+        PurchaseOrder: {
+            /** @description When the PO was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The vendor this purchase order is issued to.
+             */
+            contactId: string;
+            /** @description The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once. */
+            convertedBillId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When the vendor is expected to deliver, if known. Purely informational. */
+            expectedDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            lines: components["schemas"]["DocumentLine"][];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A purchase order: a non-posting pre-document (D-M3) that moves draft → approved → converted. `convertPurchaseOrderToBill` builds a draft bill from its header and lines; nothing here ever posts a journal directly. */
+        PurchaseOrderInput: {
+            /** @description When the PO was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The vendor this purchase order is issued to.
+             */
+            contactId: string;
+            /** @description The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once. */
+            convertedBillId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When the vendor is expected to deliver, if known. Purely informational. */
+            expectedDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            lines: components["schemas"]["DocumentLineInput"][];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of purchase orders, oldest first by creation. */
+        PurchaseOrderPage: {
+            items: components["schemas"]["PurchaseOrderSummary"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of purchase orders, oldest first by creation. */
+        PurchaseOrderPageInput: {
+            items: components["schemas"]["PurchaseOrderSummaryInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A purchase order in a list, without its lines. */
+        PurchaseOrderSummary: {
+            /** @description When the PO was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The vendor this purchase order is issued to.
+             */
+            contactId: string;
+            /** @description The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once. */
+            convertedBillId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When the vendor is expected to deliver, if known. Purely informational. */
+            expectedDate: components["schemas"]["CalendarDate"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDate"];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotals"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A purchase order in a list, without its lines. */
+        PurchaseOrderSummaryInput: {
+            /** @description When the PO was approved and its gapless number allocated. Null while draft. */
+            approvedAt: string | null;
+            /**
+             * Format: uuid
+             * @description The vendor this purchase order is issued to.
+             */
+            contactId: string;
+            /** @description The bill this purchase order produced, once converted (D-M4). Null until then, and permanent after — a PO converts at most once. */
+            convertedBillId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            documentNumber: string | null;
+            /** @description When the vendor is expected to deliver, if known. Purely informational. */
+            expectedDate: components["schemas"]["CalendarDateInput"] | null;
+            /** Format: uuid */
+            id: string;
+            issueDate: components["schemas"]["CalendarDateInput"];
+            memo: string | null;
+            reference: string | null;
+            /**
+             * @description Stored, not computed (unlike a document’s own `status`): `draft` until approved, `approved` once a gapless number is allocated, `converted` once it has produced a bill. A PO posts no journal, so there is nothing here for D-38’s derivation to apply to.
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "converted";
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode: "exclusive" | "inclusive";
+            totals: components["schemas"]["DocumentTotalsInput"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /**
          * @description How many units this line is for, with at most 4 fraction digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s rounding error arrives scaled. Negative is allowed — that is a discount or a return line.
@@ -9566,6 +10018,8 @@ export interface components {
             email?: string | null;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer?: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee?: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor?: boolean;
             legalName?: string | null;
@@ -9580,6 +10034,8 @@ export interface components {
             email?: string | null;
             /** @description Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from you is one contact with both flags set, which is why there is one table and not two. */
             isCustomer?: boolean;
+            /** @description Whether this contact is an employee who can be reimbursed. A third independent flag, not a third table (D-M1): an expense is a bill whose contact carries this flag, so the same directory row that is billed by a vendor may also be an employee, and one contact may hold any combination of `isCustomer`, `isVendor` and `isEmployee`. */
+            isEmployee?: boolean;
             /** @description Whether this contact is billed by. Neither flag is required — a party named on a journal line need take part in no subledger at all, an employee reimbursement being the ordinary case. See the `contacts` commentary in migration 0002_ledger. */
             isVendor?: boolean;
             legalName?: string | null;
@@ -9715,6 +10171,66 @@ export interface components {
                 /** @description The reminder email’s subject line. */
                 subject: string;
             }[];
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved estimate accepts none of this — approve, send and convert are the only operations left to it. */
+        UpdateEstimateRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            expiryDate?: components["schemas"]["CalendarDate"] | null;
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["PredocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved estimate accepts none of this — approve, send and convert are the only operations left to it. */
+        UpdateEstimateRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            expiryDate?: components["schemas"]["CalendarDateInput"] | null;
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["PredocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved expense accepts none of this, for the reason `UpdateBillRequest` gives: the correction is a vendor credit or a void, never an edit (D-38). */
+        UpdateExpenseRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDate"];
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["DocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved expense accepts none of this, for the reason `UpdateBillRequest` gives: the correction is a vendor credit or a void, never an edit (D-38). */
+        UpdateExpenseRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            dueDate?: components["schemas"]["CalendarDateInput"];
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["DocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
         };
         /** @description Partial update of a fixed asset. Account repointing and the name/description are always accepted; changing a depreciation parameter once a period has posted is a `precondition_failed` (no mid-life re-forecast in v1). */
         UpdateFixedAssetRequest: {
@@ -9871,6 +10387,36 @@ export interface components {
              * @enum {string}
              */
             rail?: "check" | "ach" | "wire";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved purchase order accepts none of this — approve, send and convert are the only operations left to it. */
+        UpdatePurchaseOrderRequest: {
+            /** Format: uuid */
+            contactId?: string;
+            expectedDate?: components["schemas"]["CalendarDate"] | null;
+            issueDate?: components["schemas"]["CalendarDate"];
+            lines?: components["schemas"]["PredocumentLineRequest"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update of a draft. `lines` replaces the whole set. An approved purchase order accepts none of this — approve, send and convert are the only operations left to it. */
+        UpdatePurchaseOrderRequestInput: {
+            /** Format: uuid */
+            contactId?: string;
+            expectedDate?: components["schemas"]["CalendarDateInput"] | null;
+            issueDate?: components["schemas"]["CalendarDateInput"];
+            lines?: components["schemas"]["PredocumentLineRequestInput"][];
+            memo?: string | null;
+            reference?: string | null;
+            /**
+             * @description Whether `unitAmount` on every line already includes tax. `exclusive` adds the line’s tax to its extended amount; `inclusive` extracts it from within. Both produce the same journal for the same economic document — see the tax module for the arithmetic and for the one case (a fractional quantity whose inclusive unit price is not a whole number of cents) where the two entries are not the same document.
+             * @enum {string}
+             */
+            taxMode?: "exclusive" | "inclusive";
         };
         /** @description Corrects an open session’s own inputs — its end date and the closing balance it is tested against. Both are refused once finalised (`reconciliation_session_already_finalised`); the way back is a reopen. */
         UpdateReconciliationSessionRequest: {

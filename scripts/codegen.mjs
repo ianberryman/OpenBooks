@@ -277,6 +277,34 @@ const OVERRIDES = {
     'fixed_assets.disposed_date': 'string | null',
     'fixed_asset_schedule.period_date': 'string',
     'fixed_asset_schedule.depreciation_amount_minor': 'bigint',
+
+    // ── Procure-to-pay (0015_procure_to_pay) ──────────────────────────────────
+    //
+    // The lines repeat `ar_document_lines`' three corrections exactly: the id is
+    // `BIGINT AUTO_INCREMENT` (`Generated<bigint>`), the quantity and the three money
+    // columns are `bigint`, and the issue/expected/expiry dates are calendar DATEs
+    // (`string`, nullability spelled out since an override replaces the whole mapped
+    // type). `sequence_number` is `BIGINT UNSIGNED` and nullable before approval,
+    // exactly as `ar_documents.sequence_number` is. `line_number` needs no entry —
+    // `SMALLINT UNSIGNED`, well inside 2^53, like every other line-position column
+    // above.
+    'purchase_orders.sequence_number': 'bigint | null',
+    'purchase_orders.issue_date': 'string',
+    'purchase_orders.expected_date': 'string | null',
+    'purchase_order_lines.id': 'Generated<bigint>',
+    'purchase_order_lines.quantity_micros': 'bigint',
+    'purchase_order_lines.unit_amount_minor': 'bigint',
+    'purchase_order_lines.line_amount_minor': 'bigint',
+    'purchase_order_lines.tax_amount_minor': 'bigint',
+
+    'estimates.sequence_number': 'bigint | null',
+    'estimates.issue_date': 'string',
+    'estimates.expiry_date': 'string | null',
+    'estimate_lines.id': 'Generated<bigint>',
+    'estimate_lines.quantity_micros': 'bigint',
+    'estimate_lines.unit_amount_minor': 'bigint',
+    'estimate_lines.line_amount_minor': 'bigint',
+    'estimate_lines.tax_amount_minor': 'bigint',
   },
 };
 

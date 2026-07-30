@@ -45,6 +45,7 @@ const CONTACT_COLUMNS = [
   'phone',
   'is_customer',
   'is_vendor',
+  'is_employee',
   'notes',
   'is_active',
   'created_at',
@@ -60,6 +61,7 @@ interface ContactRow {
   readonly phone: string | null;
   readonly is_customer: number;
   readonly is_vendor: number;
+  readonly is_employee: number;
   readonly notes: string | null;
   readonly is_active: number;
   readonly created_at: Date;
@@ -74,6 +76,7 @@ export interface NewContactRow {
   readonly phone: string | null;
   readonly isCustomer: boolean;
   readonly isVendor: boolean;
+  readonly isEmployee: boolean;
   readonly notes: string | null;
 }
 
@@ -90,6 +93,7 @@ export interface ContactPatch {
   readonly phone?: string | null;
   readonly isCustomer?: boolean;
   readonly isVendor?: boolean;
+  readonly isEmployee?: boolean;
   readonly notes?: string | null;
   readonly isActive?: boolean;
 }
@@ -130,6 +134,7 @@ export async function insertContact(db: TenantDatabase, input: NewContactRow): P
         phone: input.phone,
         is_customer: input.isCustomer ? 1 : 0,
         is_vendor: input.isVendor ? 1 : 0,
+        is_employee: input.isEmployee ? 1 : 0,
         notes: input.notes,
       })
       .execute();
@@ -227,6 +232,9 @@ export async function selectContactsPage(
   if (filters.isVendor !== undefined) {
     query = query.where('is_vendor', '=', filters.isVendor ? 1 : 0);
   }
+  if (filters.isEmployee !== undefined) {
+    query = query.where('is_employee', '=', filters.isEmployee ? 1 : 0);
+  }
   if (filters.isActive !== undefined) {
     query = query.where('is_active', '=', filters.isActive ? 1 : 0);
   }
@@ -261,6 +269,7 @@ export async function updateContactRow(
         ...(patch.phone === undefined ? {} : { phone: patch.phone }),
         ...(patch.isCustomer === undefined ? {} : { is_customer: patch.isCustomer ? 1 : 0 }),
         ...(patch.isVendor === undefined ? {} : { is_vendor: patch.isVendor ? 1 : 0 }),
+        ...(patch.isEmployee === undefined ? {} : { is_employee: patch.isEmployee ? 1 : 0 }),
         ...(patch.notes === undefined ? {} : { notes: patch.notes }),
         ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
       })
@@ -387,6 +396,7 @@ export function toContact(row: ContactRow): Contact {
     phone: row.phone,
     isCustomer: row.is_customer !== 0,
     isVendor: row.is_vendor !== 0,
+    isEmployee: row.is_employee !== 0,
     notes: row.notes,
     isActive: row.is_active !== 0,
     // `timezone: 'Z'` on the pool and `DATETIME(3)` left as a `Date`

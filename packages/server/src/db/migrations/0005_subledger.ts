@@ -330,12 +330,18 @@ export async function up(db: MigrationDb): Promise<void> {
   // that a new origin must not require an ALTER on the largest table in the system;
   // this table holds a handful of rows per org, so the enumeration is worth having in
   // the schema where a typo cannot open a phantom series.
+  //
+  // `'purchase_order'`/`'estimate'` are appended in place (D-15) by
+  // `0015_procure_to_pay`: POs and estimates carry their own numbering (D-92) for
+  // D-36's own reason — a customer or vendor cites the number back — even though
+  // neither posts a journal. Two more series, not two more tables.
   // ---------------------------------------------------------------------------
   await sql`
     CREATE TABLE document_sequences (
       org_id        BINARY(16) NOT NULL,
       document_type ENUM('invoice','credit_note','bill','vendor_credit',
-                         'payment_received','payment_paid') NOT NULL,
+                         'payment_received','payment_paid',
+                         'purchase_order','estimate') NOT NULL,
       next_value    BIGINT UNSIGNED NOT NULL DEFAULT 1,
       updated_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
                                 ON UPDATE CURRENT_TIMESTAMP(3),
