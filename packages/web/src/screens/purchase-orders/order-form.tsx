@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { useId, useMemo, useState } from 'react';
 
@@ -17,6 +18,7 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
+import { ContactFormDialog } from '../contacts/contact-form';
 import {
   blankFormState,
   blankLine,
@@ -30,6 +32,7 @@ import {
 import type { LineProblem, OrderFormLine, OrderFormState } from './order-state';
 import type { PurchaseOrder, PurchaseOrderReferenceData } from './queries';
 import {
+  VENDORS_QUERY_KEY,
   useCreatePurchaseOrder,
   useIntentKey,
   usePurchaseOrder,
@@ -151,10 +154,12 @@ function OrderFormContent({
   const [state, setState] = useState<OrderFormState>(() =>
     order === null ? blankFormState() : stateFromOrder(order),
   );
+  const [newVendorName, setNewVendorName] = useState<string | null>(null);
 
   const create = useCreatePurchaseOrder();
   const update = useUpdatePurchaseOrder();
   const intentKey = useIntentKey();
+  const queryClient = useQueryClient();
 
   const pending = create.isPending || update.isPending;
   const error: unknown = create.error ?? update.error;
@@ -256,6 +261,12 @@ function OrderFormContent({
               placeholder="Search vendors…"
               onValueChange={(value) => {
                 edit({ contactId: value });
+              }}
+              onCreate={{
+                label: (q) => (q.trim() === '' ? 'New vendor' : `Create "${q.trim()}"`),
+                onSelect: (q) => {
+                  setNewVendorName(q.trim());
+                },
               }}
             />
           </Field>
@@ -374,6 +385,20 @@ function OrderFormContent({
           </FieldError>
         )}
       </form>
+
+      <ContactFormDialog
+        contact={null}
+        open={newVendorName !== null}
+        onOpenChange={(open) => {
+          if (!open) setNewVendorName(null);
+        }}
+        initialDisplayName={newVendorName ?? ''}
+        initialIsVendor
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: VENDORS_QUERY_KEY });
+          edit({ contactId: created.id });
+        }}
+      />
     </DialogContent>
   );
 }

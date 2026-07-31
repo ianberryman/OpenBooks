@@ -63,7 +63,7 @@ function estimateDetailQueryKey(estimateId: string): readonly unknown[] {
   return [...ESTIMATES_SCOPE, 'detail', estimateId];
 }
 
-const CONTACTS_QUERY_KEY = ['estimates', 'contacts'] as const;
+export const CONTACTS_QUERY_KEY = ['estimates', 'contacts'] as const;
 const ACCOUNTS_QUERY_KEY = ['estimates', 'accounts'] as const;
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */

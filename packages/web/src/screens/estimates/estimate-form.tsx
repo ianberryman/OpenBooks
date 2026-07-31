@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { useId, useMemo, useState } from 'react';
 
@@ -15,8 +16,15 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
+import { ContactFormDialog } from '../contacts/contact-form';
 import type { Estimate, EstimateReferenceData } from './queries';
-import { useCreateEstimate, useEstimate, useIntentKey, useUpdateEstimate } from './queries';
+import {
+  CONTACTS_QUERY_KEY,
+  useCreateEstimate,
+  useEstimate,
+  useIntentKey,
+  useUpdateEstimate,
+} from './queries';
 import {
   blankFormState,
   blankLine,
@@ -135,10 +143,12 @@ function EstimateFormContent({
   const [state, setState] = useState<EstimateFormState>(() =>
     estimate === null ? blankFormState() : stateFromEstimate(estimate),
   );
+  const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
 
   const create = useCreateEstimate();
   const update = useUpdateEstimate();
   const intentKey = useIntentKey();
+  const queryClient = useQueryClient();
 
   const pending = create.isPending || update.isPending;
   const error: unknown = create.error ?? update.error;
@@ -240,6 +250,12 @@ function EstimateFormContent({
               emptyMessage="No customers yet."
               onValueChange={(value) => {
                 edit({ contactId: value });
+              }}
+              onCreate={{
+                label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
+                onSelect: (q) => {
+                  setNewCustomerName(q.trim());
+                },
               }}
             />
           </Field>
@@ -358,6 +374,20 @@ function EstimateFormContent({
           )}
         </div>
       </form>
+
+      <ContactFormDialog
+        contact={null}
+        open={newCustomerName !== null}
+        onOpenChange={(open) => {
+          if (!open) setNewCustomerName(null);
+        }}
+        initialDisplayName={newCustomerName ?? ''}
+        initialIsCustomer
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: CONTACTS_QUERY_KEY });
+          edit({ contactId: created.id });
+        }}
+      />
     </DialogContent>
   );
 }

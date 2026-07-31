@@ -57,7 +57,7 @@ function purchaseOrderDetailQueryKey(purchaseOrderId: string): readonly unknown[
   return [...PURCHASE_ORDERS_SCOPE, 'detail', purchaseOrderId];
 }
 
-const VENDORS_QUERY_KEY = ['purchase-orders', 'vendors'] as const;
+export const VENDORS_QUERY_KEY = ['purchase-orders', 'vendors'] as const;
 const ACCOUNTS_QUERY_KEY = ['purchase-orders', 'accounts'] as const;
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */
