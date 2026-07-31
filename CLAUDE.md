@@ -26,6 +26,41 @@ Yarn 4 is pinned in-repo at `.yarn/releases/`. Do not `corepack enable` — the 
 release exists so nothing needs the network. `enableScripts: false` is deliberate;
 argon2 and esbuild resolve platform prebuilds at require time.
 
+### Iterating on one layer without the full gate
+
+- **One workspace's typecheck:** `cd packages/<w> && ../../node_modules/.bin/tsc --noEmit -p tsconfig.json`. (`yarn workspace <w> run typecheck` fails with `command not found: tsc` outside the full gate.)
+- **One project's tests:** from the repo root, `./node_modules/.bin/vitest run --project server` (also `web`, `shared-types`, `eslint-plugin`). `server` uses testcontainers (~2m); the rest are fast/jsdom.
+- A worktree-isolated subagent can't build, but a **non-worktree** subagent runs in the main tree and _can_ `tsc`/`vitest` — dispatch disjoint-path subagents there and have them self-verify.
+
+### Regenerating artifacts after a schema or route change
+
+Three artifacts are committed and gated by `yarn drift` / the schema tests. A schema change
+needs `generated.ts` regenerated against a **live migrated DB**, which means a throwaway MySQL
+(don't use the `:13307` prod stack; pick a fresh port):
+
+```bash
+docker run -d --name ob-codegen -e MYSQL_ROOT_PASSWORD=root -p 13399:3306 \
+  -v "$PWD/docker/mysql-init":/docker-entrypoint-initdb.d:ro mysql:8.4   # creates both DB users
+# passwords are literals in docker/mysql-init/01-users.sql (migrator=change-me-migrator, db=openbooks)
+export OPENBOOKS_ROLE=migrate DATABASE_HOST=127.0.0.1 DATABASE_PORT=13399 DATABASE_NAME=openbooks \
+  DATABASE_MIGRATOR_USER=openbooks_migrator DATABASE_MIGRATOR_PASSWORD=change-me-migrator \
+  DATABASE_USER=openbooks_app DATABASE_PASSWORD=change-me-app \
+  SESSION_SECRET=$(printf 'x%.0s' {1..48}) STORAGE_LOCAL_PATH=/tmp/ob-store \
+  SECRETS_ENCRYPTION_KEY=$(printf 'x%.0s' {1..48}) EMAIL_FROM_ADDRESS=dev@example.com  # migrate refuses to boot without all four
+yarn migrate && yarn codegen   # codegen reads only DATABASE_HOST/PORT/NAME/MIGRATOR_*
+docker rm -f ob-codegen
+```
+
+A new `BIGINT`/`DATE` column also needs an entry in `scripts/codegen.mjs` (`OVERRIDES.columns`)
+or the type silently disagrees with runtime. A **route** change instead needs the wire artifacts:
+`yarn spec` (writes `openapi.json`; needs the same four app-config env vars as migrate, no DB)
+then `yarn workspace @openbooks/web codegen` (→ `packages/web/src/api/schema.d.ts`).
+
+The pinned tripwires a new table/route/permission must move are enumerated in the
+`schema-and-route-tripwires` memory. A subagent that can't run the MySQL suite will typecheck-pass
+with wrong count/list literals (permission-matrix "holds N codes", `routes.test.ts`, `resolution`),
+so the orchestrator must run `--project server` and fix them regardless of the subagent's report.
+
 ## Non-negotiables
 
 These are enforced by the build, not by convention. If you find yourself wanting to work
