@@ -31,6 +31,9 @@ export type { MoneyInputProps } from './money-input';
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './popover';
 export type { PopoverContentProps } from './popover';
 
+export { ResponsiveTable } from './responsive-table';
+export type { ResponsiveTableProps } from './responsive-table';
+
 export { Select } from './select';
 export type { SelectOption, SelectProps } from './select';
 

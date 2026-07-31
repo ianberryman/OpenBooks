@@ -40,9 +40,17 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-scrim" />
       <DialogPrimitive.Content
         className={cx(
-          'fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-dialog -translate-x-1/2 -translate-y-1/2',
-          'rounded-xl border border-border bg-surface-overlay p-5 shadow-overlay',
-          'flex max-h-[85vh] flex-col gap-4',
+          // Compact (< md), D-124: a full-width bottom sheet. A centred modal on a phone
+          // leaves a cramped strip down each side and puts its confirm button under the
+          // thumb-unfriendly middle of the screen; a sheet anchored to the bottom edge
+          // uses the full width and sits where the thumb already is.
+          'fixed inset-x-0 bottom-0 z-50 max-h-[90vh] w-full rounded-t-xl rounded-b-none',
+          // md and up: the centred dialog, unchanged from D-24 — restore the anchor,
+          // width cap, centring translate, full rounding and the tighter height cap.
+          'md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:max-h-[85vh] md:w-[calc(100vw-2rem)]',
+          'md:max-w-dialog md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl',
+          'border border-border bg-surface-overlay p-5 shadow-overlay',
+          'flex flex-col gap-4',
           className,
         )}
       >
