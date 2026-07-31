@@ -59,7 +59,7 @@ function expenseDetailQueryKey(expenseId: string): readonly unknown[] {
 }
 
 const ACCOUNTS_QUERY_KEY = ['expenses', 'accounts'] as const;
-const EMPLOYEE_CONTACTS_QUERY_KEY = ['expenses', 'employee-contacts'] as const;
+export const EMPLOYEE_CONTACTS_QUERY_KEY = ['expenses', 'employee-contacts'] as const;
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */
 const PAGE_LIMIT = 200;

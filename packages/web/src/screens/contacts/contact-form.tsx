@@ -55,6 +55,7 @@ export interface ContactFormDialogProps {
   readonly initialDisplayName?: string;
   readonly initialIsCustomer?: boolean;
   readonly initialIsVendor?: boolean;
+  readonly initialIsEmployee?: boolean;
   readonly onCreated?: (contact: Contact) => void;
 }
 
@@ -67,6 +68,7 @@ interface FormValues {
   notes: string;
   isCustomer: boolean;
   isVendor: boolean;
+  isEmployee: boolean;
 }
 
 const EMPTY_VALUES: FormValues = {
@@ -78,6 +80,7 @@ const EMPTY_VALUES: FormValues = {
   notes: '',
   isCustomer: false,
   isVendor: false,
+  isEmployee: false,
 };
 
 function valuesOf(contact: Contact | null): FormValues {
@@ -91,6 +94,7 @@ function valuesOf(contact: Contact | null): FormValues {
     notes: contact.notes ?? '',
     isCustomer: contact.isCustomer,
     isVendor: contact.isVendor,
+    isEmployee: contact.isEmployee,
   };
 }
 
@@ -110,6 +114,7 @@ function toCreateRequest(values: FormValues): CreateContactRequest {
     notes: orNull(values.notes),
     isCustomer: values.isCustomer,
     isVendor: values.isVendor,
+    isEmployee: values.isEmployee,
   };
 }
 
@@ -133,6 +138,7 @@ function toPatch(values: FormValues, contact: Contact): UpdateContactRequest {
   if ((next.notes ?? null) !== contact.notes) patch['notes'] = next.notes ?? null;
   if (values.isCustomer !== contact.isCustomer) patch['isCustomer'] = values.isCustomer;
   if (values.isVendor !== contact.isVendor) patch['isVendor'] = values.isVendor;
+  if (values.isEmployee !== contact.isEmployee) patch['isEmployee'] = values.isEmployee;
 
   return patch;
 }
@@ -144,6 +150,7 @@ export function ContactFormDialog({
   initialDisplayName,
   initialIsCustomer,
   initialIsVendor,
+  initialIsEmployee,
   onCreated,
 }: ContactFormDialogProps): ReactElement {
   return (
@@ -160,6 +167,7 @@ export function ContactFormDialog({
             displayName: initialDisplayName ?? '',
             isCustomer: initialIsCustomer ?? false,
             isVendor: initialIsVendor ?? false,
+            isEmployee: initialIsEmployee ?? false,
           }}
           onCreated={onCreated}
           onDone={() => {
@@ -175,6 +183,7 @@ interface CreateSeed {
   readonly displayName: string;
   readonly isCustomer: boolean;
   readonly isVendor: boolean;
+  readonly isEmployee: boolean;
 }
 
 function ContactFormContent({
@@ -345,9 +354,9 @@ function ContactFormContent({
         <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
           <legend className="px-1 text-sm font-medium text-text">Roles</legend>
           <p className="text-xs text-text-subtle">
-            Independent, and both may be off. A contact that is neither is named on journal lines
-            without taking part in any subledger — an employee expense reimbursement is the ordinary
-            case.
+            Independent, and any combination — including none. A contact that is none of these is
+            still named on journal lines without taking part in any subledger. Employee is what an
+            expense may be reimbursed to.
           </p>
           <CheckboxField
             label="Customer"
@@ -361,6 +370,13 @@ function ContactFormContent({
             checked={values.isVendor}
             onCheckedChange={(next) => {
               set('isVendor', next);
+            }}
+          />
+          <CheckboxField
+            label="Employee"
+            checked={values.isEmployee}
+            onCheckedChange={(next) => {
+              set('isEmployee', next);
             }}
           />
         </fieldset>

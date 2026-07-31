@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { useId, useMemo, useState } from 'react';
 
@@ -30,8 +31,15 @@ import {
   toUpdateRequest,
 } from './expense-state';
 import type { ExpenseFormState, ExpenseLine } from './expense-state';
-import { useCreateExpense, useExpense, useIntentKey, useUpdateExpense } from './queries';
+import {
+  EMPLOYEE_CONTACTS_QUERY_KEY,
+  useCreateExpense,
+  useExpense,
+  useIntentKey,
+  useUpdateExpense,
+} from './queries';
 import type { Bill, ExpenseReferenceData } from './queries';
+import { ContactFormDialog } from '../contacts/contact-form';
 
 /**
  * The create/edit dialog for a draft expense (D-M1, D-M2).
@@ -117,6 +125,9 @@ function ExpenseFormContent({
   const create = useCreateExpense();
   const update = useUpdateExpense();
   const intentKey = useIntentKey();
+  const queryClient = useQueryClient();
+  // Inline employee creation from the picker: the typed name, or null when the form is shut.
+  const [newEmployeeName, setNewEmployeeName] = useState<string | null>(null);
 
   const pending = create.isPending || update.isPending;
   const error: unknown = create.error ?? update.error;
@@ -232,6 +243,12 @@ function ExpenseFormContent({
               emptyMessage="No active employees on file."
               onValueChange={(value) => {
                 edit({ contactId: value });
+              }}
+              onCreate={{
+                label: (q) => (q.trim() === '' ? 'New employee' : `Create "${q.trim()}"`),
+                onSelect: (q) => {
+                  setNewEmployeeName(q.trim());
+                },
               }}
             />
           </Field>
@@ -405,6 +422,24 @@ function ExpenseFormContent({
         {problems.noLines && <FieldError>Add at least one line.</FieldError>}
         {problems.employee && <FieldError>Choose the employee this reimburses.</FieldError>}
       </form>
+
+      {/* Inline employee creation: seeded with the typed name and pre-marked an employee (the
+          only role a contact here may carry, `contact_is_not_an_employee` otherwise). On
+          success the employees list is refetched (its own query key, which useCreateContact's
+          `['contacts']` invalidation does not reach) and the new employee selected. */}
+      <ContactFormDialog
+        contact={null}
+        open={newEmployeeName !== null}
+        onOpenChange={(next) => {
+          if (!next) setNewEmployeeName(null);
+        }}
+        initialDisplayName={newEmployeeName ?? ''}
+        initialIsEmployee
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: EMPLOYEE_CONTACTS_QUERY_KEY });
+          edit({ contactId: created.id });
+        }}
+      />
     </DialogContent>
   );
 }
