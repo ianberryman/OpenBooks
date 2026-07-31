@@ -34,7 +34,11 @@ function create(input: {
 
 describe('a statement line entered by hand', () => {
   it('is stored with no import, the signed amount, and shows up uncleared', async () => {
-    const line = await create({ postedDate: '2026-02-10', amount: '-4500', description: 'Bank fee' });
+    const line = await create({
+      postedDate: '2026-02-10',
+      amount: '-4500',
+      description: 'Bank fee',
+    });
 
     expect(line.importId).toBeNull();
     expect(line.amount).toBe('-4500');
@@ -51,7 +55,11 @@ describe('a statement line entered by hand', () => {
   });
 
   it('carries the same fingerprint an import would, so the two dedupe (D-42)', async () => {
-    const line = await create({ postedDate: '2026-02-11', amount: '150000', description: 'Deposit' });
+    const line = await create({
+      postedDate: '2026-02-11',
+      amount: '150000',
+      description: 'Deposit',
+    });
 
     expect(line.fingerprint).toBe(
       computeFingerprint({

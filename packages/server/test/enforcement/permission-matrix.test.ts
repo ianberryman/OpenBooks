@@ -2286,7 +2286,12 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'banking.import',
     call: (s) =>
       createManualStatementLine(
-        { bankAccountId: s.bankAccountId, postedDate: '2025-06-15', amount: '1000', description: 'By hand' },
+        {
+          bankAccountId: s.bankAccountId,
+          postedDate: '2025-06-15',
+          amount: '1000',
+          description: 'By hand',
+        },
         s.ctx,
       ),
   },
