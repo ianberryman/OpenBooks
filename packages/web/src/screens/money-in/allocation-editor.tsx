@@ -7,6 +7,7 @@ import {
   ResponsiveTable,
   formatMinorUnits,
 } from '../../components';
+import { useIsCompact } from '../../lib/use-viewport';
 import { Amount, exceeds, isZeroAmount, subtractMinorUnits, sumMinorUnits } from './amounts';
 import type { OpenDocument } from './queries';
 import {
@@ -127,6 +128,7 @@ export function AllocationEditor({
 }: AllocationEditorProps): ReactElement {
   const applied = draftedTotal(drafts);
   const remainder = subtractMinorUnits(available, applied);
+  const isCompact = useIsCompact();
 
   if (documents.length === 0) {
     return <p className="text-sm text-text-muted">{emptyMessage}</p>;
@@ -134,31 +136,54 @@ export function AllocationEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <ResponsiveTable>
-        <table className="w-full border-collapse text-base">
-          <caption className="sr-only">Open documents this payment can settle</caption>
-          <thead>
-            <tr className="border-b border-border text-left text-sm text-text-muted">
-              <th scope="col" className="py-1 pr-3 font-medium">
-                Document
-              </th>
-              <th scope="col" className="py-1 pr-3 font-medium">
-                Due
-              </th>
-              <th scope="col" className="py-1 pr-3 text-right font-medium">
-                Outstanding
-              </th>
-              <th scope="col" className="py-1 text-right font-medium">
-                Apply
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {documents.map((document) => {
-              const draft = draftFor(drafts, document.id);
-              const over = draft !== undefined && exceeds(draft.amount, document.outstanding);
-
-              return (
+      {isCompact ? (
+        // D-123: the four-column apply grid (with a money input in the last cell) is wider
+        // than a phone and only fit by scrolling sideways; on compact each open document is a
+        // card instead. The apply controls and notices are shared with the table row below,
+        // so the two presentations cannot drift.
+        <ul aria-label="Open documents this payment can settle" className="flex flex-col gap-2">
+          {documents.map((document) => (
+            <li
+              key={document.id}
+              className="flex flex-col gap-2 rounded-md border border-border p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-sm text-text">{document.number}</span>
+                <Amount value={document.outstanding} />
+              </div>
+              <div className="text-xs text-text-muted">Due {document.dueDate}</div>
+              <ApplyControls
+                document={document}
+                drafts={drafts}
+                isPending={isPending}
+                onChange={onChange}
+              />
+              <DocumentNotices document={document} drafts={drafts} asOfDate={asOfDate} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-base">
+            <caption className="sr-only">Open documents this payment can settle</caption>
+            <thead>
+              <tr className="border-b border-border text-left text-sm text-text-muted">
+                <th scope="col" className="py-1 pr-3 font-medium">
+                  Document
+                </th>
+                <th scope="col" className="py-1 pr-3 font-medium">
+                  Due
+                </th>
+                <th scope="col" className="py-1 pr-3 text-right font-medium">
+                  Outstanding
+                </th>
+                <th scope="col" className="py-1 text-right font-medium">
+                  Apply
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((document) => (
                 <tr key={document.id} className="border-b border-border align-top">
                   <td className="py-1 pr-3 font-mono text-sm text-text">{document.number}</td>
                   <td className="py-1 pr-3 font-mono text-sm text-text-muted">
@@ -168,48 +193,91 @@ export function AllocationEditor({
                     <Amount value={document.outstanding} />
                   </td>
                   <td className="py-1">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={isPending}
-                        aria-label={`Apply the full ${document.number} outstanding`}
-                        onClick={() => {
-                          onChange(withDraft(drafts, document.id, document.outstanding));
-                        }}
-                      >
-                        In full
-                      </Button>
-                      <MoneyInput
-                        className="w-32"
-                        aria-label={`Amount to apply to ${document.number}`}
-                        value={draft?.amount ?? null}
-                        disabled={isPending}
-                        onValueChange={(amount) => {
-                          onChange(withDraft(drafts, document.id, amount));
-                        }}
-                      />
-                    </div>
-                    {over && (
-                      <p className="pt-1 text-right text-xs text-warning-text">
-                        More than the <Amount value={document.outstanding} /> outstanding. The
-                        server refuses an over-allocated document; over-paying is fine and lands as
-                        credit.
-                      </p>
-                    )}
-                    {document.targetType === 'invoice' && (
-                      <DiscountHint targetId={document.id} asOfDate={asOfDate} />
-                    )}
+                    <ApplyControls
+                      document={document}
+                      drafts={drafts}
+                      isPending={isPending}
+                      onChange={onChange}
+                    />
+                    <DocumentNotices document={document} drafts={drafts} asOfDate={asOfDate} />
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </ResponsiveTable>
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
+      )}
 
       <AllocationFooter applied={applied} available={available} remainder={remainder} />
     </div>
+  );
+}
+
+/** The "In full" shortcut and the amount input for one document — shared by row and card. */
+function ApplyControls({
+  document,
+  drafts,
+  isPending,
+  onChange,
+}: {
+  readonly document: OpenDocument;
+  readonly drafts: readonly AllocationDraft[];
+  readonly isPending: boolean;
+  readonly onChange: (drafts: readonly AllocationDraft[]) => void;
+}): ReactElement {
+  const draft = draftFor(drafts, document.id);
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={isPending}
+        aria-label={`Apply the full ${document.number} outstanding`}
+        onClick={() => {
+          onChange(withDraft(drafts, document.id, document.outstanding));
+        }}
+      >
+        In full
+      </Button>
+      <MoneyInput
+        className="w-32"
+        aria-label={`Amount to apply to ${document.number}`}
+        value={draft?.amount ?? null}
+        disabled={isPending}
+        onValueChange={(amount) => {
+          onChange(withDraft(drafts, document.id, amount));
+        }}
+      />
+    </div>
+  );
+}
+
+/** The over-allocation warning and the early-pay discount hint — shared by row and card. */
+function DocumentNotices({
+  document,
+  drafts,
+  asOfDate,
+}: {
+  readonly document: OpenDocument;
+  readonly drafts: readonly AllocationDraft[];
+  readonly asOfDate: string;
+}): ReactElement {
+  const draft = draftFor(drafts, document.id);
+  const over = draft !== undefined && exceeds(draft.amount, document.outstanding);
+
+  return (
+    <>
+      {over && (
+        <p className="pt-1 text-right text-xs text-warning-text">
+          More than the <Amount value={document.outstanding} /> outstanding. The server refuses an
+          over-allocated document; over-paying is fine and lands as credit.
+        </p>
+      )}
+      {document.targetType === 'invoice' && (
+        <DiscountHint targetId={document.id} asOfDate={asOfDate} />
+      )}
+    </>
   );
 }
 
