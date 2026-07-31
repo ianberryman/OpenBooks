@@ -67,13 +67,19 @@ export function Select({
         {...rest}
         className={cx(
           CONTROL_CLASSES,
-          'border-border flex items-center justify-between gap-2 text-left',
+          'border-border flex items-center justify-between gap-2 overflow-hidden text-left',
           'data-[placeholder]:text-text-subtle',
           className,
         )}
       >
-        <SelectPrimitive.Value placeholder={placeholder} />
-        <SelectPrimitive.Icon className="text-text-subtle" aria-hidden>
+        {/* The value truncates rather than wraps: a long option — an org name in the header
+            switcher — in a fixed-width trigger would otherwise spill past the `h-9` onto two
+            or three lines. `min-w-0` lets the flex child shrink so `truncate` can bite; the
+            icon stays pinned with `shrink-0`. */}
+        <span className="min-w-0 flex-1 truncate">
+          <SelectPrimitive.Value placeholder={placeholder} />
+        </span>
+        <SelectPrimitive.Icon className="shrink-0 text-text-subtle" aria-hidden>
           ▾
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
