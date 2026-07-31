@@ -10,6 +10,7 @@ import {
   DialogContent,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
 } from '../../components';
@@ -361,7 +362,7 @@ export function DocumentEditor({
         />
       </Field>
 
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse">
           <caption className="sr-only">{words.singular} lines</caption>
           <thead>
@@ -416,7 +417,7 @@ export function DocumentEditor({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
 
       <div>
         <Button

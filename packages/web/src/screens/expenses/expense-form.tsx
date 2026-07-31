@@ -13,6 +13,7 @@ import {
   FieldError,
   FieldLabel,
   MoneyInput,
+  ResponsiveTable,
   TextInput,
   formatMinorUnits,
 } from '../../components';
@@ -283,7 +284,7 @@ function ExpenseFormContent({
           </Field>
         </div>
 
-        <div className="overflow-x-auto">
+        <ResponsiveTable>
           <table className="w-full border-collapse">
             <caption className="sr-only">Expense lines</caption>
             <thead>
@@ -387,7 +388,7 @@ function ExpenseFormContent({
               })}
             </tbody>
           </table>
-        </div>
+        </ResponsiveTable>
 
         <div>
           <Button

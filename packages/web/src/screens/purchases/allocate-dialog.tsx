@@ -9,6 +9,7 @@ import {
   ErrorBanner,
   FieldError,
   MoneyInput,
+  ResponsiveTable,
   formatMinorUnits,
 } from '../../components';
 import type { BillSummary } from './queries';
@@ -118,67 +119,69 @@ export function AllocateDialog({
               applied to a bill that has been approved.
             </p>
           ) : (
-            <table className="w-full border-collapse">
-              <caption className="sr-only">Bills this credit can be applied to</caption>
-              <thead>
-                <tr className="text-left text-xs text-text-subtle">
-                  <th scope="col" className="p-1 font-medium">
-                    Bill
-                  </th>
-                  <th scope="col" className="p-1 text-right font-medium">
-                    Still owed
-                  </th>
-                  <th scope="col" className="p-1 text-right font-medium">
-                    Apply
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {applicable.map((bill) => {
-                  const label = bill.documentNumber ?? bill.id;
-                  return (
-                    <tr key={bill.id} className="align-top">
-                      <td className="p-1">
-                        <span className="font-mono text-base text-text">{label}</span>
-                        {bill.reference !== null && (
-                          <span className="block text-xs text-text-subtle">
-                            Vendor’s number {bill.reference}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-1 text-right font-mono text-base tabular-nums text-text">
-                        {formatMinorUnits(bill.settlement.outstanding)}
-                      </td>
-                      <td className="w-32 p-1">
-                        <MoneyInput
-                          aria-label={`Apply to bill ${label}`}
-                          value={amounts.get(bill.id) ?? null}
-                          disabled={isPending}
-                          onValueChange={(amount) => {
-                            setAmounts((current) => new Map(current).set(bill.id, amount));
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={isPending}
-                          onClick={() => {
-                            setAmounts((current) =>
-                              new Map(current).set(
-                                bill.id,
-                                lesserOf(bill.settlement.outstanding, creditOutstanding),
-                              ),
-                            );
-                          }}
-                        >
-                          Use the smaller of the two
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <ResponsiveTable>
+              <table className="w-full border-collapse">
+                <caption className="sr-only">Bills this credit can be applied to</caption>
+                <thead>
+                  <tr className="text-left text-xs text-text-subtle">
+                    <th scope="col" className="p-1 font-medium">
+                      Bill
+                    </th>
+                    <th scope="col" className="p-1 text-right font-medium">
+                      Still owed
+                    </th>
+                    <th scope="col" className="p-1 text-right font-medium">
+                      Apply
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applicable.map((bill) => {
+                    const label = bill.documentNumber ?? bill.id;
+                    return (
+                      <tr key={bill.id} className="align-top">
+                        <td className="p-1">
+                          <span className="font-mono text-base text-text">{label}</span>
+                          {bill.reference !== null && (
+                            <span className="block text-xs text-text-subtle">
+                              Vendor’s number {bill.reference}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-1 text-right font-mono text-base tabular-nums text-text">
+                          {formatMinorUnits(bill.settlement.outstanding)}
+                        </td>
+                        <td className="w-32 p-1">
+                          <MoneyInput
+                            aria-label={`Apply to bill ${label}`}
+                            value={amounts.get(bill.id) ?? null}
+                            disabled={isPending}
+                            onValueChange={(amount) => {
+                              setAmounts((current) => new Map(current).set(bill.id, amount));
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={isPending}
+                            onClick={() => {
+                              setAmounts((current) =>
+                                new Map(current).set(
+                                  bill.id,
+                                  lesserOf(bill.settlement.outstanding, creditOutstanding),
+                                ),
+                              );
+                            }}
+                          >
+                            Use the smaller of the two
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </ResponsiveTable>
           )}
 
           {entered.length === 0 && applicable.length > 0 && (

@@ -18,6 +18,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
 } from '../../components';
@@ -309,7 +310,7 @@ export function DraftEditor({
         </Field>
       </div>
 
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse">
           <caption className="sr-only">Journal lines</caption>
           <thead>
@@ -361,7 +362,7 @@ export function DraftEditor({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
 
       <div>
         <Button

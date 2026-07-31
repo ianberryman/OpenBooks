@@ -10,6 +10,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   TextInput,
   formatMinorUnits,
 } from '../../components';
@@ -162,7 +163,7 @@ export function PostedEntry({
         </div>
       </dl>
 
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse text-base">
           <caption className="sr-only">Posted journal lines</caption>
           <thead>
@@ -229,7 +230,7 @@ export function PostedEntry({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ResponsiveTable>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
         <Button onClick={onBackToDrafts}>Back to drafts</Button>

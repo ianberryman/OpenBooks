@@ -13,6 +13,7 @@ import {
   FieldError,
   FieldLabel,
   MoneyInput,
+  ResponsiveTable,
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
@@ -312,7 +313,7 @@ function OrderFormContent({
           </Field>
         </div>
 
-        <div className="overflow-x-auto">
+        <ResponsiveTable>
           <table className="w-full border-collapse">
             <caption className="sr-only">Purchase order lines</caption>
             <thead>
@@ -353,7 +354,7 @@ function OrderFormContent({
               ))}
             </tbody>
           </table>
-        </div>
+        </ResponsiveTable>
 
         <div>
           <Button

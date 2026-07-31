@@ -13,6 +13,7 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
   formatMinorUnits,
@@ -569,7 +570,7 @@ export function DocumentEditor({
         </Field>
       </div>
 
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse">
           <caption className="sr-only">{vocabulary.singular} lines</caption>
           <thead>
@@ -625,7 +626,7 @@ export function DocumentEditor({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
 
       {!readOnly && (
         <div>

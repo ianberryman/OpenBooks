@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, formatMinorUnits } from '../../components';
+import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
 import type { Allocation, SalesDocumentKind } from './queries';
 
 /**
@@ -53,62 +53,64 @@ export function AllocationsPanel({
   }
 
   return (
-    <table className="w-full border-collapse text-sm">
-      <caption className="sr-only">Allocations against this document</caption>
-      <thead>
-        <tr className="text-left text-xs text-text-subtle">
-          <th scope="col" className="p-1 font-medium">
-            {kind === 'invoice' ? 'Applied from' : 'Applied to'}
-          </th>
-          <th scope="col" className="p-1 font-medium">
-            Date
-          </th>
-          <th scope="col" className="p-1 text-right font-medium">
-            Amount
-          </th>
-          <th scope="col" className="p-1 font-medium">
-            <span className="sr-only">Un-apply</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {allocations.map((allocation) => {
-          /**
-           * On an invoice the interesting end is the source — what paid it. On a credit
-           * note it is the target — which invoice the credit went against. The same shape
-           * carries both ends precisely so one component can read either (`allocationSchema`).
-           */
-          const farNumber =
-            kind === 'invoice'
-              ? (allocation.sourceNumber ?? SOURCE_LABELS[allocation.sourceType])
-              : (allocation.targetNumber ?? 'Invoice');
-          const farKind = kind === 'invoice' ? SOURCE_LABELS[allocation.sourceType] : 'Invoice';
+    <ResponsiveTable>
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Allocations against this document</caption>
+        <thead>
+          <tr className="text-left text-xs text-text-subtle">
+            <th scope="col" className="p-1 font-medium">
+              {kind === 'invoice' ? 'Applied from' : 'Applied to'}
+            </th>
+            <th scope="col" className="p-1 font-medium">
+              Date
+            </th>
+            <th scope="col" className="p-1 text-right font-medium">
+              Amount
+            </th>
+            <th scope="col" className="p-1 font-medium">
+              <span className="sr-only">Un-apply</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {allocations.map((allocation) => {
+            /**
+             * On an invoice the interesting end is the source — what paid it. On a credit
+             * note it is the target — which invoice the credit went against. The same shape
+             * carries both ends precisely so one component can read either (`allocationSchema`).
+             */
+            const farNumber =
+              kind === 'invoice'
+                ? (allocation.sourceNumber ?? SOURCE_LABELS[allocation.sourceType])
+                : (allocation.targetNumber ?? 'Invoice');
+            const farKind = kind === 'invoice' ? SOURCE_LABELS[allocation.sourceType] : 'Invoice';
 
-          return (
-            <tr key={allocation.id} className="border-t border-border">
-              <td className="p-1 text-text">
-                <span className="text-text-muted">{farKind}</span>{' '}
-                <span className="font-mono">{farNumber}</span>
-              </td>
-              <td className="p-1 font-mono text-text-muted">{allocation.date}</td>
-              <td className="p-1 text-right font-mono tabular-nums text-text">
-                {formatMinorUnits(allocation.amount)}
-              </td>
-              <td className="p-1 text-right">
-                <Button
-                  size="sm"
-                  disabled={disabled}
-                  onClick={() => {
-                    onRemove(allocation);
-                  }}
-                >
-                  Un-apply
-                </Button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+            return (
+              <tr key={allocation.id} className="border-t border-border">
+                <td className="p-1 text-text">
+                  <span className="text-text-muted">{farKind}</span>{' '}
+                  <span className="font-mono">{farNumber}</span>
+                </td>
+                <td className="p-1 font-mono text-text-muted">{allocation.date}</td>
+                <td className="p-1 text-right font-mono tabular-nums text-text">
+                  {formatMinorUnits(allocation.amount)}
+                </td>
+                <td className="p-1 text-right">
+                  <Button
+                    size="sm"
+                    disabled={disabled}
+                    onClick={() => {
+                      onRemove(allocation);
+                    }}
+                  >
+                    Un-apply
+                  </Button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

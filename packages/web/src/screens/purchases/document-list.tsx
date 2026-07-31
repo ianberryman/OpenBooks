@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { ResponsiveTable, formatMinorUnits } from '../../components';
 import { STATUS_LABELS, vocabularyFor } from './ap-document';
 import type { ApDocumentSummary, DocumentKind } from './ap-document';
 import type { ReferenceData } from './queries';
@@ -47,7 +47,7 @@ export function DocumentList({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse">
           <caption className="sr-only">{vocabulary.plural}</caption>
           <thead>
@@ -111,7 +111,7 @@ export function DocumentList({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
 
       {truncated && (
         <p className="text-xs text-text-subtle">

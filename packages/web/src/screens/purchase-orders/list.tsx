@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, formatMinorUnits } from '../../components';
+import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { PurchaseOrderReferenceData, PurchaseOrderSummary } from './queries';
@@ -43,118 +43,120 @@ export function PurchaseOrderList({
   onDiscard,
 }: PurchaseOrderListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Purchase orders</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Number
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Vendor
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Issue date
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Status
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            Total
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {orders.length === 0 && (
-          <EmptyRow columns={6}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
-        )}
-        {orders.map((order) => {
-          const pending = actionPendingId === order.id;
-          const vendorName =
-            reference.vendorsById.get(order.contactId)?.displayName ?? 'Unknown vendor';
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Purchase orders</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Number
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Vendor
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Issue date
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Status
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              Total
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.length === 0 && (
+            <EmptyRow columns={6}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
+          )}
+          {orders.map((order) => {
+            const pending = actionPendingId === order.id;
+            const vendorName =
+              reference.vendorsById.get(order.contactId)?.displayName ?? 'Unknown vendor';
 
-          return (
-            <tr key={order.id}>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{order.documentNumber ?? 'Draft'}</td>
-              <td className={TD_CLASSES}>
-                {vendorName}
-                {order.reference !== null && order.reference !== '' && (
-                  <span className="block text-xs text-text-subtle">Ref {order.reference}</span>
-                )}
-              </td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{order.issueDate}</td>
-              <td className={TD_CLASSES}>
-                <Pill tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Pill>
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                {formatMinorUnits(order.totals.gross)}
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  {order.status === 'draft' && (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onEdit(order);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={pending}
-                        onClick={() => {
-                          onApprove(order);
-                        }}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={pending}
-                        aria-label={`Discard ${order.documentNumber ?? 'this purchase order'}`}
-                        onClick={() => {
-                          onDiscard(order);
-                        }}
-                      >
-                        Discard
-                      </Button>
-                    </>
+            return (
+              <tr key={order.id}>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{order.documentNumber ?? 'Draft'}</td>
+                <td className={TD_CLASSES}>
+                  {vendorName}
+                  {order.reference !== null && order.reference !== '' && (
+                    <span className="block text-xs text-text-subtle">Ref {order.reference}</span>
                   )}
-                  {order.status === 'approved' && (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onSend(order);
-                        }}
-                      >
-                        Send
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={pending}
-                        onClick={() => {
-                          onConvert(order);
-                        }}
-                      >
-                        Convert to bill
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                </td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{order.issueDate}</td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Pill>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
+                  {formatMinorUnits(order.totals.gross)}
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
+                    {order.status === 'draft' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            onEdit(order);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={pending}
+                          onClick={() => {
+                            onApprove(order);
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={pending}
+                          aria-label={`Discard ${order.documentNumber ?? 'this purchase order'}`}
+                          onClick={() => {
+                            onDiscard(order);
+                          }}
+                        >
+                          Discard
+                        </Button>
+                      </>
+                    )}
+                    {order.status === 'approved' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            onSend(order);
+                          }}
+                        >
+                          Send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={pending}
+                          onClick={() => {
+                            onConvert(order);
+                          }}
+                        >
+                          Convert to bill
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

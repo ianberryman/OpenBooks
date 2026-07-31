@@ -9,6 +9,7 @@ import {
   DialogContent,
   Field,
   FieldLabel,
+  ResponsiveTable,
   TextInput,
   formatMinorUnits,
 } from '../../components';
@@ -269,7 +270,7 @@ export function DocumentView({
 
       {document.memo !== null && <p className="text-sm text-text-muted">{document.memo}</p>}
 
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">{words.singular} lines</caption>
           <thead>
@@ -331,7 +332,7 @@ export function DocumentView({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
 
       <div className="flex justify-end">
         <TotalsPanel

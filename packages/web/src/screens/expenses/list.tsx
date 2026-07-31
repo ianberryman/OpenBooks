@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, formatMinorUnits } from '../../components';
+import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { BillSummary, ExpenseReferenceData } from './queries';
@@ -40,110 +40,113 @@ export function ExpenseList({
   onDiscard,
 }: ExpenseListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Employee expenses</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Expense number
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Employee
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Issued
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Due
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Status
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            Total
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {expenses.length === 0 && (
-          <EmptyRow columns={7}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
-        )}
-        {expenses.map((expense) => {
-          const busy = busyId === expense.id;
-          const hint = payableHint(expense.status);
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Employee expenses</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Expense number
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Employee
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Issued
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Due
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Status
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              Total
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {expenses.length === 0 && (
+            <EmptyRow columns={7}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
+          )}
+          {expenses.map((expense) => {
+            const busy = busyId === expense.id;
+            const hint = payableHint(expense.status);
 
-          return (
-            <tr key={expense.id}>
-              <td className={TD_CLASSES}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onEdit(expense);
-                  }}
-                  className="rounded-sm text-left font-mono text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-                >
-                  {expense.documentNumber ?? 'Draft'}
-                </button>
-              </td>
-              <td className={TD_CLASSES}>
-                {reference.employeesById.get(expense.contactId)?.displayName ?? 'Unknown employee'}
-              </td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{expense.issueDate}</td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{expense.dueDate}</td>
-              <td className={TD_CLASSES}>
-                <Pill tone={STATUS_TONE[expense.status]}>{STATUS_LABELS[expense.status]}</Pill>
-                {hint !== null && (
-                  <span className="mt-1 block text-xs text-text-subtle">{hint}</span>
-                )}
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                {formatMinorUnits(expense.totals.gross)}
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  {expense.status === 'draft' && (
-                    <>
-                      <Button
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          onEdit(expense);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={busy}
-                        onClick={() => {
-                          onApprove(expense);
-                        }}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        aria-label={`Discard ${expense.documentNumber ?? 'draft expense'}`}
-                        disabled={busy}
-                        onClick={() => {
-                          onDiscard(expense);
-                        }}
-                      >
-                        Discard
-                      </Button>
-                    </>
+            return (
+              <tr key={expense.id}>
+                <td className={TD_CLASSES}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEdit(expense);
+                    }}
+                    className="rounded-sm text-left font-mono text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                  >
+                    {expense.documentNumber ?? 'Draft'}
+                  </button>
+                </td>
+                <td className={TD_CLASSES}>
+                  {reference.employeesById.get(expense.contactId)?.displayName ??
+                    'Unknown employee'}
+                </td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{expense.issueDate}</td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{expense.dueDate}</td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={STATUS_TONE[expense.status]}>{STATUS_LABELS[expense.status]}</Pill>
+                  {hint !== null && (
+                    <span className="mt-1 block text-xs text-text-subtle">{hint}</span>
                   )}
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
+                  {formatMinorUnits(expense.totals.gross)}
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
+                    {expense.status === 'draft' && (
+                      <>
+                        <Button
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => {
+                            onEdit(expense);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => {
+                            onApprove(expense);
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          aria-label={`Discard ${expense.documentNumber ?? 'draft expense'}`}
+                          disabled={busy}
+                          onClick={() => {
+                            onDiscard(expense);
+                          }}
+                        >
+                          Discard
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

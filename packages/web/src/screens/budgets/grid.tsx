@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import { MoneyInput } from '../../components';
+import { MoneyInput, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { Account, Budget } from './queries';
@@ -77,46 +77,50 @@ export function BudgetGrid({
   const expense = accounts.filter((account) => account.type === 'expense');
 
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Budgeted amounts</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Account
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            Budgeted amount
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {accounts.length === 0 && <EmptyRow columns={2}>No revenue or expense accounts.</EmptyRow>}
-        {revenue.length > 0 && <SectionRow label="Revenue" />}
-        {revenue.map((account) => (
-          <AccountRow
-            key={account.id}
-            account={account}
-            value={amounts.get(account.id) ?? null}
-            disabled={disabled}
-            onValueChange={(value) => {
-              edit(account.id, value);
-            }}
-          />
-        ))}
-        {expense.length > 0 && <SectionRow label="Expenses" />}
-        {expense.map((account) => (
-          <AccountRow
-            key={account.id}
-            account={account}
-            value={amounts.get(account.id) ?? null}
-            disabled={disabled}
-            onValueChange={(value) => {
-              edit(account.id, value);
-            }}
-          />
-        ))}
-      </tbody>
-    </table>
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Budgeted amounts</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Account
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              Budgeted amount
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {accounts.length === 0 && (
+            <EmptyRow columns={2}>No revenue or expense accounts.</EmptyRow>
+          )}
+          {revenue.length > 0 && <SectionRow label="Revenue" />}
+          {revenue.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              value={amounts.get(account.id) ?? null}
+              disabled={disabled}
+              onValueChange={(value) => {
+                edit(account.id, value);
+              }}
+            />
+          ))}
+          {expense.length > 0 && <SectionRow label="Expenses" />}
+          {expense.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              value={amounts.get(account.id) ?? null}
+              disabled={disabled}
+              onValueChange={(value) => {
+                edit(account.id, value);
+              }}
+            />
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }
 

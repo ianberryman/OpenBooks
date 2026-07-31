@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { ResponsiveTable, formatMinorUnits } from '../../components';
 import { dueDateOf } from './queries';
 import type { SalesDocumentKind, SalesDocumentSummary, SalesReferenceData } from './queries';
 import { StatusBadge, vocabularyFor } from './vocabulary';
@@ -49,76 +49,79 @@ export function DocumentList({
   }
 
   return (
-    <table className="w-full border-collapse text-sm">
-      <caption className="sr-only">{words.plural}</caption>
-      <thead>
-        <tr className="text-left text-xs text-text-subtle">
-          <th scope="col" className="p-2 font-medium">
-            {words.numberLabel}
-          </th>
-          <th scope="col" className="p-2 font-medium">
-            Customer
-          </th>
-          <th scope="col" className="p-2 font-medium">
-            Issued
-          </th>
-          {kind === 'invoice' && (
+    <ResponsiveTable>
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">{words.plural}</caption>
+        <thead>
+          <tr className="text-left text-xs text-text-subtle">
             <th scope="col" className="p-2 font-medium">
-              Due
+              {words.numberLabel}
             </th>
-          )}
-          <th scope="col" className="p-2 font-medium">
-            Status
-          </th>
-          <th scope="col" className="p-2 text-right font-medium">
-            Total
-          </th>
-          <th scope="col" className="p-2 text-right font-medium">
-            {words.outstandingLabel}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {documents.map((document) => {
-          const dueDate = dueDateOf(document);
-          return (
-            <tr key={document.id} className="border-t border-border hover:bg-surface-hover">
-              <td className="p-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpen(document.id);
-                  }}
-                  className="rounded-sm font-mono text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-                >
-                  {document.documentNumber ?? 'Draft'}
-                </button>
-              </td>
-              <td className="p-2 text-text">
-                {reference.contactsById.get(document.contactId)?.displayName ?? 'Unknown contact'}
-              </td>
-              <td className="p-2 font-mono text-text-muted">{document.issueDate}</td>
-              {kind === 'invoice' && (
-                <td className="p-2 font-mono text-text-muted">{dueDate ?? '—'}</td>
-              )}
-              <td className="p-2">
-                <StatusBadge status={document.status} />
-              </td>
-              <td className="p-2 text-right font-mono tabular-nums text-text">
-                {formatMinorUnits(document.totals.gross)}
-              </td>
-              <td className="p-2 text-right font-mono tabular-nums text-text">
-                {/* A draft has settled nothing and is settled by nothing — it is not in
-                    the ledger — so the column is blank rather than a zero that would read
-                    as "fully paid". */}
-                {document.status === 'draft'
-                  ? '—'
-                  : formatMinorUnits(document.settlement.outstanding)}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+            <th scope="col" className="p-2 font-medium">
+              Customer
+            </th>
+            <th scope="col" className="p-2 font-medium">
+              Issued
+            </th>
+            {kind === 'invoice' && (
+              <th scope="col" className="p-2 font-medium">
+                Due
+              </th>
+            )}
+            <th scope="col" className="p-2 font-medium">
+              Status
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              Total
+            </th>
+            <th scope="col" className="p-2 text-right font-medium">
+              {words.outstandingLabel}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {documents.map((document) => {
+            const dueDate = dueDateOf(document);
+            return (
+              <tr key={document.id} className="border-t border-border hover:bg-surface-hover">
+                <td className="p-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpen(document.id);
+                    }}
+                    className="rounded-sm font-mono text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                  >
+                    {document.documentNumber ?? 'Draft'}
+                  </button>
+                </td>
+                <td className="p-2 text-text">
+                  {reference.contactsById.get(document.contactId)?.displayName ??
+                    'Unknown contact'}
+                </td>
+                <td className="p-2 font-mono text-text-muted">{document.issueDate}</td>
+                {kind === 'invoice' && (
+                  <td className="p-2 font-mono text-text-muted">{dueDate ?? '—'}</td>
+                )}
+                <td className="p-2">
+                  <StatusBadge status={document.status} />
+                </td>
+                <td className="p-2 text-right font-mono tabular-nums text-text">
+                  {formatMinorUnits(document.totals.gross)}
+                </td>
+                <td className="p-2 text-right font-mono tabular-nums text-text">
+                  {/* A draft has settled nothing and is settled by nothing — it is not in
+                      the ledger — so the column is blank rather than a zero that would read
+                      as "fully paid". */}
+                  {document.status === 'draft'
+                    ? '—'
+                    : formatMinorUnits(document.settlement.outstanding)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

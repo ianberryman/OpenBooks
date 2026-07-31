@@ -11,6 +11,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
@@ -296,7 +297,7 @@ function EstimateFormContent({
           </Field>
         </div>
 
-        <div className="overflow-x-auto">
+        <ResponsiveTable>
           <table className="w-full border-collapse">
             <caption className="sr-only">Estimate lines</caption>
             <thead>
@@ -335,7 +336,7 @@ function EstimateFormContent({
               ))}
             </tbody>
           </table>
-        </div>
+        </ResponsiveTable>
 
         <div className="flex items-center gap-3">
           <Button
