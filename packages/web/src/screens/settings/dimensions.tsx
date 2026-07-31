@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   TextInput,
 } from '../../components';
@@ -19,7 +20,6 @@ import { cx } from '../../lib/cx';
 import {
   EmptyRow,
   Notice,
-  Pill,
   SettingsSection,
   TABLE_CLASSES,
   TD_CLASSES,

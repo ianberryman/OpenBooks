@@ -66,6 +66,12 @@ interface FormValues {
   email: string;
   phone: string;
   notes: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  country: string;
   isCustomer: boolean;
   isVendor: boolean;
   isEmployee: boolean;
@@ -78,6 +84,12 @@ const EMPTY_VALUES: FormValues = {
   email: '',
   phone: '',
   notes: '',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  region: '',
+  postalCode: '',
+  country: '',
   isCustomer: false,
   isVendor: false,
   isEmployee: false,
@@ -92,6 +104,12 @@ function valuesOf(contact: Contact | null): FormValues {
     email: contact.email ?? '',
     phone: contact.phone ?? '',
     notes: contact.notes ?? '',
+    addressLine1: contact.addressLine1 ?? '',
+    addressLine2: contact.addressLine2 ?? '',
+    city: contact.city ?? '',
+    region: contact.region ?? '',
+    postalCode: contact.postalCode ?? '',
+    country: contact.country ?? '',
     isCustomer: contact.isCustomer,
     isVendor: contact.isVendor,
     isEmployee: contact.isEmployee,
@@ -112,6 +130,12 @@ function toCreateRequest(values: FormValues): CreateContactRequest {
     email: orNull(values.email),
     phone: orNull(values.phone),
     notes: orNull(values.notes),
+    addressLine1: orNull(values.addressLine1),
+    addressLine2: orNull(values.addressLine2),
+    city: orNull(values.city),
+    region: orNull(values.region),
+    postalCode: orNull(values.postalCode),
+    country: orNull(values.country),
     isCustomer: values.isCustomer,
     isVendor: values.isVendor,
     isEmployee: values.isEmployee,
@@ -136,6 +160,18 @@ function toPatch(values: FormValues, contact: Contact): UpdateContactRequest {
   if ((next.email ?? null) !== contact.email) patch['email'] = next.email ?? null;
   if ((next.phone ?? null) !== contact.phone) patch['phone'] = next.phone ?? null;
   if ((next.notes ?? null) !== contact.notes) patch['notes'] = next.notes ?? null;
+  if ((next.addressLine1 ?? null) !== contact.addressLine1) {
+    patch['addressLine1'] = next.addressLine1 ?? null;
+  }
+  if ((next.addressLine2 ?? null) !== contact.addressLine2) {
+    patch['addressLine2'] = next.addressLine2 ?? null;
+  }
+  if ((next.city ?? null) !== contact.city) patch['city'] = next.city ?? null;
+  if ((next.region ?? null) !== contact.region) patch['region'] = next.region ?? null;
+  if ((next.postalCode ?? null) !== contact.postalCode) {
+    patch['postalCode'] = next.postalCode ?? null;
+  }
+  if ((next.country ?? null) !== contact.country) patch['country'] = next.country ?? null;
   if (values.isCustomer !== contact.isCustomer) patch['isCustomer'] = values.isCustomer;
   if (values.isVendor !== contact.isVendor) patch['isVendor'] = values.isVendor;
   if (values.isEmployee !== contact.isEmployee) patch['isEmployee'] = values.isEmployee;
@@ -348,6 +384,78 @@ function ContactFormContent({
             }}
           />
         </Field>
+
+        {/* A fieldset for the same reason the Roles group below is one: the six address
+            fields describe one thing and should be announced together. */}
+        <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+          <legend className="px-1 text-sm font-medium text-text">Address</legend>
+
+          <Field error={fieldErrors['addressLine1']}>
+            <FieldLabel>Address line 1</FieldLabel>
+            <TextInput
+              value={values.addressLine1}
+              autoComplete="off"
+              onChange={(event) => {
+                set('addressLine1', event.target.value);
+              }}
+            />
+          </Field>
+
+          <Field error={fieldErrors['addressLine2']}>
+            <FieldLabel>Address line 2</FieldLabel>
+            <TextInput
+              value={values.addressLine2}
+              autoComplete="off"
+              onChange={(event) => {
+                set('addressLine2', event.target.value);
+              }}
+            />
+          </Field>
+
+          <Field error={fieldErrors['city']}>
+            <FieldLabel>City</FieldLabel>
+            <TextInput
+              value={values.city}
+              autoComplete="off"
+              onChange={(event) => {
+                set('city', event.target.value);
+              }}
+            />
+          </Field>
+
+          <Field error={fieldErrors['region']}>
+            <FieldLabel>State / region</FieldLabel>
+            <TextInput
+              value={values.region}
+              autoComplete="off"
+              onChange={(event) => {
+                set('region', event.target.value);
+              }}
+            />
+          </Field>
+
+          <Field error={fieldErrors['postalCode']}>
+            <FieldLabel>Postal code</FieldLabel>
+            <TextInput
+              value={values.postalCode}
+              autoComplete="off"
+              onChange={(event) => {
+                set('postalCode', event.target.value);
+              }}
+            />
+          </Field>
+
+          <Field error={fieldErrors['country']}>
+            <FieldLabel>Country</FieldLabel>
+            <TextInput
+              value={values.country}
+              autoComplete="off"
+              onChange={(event) => {
+                set('country', event.target.value);
+              }}
+            />
+          </Field>
+        </fieldset>
 
         {/* A fieldset, so the two flags are announced as one group and the sentence below
             is read as belonging to both rather than to whichever one focus landed on. */}

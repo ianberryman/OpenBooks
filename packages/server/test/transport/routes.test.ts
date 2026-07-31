@@ -209,6 +209,7 @@ describe('the /v1 route table', () => {
         'voidCreditNote',
         'createBill',
         'listBills',
+        'billsSummary',
         'getBill',
         'updateBill',
         'discardBill',

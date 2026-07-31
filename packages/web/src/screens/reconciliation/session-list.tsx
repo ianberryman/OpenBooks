@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 
-import { Button, ErrorBanner, formatMinorUnits } from '../../components';
+import { Button, ErrorBanner, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { ReconciliationSessionSummary, SessionFilters } from './queries';
 import { useSessionList } from './queries';
@@ -132,7 +132,7 @@ function SessionRow({
               balanced ? 'text-success-text' : 'text-warning-text',
             )}
           >
-            {balanced ? 'Balanced' : `Off by ${formatMinorUnits(session.balances.difference)}`}
+            {balanced ? 'Balanced' : `Off by ${formatMoney(session.balances.difference)}`}
           </span>
           <span
             className={cx(

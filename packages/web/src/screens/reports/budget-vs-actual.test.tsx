@@ -88,7 +88,7 @@ describe('BudgetVsActualReport — a sliced statement', () => {
       within(
         totals.getByRole('rowheader', { name: 'Net income' }).closest('tr') ?? document.body,
       ).getAllByRole('cell')[2]?.textContent,
-    ).toBe('-100.00');
+    ).toBe('-$100.00');
   });
 
   it('prints the variance percent with a sign, and a dash for a null percent', () => {

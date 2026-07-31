@@ -50,6 +50,7 @@ const PUBLISHED_COMPONENT_IDS = [
   'Bill',
   'BillPage',
   'BillSummary',
+  'BillsSummary',
   'CreateAllocationsRequest',
   'CreateBillRequest',
   'CreateCreditNoteRequest',

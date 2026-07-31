@@ -206,7 +206,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/recurring-journals" element={<RecurringJournalsScreen />} />
         <Route path="/fixed-assets" element={<FixedAssetsScreen />} />
         <Route path="/purchase-orders" element={<PurchaseOrdersScreen />} />
-        <Route path="/purchases" element={<PurchasesScreen />} />
+        <Route path="/purchases/*" element={<PurchasesScreen />} />
         <Route path="/expenses" element={<ExpensesScreen />} />
         <Route path="/bill-captures" element={<BillCapturesScreen />} />
         <Route path="/pay-bills" element={<PayBillsScreen />} />

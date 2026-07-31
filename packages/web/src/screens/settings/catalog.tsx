@@ -7,10 +7,11 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   Select,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import { cx } from '../../lib/cx';
 import { CatalogItemDialog } from './catalog-item-dialog';
@@ -20,7 +21,7 @@ import {
   useDeactivateCatalogItem,
   useReactivateCatalogItem,
 } from './catalog-queries';
-import { EmptyRow, Pill, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
+import { EmptyRow, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
 
 /**
  * The item catalog (initiative Catalog, D-CAT-1…5): a list-plus-form of reusable, priced
@@ -187,7 +188,7 @@ export function CatalogSection(): ReactElement {
                   {item.defaultUnitAmount === null ? (
                     <span className="text-text-subtle">—</span>
                   ) : (
-                    formatMinorUnits(item.defaultUnitAmount)
+                    formatMoney(item.defaultUnitAmount)
                   )}
                 </td>
                 <td className={TD_CLASSES}>

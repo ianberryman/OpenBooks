@@ -54,7 +54,7 @@ describe('CatalogSection', () => {
 
     expect(await screen.findByText('Consulting hour')).toBeInTheDocument();
     expect(screen.getByText('CONSULT')).toBeInTheDocument();
-    expect(screen.getByText('150.00')).toBeInTheDocument();
+    expect(screen.getByText('$150.00')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 

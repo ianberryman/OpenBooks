@@ -13,16 +13,19 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   Select,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
+import type { ComboboxOption, PillTone, SelectOption } from '../../components';
 import { useIsCompact } from '../../lib/use-viewport';
-import type { ComboboxOption, SelectOption } from '../../components';
 import { AllocateDialog } from './allocate-dialog';
 import { STATUS_LABELS, allocateVendorCredit, documentApi, vocabularyFor } from './ap-document';
 import type { ApDocument, DocumentKind } from './ap-document';
+import { MobileDocumentView } from './mobile-document-view';
+import { PaymentHistory } from './payment-history';
 import {
   blankLine,
   emptyState,
@@ -87,29 +90,24 @@ export interface DocumentEditorProps {
   readonly vendorBills: readonly BillSummary[];
   readonly onCreated: (documentId: string) => void;
   readonly onDiscarded: () => void;
+  /** Back to the list — the breadcrumb and the compact close button both call it. */
+  readonly onBack: () => void;
   readonly onFindDuplicate: (contactId: string, vendorReference: string) => void;
 }
 
 const APPROVE = 'approve';
 
-/** A status a client may not write; shown, never sent. */
-function StatusBadge({ status }: { readonly status: DocumentStatus }): ReactElement {
-  const classes: Readonly<Record<DocumentStatus, string>> = {
-    draft: 'border-border bg-surface-sunken text-text-muted',
-    approved: 'border-accent-soft bg-accent-soft text-text',
-    part_paid: 'border-warning-border bg-warning-soft text-warning-text',
-    paid: 'border-success-border bg-success-soft text-success-text',
-    void: 'border-danger-border bg-danger-soft text-danger-text',
-  };
+/** The lifecycle status as a `Pill`. A status a client may not write — shown, never sent. */
+const STATUS_TONE: Readonly<Record<DocumentStatus, PillTone>> = {
+  draft: 'muted',
+  approved: 'neutral',
+  part_paid: 'neutral',
+  paid: 'positive',
+  void: 'muted',
+};
 
-  return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${classes[status]}`}
-      data-status={status}
-    >
-      {STATUS_LABELS[status]}
-    </span>
-  );
+function StatusBadge({ status }: { readonly status: DocumentStatus }): ReactElement {
+  return <Pill tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Pill>;
 }
 
 function invalidatePurchases(queryClient: QueryClient): void {
@@ -128,6 +126,7 @@ export function DocumentEditor({
   vendorBills,
   onCreated,
   onDiscarded,
+  onBack,
   onFindDuplicate,
 }: DocumentEditorProps): ReactElement {
   const queryClient = useQueryClient();
@@ -449,371 +448,463 @@ export function DocumentEditor({
     }
   }
 
-  const vendorName =
-    state.contactId === null
-      ? 'this vendor'
-      : (reference.vendorsById.get(state.contactId)?.displayName ?? 'this vendor');
+  const vendorContact =
+    state.contactId === null ? null : (reference.vendorsById.get(state.contactId) ?? null);
+  const vendorName = vendorContact?.displayName ?? 'this vendor';
+  /** City, region and country, joined — the vendor card's second line on an approved
+   * document. Whichever parts the contact has; empty when it has none. */
+  const vendorLocation =
+    vendorContact === null
+      ? ''
+      : [vendorContact.city, vendorContact.region, vendorContact.country]
+          .filter((part) => part !== null && part !== '')
+          .join(', ');
 
   const showDuplicate = isDuplicateVendorReference(failure);
 
+  const documentNumber = saved?.documentNumber ?? null;
+  /** "New bill" before approval, "bill #3" after — `capitalize` title-cases it in the H1. */
+  const title =
+    documentNumber === null
+      ? `New ${vocabulary.singular}`
+      : `${vocabulary.singular} #${documentNumber}`;
+  /** A bill still owed whose due date has passed — the red header marker. Not shown once it
+   * is settled (a paid bill is not chased) or on a vendor credit (nothing about one falls due). */
+  const pastDue =
+    readOnly &&
+    kind === 'bill' &&
+    saved?.dueDate != null &&
+    saved.dueDate < todayIsoDate() &&
+    saved.settlement.outstanding !== '0';
+
+  const savedIndicator = readOnly
+    ? 'Approved documents cannot be edited (D-38).'
+    : dirty
+      ? 'Unsaved changes'
+      : 'All changes saved';
+
+  /**
+   * The actions, built once and placed by breakpoint — in the header on desktop, in a sticky
+   * bar on a phone — so a button is never rendered twice. Which ones appear is the D-38 line:
+   * a draft can be discarded, saved and submitted; an approved document can only be voided
+   * (and printed), plus a vendor credit applied.
+   */
+  const actionButtons = readOnly ? (
+    <>
+      {status !== 'void' && kind === 'vendor_credit' && (
+        <Button disabled={busy} onClick={() => setAllocating(true)}>
+          Apply to bills
+        </Button>
+      )}
+      <Button variant="secondary" onClick={() => window.print()}>
+        Print
+      </Button>
+      {status !== 'void' && (
+        <Button
+          variant="danger"
+          disabled={busy}
+          onClick={() => {
+            setVoidMemo('');
+            setVoidingDate(todayIsoDate());
+          }}
+        >
+          Void {vocabulary.singular}
+        </Button>
+      )}
+    </>
+  ) : (
+    <>
+      <Button variant="danger" disabled={busy} onClick={() => setConfirmingDiscard(true)}>
+        Discard
+      </Button>
+      <Button
+        disabled={busy || !dirty}
+        onClick={() => {
+          void handleSave();
+        }}
+      >
+        {saveDocument.isPending ? 'Saving…' : 'Save as draft'}
+      </Button>
+      {/**
+       * The act that reaches the ledger — separate and deliberate. Disabled while one is in
+       * flight and carrying one key per document, so neither a double click nor a retry after
+       * a refusal can post two journals.
+       */}
+      <Button
+        variant="primary"
+        disabled={busy}
+        onClick={() => {
+          void handleApprove();
+        }}
+      >
+        {approveDocument.isPending ? 'Submitting…' : 'Save and submit'}
+      </Button>
+    </>
+  );
+
   return (
     <section
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-6 pb-24 md:pb-6"
       aria-label={kind === 'bill' ? 'Bill editor' : 'Vendor credit editor'}
     >
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3">
-        <div className="flex flex-col">
-          <span className="text-xs text-text-subtle">{vocabulary.ourNumberLabel}</span>
-          <span className="font-mono text-md text-text">
-            {saved?.documentNumber ?? 'Not assigned until approval'}
-          </span>
-        </div>
-        <StatusBadge status={status} />
-        <div className="flex-1" />
-        {saved !== null && readOnly && (
-          <div className="flex gap-6">
-            <div className="flex flex-col text-right">
-              <span className="text-xs text-text-subtle">Applied</span>
-              <span className="font-mono text-md tabular-nums text-text">
-                {formatMinorUnits(saved.settlement.allocated)}
-              </span>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-xs text-text-subtle">{vocabulary.outstandingLabel}</span>
-              <span className="font-mono text-md tabular-nums text-text">
-                {formatMinorUnits(saved.settlement.outstanding)}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {showDuplicate ? (
-        <DuplicateVendorReference
-          error={failure}
+      {isCompact && readOnly && saved !== null ? (
+        // The phone read-only layout (the design's mobile bill page). The dialogs below stay
+        // rendered outside this branch, so its Void/Apply actions still have one to open.
+        <MobileDocumentView
+          kind={kind}
+          document={saved}
           vendorName={vendorName}
-          reference={state.reference}
-          onFindExisting={() => {
-            if (state.contactId !== null) onFindDuplicate(state.contactId, state.reference.trim());
-          }}
-          onEditReference={() => {
-            setFailure(null);
-            setReferenceFocusNonce((nonce) => nonce + 1);
-          }}
+          vendorLocation={vendorLocation}
+          pastDue={pastDue}
+          actions={actionButtons}
+          onBack={onBack}
         />
       ) : (
-        presented !== null && <ErrorBanner error={failure} />
-      )}
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <nav aria-label="Breadcrumb">
+                  <ol className="flex flex-wrap items-center gap-1.5 text-sm text-text-subtle">
+                    <li>
+                      <button type="button" onClick={onBack} className="hover:text-text">
+                        Purchases
+                      </button>
+                    </li>
+                    <li aria-hidden>›</li>
+                    <li>
+                      <button type="button" onClick={onBack} className="hover:text-text">
+                        {vocabulary.plural}
+                      </button>
+                    </li>
+                    <li aria-hidden>›</li>
+                    <li aria-current="page" className="capitalize text-text">
+                      {title}
+                    </li>
+                  </ol>
+                </nav>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-2xl font-semibold capitalize text-text">{title}</h1>
+                  <StatusBadge status={status} />
+                  {readOnly && saved !== null && saved.committed !== '0' && (
+                    <Pill tone="neutral">Payment pending</Pill>
+                  )}
+                  {pastDue && saved?.dueDate != null && (
+                    <span className="text-sm font-semibold text-danger-text">
+                      Past due: {saved.dueDate}
+                    </span>
+                  )}
+                </div>
+                {!readOnly && documentNumber === null && (
+                  <p className="text-xs text-text-subtle">
+                    <span>{vocabulary.ourNumberLabel}</span>:{' '}
+                    <span>Not assigned until approval</span>
+                  </p>
+                )}
+              </div>
 
-      <div className="flex flex-wrap gap-4">
-        <Field className="w-64" error={fieldErrors['contactId']}>
-          <FieldLabel>Vendor</FieldLabel>
-          {readOnly ? (
-            <p className="text-base text-text">{vendorName}</p>
-          ) : (
-            <Combobox
-              value={state.contactId}
-              options={vendorOptions}
-              disabled={busy}
-              onValueChange={(contactId) => {
-                edit({ ...state, contactId });
+              {isCompact ? (
+                <Button variant="ghost" onClick={onBack} aria-label="Close">
+                  ✕
+                </Button>
+              ) : (
+                <div className="no-print flex flex-wrap items-center justify-end gap-2">
+                  {actionButtons}
+                </div>
+              )}
+            </div>
+            {!readOnly && <p className="text-xs text-text-subtle">{savedIndicator}</p>}
+          </div>
+
+          {showDuplicate ? (
+            <DuplicateVendorReference
+              error={failure}
+              vendorName={vendorName}
+              reference={state.reference}
+              onFindExisting={() => {
+                if (state.contactId !== null)
+                  onFindDuplicate(state.contactId, state.reference.trim());
               }}
-              onCreate={{
-                label: (q) => (q.trim() === '' ? 'New vendor' : `Create "${q.trim()}"`),
-                onSelect: (q) => {
-                  setNewVendorName(q.trim());
-                },
+              onEditReference={() => {
+                setFailure(null);
+                setReferenceFocusNonce((nonce) => nonce + 1);
               }}
             />
-          )}
-        </Field>
-
-        <Field className="w-40" error={fieldErrors['issueDate']}>
-          <FieldLabel>Issue date</FieldLabel>
-          {readOnly ? (
-            <p className="font-mono text-base text-text">{state.issueDate}</p>
           ) : (
-            <TextInput
-              type="date"
-              value={state.issueDate}
-              disabled={busy}
-              onChange={(event) => {
-                edit({ ...state, issueDate: event.target.value });
-              }}
-            />
+            presented !== null && <ErrorBanner error={failure} />
           )}
-        </Field>
 
-        {kind === 'bill' && (
-          <Field className="w-40" error={fieldErrors['dueDate']}>
-            <FieldLabel>Due date</FieldLabel>
-            {readOnly ? (
-              <p className="font-mono text-base text-text">{state.dueDate}</p>
+          <div className="flex flex-wrap gap-4 rounded-lg border border-border bg-surface p-4">
+            <Field className="w-64" error={fieldErrors['contactId']}>
+              <FieldLabel>Vendor</FieldLabel>
+              {readOnly ? (
+                <div>
+                  <p className="text-base font-medium text-text">{vendorName}</p>
+                  {vendorLocation !== '' && (
+                    <p className="text-sm text-text-subtle">{vendorLocation}</p>
+                  )}
+                </div>
+              ) : (
+                <Combobox
+                  value={state.contactId}
+                  options={vendorOptions}
+                  disabled={busy}
+                  onValueChange={(contactId) => {
+                    edit({ ...state, contactId });
+                  }}
+                  onCreate={{
+                    label: (q) => (q.trim() === '' ? 'New vendor' : `Create "${q.trim()}"`),
+                    onSelect: (q) => {
+                      setNewVendorName(q.trim());
+                    },
+                  }}
+                />
+              )}
+            </Field>
+
+            <Field className="w-40" error={fieldErrors['issueDate']}>
+              <FieldLabel>Issue date</FieldLabel>
+              {readOnly ? (
+                <p className="font-mono text-base text-text">{state.issueDate}</p>
+              ) : (
+                <TextInput
+                  type="date"
+                  value={state.issueDate}
+                  disabled={busy}
+                  onChange={(event) => {
+                    edit({ ...state, issueDate: event.target.value });
+                  }}
+                />
+              )}
+            </Field>
+
+            {kind === 'bill' && (
+              <Field className="w-40" error={fieldErrors['dueDate']}>
+                <FieldLabel>Due date</FieldLabel>
+                {readOnly ? (
+                  <p className="font-mono text-base text-text">{state.dueDate}</p>
+                ) : (
+                  <TextInput
+                    type="date"
+                    value={state.dueDate}
+                    disabled={busy}
+                    onChange={(event) => {
+                      edit({ ...state, dueDate: event.target.value });
+                    }}
+                  />
+                )}
+              </Field>
+            )}
+
+            {/**
+             * The field the ticket turns on. The label names **whose** number it is, because a
+             * user who types our own number here has recorded the wrong thing and nothing
+             * downstream will complain — the document still totals, the journal still balances,
+             * and the vendor's remittance still will not match (D-36).
+             */}
+            <Field
+              className="w-64"
+              error={fieldErrors['reference']}
+              hint={vocabulary.referenceHint}
+            >
+              <FieldLabel>{vocabulary.referenceLabel}</FieldLabel>
+              {readOnly ? (
+                <p className="font-mono text-base text-text">{state.reference || '—'}</p>
+              ) : (
+                <TextInput
+                  key={referenceFocusNonce}
+                  autoFocus={referenceFocusNonce > 0}
+                  placeholder="As printed by the vendor"
+                  value={state.reference}
+                  disabled={busy}
+                  onChange={(event) => {
+                    edit({ ...state, reference: event.target.value });
+                  }}
+                />
+              )}
+            </Field>
+
+            <Field
+              className="w-64"
+              hint={
+                'Decides what a unit price means, and changing it reprices the document. The server ' +
+                'computes the tax — save the draft to see the new figures.'
+              }
+            >
+              <FieldLabel>Unit prices</FieldLabel>
+              {readOnly ? (
+                <p className="text-base text-text">
+                  {state.taxMode === 'inclusive' ? 'Include tax' : 'Exclude tax'}
+                </p>
+              ) : (
+                <Select
+                  value={state.taxMode}
+                  options={[
+                    { value: 'exclusive', label: 'Exclude tax' },
+                    { value: 'inclusive', label: 'Include tax' },
+                  ]}
+                  disabled={busy}
+                  onValueChange={(taxMode) => {
+                    edit({
+                      ...state,
+                      taxMode: taxMode === 'inclusive' ? 'inclusive' : 'exclusive',
+                    });
+                  }}
+                />
+              )}
+            </Field>
+          </div>
+
+          {isCompact ? (
+            // D-123: a seven-column entry grid only fits a phone by scrolling sideways, so on
+            // compact each line is a stacked card instead. `LineCard` and `LineRow` share their
+            // controls (`lineControls`), so the two presentations cannot drift.
+            <ul aria-label={`${vocabulary.singular} lines`} className="flex flex-col gap-3">
+              {state.lines.map((line, index) => (
+                <LineCard key={line.key} {...lineProps(line, index)} />
+              ))}
+            </ul>
+          ) : (
+            <ResponsiveTable>
+              <table className="w-full border-collapse">
+                <caption className="sr-only">{vocabulary.singular} lines</caption>
+                <thead>
+                  <tr className="text-left text-xs text-text-subtle">
+                    <th scope="col" className="p-1 font-medium">
+                      Description
+                    </th>
+                    <th scope="col" className="p-1 text-right font-medium">
+                      Quantity
+                    </th>
+                    <th scope="col" className="p-1 font-medium">
+                      Account
+                    </th>
+                    <th scope="col" className="p-1 font-medium">
+                      Tax rate
+                    </th>
+                    <th scope="col" className="p-1 text-right font-medium">
+                      Unit price
+                    </th>
+                    <th scope="col" className="p-1 text-right font-medium">
+                      Line total
+                    </th>
+                    <th scope="col" className="p-1 font-medium">
+                      <span className="sr-only">Remove</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.lines.map((line, index) => (
+                    <LineRow key={line.key} {...lineProps(line, index)} />
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
+          )}
+
+          {!readOnly && (
+            <div>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  edit({ ...state, lines: [...state.lines, blankLine()] });
+                }}
+              >
+                Add line
+              </Button>
+            </div>
+          )}
+
+          <div
+            role="status"
+            className="flex flex-col gap-1 rounded-lg border border-border bg-surface-sunken p-3"
+          >
+            {priced && saved !== null ? (
+              <>
+                <div className="flex justify-between text-sm text-text-muted">
+                  <span>Subtotal</span>
+                  <span className="font-mono tabular-nums text-text">
+                    {formatMoney(saved.totals.net)}
+                  </span>
+                </div>
+                {saved.taxSummary.map((row) => (
+                  <div
+                    key={row.taxRateId ?? 'untaxed'}
+                    className="flex justify-between text-sm text-text-muted"
+                  >
+                    <span>
+                      {row.taxRateName ?? 'Untaxed'}
+                      {row.percentage === null ? '' : ` (${row.percentage}%)`}
+                    </span>
+                    <span className="font-mono tabular-nums text-text">{formatMoney(row.tax)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm text-text-muted">
+                  <span>Tax</span>
+                  <span className="font-mono tabular-nums text-text">
+                    {formatMoney(saved.totals.tax)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1 text-sm font-semibold text-text">
+                  <span>Total</span>
+                  <span className="font-mono tabular-nums">{formatMoney(saved.totals.gross)}</span>
+                </div>
+              </>
             ) : (
-              <TextInput
-                type="date"
-                value={state.dueDate}
+              <p className="text-sm text-text-muted">
+                Not priced yet. Tax is computed line by line by the server (D-35) — save the draft
+                to see the totals.
+              </p>
+            )}
+            {fieldErrors['lines'] !== undefined && <FieldError>{fieldErrors['lines']}</FieldError>}
+            {problems.noLines && <FieldError>Add at least one line.</FieldError>}
+            {problems.vendor && <FieldError>Choose the vendor this is from.</FieldError>}
+          </div>
+
+          <Field className="w-full" error={fieldErrors['memo']}>
+            <FieldLabel>Notes / Terms</FieldLabel>
+            {readOnly ? (
+              <p className="whitespace-pre-wrap text-base text-text">{state.memo || '—'}</p>
+            ) : (
+              <textarea
+                className="min-h-24 w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-base text-text placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent"
+                aria-label="Notes / Terms"
+                placeholder="Any additional information or payment terms…"
+                value={state.memo}
                 disabled={busy}
                 onChange={(event) => {
-                  edit({ ...state, dueDate: event.target.value });
+                  edit({ ...state, memo: event.target.value });
                 }}
               />
             )}
           </Field>
-        )}
 
-        {/**
-         * The field the ticket turns on. The label names **whose** number it is, because a
-         * user who types our own number here has recorded the wrong thing and nothing
-         * downstream will complain — the document still totals, the journal still balances,
-         * and the vendor's remittance still will not match (D-36).
-         */}
-        <Field className="w-64" error={fieldErrors['reference']} hint={vocabulary.referenceHint}>
-          <FieldLabel>{vocabulary.referenceLabel}</FieldLabel>
-          {readOnly ? (
-            <p className="font-mono text-base text-text">{state.reference || '—'}</p>
-          ) : (
-            <TextInput
-              key={referenceFocusNonce}
-              autoFocus={referenceFocusNonce > 0}
-              placeholder="As printed by the vendor"
-              value={state.reference}
-              disabled={busy}
-              onChange={(event) => {
-                edit({ ...state, reference: event.target.value });
-              }}
+          {readOnly && saved !== null && (
+            <PaymentHistory
+              kind={kind}
+              allocations={saved.allocations}
+              settlement={saved.settlement}
+              totalGross={saved.totals.gross}
+              pendingCommitted={saved.committed}
             />
           )}
-        </Field>
 
-        <Field
-          className="w-64"
-          hint={
-            'Decides what a unit price means, and changing it reprices the document. The server ' +
-            'computes the tax — save the draft to see the new figures.'
-          }
-        >
-          <FieldLabel>Unit prices</FieldLabel>
-          {readOnly ? (
-            <p className="text-base text-text">
-              {state.taxMode === 'inclusive' ? 'Include tax' : 'Exclude tax'}
-            </p>
-          ) : (
-            <Select
-              value={state.taxMode}
-              options={[
-                { value: 'exclusive', label: 'Exclude tax' },
-                { value: 'inclusive', label: 'Include tax' },
-              ]}
-              disabled={busy}
-              onValueChange={(taxMode) => {
-                edit({ ...state, taxMode: taxMode === 'inclusive' ? 'inclusive' : 'exclusive' });
-              }}
-            />
+          {readOnly && status !== 'void' && (
+            <div className="rounded-lg border border-border bg-surface-sunken p-3 text-sm text-text-muted">
+              Approved documents cannot be edited. If changes are required, void this{' '}
+              {vocabulary.singular} and create a new one (D-38).
+            </div>
           )}
-        </Field>
 
-        <Field className="min-w-64 flex-1" error={fieldErrors['memo']}>
-          <FieldLabel>Memo</FieldLabel>
-          {readOnly ? (
-            <p className="text-base text-text">{state.memo || '—'}</p>
-          ) : (
-            <TextInput
-              value={state.memo}
-              disabled={busy}
-              onChange={(event) => {
-                edit({ ...state, memo: event.target.value });
-              }}
-            />
+          {isCompact && (
+            // The bill-page action bar (D-120 compact tier): the same buttons the header carries
+            // on desktop, pinned to the bottom of a phone so the primary action is always in reach.
+            <div className="no-print fixed inset-x-0 bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-surface p-3">
+              {actionButtons}
+            </div>
           )}
-        </Field>
-      </div>
-
-      {isCompact ? (
-        // D-123: a seven-column entry grid only fits a phone by scrolling sideways, so on
-        // compact each line is a stacked card instead. `LineCard` and `LineRow` share their
-        // controls (`lineControls`), so the two presentations cannot drift.
-        <ul aria-label={`${vocabulary.singular} lines`} className="flex flex-col gap-3">
-          {state.lines.map((line, index) => (
-            <LineCard key={line.key} {...lineProps(line, index)} />
-          ))}
-        </ul>
-      ) : (
-        <ResponsiveTable>
-          <table className="w-full border-collapse">
-            <caption className="sr-only">{vocabulary.singular} lines</caption>
-            <thead>
-              <tr className="text-left text-xs text-text-subtle">
-                <th scope="col" className="p-1 font-medium">
-                  Description
-                </th>
-                <th scope="col" className="p-1 text-right font-medium">
-                  Quantity
-                </th>
-                <th scope="col" className="p-1 font-medium">
-                  Account
-                </th>
-                <th scope="col" className="p-1 font-medium">
-                  Tax rate
-                </th>
-                <th scope="col" className="p-1 text-right font-medium">
-                  Unit price
-                </th>
-                <th scope="col" className="p-1 text-right font-medium">
-                  Line total
-                </th>
-                <th scope="col" className="p-1 font-medium">
-                  <span className="sr-only">Remove</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.lines.map((line, index) => (
-                <LineRow key={line.key} {...lineProps(line, index)} />
-              ))}
-            </tbody>
-          </table>
-        </ResponsiveTable>
+        </>
       )}
-
-      {!readOnly && (
-        <div>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              edit({ ...state, lines: [...state.lines, blankLine()] });
-            }}
-          >
-            Add line
-          </Button>
-        </div>
-      )}
-
-      <div
-        role="status"
-        className="flex flex-col gap-1 rounded-lg border border-border bg-surface-sunken p-3"
-      >
-        {priced && saved !== null ? (
-          <>
-            <div className="flex justify-between text-sm text-text-muted">
-              <span>Net</span>
-              <span className="font-mono tabular-nums text-text">
-                {formatMinorUnits(saved.totals.net)}
-              </span>
-            </div>
-            {saved.taxSummary.map((row) => (
-              <div
-                key={row.taxRateId ?? 'untaxed'}
-                className="flex justify-between text-sm text-text-muted"
-              >
-                <span>
-                  {row.taxRateName ?? 'Untaxed'}
-                  {row.percentage === null ? '' : ` (${row.percentage}%)`}
-                </span>
-                <span className="font-mono tabular-nums text-text">
-                  {formatMinorUnits(row.tax)}
-                </span>
-              </div>
-            ))}
-            <div className="flex justify-between text-sm text-text-muted">
-              <span>Tax</span>
-              <span className="font-mono tabular-nums text-text">
-                {formatMinorUnits(saved.totals.tax)}
-              </span>
-            </div>
-            <div className="flex justify-between border-t border-border pt-1 text-sm font-semibold text-text">
-              <span>Total</span>
-              <span className="font-mono tabular-nums">{formatMinorUnits(saved.totals.gross)}</span>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-text-muted">
-            Not priced yet. Tax is computed line by line by the server (D-35) — save the draft to
-            see the totals.
-          </p>
-        )}
-        {fieldErrors['lines'] !== undefined && <FieldError>{fieldErrors['lines']}</FieldError>}
-        {problems.noLines && <FieldError>Add at least one line.</FieldError>}
-        {problems.vendor && <FieldError>Choose the vendor this is from.</FieldError>}
-      </div>
-
-      {saved !== null && saved.allocations.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-3">
-          <p className="text-sm font-medium text-text">
-            Applied against this {vocabulary.singular}
-          </p>
-          {saved.allocations.map((allocation) => (
-            <p key={allocation.id} className="text-sm text-text-muted">
-              <span className="font-mono text-text">
-                {allocation.sourceNumber ?? allocation.targetNumber ?? '—'}
-              </span>{' '}
-              — {formatMinorUnits(allocation.amount)} on {allocation.date}
-            </p>
-          ))}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <span className="text-sm text-text-subtle">
-          {readOnly
-            ? 'Approved documents cannot be edited (D-38).'
-            : dirty
-              ? 'Unsaved changes'
-              : 'All changes saved'}
-        </span>
-
-        <div className="flex-1" />
-
-        {!readOnly && (
-          <>
-            <Button variant="danger" disabled={busy} onClick={() => setConfirmingDiscard(true)}>
-              Discard
-            </Button>
-            <Button
-              disabled={busy || !dirty}
-              onClick={() => {
-                void handleSave();
-              }}
-            >
-              Save draft
-            </Button>
-            {/**
-             * Separate and deliberate: this is the act that reaches the ledger. Disabled
-             * while one is in flight, and carrying one key per document besides, so neither
-             * a double click nor a retry after a refusal can post two journals.
-             */}
-            <Button
-              variant="primary"
-              disabled={busy}
-              onClick={() => {
-                void handleApprove();
-              }}
-            >
-              {approveDocument.isPending ? 'Approving…' : `Approve ${vocabulary.singular}`}
-            </Button>
-          </>
-        )}
-
-        {readOnly && status !== 'void' && (
-          <>
-            {kind === 'vendor_credit' && (
-              <Button disabled={busy} onClick={() => setAllocating(true)}>
-                Apply to bills
-              </Button>
-            )}
-            <Button
-              variant="danger"
-              disabled={busy}
-              onClick={() => {
-                setVoidMemo('');
-                setVoidingDate(todayIsoDate());
-              }}
-            >
-              Void {vocabulary.singular}
-            </Button>
-          </>
-        )}
-      </div>
 
       <Dialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
         <DialogContent

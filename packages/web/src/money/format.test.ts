@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatMinorUnits, MoneyFormatError, toMinorUnits, tryToMinorUnits } from './format';
+import {
+  formatMinorUnits,
+  formatMoney,
+  MoneyFormatError,
+  toMinorUnits,
+  tryToMinorUnits,
+} from './format';
 
 /**
  * Run by `yarn test`: the root `vitest.config.ts` lists a `web` project that extends
@@ -104,6 +110,36 @@ describe('toMinorUnits', () => {
       expect(toMinorUnits(formatMinorUnits(wire))).toBe(wire === '-0' ? '0' : wire);
     },
   );
+});
+
+describe('formatMoney', () => {
+  it('renders symbol and two decimals', () => {
+    expect(formatMoney('34378')).toBe('$343.78');
+    expect(formatMoney('100')).toBe('$1.00');
+  });
+
+  it('groups thousands', () => {
+    expect(formatMoney('100000')).toBe('$1,000.00');
+    expect(formatMoney('112500')).toBe('$1,125.00');
+    expect(formatMoney('150000')).toBe('$1,500.00');
+  });
+
+  it('renders a sub-dollar amount without a bare fraction', () => {
+    expect(formatMoney('5')).toBe('$0.05');
+  });
+
+  it('places the minus sign before the symbol', () => {
+    expect(formatMoney('-500')).toBe('-$5.00');
+  });
+
+  it('renders both zero and negative zero as "$0.00"', () => {
+    expect(formatMoney('0')).toBe('$0.00');
+    expect(formatMoney('-0')).toBe('$0.00');
+  });
+
+  it('rejects a decimal string the way formatMinorUnits does', () => {
+    expect(() => formatMoney('1500.00')).toThrow(MoneyFormatError);
+  });
 });
 
 describe('tryToMinorUnits', () => {

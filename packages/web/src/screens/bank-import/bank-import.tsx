@@ -248,7 +248,14 @@ export function BankImportScreen(): ReactElement {
           <span className="text-sm font-medium text-text">File</span>
           <input
             type="file"
-            accept=".csv,.ofx,.qfx,text/csv,text/plain"
+            // Extensions carry this, not MIME: an OS with no registered MIME type for
+            // `.ofx`/`.qfx` reports the file as empty or `application/octet-stream`, so the
+            // extension tokens are what actually let a real bank export through the native
+            // picker. Both cases are listed — a bank commonly exports `STATEMENT.OFX`, and
+            // while the HTML spec matches `accept` extensions case-insensitively, native
+            // pickers on some platforms do not, and grey the file out. The MIME entries
+            // (including OFX's own, inconsistently reported) are a second signal only.
+            accept=".csv,.CSV,.ofx,.OFX,.qfx,.QFX,text/csv,text/plain,application/x-ofx,application/vnd.intu.qfx"
             onChange={onFile}
             className={cx(
               'block text-sm text-text-muted',

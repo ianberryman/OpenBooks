@@ -1,4 +1,4 @@
-import type { PillTone } from '../settings/section';
+import type { PillTone } from '../../components';
 import type { PurchaseOrderStatus } from './queries';
 
 /**

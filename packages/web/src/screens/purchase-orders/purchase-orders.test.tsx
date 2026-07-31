@@ -122,7 +122,7 @@ describe('PurchaseOrdersScreen', () => {
     expect(await screen.findByText('PO-0001')).toBeInTheDocument();
     expect(screen.getByText('Acme Supplies')).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('500.00')).toBeInTheDocument();
+    expect(screen.getByText('$500.00')).toBeInTheDocument();
   });
 
   it('creates a draft with one idempotency key and the exact body the contract describes', async () => {

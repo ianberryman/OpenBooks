@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
+import { Button, ResponsiveTable, formatMoney } from '../../components';
 import type { Allocation, SalesDocumentKind } from './queries';
 
 /**
@@ -93,7 +93,7 @@ export function AllocationsPanel({
                 </td>
                 <td className="p-1 font-mono text-text-muted">{allocation.date}</td>
                 <td className="p-1 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(allocation.amount)}
+                  {formatMoney(allocation.amount)}
                 </td>
                 <td className="p-1 text-right">
                   <Button

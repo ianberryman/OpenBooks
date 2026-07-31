@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { UserEvent } from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PurchasesScreen } from '../purchases';
@@ -80,6 +81,12 @@ const VENDOR: Contact = {
   isCustomer: false,
   isVendor: true,
   isEmployee: false,
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  region: null,
+  postalCode: null,
+  country: null,
   legalName: null,
   notes: null,
   phone: null,
@@ -135,6 +142,7 @@ function draftBill(): Bill {
     totals: { net: '150000', tax: '0', gross: '150000' },
     taxSummary: [{ taxRateId: null, taxRateName: null, percentage: null, net: '150000', tax: '0' }],
     settlement: { allocated: '0', outstanding: '150000' },
+    committed: '0',
     allocations: [],
     journalId: null,
     voidJournalId: null,
@@ -282,6 +290,16 @@ function createApiDouble(): ApiDouble {
       return json(201, { allocations: [] });
     }
 
+    if (method === 'GET' && pathname === '/v1/bills/summary') {
+      return json(200, {
+        asOf: '2026-07-01',
+        totalUnpaid: '0',
+        openCount: 0,
+        totalOverdue: '0',
+        overdueCount: 0,
+        paidLast30Days: '0',
+      });
+    }
     if (method === 'GET' && pathname === '/v1/bills') {
       const { lines: _lines, allocations: _allocations, ...summary } = bill;
       return page([summary]);
@@ -336,7 +354,13 @@ function renderScreen(): void {
   });
   render(
     <QueryClientProvider client={client}>
-      <PurchasesScreen />
+      {/* Mounted at `/purchases/*` exactly as `App` does, so the screen's own nested routes
+          (list, `bills/:id`, …) resolve and navigation between them works in the test. */}
+      <MemoryRouter initialEntries={['/purchases']}>
+        <Routes>
+          <Route path="/purchases/*" element={<PurchasesScreen />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -361,7 +385,7 @@ function approveCalls(): readonly RecordedCall[] {
 }
 
 function approveButton(): HTMLElement {
-  return screen.getByRole('button', { name: 'Approve bill' });
+  return screen.getByRole('button', { name: 'Save and submit' });
 }
 
 // --- Tests ------------------------------------------------------------------
@@ -530,7 +554,7 @@ describe('the duplicate vendor reference refusal', () => {
     await openBill(user);
 
     await user.type(screen.getByLabelText('Vendor’s invoice number'), '-A');
-    await user.click(screen.getByRole('button', { name: 'Save draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
 
     await waitFor(() => {
       expect(server.calls.some((call) => call.method === 'PATCH')).toBe(true);
@@ -554,7 +578,7 @@ describe('the figures on screen', () => {
 
     // Net and Total, both 1500.00 on an untaxed document.
     const totals = screen.getByRole('status');
-    expect(within(totals).getAllByText('1500.00')).toHaveLength(2);
+    expect(within(totals).getAllByText('$1,500.00')).toHaveLength(2);
 
     await user.clear(screen.getByRole('textbox', { name: 'Unit price, line 1' }));
     await user.type(screen.getByRole('textbox', { name: 'Unit price, line 1' }), '20');
@@ -595,7 +619,7 @@ describe('the figures on screen', () => {
 
     const editor = screen.getByRole('region', { name: 'Bill editor' });
     expect(within(editor).getByText('Still owed')).toBeInTheDocument();
-    expect(within(editor).getByText('900.00')).toBeInTheDocument();
+    expect(within(editor).getByText('$900.00')).toBeInTheDocument();
     expect(within(editor).queryByText('1000.00')).toBeNull();
   });
 });
@@ -612,8 +636,9 @@ describe('a vendor credit', () => {
     await openVendorCredit(user);
 
     const editor = screen.getByRole('region', { name: 'Vendor credit editor' });
-    expect(within(editor).getByText('Our credit number')).toBeInTheDocument();
-    expect(within(editor).getByText('7')).toBeInTheDocument();
+    // Its own number series, carried in the document's own title (D-39).
+    expect(within(editor).getByRole('heading', { name: /Vendor credit #7/i })).toBeInTheDocument();
+    // A credit is available, not owed — the settlement figure names it that way.
     expect(within(editor).getByText('Credit still available')).toBeInTheDocument();
     expect(screen.queryByText('Due date')).toBeNull();
   });

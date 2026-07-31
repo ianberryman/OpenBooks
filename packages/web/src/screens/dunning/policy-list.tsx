@@ -8,10 +8,11 @@ import {
   DialogClose,
   DialogContent,
   ErrorBanner,
+  Pill,
   ResponsiveTable,
 } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import { useDeactivateDunningPolicy, useSetDunningPolicyActive } from './queries';
 import type { DunningPolicy } from './queries';
 

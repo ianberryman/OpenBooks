@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import { formatMinorUnits, ResponsiveTable } from '../../components';
+import { formatMoney, ResponsiveTable } from '../../components';
 import type {
   QuickBooksAccountDraft,
   QuickBooksContactDraft,
@@ -12,7 +12,7 @@ import type {
  * What committing this cutover would do, shown before anything is written.
  *
  * Nothing here computes money — `openingBalance.totalDebits`/`totalCredits` are the
- * server's minor-unit strings (D-13), formatted by `formatMinorUnits` and never divided or
+ * server's minor-unit strings (D-13), formatted by `formatMoney` and never divided or
  * multiplied. The three things that would fail a commit — an account or contact code
  * already in use, a trial-balance line naming an account the chart does not have, or an
  * unbalanced trial balance — are surfaced here so the screen can explain why Import stays
@@ -194,11 +194,11 @@ function OpeningBalanceCard({
         </div>
         <div className="flex gap-2">
           <dt className="text-text-subtle">Total debits</dt>
-          <dd className="font-mono tabular-nums text-text">{formatMinorUnits(totalDebits)}</dd>
+          <dd className="font-mono tabular-nums text-text">{formatMoney(totalDebits)}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="text-text-subtle">Total credits</dt>
-          <dd className="font-mono tabular-nums text-text">{formatMinorUnits(totalCredits)}</dd>
+          <dd className="font-mono tabular-nums text-text">{formatMoney(totalCredits)}</dd>
         </div>
       </dl>
 

@@ -1,12 +1,6 @@
 import type { ReactElement } from 'react';
 
-import {
-  Button,
-  ErrorBanner,
-  MoneyInput,
-  ResponsiveTable,
-  formatMinorUnits,
-} from '../../components';
+import { Button, ErrorBanner, MoneyInput, ResponsiveTable, formatMoney } from '../../components';
 import { useIsCompact } from '../../lib/use-viewport';
 import { Amount, exceeds, isZeroAmount, subtractMinorUnits, sumMinorUnits } from './amounts';
 import type { OpenDocument } from './queries';
@@ -316,7 +310,7 @@ function DiscountHint({
     <p className="pt-1 text-right text-xs text-accent">
       Eligible for an early-pay discount of{' '}
       <span className="font-mono tabular-nums">
-        {formatMinorUnits(suggestion.data.discountAmountMinor)}
+        {formatMoney(suggestion.data.discountAmountMinor)}
       </span>{' '}
       if settled by {suggestion.data.deadline}.
     </p>
@@ -378,7 +372,7 @@ export interface AllocationRefusalProps {
  * message names the amounts in **minor units** — it is written for an integrator reading
  * JSON, and "50000 minor units" on screen would be read as fifty thousand pounds — so this
  * one is rewritten from figures the screen already holds, formatted through
- * `formatMinorUnits` (D-13). What it adds beyond wording is the recovery: one button that
+ * `formatMoney` (D-13). What it adds beyond wording is the recovery: one button that
  * reduces each offending row to what its document has outstanding, leaving the difference
  * where D-37 says it belongs, as credit on the contact.
  *

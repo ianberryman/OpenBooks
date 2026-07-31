@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 
 /**
@@ -80,7 +80,7 @@ export function Amount({
         className,
       )}
     >
-      {formatMinorUnits(value)}
+      {formatMoney(value)}
     </span>
   );
 }

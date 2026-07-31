@@ -6,7 +6,7 @@ import { presentApiError } from '../api';
 import { ResponsiveTable } from '../components';
 import { cx } from '../lib/cx';
 import { thinRequest } from '../lib/thin-client';
-import { formatMinorUnits } from '../money/format';
+import { formatMoney } from '../money/format';
 
 /**
  * The public hosted invoice page — `/i/:token` (OB-131, Phase 1, S4).
@@ -279,13 +279,13 @@ function PublicInvoiceDocument({
                     <td className="p-1 text-text">{line.description}</td>
                     <td className="p-1 text-right font-mono text-text-muted">{line.quantity}</td>
                     <td className="p-1 text-right font-mono tabular-nums text-text">
-                      {formatMinorUnits(line.unitAmount)}
+                      {formatMoney(line.unitAmount)}
                     </td>
                     <td className="p-1 text-right font-mono tabular-nums text-text">
-                      {formatMinorUnits(line.taxAmount)}
+                      {formatMoney(line.taxAmount)}
                     </td>
                     <td className="p-1 text-right font-mono tabular-nums text-text">
-                      {formatMinorUnits(line.grossAmount)}
+                      {formatMoney(line.grossAmount)}
                     </td>
                   </tr>
                 ))}
@@ -419,7 +419,7 @@ function TotalRow({
             : 'font-mono text-sm tabular-nums text-text'
         }
       >
-        {formatMinorUnits(value)}
+        {formatMoney(value)}
       </dd>
     </div>
   );

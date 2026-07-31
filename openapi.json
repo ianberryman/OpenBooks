@@ -6118,6 +6118,10 @@
             },
             "type": "array"
           },
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none."
+          },
           "contactId": {
             "description": "The vendor who billed us.",
             "format": "uuid",
@@ -6255,6 +6259,7 @@
           "totals",
           "taxSummary",
           "settlement",
+          "committed",
           "allocations",
           "journalId",
           "voidJournalId",
@@ -6273,6 +6278,10 @@
               "$ref": "#/components/schemas/AllocationInput"
             },
             "type": "array"
+          },
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none."
           },
           "contactId": {
             "description": "The vendor who billed us.",
@@ -6411,6 +6420,7 @@
           "totals",
           "taxSummary",
           "settlement",
+          "committed",
           "allocations",
           "journalId",
           "voidJournalId",
@@ -6479,6 +6489,10 @@
         "additionalProperties": false,
         "description": "A bill in a list, without its lines.",
         "properties": {
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none."
+          },
           "contactId": {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -6554,6 +6568,7 @@
           "status",
           "totals",
           "settlement",
+          "committed",
           "createdAt",
           "updatedAt"
         ],
@@ -6563,6 +6578,10 @@
         "additionalProperties": false,
         "description": "A bill in a list, without its lines.",
         "properties": {
+          "committed": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none."
+          },
           "contactId": {
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
@@ -6638,8 +6657,95 @@
           "status",
           "totals",
           "settlement",
+          "committed",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BillsSummary": {
+        "additionalProperties": false,
+        "description": "The headline figures the bills list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "openCount": {
+            "description": "How many bills still have something owed on them.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "overdueCount": {
+            "description": "How many of the open bills are overdue.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Payments made to vendors dated within the 30 days ending on `asOf` — money out, whatever it was applied to."
+          },
+          "totalOverdue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket."
+          },
+          "totalUnpaid": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "What is still owed across all open bills (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance."
+          }
+        },
+        "required": [
+          "asOf",
+          "totalUnpaid",
+          "openCount",
+          "totalOverdue",
+          "overdueCount",
+          "paidLast30Days"
+        ],
+        "type": "object"
+      },
+      "BillsSummaryInput": {
+        "additionalProperties": false,
+        "description": "The headline figures the bills list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "openCount": {
+            "description": "How many bills still have something owed on them.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "overdueCount": {
+            "description": "How many of the open bills are overdue.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Payments made to vendors dated within the 30 days ending on `asOf` — money out, whatever it was applied to."
+          },
+          "totalOverdue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket."
+          },
+          "totalUnpaid": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "What is still owed across all open bills (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance."
+          }
+        },
+        "required": [
+          "asOf",
+          "totalUnpaid",
+          "openCount",
+          "totalOverdue",
+          "overdueCount",
+          "paidLast30Days"
         ],
         "type": "object"
       },
@@ -8837,12 +8943,60 @@
         "additionalProperties": false,
         "description": "A customer, a vendor, or both — one directory row the ledger can name on a journal line.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -8934,6 +9088,30 @@
               }
             ]
           },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updatedAt": {
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
@@ -8951,6 +9129,12 @@
           "isVendor",
           "isEmployee",
           "notes",
+          "addressLine1",
+          "addressLine2",
+          "city",
+          "region",
+          "postalCode",
+          "country",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -8961,12 +9145,60 @@
         "additionalProperties": false,
         "description": "A customer, a vendor, or both — one directory row the ledger can name on a journal line.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -9055,6 +9287,30 @@
               }
             ]
           },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updatedAt": {
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
@@ -9072,6 +9328,12 @@
           "isVendor",
           "isEmployee",
           "notes",
+          "addressLine1",
+          "addressLine2",
+          "city",
+          "region",
+          "postalCode",
+          "country",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -10110,12 +10372,60 @@
         "additionalProperties": false,
         "description": "Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -10192,6 +10502,30 @@
                 "type": "null"
               }
             ]
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -10203,12 +10537,60 @@
         "additionalProperties": false,
         "description": "Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -10276,6 +10658,30 @@
                 "description": "Contact phone number, in whatever form the org keeps it. Send `null` to clear it.",
                 "maxLength": 64,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
                 "type": "string"
               },
               {
@@ -27992,12 +28398,60 @@
         "additionalProperties": false,
         "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -28074,6 +28528,30 @@
                 "type": "null"
               }
             ]
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
@@ -28082,12 +28560,60 @@
         "additionalProperties": false,
         "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation.",
         "properties": {
+          "addressLine1": {
+            "anyOf": [
+              {
+                "description": "Street address, first line. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressLine2": {
+            "anyOf": [
+              {
+                "description": "Street address, second line — suite, unit, floor. Send `null` to clear it.",
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "anyOf": [
+              {
+                "description": "City or town. Send `null` to clear it.",
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "code": {
             "anyOf": [
               {
                 "description": "Optional short reference unique within the org, e.g. a customer number carried over from another system. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Send `null` to clear it.",
                 "maxLength": 32,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "description": "Country, e.g. `US`. Send `null` to clear it.",
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -28155,6 +28681,30 @@
                 "description": "Contact phone number, in whatever form the org keeps it. Send `null` to clear it.",
                 "maxLength": 64,
                 "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "postalCode": {
+            "anyOf": [
+              {
+                "description": "Postal or ZIP code. Send `null` to clear it.",
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "description": "State, province, or region, e.g. `WA`. Send `null` to clear it.",
+                "maxLength": 128,
                 "type": "string"
               },
               {
@@ -34752,6 +35302,48 @@
         "summary": "Inbound email webhook for bill capture",
         "tags": [
           "bill-inbound"
+        ]
+      }
+    },
+    "/v1/bills/summary": {
+      "get": {
+        "description": "Total still owed, total overdue, and paid in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today, unlike the aging report which requires it (D-40). The figures tie to the payable aging by construction — the same per-document outstanding (D-34).",
+        "operationId": "billsSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillsSummary"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The bills-list headline figures",
+        "tags": [
+          "bills"
         ]
       }
     },

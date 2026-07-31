@@ -49,6 +49,7 @@ describe('test database harness', () => {
         '0017_accountant_close',
         '0018_automations',
         '0019_catalog',
+        '0020_contact_address',
         '0999_app_grants',
       ]);
     });

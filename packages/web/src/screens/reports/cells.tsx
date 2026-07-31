@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { ReportGroupKey } from './filters';
 
@@ -43,7 +43,7 @@ export function Amount({
         className,
       )}
     >
-      {formatMinorUnits(value)}
+      {formatMoney(value)}
     </span>
   );
 }

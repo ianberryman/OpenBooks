@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { BankMatchProposal, BankMatchReason, ProposalKind } from './queries';
 
@@ -28,7 +28,7 @@ import type { BankMatchProposal, BankMatchReason, ProposalKind } from './queries
  *  word ("earlier"/"short"), not repeated in the figure. */
 function magnitude(signedMinor: string): string {
   const value = BigInt(signedMinor);
-  return formatMinorUnits((value < 0n ? -value : value).toString());
+  return formatMoney((value < 0n ? -value : value).toString());
 }
 
 function days(count: number): string {

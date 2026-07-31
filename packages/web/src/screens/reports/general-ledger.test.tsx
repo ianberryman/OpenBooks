@@ -82,8 +82,8 @@ describe('GeneralLedgerPage — the header', () => {
     render(<GeneralLedgerPage page={page()} closingLeftBehind="120000" />);
 
     const notice = screen.getByRole('status');
-    expect(notice).toHaveTextContent('1200.00');
-    expect(notice).toHaveTextContent('1500.00');
+    expect(notice).toHaveTextContent('$1,200.00');
+    expect(notice).toHaveTextContent('$1,500.00');
     expect(notice).toHaveTextContent('The ledger moved while this was being read.');
   });
 });
@@ -153,7 +153,7 @@ describe('GeneralLedgerPage — the entries', () => {
     const entries = within(screen.getByRole('table', { name: 'Entries' }));
     const cells = entries.getAllByRole('cell');
     // date, entry, memo, other side, debit, credit, running balance
-    expect(cells.at(-1)?.textContent).toBe('1500.00');
+    expect(cells.at(-1)?.textContent).toBe('$1,500.00');
   });
 
   it('says so rather than showing an empty table when the range holds nothing', () => {

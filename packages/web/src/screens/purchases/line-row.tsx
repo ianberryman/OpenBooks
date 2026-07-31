@@ -9,7 +9,7 @@ import {
   MoneyInput,
   Select,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
 import type { EditorLine, LineProblem } from './editor-state';
@@ -186,7 +186,7 @@ function lineControls({
     ),
     unitPrice: readOnly ? (
       <span className="block text-right font-mono text-base tabular-nums text-text">
-        {line.unitAmount === null ? '—' : formatMinorUnits(line.unitAmount)}
+        {line.unitAmount === null ? '—' : formatMoney(line.unitAmount)}
       </span>
     ) : (
       <MoneyInput
@@ -200,7 +200,7 @@ function lineControls({
     ),
     total: (
       <span className="font-mono text-base tabular-nums text-text-muted">
-        {grossAmount === null ? '—' : formatMinorUnits(grossAmount)}
+        {grossAmount === null ? '—' : formatMoney(grossAmount)}
       </span>
     ),
     remove: readOnly ? null : (

@@ -8,7 +8,7 @@ import {
   LineItemCombobox,
   MoneyInput,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { cx } from '../../lib/cx';
@@ -102,7 +102,7 @@ function Computed({
     <span
       className={cx('font-mono text-sm tabular-nums', stale ? 'text-text-subtle' : 'text-text')}
     >
-      {formatMinorUnits(value)}
+      {formatMoney(value)}
     </span>
   );
 }

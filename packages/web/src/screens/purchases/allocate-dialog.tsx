@@ -10,7 +10,7 @@ import {
   FieldError,
   MoneyInput,
   ResponsiveTable,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { BillSummary } from './queries';
 
@@ -94,7 +94,7 @@ export function AllocateDialog({
       <DialogContent
         title={`Apply vendor credit ${creditNumber}`}
         description={
-          `${formatMinorUnits(creditOutstanding)} of this credit is still available. Applying it ` +
+          `${formatMoney(creditOutstanding)} of this credit is still available. Applying it ` +
           `to a bill is a separate fact from approving it, and it is what reduces what is owed.`
         }
         footer={
@@ -149,7 +149,7 @@ export function AllocateDialog({
                           )}
                         </td>
                         <td className="p-1 text-right font-mono text-base tabular-nums text-text">
-                          {formatMinorUnits(bill.settlement.outstanding)}
+                          {formatMoney(bill.settlement.outstanding)}
                         </td>
                         <td className="w-32 p-1">
                           <MoneyInput

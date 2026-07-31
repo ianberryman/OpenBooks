@@ -23,6 +23,9 @@ import { InternalError, ValidationError, assertFound, parseInput } from '../../e
 import { emitEvent } from '../events';
 import { computePaymentTerm, resolveDocumentTerm } from '../payment-terms';
 import { requirePermission } from '../permissions';
+// The leaf module, not the pay-bills barrel — importing the barrel here would
+// cycle back through it to bills (`no-circular`, `yarn lint:deps`).
+import { committedTotals } from '../pay-bills/queue.repository';
 
 import type { ApDocumentFilters } from './ap-documents.repository';
 import {
@@ -188,9 +191,18 @@ export async function listBills(
 
   const db = orgScope(ctx);
   const page = await selectDocumentsPage(db, 'bill', filters, limit);
-  const summaries = await toSummaryPage(db, 'bill', page.rows, request.status);
+  const ids = page.rows.map((row) => row.id);
+  const [summaries, committedByBill] = await Promise.all([
+    toSummaryPage(db, 'bill', page.rows, request.status),
+    committedTotals(db, ids),
+  ]);
 
-  return { items: summaries.map(toBillSummary), nextCursor: page.nextCursor };
+  return {
+    items: summaries.map((view) =>
+      toBillSummary(view, committedByBill.get(uuidToBuffer(view.id).toString('hex')) ?? 0n),
+    ),
+    nextCursor: page.nextCursor,
+  };
 }
 
 /**
@@ -377,7 +389,8 @@ export async function voidBill(
 
 async function readBill(db: TenantDatabase, id: Buffer): Promise<Bill> {
   const row = assertFound(await selectDocumentById(db, id, 'bill'), RESOURCE);
-  return toBill(await readDocumentView(db, row));
+  const committed = await committedTotals(db, [id]);
+  return toBill(await readDocumentView(db, row), committed.get(id.toString('hex')) ?? 0n);
 }
 
 /**
@@ -389,7 +402,7 @@ async function readBill(db: TenantDatabase, id: Buffer): Promise<Bill> {
  * a case — and `?? issueDate` would quietly invent a due date for a row written by
  * something else, which is how an aging report acquires a bucket nobody can trace.
  */
-function toBill(view: ApDocumentView): Bill {
+function toBill(view: ApDocumentView, committed: bigint): Bill {
   if (view.dueDate === null) throw missingDueDate(view.id);
 
   return {
@@ -406,6 +419,7 @@ function toBill(view: ApDocumentView): Bill {
     totals: view.totals,
     taxSummary: [...view.taxSummary],
     settlement: view.settlement,
+    committed: committed.toString(),
     allocations: [...view.allocations],
     journalId: view.journalId,
     voidJournalId: view.voidJournalId,
@@ -414,7 +428,7 @@ function toBill(view: ApDocumentView): Bill {
   };
 }
 
-function toBillSummary(view: ApDocumentSummaryView): BillSummary {
+function toBillSummary(view: ApDocumentSummaryView, committed: bigint): BillSummary {
   if (view.dueDate === null) throw missingDueDate(view.id);
 
   return {
@@ -427,6 +441,7 @@ function toBillSummary(view: ApDocumentSummaryView): BillSummary {
     status: view.status,
     totals: view.totals,
     settlement: view.settlement,
+    committed: committed.toString(),
     createdAt: view.createdAt,
     updatedAt: view.updatedAt,
   };

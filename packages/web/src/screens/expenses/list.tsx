@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
+import { Button, Pill, ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { BillSummary, ExpenseReferenceData } from './queries';
 import { STATUS_LABELS, STATUS_TONE, payableHint } from './vocabulary';
 
@@ -102,7 +102,7 @@ export function ExpenseList({
                   )}
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(expense.totals.gross)}
+                  {formatMoney(expense.totals.gross)}
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right')}>
                   <div className="flex justify-end gap-1">

@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
+import { Button, Pill, ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { PurchaseOrderReferenceData, PurchaseOrderSummary } from './queries';
 import { STATUS_LABELS, STATUS_TONES } from './vocabulary';
 
@@ -91,7 +91,7 @@ export function PurchaseOrderList({
                   <Pill tone={STATUS_TONES[order.status]}>{STATUS_LABELS[order.status]}</Pill>
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(order.totals.gross)}
+                  {formatMoney(order.totals.gross)}
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right')}>
                   <div className="flex justify-end gap-1">

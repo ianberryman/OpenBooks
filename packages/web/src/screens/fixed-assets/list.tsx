@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, formatMinorUnits, ResponsiveTable } from '../../components';
+import { Button, formatMoney, Pill, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { FixedAsset, FixedAssetReferenceData } from './queries';
 import { METHOD_LABELS } from './vocabulary';
 
@@ -89,7 +89,7 @@ export function FixedAssetList({
               </td>
               <td className={TD_CLASSES}>{METHOD_LABELS[asset.method]}</td>
               <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                {formatMinorUnits(asset.acquisitionCostMinor)}
+                {formatMoney(asset.acquisitionCostMinor)}
               </td>
               <td className={cx(TD_CLASSES, 'font-mono')}>{asset.inServiceDate}</td>
               <td className={TD_CLASSES}>

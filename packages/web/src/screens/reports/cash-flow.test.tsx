@@ -39,18 +39,18 @@ describe('CashFlowReport', () => {
       within(
         table.getByRole('rowheader', { name: 'Net income' }).closest('tr') ?? document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('4000.00');
+    ).toBe('$4,000.00');
     expect(
       within(
         table.getByRole('rowheader', { name: /Adjustments to reconcile/ }).closest('tr') ??
           document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('-400.00');
+    ).toBe('-$400.00');
     expect(
       within(
         table.getByRole('rowheader', { name: 'Net change in cash' }).closest('tr') ?? document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('3600.00');
+    ).toBe('$3,600.00');
   });
 
   it('foots opening cash plus the change in cash to closing cash', () => {
@@ -63,13 +63,13 @@ describe('CashFlowReport', () => {
         table.getByRole('rowheader', { name: 'Cash at start of period' }).closest('tr') ??
           document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('1000.00');
+    ).toBe('$1,000.00');
     expect(
       within(
         table.getByRole('rowheader', { name: 'Cash at end of period' }).closest('tr') ??
           document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('4600.00');
+    ).toBe('$4,600.00');
   });
 
   it('states the basis and the applied range', () => {

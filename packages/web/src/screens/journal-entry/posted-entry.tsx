@@ -12,7 +12,7 @@ import {
   FieldLabel,
   ResponsiveTable,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import { totalsOf } from './balance';
 import { todayIsoDate } from './draft-state';
@@ -208,10 +208,10 @@ export function PostedEntry({
                         .join(', ')}
                 </td>
                 <td className="border-b border-border p-2 text-right font-mono tabular-nums">
-                  {line.side === 'debit' ? formatMinorUnits(line.amount) : ''}
+                  {line.side === 'debit' ? formatMoney(line.amount) : ''}
                 </td>
                 <td className="border-b border-border p-2 text-right font-mono tabular-nums">
-                  {line.side === 'credit' ? formatMinorUnits(line.amount) : ''}
+                  {line.side === 'credit' ? formatMoney(line.amount) : ''}
                 </td>
               </tr>
             ))}
@@ -222,10 +222,10 @@ export function PostedEntry({
                 Totals
               </th>
               <td className="p-2 text-right font-mono tabular-nums text-text">
-                {formatMinorUnits(String(totals.debits))}
+                {formatMoney(String(totals.debits))}
               </td>
               <td className="p-2 text-right font-mono tabular-nums text-text">
-                {formatMinorUnits(String(totals.credits))}
+                {formatMoney(String(totals.credits))}
               </td>
             </tr>
           </tfoot>

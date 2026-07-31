@@ -1,9 +1,9 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable, Select, formatMinorUnits } from '../../components';
+import { Button, Pill, ResponsiveTable, Select, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import { useIsCompact } from '../../lib/use-viewport';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { PendingPayment, Rail } from './queries';
 
 const RAIL_OPTIONS: readonly { readonly value: Rail; readonly label: string }[] = [
@@ -121,7 +121,7 @@ export function PendingPaymentsTable(props: PendingPaymentsTableProps): ReactEle
                 <td className={TD_CLASSES}>{payment.vendorName}</td>
                 <td className={cx(TD_CLASSES, 'text-text-muted')}>{payment.memo ?? '—'}</td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(payment.totalAmount)}
+                  {formatMoney(payment.totalAmount)}
                 </td>
                 <td className={cx(TD_CLASSES, 'w-32')}>
                   {open ? (
@@ -237,7 +237,7 @@ function PendingPaymentCards({
               <div>
                 <dt className="text-xs text-text-subtle">Amount</dt>
                 <dd className="font-mono tabular-nums text-text">
-                  {formatMinorUnits(payment.totalAmount)}
+                  {formatMoney(payment.totalAmount)}
                 </dd>
               </div>
               <div>

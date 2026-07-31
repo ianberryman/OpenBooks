@@ -8,7 +8,7 @@ import {
   FieldLabel,
   Select,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { sumMinorUnits } from './amounts';
@@ -78,7 +78,7 @@ export function VendorPaymentGroup({
           <p className="font-medium text-text">{vendorName}</p>
           <p className="text-sm text-text-muted">
             {bills.length} {bills.length === 1 ? 'bill' : 'bills'} ·{' '}
-            <span className="font-mono tabular-nums">{formatMinorUnits(total)}</span>
+            <span className="font-mono tabular-nums">{formatMoney(total)}</span>
           </p>
         </div>
         <Button size="sm" disabled={disabled} onClick={onEditDisbursementDetails}>
@@ -92,9 +92,7 @@ export function VendorPaymentGroup({
           return (
             <li key={bill.billId} className="flex justify-between text-sm text-text-muted">
               <span className="font-mono">{bill.reference ?? bill.billId}</span>
-              <span className="font-mono tabular-nums">
-                {formatMinorUnits(draft?.payAmount ?? '0')}
-              </span>
+              <span className="font-mono tabular-nums">{formatMoney(draft?.payAmount ?? '0')}</span>
             </li>
           );
         })}

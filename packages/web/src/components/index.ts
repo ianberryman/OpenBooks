@@ -31,6 +31,9 @@ export type { FieldControlProps, FieldProps, TextInputProps } from './field';
 export { MoneyInput } from './money-input';
 export type { MoneyInputProps } from './money-input';
 
+export { Pill } from './pill';
+export type { PillTone } from './pill';
+
 export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './popover';
 export type { PopoverContentProps } from './popover';
 
@@ -45,4 +48,4 @@ export type { SelectOption, SelectProps } from './select';
  * screen importing from `../components` has no reason to reach for arithmetic of its own
  * (D-13 — the module header in `src/money/format.ts` explains what that arithmetic costs).
  */
-export { formatMinorUnits, toMinorUnits, tryToMinorUnits } from '../money/format';
+export { formatMinorUnits, formatMoney, toMinorUnits, tryToMinorUnits } from '../money/format';

@@ -22,7 +22,7 @@ import { PublicInvoiceScreen } from './public-invoice';
  * `fetchPublicInvoiceView` and the pay-link POST both go through `../lib/thin-client.ts`,
  * so the network is stubbed at plain `globalThis.fetch`, the same boundary the sales and
  * settings tests stub at, and nothing above it — the component, the query/mutation hooks
- * and `formatMinorUnits` are all the real ones.
+ * and `formatMoney` are all the real ones.
  */
 vi.mock('../env', () => ({ API_BASE_URL: 'http://openbooks.test' }));
 
@@ -96,9 +96,10 @@ describe('the public invoice page', () => {
     expect(screen.getByText('Northwind Books')).toBeInTheDocument();
     expect(screen.getByText('Acme Supplies')).toBeInTheDocument();
     expect(screen.getByText('Consulting')).toBeInTheDocument();
-    // `formatMinorUnits` reused as-is: a cents-string unit price renders as a fixed two-
-    // decimal string, not a float — "500.00" from "50000", never "500" or "500.0000000004".
-    expect(screen.getByText('500.00')).toBeInTheDocument();
+    // `formatMoney` reused as-is: a cents-string unit price renders as a fixed two-decimal
+    // string with a symbol and grouping, not a float — "$500.00" from "50000", never "500"
+    // or "500.0000000004".
+    expect(screen.getByText('$500.00')).toBeInTheDocument();
   });
 
   it('never calls a /v1 route — the page has no session to use', async () => {

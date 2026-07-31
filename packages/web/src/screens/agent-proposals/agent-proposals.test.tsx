@@ -105,7 +105,7 @@ describe('AgentProposalsScreen', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Review proposal' });
     expect(await within(dialog).findByText('4000 · Consulting revenue')).toBeInTheDocument();
-    expect(within(dialog).getByText('1000.00')).toBeInTheDocument();
+    expect(within(dialog).getByText('$1,000.00')).toBeInTheDocument();
   });
 
   it('approves through the approve route with one idempotency key', async () => {

@@ -18,6 +18,7 @@ export type TaxRate = components['schemas']['TaxRate'];
 
 export type Bill = components['schemas']['Bill'];
 export type BillSummary = components['schemas']['BillSummary'];
+export type BillsSummary = components['schemas']['BillsSummary'];
 export type VendorCredit = components['schemas']['VendorCredit'];
 export type VendorCreditSummary = components['schemas']['VendorCreditSummary'];
 
@@ -37,6 +38,7 @@ export const purchasesKeys = {
   taxRates: ['purchases', 'tax-rates'] as const,
   bills: (contactId: string | null, status: DocumentStatus | null, reference: string) =>
     ['purchases', 'bills', contactId ?? '', status ?? '', reference] as const,
+  billsSummary: ['purchases', 'bills-summary'] as const,
   bill: (billId: string) => ['purchases', 'bill', billId] as const,
   vendorCredits: (contactId: string | null, status: DocumentStatus | null) =>
     ['purchases', 'vendor-credits', contactId ?? '', status ?? ''] as const,
@@ -224,6 +226,38 @@ export function useBills(filters: BillFilters): ListResult<BillSummary> {
   return {
     items: query.data?.items ?? [],
     truncated: query.data?.nextCursor != null,
+    isPending: query.isPending,
+    error: query.error,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
+}
+
+export interface BillsSummaryResult {
+  readonly data: BillsSummary | null;
+  readonly isPending: boolean;
+  readonly error: unknown;
+  readonly refetch: () => void;
+}
+
+/**
+ * The bills-list headline figures — total owed, total overdue, paid in the last 30 days.
+ *
+ * `asOf` is left off so the server answers as at today: this is the live snapshot the
+ * cards show, not a reproducible report (the endpoint defaults the date for exactly that
+ * reason). The figures are the server's — outstanding is total minus allocations,
+ * computed on read (D-34) — so nothing here sums the bill page, which is capped and would
+ * be wrong past the first hundred rows anyway.
+ */
+export function useBillsSummary(): BillsSummaryResult {
+  const query = useQuery({
+    queryKey: purchasesKeys.billsSummary,
+    queryFn: async () => unwrap(await api.GET('/v1/bills/summary', { params: { query: {} } })),
+  });
+
+  return {
+    data: query.data ?? null,
     isPending: query.isPending,
     error: query.error,
     refetch: () => {

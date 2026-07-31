@@ -1,22 +1,24 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Button, formatMinorUnits, ResponsiveTable } from '../../components';
+import { Button, formatMoney, Pill, ResponsiveTable } from '../../components';
+import type { PillTone } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
-import type { PillTone } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { CaptureStatus, DocumentCapture, ReferenceData } from './queries';
 
 /**
  * A page of captures — the review queue and the settled ones alike, depending on the
  * status filter the screen above holds.
  *
- * `EmptyRow`, `Pill` and the table class strings come from `settings/section.tsx` rather
- * than being redrawn here. That module is explicit about not being a component library
- * (D-24 — "a seventh shared component arrives with the screen that needs it") but these
- * four are presentational atoms with no settings-specific behaviour, and importing them is
- * cheaper than a fourth copy of the same table chrome `dimensions.tsx`, `dunning/
- * policy-list.tsx` and `purchases/document-list.tsx` each already carry a version of.
+ * `EmptyRow` and the table class strings come from `settings/section.tsx` rather than
+ * being redrawn here. That module is explicit about not being a component library (D-24 —
+ * "a seventh shared component arrives with the screen that needs it") but these are
+ * presentational atoms with no settings-specific behaviour, and importing them is cheaper
+ * than a fourth copy of the same table chrome `dimensions.tsx`, `dunning/policy-list.tsx`
+ * and `purchases/document-list.tsx` each already carry a version of. `Pill` itself has
+ * since moved to `src/components/` (enough screens reached across for it to earn the
+ * promotion) and is imported from there instead.
  */
 export interface CaptureListProps {
   readonly items: readonly DocumentCapture[];
@@ -123,7 +125,7 @@ export function CaptureList({
               <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
                 {capture.extractedTotalMinor === null
                   ? '—'
-                  : formatMinorUnits(capture.extractedTotalMinor)}
+                  : formatMoney(capture.extractedTotalMinor)}
               </td>
               <td className={cx(TD_CLASSES, 'font-mono text-text-muted')}>
                 {formatCreatedAt(capture.createdAt)}

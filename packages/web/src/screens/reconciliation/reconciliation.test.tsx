@@ -304,13 +304,13 @@ describe('ReconciliationScreen — the session detail', () => {
 
     const test = await screen.findByRole('region', { name: 'The reconciliation' });
     // The two figures being compared, and the verdict.
-    expect(test).toHaveTextContent('1000.00'); // cleared and statement both
+    expect(test).toHaveTextContent('$1,000.00'); // cleared and statement both
     expect(test).toHaveTextContent('Balanced');
 
     const differences = screen.getByRole('region', { name: 'Reconciling differences' });
     // The unpresented cheque, signed, shown as an expected difference — not netted into the
     // verdict above.
-    expect(differences).toHaveTextContent('-500.00');
+    expect(differences).toHaveTextContent('-$500.00');
     expect(differences).toHaveTextContent('1 uncleared line');
 
     // Zero difference, so the assertion is allowed — the server still decides, but the
@@ -414,7 +414,7 @@ describe('ReconciliationScreen — the session detail', () => {
     const items = await screen.findByRole('region', { name: 'Reconciling items' });
     expect(items).toHaveTextContent('Cheque 1041 to Acme');
     expect(items).toHaveTextContent('2026-03-28');
-    expect(items).toHaveTextContent('-500.00');
+    expect(items).toHaveTextContent('-$500.00');
     // The tie: the items sum to the uncleared amount.
     expect(items).toHaveTextContent(/sum to the uncleared amount/);
 
@@ -422,6 +422,6 @@ describe('ReconciliationScreen — the session detail', () => {
     expect(lines).toHaveTextContent('Faster payment in');
     expect(lines).toHaveTextContent('2026-03-30');
     // Positive, signed so its direction reads.
-    expect(lines).toHaveTextContent('+250.00');
+    expect(lines).toHaveTextContent('+$250.00');
   });
 });

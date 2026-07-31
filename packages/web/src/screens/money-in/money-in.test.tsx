@@ -222,7 +222,7 @@ describe('MoneyInScreen — payments', () => {
     expect(posted?.headers.get('idempotency-key')).toMatch(/^[0-9a-f-]{36}$/);
 
     const panel = await screen.findByRole('region', { name: 'Payment detail' });
-    expect(panel).toHaveTextContent('1500.00 on account');
+    expect(panel).toHaveTextContent('$1,500.00 on account');
     expect(panel).toHaveTextContent(/it can be applied to any of their documents/);
     expect(
       within(panel).getByText(/Nothing has been applied from this payment yet/),
@@ -299,7 +299,7 @@ describe('MoneyInScreen — payments', () => {
     const refusal = await screen.findByRole('alert');
     expect(refusal).toHaveTextContent('One document was asked to settle more than it owes');
     // Formatted, not the server's minor units.
-    expect(refusal).toHaveTextContent('INV-1004 has 500.00 outstanding and was asked for 800.00');
+    expect(refusal).toHaveTextContent('INV-1004 has $500.00 outstanding and was asked for $800.00');
     expect(refusal).toHaveTextContent(/the rest stays as credit on the contact/);
 
     await user.click(
@@ -368,7 +368,7 @@ describe('MoneyInScreen — payments', () => {
     await user.click(await screen.findByRole('button', { name: 'Apply this credit' }));
 
     const hint = await screen.findByText(/Eligible for an early-pay discount/);
-    expect(hint).toHaveTextContent('10.00');
+    expect(hint).toHaveTextContent('$10.00');
     expect(hint).toHaveTextContent('2026-03-08');
 
     // Informational only: nothing on this row claims to apply it.
@@ -511,8 +511,8 @@ describe('MoneyInScreen — aging', () => {
     expect(creditRow).toBeGreaterThan(heading);
 
     // Negative, and not netted against the 500.00 invoice above it.
-    expect(rows[creditRow]).toHaveTextContent('-750.00');
-    expect(rows[invoiceRow]).toHaveTextContent('500.00');
+    expect(rows[creditRow]).toHaveTextContent('-$750.00');
+    expect(rows[invoiceRow]).toHaveTextContent('$500.00');
     expect(rows[creditRow]).toHaveTextContent('Not chased');
     expect(detail).toHaveTextContent(/netting would invent an allocation nobody made/);
   });

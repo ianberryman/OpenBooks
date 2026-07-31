@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, formatMinorUnits } from '../../components';
+import { Button, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { BankMatchProposal, BankStatementLine } from './queries';
 import { ReasonChips, proposalTarget, proposalVerb } from './reasons';
@@ -27,10 +27,10 @@ function isNegative(signedMinor: string): boolean {
   return signedMinor.startsWith('-') && signedMinor !== '-0';
 }
 
-/** The wire form carries a leading `-` on outflows; `formatMinorUnits` renders it, so the
+/** The wire form carries a leading `-` on outflows; `formatMoney` renders it, so the
  *  displayed string already carries the sign. */
 function signedAmount(signedMinor: string): string {
-  return formatMinorUnits(signedMinor);
+  return formatMoney(signedMinor);
 }
 
 export interface LineRowProps {

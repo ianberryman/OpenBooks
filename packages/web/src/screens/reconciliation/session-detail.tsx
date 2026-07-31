@@ -1,14 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import {
-  Button,
-  ErrorBanner,
-  Field,
-  FieldLabel,
-  TextInput,
-  formatMinorUnits,
-} from '../../components';
+import { Button, ErrorBanner, Field, FieldLabel, TextInput, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import { BalancesPanel } from './balances';
 import type { ReconciliationSession, ReconciliationSessionEvent } from './queries';
@@ -307,7 +300,7 @@ function EventLog({
               <span className="text-xs text-text-muted">
                 Asserted{' '}
                 <span className="font-mono tabular-nums">
-                  {formatMinorUnits(event.statementClosingBalance)}
+                  {formatMoney(event.statementClosingBalance)}
                 </span>
               </span>
             )}

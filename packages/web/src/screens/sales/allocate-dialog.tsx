@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { newIdempotencyKey } from '../../api';
-import { Button, Dialog, DialogContent, MoneyInput, formatMinorUnits } from '../../components';
+import { Button, Dialog, DialogContent, MoneyInput, formatMoney } from '../../components';
 import { Refusal } from './refusal';
 import { allocateCreditNote, useOpenInvoices } from './queries';
 import type { CreditNote, InvoiceSummary } from './queries';
@@ -107,7 +107,7 @@ export function AllocateDialog({
       <DialogContent
         title="Apply this credit to invoices"
         description={
-          `${formatMinorUnits(creditNote.settlement.outstanding)} of this credit note is still ` +
+          `${formatMoney(creditNote.settlement.outstanding)} of this credit note is still ` +
           'available. Applying it reduces what those invoices leave outstanding; it posts no ' +
           'journal, because the credit note already put the money into the ledger when it was ' +
           'approved.'
@@ -185,7 +185,7 @@ function InvoiceRow({
       <div className="min-w-0 flex-1">
         <p className="font-mono text-sm text-text">{label}</p>
         <p className="text-xs text-text-subtle">
-          Due {invoice.dueDate} · {formatMinorUnits(invoice.settlement.outstanding)} outstanding
+          Due {invoice.dueDate} · {formatMoney(invoice.settlement.outstanding)} outstanding
         </p>
       </div>
       <div className="w-32">

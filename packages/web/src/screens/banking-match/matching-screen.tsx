@@ -8,7 +8,7 @@ import {
   Dialog,
   DialogContent,
   ErrorBanner,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import { cx } from '../../lib/cx';
 import { CorrectDialog } from './correct-dialog';
@@ -547,7 +547,7 @@ function MatchedView({ bankAccountId }: { readonly bankAccountId: string }): Rea
             </div>
             <div className="flex items-center gap-3">
               <span className="font-mono text-base tabular-nums text-text">
-                {formatMinorUnits(line.amount)}
+                {formatMoney(line.amount)}
               </span>
               <Button
                 size="sm"

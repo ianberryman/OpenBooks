@@ -47,6 +47,12 @@ const CONTACT_COLUMNS = [
   'is_vendor',
   'is_employee',
   'notes',
+  'address_line1',
+  'address_line2',
+  'city',
+  'region',
+  'postal_code',
+  'country',
   'is_active',
   'created_at',
   'updated_at',
@@ -63,6 +69,12 @@ interface ContactRow {
   readonly is_vendor: number;
   readonly is_employee: number;
   readonly notes: string | null;
+  readonly address_line1: string | null;
+  readonly address_line2: string | null;
+  readonly city: string | null;
+  readonly region: string | null;
+  readonly postal_code: string | null;
+  readonly country: string | null;
   readonly is_active: number;
   readonly created_at: Date;
   readonly updated_at: Date;
@@ -78,6 +90,12 @@ export interface NewContactRow {
   readonly isVendor: boolean;
   readonly isEmployee: boolean;
   readonly notes: string | null;
+  readonly addressLine1: string | null;
+  readonly addressLine2: string | null;
+  readonly city: string | null;
+  readonly region: string | null;
+  readonly postalCode: string | null;
+  readonly country: string | null;
 }
 
 /**
@@ -95,6 +113,12 @@ export interface ContactPatch {
   readonly isVendor?: boolean;
   readonly isEmployee?: boolean;
   readonly notes?: string | null;
+  readonly addressLine1?: string | null;
+  readonly addressLine2?: string | null;
+  readonly city?: string | null;
+  readonly region?: string | null;
+  readonly postalCode?: string | null;
+  readonly country?: string | null;
   readonly isActive?: boolean;
 }
 
@@ -136,6 +160,12 @@ export async function insertContact(db: TenantDatabase, input: NewContactRow): P
         is_vendor: input.isVendor ? 1 : 0,
         is_employee: input.isEmployee ? 1 : 0,
         notes: input.notes,
+        address_line1: input.addressLine1,
+        address_line2: input.addressLine2,
+        city: input.city,
+        region: input.region,
+        postal_code: input.postalCode,
+        country: input.country,
       })
       .execute();
   } catch (error) {
@@ -271,6 +301,12 @@ export async function updateContactRow(
         ...(patch.isVendor === undefined ? {} : { is_vendor: patch.isVendor ? 1 : 0 }),
         ...(patch.isEmployee === undefined ? {} : { is_employee: patch.isEmployee ? 1 : 0 }),
         ...(patch.notes === undefined ? {} : { notes: patch.notes }),
+        ...(patch.addressLine1 === undefined ? {} : { address_line1: patch.addressLine1 }),
+        ...(patch.addressLine2 === undefined ? {} : { address_line2: patch.addressLine2 }),
+        ...(patch.city === undefined ? {} : { city: patch.city }),
+        ...(patch.region === undefined ? {} : { region: patch.region }),
+        ...(patch.postalCode === undefined ? {} : { postal_code: patch.postalCode }),
+        ...(patch.country === undefined ? {} : { country: patch.country }),
         ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
       })
       .where('id', '=', id)
@@ -398,6 +434,12 @@ export function toContact(row: ContactRow): Contact {
     isVendor: row.is_vendor !== 0,
     isEmployee: row.is_employee !== 0,
     notes: row.notes,
+    addressLine1: row.address_line1,
+    addressLine2: row.address_line2,
+    city: row.city,
+    region: row.region,
+    postalCode: row.postal_code,
+    country: row.country,
     isActive: row.is_active !== 0,
     // `timezone: 'Z'` on the pool and `DATETIME(3)` left as a `Date`
     // (`src/db/connection.ts`), so these are real instants and this is a lossless

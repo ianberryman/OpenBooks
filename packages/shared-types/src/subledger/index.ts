@@ -92,6 +92,8 @@ export {
 export type {
   Bill,
   BillPage,
+  BillsSummary,
+  BillsSummaryQuery,
   BillSummary,
   CreateBillRequest,
   CreateVendorCreditRequest,
@@ -106,6 +108,8 @@ export type {
 export {
   billPageSchema,
   billSchema,
+  billsSummaryQuerySchema,
+  billsSummarySchema,
   billSummarySchema,
   createBillRequestSchema,
   createVendorCreditRequestSchema,

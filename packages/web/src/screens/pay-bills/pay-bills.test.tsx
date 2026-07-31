@@ -126,8 +126,8 @@ describe('PayBillsScreen', () => {
 
     expect(await screen.findByText('Acme Supplies')).toBeInTheDocument();
     expect(screen.getByText('INV-500')).toBeInTheDocument();
-    expect(screen.getAllByText('1000.00')).toHaveLength(2); // outstanding and availableToPay
-    expect(screen.getByText('0.00')).toBeInTheDocument(); // committed
+    expect(screen.getAllByText('$1,000.00')).toHaveLength(2); // outstanding and availableToPay
+    expect(screen.getByText('$0.00')).toBeInTheDocument(); // committed
   });
 
   it('defaults the pay amount to what is available and builds one payment per vendor with one idempotency key', async () => {

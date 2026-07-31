@@ -35,6 +35,12 @@ const CONTACT: Contact = {
   isCustomer: true,
   isVendor: false,
   isEmployee: false,
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  region: null,
+  postalCode: null,
+  country: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

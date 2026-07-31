@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 
-import { Button, Combobox, MoneyInput, ResponsiveTable, formatMinorUnits } from '../../components';
+import { Button, Combobox, MoneyInput, ResponsiveTable, formatMoney } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { cx } from '../../lib/cx';
 import { useIsCompact } from '../../lib/use-viewport';
@@ -172,7 +172,7 @@ function useBillPaymentEditor(
       ...(credits.data ?? []).map((credit) => ({
         value: credit.id,
         label: credit.documentNumber ?? 'Vendor credit',
-        detail: formatMinorUnits(credit.settlement.outstanding),
+        detail: formatMoney(credit.settlement.outstanding),
       })),
     ],
     [credits.data],
@@ -219,13 +219,13 @@ function BillRow({
       </td>
       <td className={cx(TD_CLASSES, 'font-mono')}>{bill.dueDate ?? '—'}</td>
       <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-        {formatMinorUnits(bill.outstanding)}
+        {formatMoney(bill.outstanding)}
       </td>
       <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums text-text-muted')}>
-        {formatMinorUnits(bill.committed)}
+        {formatMoney(bill.committed)}
       </td>
       <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-        {formatMinorUnits(bill.availableToPay)}
+        {formatMoney(bill.availableToPay)}
       </td>
       <td className={cx(TD_CLASSES, 'min-w-48')}>
         <BillPayFields
@@ -411,19 +411,15 @@ function BillCard({
         </div>
         <div>
           <dt className="text-xs text-text-subtle">Outstanding</dt>
-          <dd className="font-mono tabular-nums text-text">{formatMinorUnits(bill.outstanding)}</dd>
+          <dd className="font-mono tabular-nums text-text">{formatMoney(bill.outstanding)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-subtle">Committed</dt>
-          <dd className="font-mono tabular-nums text-text-muted">
-            {formatMinorUnits(bill.committed)}
-          </dd>
+          <dd className="font-mono tabular-nums text-text-muted">{formatMoney(bill.committed)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-subtle">Available</dt>
-          <dd className="font-mono tabular-nums text-text">
-            {formatMinorUnits(bill.availableToPay)}
-          </dd>
+          <dd className="font-mono tabular-nums text-text">{formatMoney(bill.availableToPay)}</dd>
         </div>
       </dl>
 
@@ -477,7 +473,7 @@ function DiscountAffordance({
 
   return (
     <p className="text-right text-xs text-accent">
-      Eligible for {formatMinorUnits(suggestion.discountAmountMinor)} off if paid by{' '}
+      Eligible for {formatMoney(suggestion.discountAmountMinor)} off if paid by{' '}
       {suggestion.deadline}.{' '}
       {applied ? (
         <Button

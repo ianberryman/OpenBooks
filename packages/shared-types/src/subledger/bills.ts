@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 import { allocationSchema } from './allocations';
 import {
@@ -76,6 +76,11 @@ export const billSchema = z
     totals: documentTotalsSchema,
     taxSummary: z.array(documentTaxSummaryRowSchema),
     settlement: documentSettlementSchema,
+    committed: minorUnitsSchema.meta({
+      description:
+        'The amount reserved by open, not-yet-issued pending payments targeting this bill ' +
+        "(D-68). Computed on read, never stored — `'0'` when there are none.",
+    }),
     allocations: z.array(allocationSchema).meta({
       description:
         'What has been applied against this bill — payments made and vendor credits alike, through ' +
@@ -107,6 +112,11 @@ export const billSummarySchema = z
     status: documentStatusSchema,
     totals: documentTotalsSchema,
     settlement: documentSettlementSchema,
+    committed: minorUnitsSchema.meta({
+      description:
+        'The amount reserved by open, not-yet-issued pending payments targeting this bill ' +
+        "(D-68). Computed on read, never stored — `'0'` when there are none.",
+    }),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
@@ -201,6 +211,67 @@ export const billPageSchema = pageSchema(billSummarySchema, {
 });
 
 export type BillPage = z.infer<typeof billPageSchema>;
+
+/**
+ * The bills-list headline figures, as at a date (OB-069 UI).
+ *
+ * A **live snapshot**, not a report, which is the whole reason `asOf` is optional
+ * here and required on the aging report: D-40 makes an aging report reproducible, so
+ * it refuses to default to a moving target. These three numbers are what the
+ * purchases screen shows *right now*, so "today" is the only sensible default and a
+ * caller that omits the date gets it.
+ *
+ * The figures tie to the aging report by construction — they are computed from the
+ * same per-document outstanding (total minus allocations as at the date, D-34) the
+ * payable aging sums, so `totalUnpaid` equals the payable aging's bill total and
+ * `totalOverdue` its non-`current` buckets. Nothing here is a stored balance.
+ */
+export const billsSummaryQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today: this is a live snapshot, not ' +
+      'a reproducible report, so unlike the aging report it does not require the date.',
+  }),
+});
+
+export type BillsSummaryQuery = z.input<typeof billsSummaryQuerySchema>;
+
+export const billsSummarySchema = z
+  .strictObject({
+    asOf: calendarDateSchema.meta({
+      description:
+        'The date the figures were computed as at — echoed so a client knows what it got.',
+    }),
+    totalUnpaid: minorUnitsSchema.meta({
+      description:
+        'What is still owed across all open bills (approved and part-paid), as at `asOf`. ' +
+        'Outstanding is total minus allocations, computed on read (D-34) — never a stored balance.',
+    }),
+    openCount: z.int().nonnegative().meta({
+      description: 'How many bills still have something owed on them.',
+    }),
+    totalOverdue: minorUnitsSchema.meta({
+      description:
+        'The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet ' +
+        'overdue, matching the aging report’s `current` bucket.',
+    }),
+    overdueCount: z.int().nonnegative().meta({
+      description: 'How many of the open bills are overdue.',
+    }),
+    paidLast30Days: minorUnitsSchema.meta({
+      description:
+        'Payments made to vendors dated within the 30 days ending on `asOf` — money out, ' +
+        'whatever it was applied to.',
+    }),
+  })
+  .meta({
+    id: 'BillsSummary',
+    description:
+      'The headline figures the bills list shows: total still owed, total overdue, and paid in ' +
+      'the last 30 days, as at a date (defaulting to today).',
+  });
+
+export type BillsSummary = z.infer<typeof billsSummarySchema>;
 
 /**
  * A vendor credit: the AP mirror of a credit note, and a document in its own right

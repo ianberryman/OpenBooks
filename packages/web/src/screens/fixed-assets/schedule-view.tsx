@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, ErrorBanner, formatMinorUnits, ResponsiveTable } from '../../components';
+import { Button, ErrorBanner, formatMoney, Pill, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { FixedAsset, FixedAssetReferenceData, FixedAssetScheduleRow } from './queries';
 import { useFixedAsset, useFixedAssetSchedule } from './queries';
 import { METHOD_LABELS } from './vocabulary';
@@ -93,8 +93,8 @@ export function AssetDetail({
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-        <Fact label="Acquisition cost" value={formatMinorUnits(data.acquisitionCostMinor)} />
-        <Fact label="Salvage value" value={formatMinorUnits(data.salvageValueMinor)} />
+        <Fact label="Acquisition cost" value={formatMoney(data.acquisitionCostMinor)} />
+        <Fact label="Salvage value" value={formatMoney(data.salvageValueMinor)} />
         <Fact label="Useful life" value={`${String(data.usefulLifeMonths)} months`} />
         <Fact
           label="Declining rate"
@@ -181,7 +181,7 @@ function ScheduleTable({
                 <td className={TD_CLASSES}>{row.periodIndex}</td>
                 <td className={cx(TD_CLASSES, 'font-mono')}>{row.periodDate}</td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(row.depreciationAmountMinor)}
+                  {formatMoney(row.depreciationAmountMinor)}
                 </td>
                 <td className={TD_CLASSES}>
                   <Pill tone={row.postedJournalId === null ? 'neutral' : 'positive'}>

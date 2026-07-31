@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import { Button, Field, FieldLabel, TextInput, formatMinorUnits } from '../../components';
+import { Button, Field, FieldLabel, TextInput, formatMoney } from '../../components';
 import type { BankStatementLine } from './queries';
 import { MatchRefusal } from './refusal';
 
@@ -39,7 +39,7 @@ export function UndoDialog({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text-muted">
         {line.postedDate} · {line.description} ·{' '}
-        <span className="font-mono tabular-nums">{formatMinorUnits(line.amount)}</span>
+        <span className="font-mono tabular-nums">{formatMoney(line.amount)}</span>
       </p>
 
       <Field hint="The reversal's own entry date. It must fall in an open period — a closed one is refused.">

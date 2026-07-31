@@ -8,7 +8,7 @@ import {
   ErrorBanner,
   ResponsiveTable,
 } from '../../components';
-import { formatMinorUnits } from '../../money/format';
+import { formatMoney } from '../../money/format';
 import type { Account, JournalDraftLine, JournalDraftSummary } from './queries';
 import { useApproveProposal, useIntentKey, useProposalDetail, useRejectProposal } from './queries';
 
@@ -170,10 +170,10 @@ function LineRow({
     <tr className="border-t border-border">
       <td className="p-1 text-text">{accountLabel(line.accountId, accountsById)}</td>
       <td className="p-1 text-right font-mono tabular-nums text-text">
-        {line.side === 'debit' ? formatMinorUnits(line.amount) : ''}
+        {line.side === 'debit' ? formatMoney(line.amount) : ''}
       </td>
       <td className="p-1 text-right font-mono tabular-nums text-text">
-        {line.side === 'credit' ? formatMinorUnits(line.amount) : ''}
+        {line.side === 'credit' ? formatMoney(line.amount) : ''}
       </td>
       <td className="p-1 text-text-muted">{line.memo ?? '—'}</td>
     </tr>

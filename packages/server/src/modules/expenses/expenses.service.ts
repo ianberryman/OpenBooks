@@ -21,6 +21,11 @@ import { InternalError, ValidationError, assertFound, parseInput } from '../../e
 import { emitEvent } from '../events';
 import { computePaymentTerm, resolveDocumentTerm } from '../payment-terms';
 import { requirePermission } from '../permissions';
+// The leaf module, not the pay-bills barrel — `bills.service.ts`'s own reason
+// for the same import applies unchanged: an expense is a `document_type='bill'`
+// row (D-M2), so it is just as payable through the Pay Bills queue as a vendor
+// bill, and `committed` means the same thing for both.
+import { committedTotals } from '../pay-bills/queue.repository';
 
 import type { ApDocumentFilters } from '../bills/ap-documents.repository';
 import {
@@ -179,9 +184,18 @@ export async function listExpenses(
   // it does not care that these rows came from the employee-joined page rather
   // than `selectDocumentsPage`, and `'bill'` is the right `documentType` for
   // both (D-M2).
-  const summaries = await toSummaryPage(db, 'bill', page.rows, request.status);
+  const ids = page.rows.map((row) => row.id);
+  const [summaries, committedByBill] = await Promise.all([
+    toSummaryPage(db, 'bill', page.rows, request.status),
+    committedTotals(db, ids),
+  ]);
 
-  return { items: summaries.map(toExpenseSummary), nextCursor: page.nextCursor };
+  return {
+    items: summaries.map((view) =>
+      toExpenseSummary(view, committedByBill.get(uuidToBuffer(view.id).toString('hex')) ?? 0n),
+    ),
+    nextCursor: page.nextCursor,
+  };
 }
 
 /**
@@ -320,7 +334,8 @@ export async function approveExpense(
 
 async function readExpense(db: TenantDatabase, id: Buffer): Promise<Expense> {
   const row = assertFound(await selectDocumentById(db, id, 'bill'), RESOURCE);
-  return toExpense(await readDocumentView(db, row));
+  const committed = await committedTotals(db, [id]);
+  return toExpense(await readDocumentView(db, row), committed.get(id.toString('hex')) ?? 0n);
 }
 
 /**
@@ -328,7 +343,7 @@ async function readExpense(db: TenantDatabase, id: Buffer): Promise<Expense> {
  * `toBill` for why a null `dueDate` is a fault rather than a case: every
  * expense this service writes is given one at creation.
  */
-function toExpense(view: ApDocumentView): Expense {
+function toExpense(view: ApDocumentView, committed: bigint): Expense {
   if (view.dueDate === null) throw missingDueDate(view.id);
 
   return {
@@ -345,6 +360,7 @@ function toExpense(view: ApDocumentView): Expense {
     totals: view.totals,
     taxSummary: [...view.taxSummary],
     settlement: view.settlement,
+    committed: committed.toString(),
     allocations: [...view.allocations],
     journalId: view.journalId,
     voidJournalId: view.voidJournalId,
@@ -353,7 +369,7 @@ function toExpense(view: ApDocumentView): Expense {
   };
 }
 
-function toExpenseSummary(view: ApDocumentSummaryView): ExpenseSummary {
+function toExpenseSummary(view: ApDocumentSummaryView, committed: bigint): ExpenseSummary {
   if (view.dueDate === null) throw missingDueDate(view.id);
 
   return {
@@ -366,6 +382,7 @@ function toExpenseSummary(view: ApDocumentSummaryView): ExpenseSummary {
     status: view.status,
     totals: view.totals,
     settlement: view.settlement,
+    committed: committed.toString(),
     createdAt: view.createdAt,
     updatedAt: view.updatedAt,
   };

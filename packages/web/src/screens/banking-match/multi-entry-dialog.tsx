@@ -8,7 +8,7 @@ import {
   FieldLabel,
   MoneyInput,
   Select,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { SelectOption } from '../../components';
 import {
@@ -149,7 +149,7 @@ export function MultiEntryDialog({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text-muted">
         {line.postedDate} · {line.description} ·{' '}
-        <span className="font-mono tabular-nums">{formatMinorUnits(line.amount)}</span>
+        <span className="font-mono tabular-nums">{formatMoney(line.amount)}</span>
       </p>
 
       <ul className="flex flex-col gap-3" aria-label="Entries clearing this line">
@@ -360,7 +360,7 @@ function DocumentPicker({
       documents.map((document) => ({
         value: document.id,
         label: document.number,
-        detail: formatMinorUnits(document.outstanding),
+        detail: formatMoney(document.outstanding),
       })),
     [documents],
   );
@@ -467,7 +467,7 @@ function AllocateDocumentFields({
           <span>
             Eligible for an early-pay discount of{' '}
             <span className="font-mono tabular-nums">
-              {formatMinorUnits(suggestion.data.discountAmountMinor)}
+              {formatMoney(suggestion.data.discountAmountMinor)}
             </span>{' '}
             if settled by {suggestion.data.deadline}.
           </span>
@@ -570,7 +570,7 @@ function RunningDifference({
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <p className="text-sm text-text">
-        Line: <span className="font-mono tabular-nums">{formatMinorUnits(lineAmount)}</span>
+        Line: <span className="font-mono tabular-nums">{formatMoney(lineAmount)}</span>
         {' · '}
         {balanced ? (
           <span className="text-success-text">
@@ -580,7 +580,7 @@ function RunningDifference({
           <span className="text-warning-text">
             {remaining > 0n ? 'Short by ' : 'Over by '}
             <span className="font-mono tabular-nums">
-              {formatMinorUnits((remaining > 0n ? remaining : -remaining).toString())}
+              {formatMoney((remaining > 0n ? remaining : -remaining).toString())}
             </span>
             . Add another entry, or name where the difference goes.
           </span>

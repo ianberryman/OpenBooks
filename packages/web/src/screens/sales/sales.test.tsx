@@ -78,6 +78,12 @@ const CUSTOMER: Contact = {
   isCustomer: true,
   isVendor: false,
   isEmployee: false,
+  addressLine1: null,
+  addressLine2: null,
+  city: null,
+  region: null,
+  postalCode: null,
+  country: null,
   notes: null,
   isActive: true,
   createdAt: '2026-01-05T09:00:00.000Z',
@@ -422,7 +428,7 @@ describe('SalesScreen', () => {
     // Twice: the total and what is left of it, and they agree because nothing has been
     // applied. Both are formatted from cents by string manipulation (D-13) — `24000 / 100`
     // is where a rendered `239.99999999999997` would come from.
-    expect(screen.getAllByText('240.00')).toHaveLength(2);
+    expect(screen.getAllByText('$240.00')).toHaveLength(2);
     // A credit note has no due date, so the column does not exist on this tab.
     expect(screen.queryByRole('columnheader', { name: 'Due' })).not.toBeInTheDocument();
   });

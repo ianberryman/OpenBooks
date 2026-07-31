@@ -16,7 +16,7 @@ import {
   MoneyInput,
   ResponsiveTable,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import {
@@ -384,7 +384,7 @@ function ExpenseFormContent({
                     </td>
                     <td className="w-32 p-1 text-right">
                       <span className="font-mono text-base tabular-nums text-text-muted">
-                        {grossAmount === null ? '—' : formatMinorUnits(grossAmount)}
+                        {grossAmount === null ? '—' : formatMoney(grossAmount)}
                       </span>
                     </td>
                     <td className="w-10 p-1">

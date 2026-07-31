@@ -118,7 +118,7 @@ describe('EstimatesScreen', () => {
     expect(await screen.findByText('1007')).toBeInTheDocument();
     expect(screen.getByText('Jordan Ellis')).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('2500.00')).toBeInTheDocument();
+    expect(screen.getByText('$2,500.00')).toBeInTheDocument();
   });
 
   it(

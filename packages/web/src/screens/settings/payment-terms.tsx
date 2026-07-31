@@ -12,13 +12,14 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   Select,
   TextInput,
   useFieldControl,
 } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
+import { EmptyRow, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
 
 /**
  * Payment terms (OB-136, OB-140; ROADMAP D-79, D-106, D-107).

@@ -93,6 +93,12 @@ function contact(id: string, displayName: string): Contact {
     isCustomer: true,
     isVendor: false,
     isEmployee: false,
+    addressLine1: null,
+    addressLine2: null,
+    city: null,
+    region: null,
+    postalCode: null,
+    country: null,
     legalName: null,
     notes: null,
     phone: null,
@@ -374,9 +380,9 @@ describe('the balancing indicator', () => {
 
     const indicator = screen.getByRole('status');
     expect(within(indicator).getByText('Out of balance by')).toBeInTheDocument();
-    expect(within(indicator).getByText('0.01')).toBeInTheDocument();
-    expect(within(indicator).getByText('90071992547409.93')).toBeInTheDocument();
-    expect(within(indicator).getByText('90071992547409.92')).toBeInTheDocument();
+    expect(within(indicator).getByText('$0.01')).toBeInTheDocument();
+    expect(within(indicator).getByText('$90,071,992,547,409.93')).toBeInTheDocument();
+    expect(within(indicator).getByText('$90,071,992,547,409.92')).toBeInTheDocument();
   });
 
   it('reports a balanced entry once both sides agree', async () => {
@@ -591,7 +597,7 @@ describe('a posted entry', () => {
     expect(within(entry).getByText('Cash at bank')).toBeInTheDocument();
     expect(within(entry).getByText('Acme Supplies')).toBeInTheDocument();
     expect(within(entry).getByText('Sales team')).toBeInTheDocument();
-    expect(within(entry).getAllByText('1500.00')).toHaveLength(4);
+    expect(within(entry).getAllByText('$1,500.00')).toHaveLength(4);
   });
 
   it('reverses through a deliberate confirmation and shows the reversal', async () => {

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
-import { Button, Combobox, Field, FieldLabel, formatMinorUnits } from '../../components';
+import { Button, Combobox, Field, FieldLabel, formatMoney } from '../../components';
 import type { Account, BankStatementLine } from './queries';
 import { MatchRefusal } from './refusal';
 
@@ -57,7 +57,7 @@ export function CorrectDialog({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-text-muted">
         {line.postedDate} · {line.description} ·{' '}
-        <span className="font-mono tabular-nums">{formatMinorUnits(line.amount)}</span>
+        <span className="font-mono tabular-nums">{formatMoney(line.amount)}</span>
       </p>
 
       <Field hint="The other side of the entry — the expense, income or balance-sheet account this line is. The bank account's own ledger account is the near side and is never named here.">

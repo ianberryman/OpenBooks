@@ -135,6 +135,8 @@ export {
   voidVendorCredit,
 } from './vendor-credits.service';
 
+export { billsSummary } from './summary.service';
+
 /**
  * OCR bill capture (initiative O, OB-186/187/188/190; ROADMAP "the pinned OCR
  * contract"): the staging area between an uploaded or emailed document and a

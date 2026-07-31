@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable, formatMinorUnits } from '../../components';
+import { Button, Pill, ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { EstimateReferenceData, EstimateSummary } from './queries';
 import { STATUS_LABELS, STATUS_PILL_TONE } from './vocabulary';
 
@@ -90,7 +90,7 @@ export function EstimateList({
                   </Pill>
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(estimate.totals.gross)}
+                  {formatMoney(estimate.totals.gross)}
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right')}>
                   <div className="flex justify-end gap-1">

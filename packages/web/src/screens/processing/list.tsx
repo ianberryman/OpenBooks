@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 
-import { Button, ResponsiveTable } from '../../components';
+import { Button, Pill, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import { formatTimestamp } from '../settings/support';
 import type { ProcessingReferenceData, ProcessorConnection } from './queries';
 

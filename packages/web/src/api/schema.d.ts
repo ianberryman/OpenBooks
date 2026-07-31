@@ -905,6 +905,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/bills/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bills-list headline figures
+         * @description Total still owed, total overdue, and paid in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today, unlike the aging report which requires it (D-40). The figures tie to the payable aging by construction — the same per-document outstanding (D-34).
+         */
+        get: operations["billsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bills/{billId}": {
         parameters: {
             query?: never;
@@ -5668,6 +5688,8 @@ export interface components {
         Bill: {
             /** @description What has been applied against this bill — payments made and vendor credits alike, through the same mechanism (D-39). */
             allocations: components["schemas"]["Allocation"][];
+            /** @description The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none. */
+            committed: components["schemas"]["MinorUnits"];
             /**
              * Format: uuid
              * @description The vendor who billed us.
@@ -5708,6 +5730,8 @@ export interface components {
         BillInput: {
             /** @description What has been applied against this bill — payments made and vendor credits alike, through the same mechanism (D-39). */
             allocations: components["schemas"]["AllocationInput"][];
+            /** @description The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none. */
+            committed: components["schemas"]["MinorUnitsInput"];
             /**
              * Format: uuid
              * @description The vendor who billed us.
@@ -5758,6 +5782,8 @@ export interface components {
         };
         /** @description A bill in a list, without its lines. */
         BillSummary: {
+            /** @description The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none. */
+            committed: components["schemas"]["MinorUnits"];
             /** Format: uuid */
             contactId: string;
             /** Format: date-time */
@@ -5780,6 +5806,8 @@ export interface components {
         };
         /** @description A bill in a list, without its lines. */
         BillSummaryInput: {
+            /** @description The amount reserved by open, not-yet-issued pending payments targeting this bill (D-68). Computed on read, never stored — `'0'` when there are none. */
+            committed: components["schemas"]["MinorUnitsInput"];
             /** Format: uuid */
             contactId: string;
             /** Format: date-time */
@@ -5799,6 +5827,36 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description The headline figures the bills list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today). */
+        BillsSummary: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDate"];
+            /** @description How many bills still have something owed on them. */
+            openCount: number;
+            /** @description How many of the open bills are overdue. */
+            overdueCount: number;
+            /** @description Payments made to vendors dated within the 30 days ending on `asOf` — money out, whatever it was applied to. */
+            paidLast30Days: components["schemas"]["MinorUnits"];
+            /** @description The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket. */
+            totalOverdue: components["schemas"]["MinorUnits"];
+            /** @description What is still owed across all open bills (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance. */
+            totalUnpaid: components["schemas"]["MinorUnits"];
+        };
+        /** @description The headline figures the bills list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today). */
+        BillsSummaryInput: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @description How many bills still have something owed on them. */
+            openCount: number;
+            /** @description How many of the open bills are overdue. */
+            overdueCount: number;
+            /** @description Payments made to vendors dated within the 30 days ending on `asOf` — money out, whatever it was applied to. */
+            paidLast30Days: components["schemas"]["MinorUnitsInput"];
+            /** @description The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket. */
+            totalOverdue: components["schemas"]["MinorUnitsInput"];
+            /** @description What is still owed across all open bills (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance. */
+            totalUnpaid: components["schemas"]["MinorUnitsInput"];
         };
         /** @description A single budget figure for an account and period, optionally scoped to one dimension value. Posts no journal (D-94) — a target the budget-vs-actual report compares to actuals. */
         Budget: {
@@ -6396,7 +6454,11 @@ export interface components {
         };
         /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
         Contact: {
+            addressLine1: string | null;
+            addressLine2: string | null;
+            city: string | null;
             code: string | null;
+            country: string | null;
             /** Format: date-time */
             createdAt: string;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
@@ -6415,12 +6477,18 @@ export interface components {
             legalName: string | null;
             notes: string | null;
             phone: string | null;
+            postalCode: string | null;
+            region: string | null;
             /** Format: date-time */
             updatedAt: string;
         };
         /** @description A customer, a vendor, or both — one directory row the ledger can name on a journal line. */
         ContactInput: {
+            addressLine1: string | null;
+            addressLine2: string | null;
+            city: string | null;
             code: string | null;
+            country: string | null;
             /** Format: date-time */
             createdAt: string;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
@@ -6439,6 +6507,8 @@ export interface components {
             legalName: string | null;
             notes: string | null;
             phone: string | null;
+            postalCode: string | null;
+            region: string | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -6706,7 +6776,11 @@ export interface components {
         };
         /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequest: {
+            addressLine1?: string | null;
+            addressLine2?: string | null;
+            city?: string | null;
             code?: string | null;
+            country?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
             displayName: string;
             email?: string | null;
@@ -6719,10 +6793,16 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+            postalCode?: string | null;
+            region?: string | null;
         };
         /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequestInput: {
+            addressLine1?: string | null;
+            addressLine2?: string | null;
+            city?: string | null;
             code?: string | null;
+            country?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
             displayName: string;
             email?: string | null;
@@ -6735,6 +6815,8 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+            postalCode?: string | null;
+            region?: string | null;
         };
         /** @description Creates a **draft** credit note. No `dueDate`, for the reason `CreditNote` gives: nothing about a credit note falls due. */
         CreateCreditNoteRequest: {
@@ -11521,7 +11603,11 @@ export interface components {
         };
         /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
         UpdateContactRequest: {
+            addressLine1?: string | null;
+            addressLine2?: string | null;
+            city?: string | null;
             code?: string | null;
+            country?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
             displayName?: string;
             email?: string | null;
@@ -11534,10 +11620,16 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+            postalCode?: string | null;
+            region?: string | null;
         };
         /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
         UpdateContactRequestInput: {
+            addressLine1?: string | null;
+            addressLine2?: string | null;
+            city?: string | null;
             code?: string | null;
+            country?: string | null;
             /** @description What this contact is called in lists and on documents, e.g. `Acme Supplies`. */
             displayName?: string;
             email?: string | null;
@@ -11550,6 +11642,8 @@ export interface components {
             legalName?: string | null;
             notes?: string | null;
             phone?: string | null;
+            postalCode?: string | null;
+            region?: string | null;
         };
         /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated. */
         UpdateControlAccountsRequest: {
@@ -14339,6 +14433,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InboundCaptureResult"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    billsSummary: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillsSummary"];
                 };
             };
             /** @description Default Response */

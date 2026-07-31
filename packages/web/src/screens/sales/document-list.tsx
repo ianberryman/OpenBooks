@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ResponsiveTable, formatMinorUnits } from '../../components';
+import { ResponsiveTable, formatMoney } from '../../components';
 import { dueDateOf } from './queries';
 import type { SalesDocumentKind, SalesDocumentSummary, SalesReferenceData } from './queries';
 import { StatusBadge, vocabularyFor } from './vocabulary';
@@ -106,15 +106,13 @@ export function DocumentList({
                   <StatusBadge status={document.status} />
                 </td>
                 <td className="p-2 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(document.totals.gross)}
+                  {formatMoney(document.totals.gross)}
                 </td>
                 <td className="p-2 text-right font-mono tabular-nums text-text">
                   {/* A draft has settled nothing and is settled by nothing — it is not in
                       the ledger — so the column is blank rather than a zero that would read
                       as "fully paid". */}
-                  {document.status === 'draft'
-                    ? '—'
-                    : formatMinorUnits(document.settlement.outstanding)}
+                  {document.status === 'draft' ? '—' : formatMoney(document.settlement.outstanding)}
                 </td>
               </tr>
             );

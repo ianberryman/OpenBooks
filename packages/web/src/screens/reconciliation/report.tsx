@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ErrorBanner, ResponsiveTable, formatMinorUnits } from '../../components';
+import { ErrorBanner, ResponsiveTable, formatMoney } from '../../components';
 import { SignedAmount } from './balances';
 import type { ReconcilingItem, UnclearedStatementLine } from './queries';
 import { useReconciliationReport } from './queries';
@@ -97,10 +97,8 @@ export function ReconciliationReportView({
         )}
         <p className="text-xs text-text-subtle">
           These sum to the uncleared amount,{' '}
-          <span className="font-mono tabular-nums">
-            {formatMinorUnits(balances.unclearedAmount)}
-          </span>{' '}
-          — the cleared balance plus these items is the book balance.
+          <span className="font-mono tabular-nums">{formatMoney(balances.unclearedAmount)}</span> —
+          the cleared balance plus these items is the book balance.
         </p>
       </section>
 

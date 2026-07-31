@@ -8,9 +8,11 @@ import { cx } from '../../lib/cx';
  *
  * Deliberately not a component library and deliberately not in `src/components/`: D-24's
  * rule is that a seventh shared component arrives with the screen that needs it, and a
- * section heading, a status pill and three table class strings are needed by one screen.
- * They live here so the three sections cannot draw three different tables, and they take
- * no props that a real component would have to be designed around.
+ * section heading and three table class strings are needed by one screen. They live here
+ * so the three sections cannot draw three different tables, and they take no props that a
+ * real component would have to be designed around. `Pill` used to live here too, until
+ * enough other screens reached across for it that it belonged in `src/components/` instead
+ * — see `pill.tsx`.
  */
 
 export interface SettingsSectionProps {
@@ -90,35 +92,6 @@ export function Notice({ tone, title, children, actions, className }: NoticeProp
       </div>
       {actions !== undefined && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
-  );
-}
-
-/** An `open`/`closed`, `active`/`archived`, `pending`/`accepted` marker. */
-export type PillTone = 'neutral' | 'positive' | 'muted' | 'negative';
-
-const PILL_CLASSES: Readonly<Record<PillTone, string>> = {
-  neutral: 'border-border bg-surface-sunken text-text-muted',
-  positive: 'border-success-border bg-success-soft text-success-text',
-  muted: 'border-border bg-surface-sunken text-text-subtle',
-  negative: 'border-danger-border bg-danger-soft text-danger-text',
-};
-
-export function Pill({
-  tone,
-  children,
-}: {
-  readonly tone: PillTone;
-  readonly children: ReactNode;
-}): ReactElement {
-  return (
-    <span
-      className={cx(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
-        PILL_CLASSES[tone],
-      )}
-    >
-      {children}
-    </span>
   );
 }
 

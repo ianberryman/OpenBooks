@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ErrorBanner, formatMinorUnits, ResponsiveTable } from '../../components';
+import { ErrorBanner, formatMoney, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import {
   EmptyRow,
@@ -82,7 +82,7 @@ export function OverduePanel(): ReactElement {
                   {entry.daysPastDue}
                 </td>
                 <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMinorUnits(entry.outstanding)}
+                  {formatMoney(entry.outstanding)}
                 </td>
               </tr>
             ))}

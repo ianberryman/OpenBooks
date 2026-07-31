@@ -68,7 +68,7 @@ describe('DisbursementsScreen', () => {
     renderWithQueryClient(<DisbursementsScreen />);
 
     expect(await screen.findByText('Acme Supplies')).toBeInTheDocument();
-    expect(screen.getByText('1000.00')).toBeInTheDocument();
+    expect(screen.getByText('$1,000.00')).toBeInTheDocument();
     // The status filter above the table also renders "Open" (as the current filter's own
     // selected label), so the queue row's status pill is found within the table.
     expect(within(screen.getByRole('table')).getByText('Open')).toBeInTheDocument();

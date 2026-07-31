@@ -27,6 +27,7 @@ import {
 import {
   approveBill,
   approveVendorCredit,
+  billsSummary,
   createBill,
   createCaptureFromUpload,
   createDraftFromCapture,
@@ -1626,6 +1627,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listBills',
     permission: 'bills.read',
     call: (s) => listBills({}, s.ctx),
+  },
+  {
+    name: 'billsSummary',
+    operationId: 'billsSummary',
+    permission: 'bills.read',
+    call: (s) => billsSummary({}, s.ctx),
   },
   {
     name: 'updateBill',

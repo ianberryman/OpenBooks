@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ResponsiveTable, formatMinorUnits } from '../../components';
+import { ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { BankStatementImportPreview } from './queries';
 
@@ -142,7 +142,7 @@ function ClaimsRow({
           {/* The file's stated balance — evidence for a reconciliation, never read as this
               account's balance (D-46). Formatted as a string; no arithmetic. */}
           <dd className="font-mono tabular-nums text-text">
-            {formatMinorUnits(preview.statementClosingBalance ?? '0')}
+            {formatMoney(preview.statementClosingBalance ?? '0')}
           </dd>
         </div>
       )}
@@ -172,7 +172,7 @@ function SignedAmount({ value }: { readonly value: string }): ReactElement {
         negative ? 'text-amount-negative' : 'text-amount-positive',
       )}
     >
-      {formatMinorUnits(value)}
+      {formatMoney(value)}
     </span>
   );
 }

@@ -12,12 +12,13 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   Select,
   useFieldControl,
 } from '../../components';
 import { cx } from '../../lib/cx';
-import { Notice, Pill, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
+import { Notice, SettingsSection, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from './section';
 import {
   currentCalendarMonth,
   fiscalYearLabel,

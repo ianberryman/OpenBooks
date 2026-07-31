@@ -390,7 +390,11 @@ export interface CheckNumberSequences {
 export interface Contacts {
   ach_account_number: string | null;
   ach_routing_number: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
   code: string | null;
+  country: string | null;
   created_at: Generated<Date>;
   default_payment_term_id: Buffer | null;
   display_name: string;
@@ -404,7 +408,9 @@ export interface Contacts {
   notes: string | null;
   org_id: Buffer;
   phone: string | null;
+  postal_code: string | null;
   preferred_payment_rail: "ach" | "check" | "wire" | null;
+  region: string | null;
   updated_at: Generated<Date>;
   wire_instructions: string | null;
 }

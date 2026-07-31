@@ -58,9 +58,9 @@ describe('CashFlowProjectionReport', () => {
 
     const table = within(screen.getByRole('table', { name: 'Cash-flow projection' }));
     // 5,000.00 opening + 900.00 January net = 5,900.00.
-    expect(table.getByText('5900.00')).toBeInTheDocument();
+    expect(table.getByText('$5,900.00')).toBeInTheDocument();
     // Carried forward: 5,900.00 + 500.00 February net = 6,400.00.
-    expect(table.getByText('6400.00')).toBeInTheDocument();
+    expect(table.getByText('$6,400.00')).toBeInTheDocument();
   });
 
   it('notes that recurring commitments are not included when the server says so', () => {

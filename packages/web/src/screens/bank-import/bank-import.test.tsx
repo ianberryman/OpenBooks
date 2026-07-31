@@ -224,7 +224,7 @@ describe('BankImportScreen — mapping and preview', () => {
     expect(within(table).getByText('Already present')).toBeInTheDocument();
     expect(screen.getByText(/1 already exists/)).toBeInTheDocument();
     // The file's own closing balance, formatted — never Number()'d (D-13).
-    expect(screen.getByText('2500.00')).toBeInTheDocument();
+    expect(screen.getByText('$2,500.00')).toBeInTheDocument();
 
     const [posted] = requestsTo('POST', '/v1/bank-statement-imports/preview');
     expect(posted).toBeDefined();
@@ -284,8 +284,8 @@ describe('BankImportScreen — mapping and preview', () => {
     // The credit row (Money in) came back positive and reads as money in, not out.
     const table = await screen.findByRole('table');
     const acmeRow = within(table).getByText('ACME LTD').closest('tr');
-    expect(acmeRow?.textContent).toContain('1500.00');
-    expect(acmeRow?.textContent).not.toContain('-1500.00');
+    expect(acmeRow?.textContent).toContain('$1,500.00');
+    expect(acmeRow?.textContent).not.toContain('-$1,500.00');
   });
 
   /**
@@ -333,6 +333,69 @@ describe('BankImportScreen — mapping and preview', () => {
     });
     expect(screen.getAllByText('Already present')).toHaveLength(2);
     expect(requestsTo('POST', '/v1/bank-statement-imports/preview')).toHaveLength(2);
+  });
+});
+
+describe('BankImportScreen — OFX', () => {
+  /**
+   * The `.ofx`/`.qfx` half of D-41 had no coverage at all — every other test in this file
+   * uploads a `.csv`. The file input's `accept` lists the extensions explicitly
+   * (`.csv,.ofx,.qfx,…`) precisely so an OFX file is never turned away by the picker, and
+   * real-world OFX MIME reporting is inconsistent across OSes (often empty or
+   * `application/octet-stream`) — extension-based matching is what actually carries this,
+   * the MIME tokens are only a defensive second signal. This proves the whole path: the
+   * picker accepts the file, no mapping is asked for (OFX names its own fields), and the
+   * preview request carries `format: 'ofx'` with neither `mapping` nor `mappingId`.
+   */
+  it('accepts an .ofx file once OFX format is chosen, with no mapping step', async () => {
+    const user = userEvent.setup();
+    stub('POST', '/v1/bank-statement-imports/preview', () =>
+      json(200, preview({ format: 'ofx', headers: [] })),
+    );
+
+    renderScreen();
+    await chooseAccount(user);
+    await pick(user, 'Format', 'OFX / QFX');
+
+    const file = new File(['<OFX><SIGNONMSGSRSV1></SIGNONMSGSRSV1></OFX>'], 'statement.ofx', {
+      type: 'application/x-ofx',
+    });
+    await user.upload(screen.getByLabelText('File'), file);
+
+    // Accepted and read: the filename shows, and OFX gets no column-mapping controls.
+    expect(await screen.findByText('statement.ofx')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Column mapping' })).not.toBeInTheDocument();
+    expect(screen.getByText(/no column mapping is needed/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Preview' }));
+    await screen.findByRole('region', { name: 'Import preview' });
+
+    const [posted] = requestsTo('POST', '/v1/bank-statement-imports/preview');
+    const body = await bodyOf(posted as Request);
+    expect(body).toMatchObject({ bankAccountId: ACC, format: 'ofx', filename: 'statement.ofx' });
+    expect(body['mapping']).toBeUndefined();
+    expect(body['mappingId']).toBeUndefined();
+  });
+
+  /**
+   * Banks commonly export `STATEMENT.OFX` in upper case. The `accept` list carries both
+   * cases because native pickers on some platforms match extensions case-sensitively and
+   * grey the file out otherwise — so an upper-case export must still be accepted.
+   */
+  it('accepts an upper-case .OFX file', async () => {
+    const user = userEvent.setup();
+    stub('POST', '/v1/bank-statement-imports/preview', () =>
+      json(200, preview({ format: 'ofx', headers: [] })),
+    );
+
+    renderScreen();
+    await chooseAccount(user);
+    await pick(user, 'Format', 'OFX / QFX');
+
+    const file = new File(['<OFX></OFX>'], 'STATEMENT.OFX', { type: 'application/x-ofx' });
+    await user.upload(screen.getByLabelText('File'), file);
+
+    expect(await screen.findByText('STATEMENT.OFX')).toBeInTheDocument();
   });
 });
 

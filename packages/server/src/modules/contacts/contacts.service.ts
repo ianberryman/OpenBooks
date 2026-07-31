@@ -97,6 +97,12 @@ export async function createContact(
     isVendor: request.isVendor ?? false,
     isEmployee: request.isEmployee ?? false,
     notes: request.notes ?? null,
+    addressLine1: request.addressLine1 ?? null,
+    addressLine2: request.addressLine2 ?? null,
+    city: request.city ?? null,
+    region: request.region ?? null,
+    postalCode: request.postalCode ?? null,
+    country: request.country ?? null,
   });
 
   return toContact(row);
@@ -187,6 +193,12 @@ export async function updateContact(
       ...(request.isVendor === undefined ? {} : { isVendor: request.isVendor }),
       ...(request.isEmployee === undefined ? {} : { isEmployee: request.isEmployee }),
       ...(request.notes === undefined ? {} : { notes: request.notes }),
+      ...(request.addressLine1 === undefined ? {} : { addressLine1: request.addressLine1 }),
+      ...(request.addressLine2 === undefined ? {} : { addressLine2: request.addressLine2 }),
+      ...(request.city === undefined ? {} : { city: request.city }),
+      ...(request.region === undefined ? {} : { region: request.region }),
+      ...(request.postalCode === undefined ? {} : { postalCode: request.postalCode }),
+      ...(request.country === undefined ? {} : { country: request.country }),
     };
 
     await updateContactRow(trx, id, patch);

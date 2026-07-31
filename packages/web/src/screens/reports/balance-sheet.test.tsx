@@ -149,13 +149,13 @@ describe('BalanceSheetReport — the two derived earnings lines', () => {
     }
 
     // 1200.00 + 1000.00 + 1800.00 + 1000.00 = 5000.00, and assets are 5000.00.
-    expect(footingAmount(/^Total liabilities\b(?! and)/)).toBe('1200.00');
-    expect(footingAmount(/^Total equity accounts/)).toBe('1000.00');
-    expect(footingAmount(/^Prior-year earnings/)).toBe('1800.00');
-    expect(footingAmount(/^Current-year earnings/)).toBe('1000.00');
-    expect(footingAmount(/^Total liabilities and equity/)).toBe('5000.00');
-    expect(footingAmount(/^Total assets/)).toBe('5000.00');
-    expect(footingAmount(/^Difference/)).toBe('0.00');
+    expect(footingAmount(/^Total liabilities\b(?! and)/)).toBe('$1,200.00');
+    expect(footingAmount(/^Total equity accounts/)).toBe('$1,000.00');
+    expect(footingAmount(/^Prior-year earnings/)).toBe('$1,800.00');
+    expect(footingAmount(/^Current-year earnings/)).toBe('$1,000.00');
+    expect(footingAmount(/^Total liabilities and equity/)).toBe('$5,000.00');
+    expect(footingAmount(/^Total assets/)).toBe('$5,000.00');
+    expect(footingAmount(/^Difference/)).toBe('$0.00');
   });
 
   /** D-22: the basis is stated, so accrual figures cannot be read under a cash heading. */

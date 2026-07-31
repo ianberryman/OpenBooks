@@ -648,7 +648,7 @@ describe('MatchingScreen — multi-entry clearing', () => {
 
     // Never auto-added: the suggestion is offered, not applied, until this click.
     const hint = await within(dialog).findByText(/Eligible for an early-pay discount/);
-    expect(hint).toHaveTextContent('30.00');
+    expect(hint).toHaveTextContent('$30.00');
     expect(hint).toHaveTextContent('2026-03-10');
     expect(await within(dialog).findByText(/Balanced/)).toBeInTheDocument();
 

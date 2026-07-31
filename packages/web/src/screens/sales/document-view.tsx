@@ -11,7 +11,7 @@ import {
   FieldLabel,
   ResponsiveTable,
   TextInput,
-  formatMinorUnits,
+  formatMoney,
 } from '../../components';
 import { AllocateDialog } from './allocate-dialog';
 import { AllocationsPanel } from './allocations-panel';
@@ -307,7 +307,7 @@ export function DocumentView({
                 <td className="p-1 text-text">{line.description}</td>
                 <td className="p-1 text-right font-mono text-text-muted">{line.quantity}</td>
                 <td className="p-1 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(line.unitAmount)}
+                  {formatMoney(line.unitAmount)}
                 </td>
                 <td className="p-1 text-text-muted">
                   {reference.accountsById.get(line.accountId)?.name ?? '—'}
@@ -320,13 +320,13 @@ export function DocumentView({
                   {line.taxRatePercentage === null ? '—' : `${line.taxRatePercentage}%`}
                 </td>
                 <td className="p-1 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(line.netAmount)}
+                  {formatMoney(line.netAmount)}
                 </td>
                 <td className="p-1 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(line.taxAmount)}
+                  {formatMoney(line.taxAmount)}
                 </td>
                 <td className="p-1 text-right font-mono tabular-nums text-text">
-                  {formatMinorUnits(line.grossAmount)}
+                  {formatMoney(line.grossAmount)}
                 </td>
               </tr>
             ))}

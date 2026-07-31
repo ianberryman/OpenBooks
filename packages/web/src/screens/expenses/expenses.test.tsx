@@ -150,7 +150,7 @@ describe('ExpensesScreen', () => {
     expect(await screen.findByText('Jamie Rivera')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'EXP-0007' })).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('125.00')).toBeInTheDocument();
+    expect(screen.getByText('$125.00')).toBeInTheDocument();
     // Once approved, the row says reimbursement lives in Pay Bills — no expense-specific
     // reimbursement action exists on this screen at all (D-M2).
     expect(screen.getByText('Payable via Pay Bills.')).toBeInTheDocument();

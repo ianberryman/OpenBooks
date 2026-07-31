@@ -77,7 +77,7 @@ describe('StatementSection — subtotals against the section total', () => {
 
     // The parent's own postings in the Amount column, the subtree in the Subtotal column.
     // Printing 250.00 against the parent's name beside its children is the double count.
-    expect(amountsIn(/Premises/)).toEqual(['100.00', '250.00']);
+    expect(amountsIn(/Premises/)).toEqual(['$100.00', '$250.00']);
   });
 
   it('leaves a leaf’s subtotal column empty rather than repeating its amount', () => {
@@ -93,7 +93,7 @@ describe('StatementSection — subtotals against the section total', () => {
     );
 
     const [amount, subtotal] = amountsIn(/Rent/);
-    expect(amount).toBe('150.00');
+    expect(amount).toBe('$150.00');
     expect(subtotal).toBe('—');
   });
 
@@ -109,9 +109,9 @@ describe('StatementSection — subtotals against the section total', () => {
       />,
     );
 
-    expect(amountsIn(/Total expenses/)).toEqual(['250.00', '']);
+    expect(amountsIn(/Total expenses/)).toEqual(['$250.00', '']);
     // 25000 + 15000 is what summing the Subtotal column gives. It must appear nowhere.
-    expect(screen.queryByText('400.00')).toBeNull();
+    expect(screen.queryByText('$400.00')).toBeNull();
   });
 });
 
@@ -157,7 +157,7 @@ describe('StatementSection — the hierarchy', () => {
     );
 
     expect(screen.getAllByRole('rowheader')).toHaveLength(3);
-    expect(amountsIn(/Rent/)).toEqual(['150.00', '—']);
+    expect(amountsIn(/Rent/)).toEqual(['$150.00', '—']);
   });
 });
 

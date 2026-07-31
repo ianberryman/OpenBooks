@@ -1,6 +1,7 @@
 import {
   billPageSchema,
   billSchema,
+  billsSummarySchema,
   calendarDateSchema,
   createBillRequestSchema,
   createVendorCreditRequestSchema,
@@ -12,13 +13,20 @@ import {
   vendorCreditSchema,
   voidDocumentRequestSchema,
 } from '@openbooks/shared-types';
-import type { Bill, BillPage, VendorCredit, VendorCreditPage } from '@openbooks/shared-types';
+import type {
+  Bill,
+  BillPage,
+  BillsSummary,
+  VendorCredit,
+  VendorCreditPage,
+} from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import {
   approveBill,
   approveVendorCredit,
+  billsSummary,
   createBill,
   createVendorCredit,
   discardBill,
@@ -131,6 +139,15 @@ const listVendorCreditsWireQuerySchema = z.strictObject({
   cursor: pageCursorSchema.optional(),
 });
 
+/** Local and carrying no `id`: a querystring is emitted as individual `parameters`. */
+const billsSummaryWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today — this is a live snapshot, not a ' +
+      'reproducible report, so the date is optional here where the aging report requires it.',
+  }),
+});
+
 export function registerBillRoutes(app: App): void {
   app.post(
     '/v1/bills',
@@ -192,6 +209,31 @@ export function registerBillRoutes(app: App): void {
         },
         getContext(),
       );
+    },
+  );
+
+  app.get(
+    '/v1/bills/summary',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'billsSummary',
+        summary: 'The bills-list headline figures',
+        description:
+          'Total still owed, total overdue, and paid in the last 30 days, as at a date. A live ' +
+          'snapshot rather than a report: `asOf` defaults to today, unlike the aging report which ' +
+          'requires it (D-40). The figures tie to the payable aging by construction — the same ' +
+          'per-document outstanding (D-34).',
+        tags: [BILL_TAG],
+        querystring: billsSummaryWireQuerySchema,
+        response: { 200: billsSummarySchema, ...ERROR_RESPONSES },
+      },
+    },
+    // A static segment, so `find-my-way` matches it ahead of `/v1/bills/:billId`
+    // whatever the registration order; it is placed here so a reader sees why.
+    async (request): Promise<BillsSummary> => {
+      const { asOf } = request.query;
+      return billsSummary(asOf === undefined ? {} : { asOf }, getContext());
     },
   );
 

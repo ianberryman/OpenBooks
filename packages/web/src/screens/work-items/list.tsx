@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Button, ResponsiveTable } from '../../components';
+import { Button, Pill, ResponsiveTable } from '../../components';
+import type { PillTone } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
-import type { PillTone } from '../settings/section';
+import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { WorkItem, WorkItemStatus } from './queries';
 
 const STATUS_TONE: Readonly<Record<WorkItemStatus, PillTone>> = {

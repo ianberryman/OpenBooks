@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import { absolute, toWireAmount } from './balance';
 import type { BalanceTotals } from './balance';
@@ -43,7 +43,7 @@ function Amount({
           emphasis === true ? 'text-amount-negative' : 'text-amount-positive',
         )}
       >
-        {formatMinorUnits(toWireAmount(value))}
+        {formatMoney(toWireAmount(value))}
       </dd>
     </div>
   );

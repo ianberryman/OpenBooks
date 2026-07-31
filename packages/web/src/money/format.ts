@@ -107,6 +107,30 @@ export function formatMinorUnits(wireAmount: string): string {
 }
 
 /**
+ * Built once at module scope: a `new Intl.NumberFormat` per render is the usual reason a
+ * formatting call shows up in a profile, and this one is stateless and locale-fixed, so
+ * there is nothing to gain by rebuilding it.
+ */
+const CURRENCY_FORMATTER = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+/**
+ * `"150000"` → `"$1,500.00"`. The display projection — symbol and thousands grouping —
+ * layered on top of `formatMinorUnits`, which stays the function for the exact decimal
+ * string and for any caller that is not putting the amount in front of a person (a CSV
+ * export, an input's default value, and so on).
+ *
+ * Formats through `Intl.NumberFormat`'s **string** overload, exactly as the
+ * `formatMinorUnits` doc above says grouping must: `.format("1500.00")` parses the decimal
+ * string itself, so the float `formatMinorUnits` exists to avoid never gets introduced at
+ * the last step. `"-0"` needs no separate handling here — `formatMinorUnits` already
+ * renders it `"0.00"`, and `CURRENCY_FORMATTER` has nothing left to lose the sign from.
+ */
+export function formatMoney(wireAmount: string): string {
+  const decimal = formatMinorUnits(wireAmount);
+  return CURRENCY_FORMATTER.format(decimal as Intl.StringNumericLiteral);
+}
+
+/**
  * What a person may type into an amount field: an optional sign, digits, at most one
  * decimal point, and at most `MINOR_UNIT_EXPONENT` digits after it. Either side of the
  * point may be empty — `"5."` and `".5"` are both amounts someone is in the middle of

@@ -1,4 +1,5 @@
 import { api, expectNoContent, idempotencyHeader, unwrap } from '../../api';
+import type { PillTone } from '../../components';
 import type {
   Allocation,
   Bill,
@@ -60,6 +61,12 @@ export interface ApDocument {
   readonly totals: DocumentTotals;
   readonly taxSummary: readonly DocumentTaxSummaryRow[];
   readonly settlement: DocumentSettlement;
+  /**
+   * The amount reserved by open, not-yet-issued Pay Bills intents targeting this
+   * document (D-68). Computed on read, never stored — `'0'` when there are none,
+   * always `'0'` on a vendor credit: a credit is never disbursed.
+   */
+  readonly committed: string;
   readonly allocations: readonly Allocation[];
   readonly journalId: string | null;
   readonly voidJournalId: string | null;
@@ -75,22 +82,23 @@ export interface ApDocumentSummary {
   readonly status: DocumentStatus;
   readonly totals: DocumentTotals;
   readonly settlement: DocumentSettlement;
+  readonly committed: string;
 }
 
 export function billAsDocument(bill: Bill): ApDocument {
-  return { ...bill, dueDate: bill.dueDate };
+  return { ...bill, dueDate: bill.dueDate, committed: bill.committed };
 }
 
 export function vendorCreditAsDocument(credit: VendorCredit): ApDocument {
-  return { ...credit, dueDate: null };
+  return { ...credit, dueDate: null, committed: '0' };
 }
 
 export function billSummaryAsDocument(bill: BillSummary): ApDocumentSummary {
-  return { ...bill, dueDate: bill.dueDate };
+  return { ...bill, dueDate: bill.dueDate, committed: bill.committed };
 }
 
 export function vendorCreditSummaryAsDocument(credit: VendorCreditSummary): ApDocumentSummary {
-  return { ...credit, dueDate: null };
+  return { ...credit, dueDate: null, committed: '0' };
 }
 
 /**
@@ -358,3 +366,68 @@ export const STATUS_LABELS: Readonly<Record<DocumentStatus, string>> = {
   paid: 'Paid',
   void: 'Void',
 };
+
+/**
+ * Overdue is a **derived display state**, not a stored one: it is `dueDate < asOf` on two
+ * calendar-date strings, the same comparison a `<` on ISO `YYYY-MM-DD` text answers
+ * correctly without parsing either side. That is different in kind from `status` and the
+ * totals above it in this file, which the module header says arrive computed and are never
+ * to be re-derived here — a date comparison is not a money computation and does not risk
+ * disagreeing with the server the way a second implementation of settlement would.
+ */
+export function statusPresentation(
+  item: ApDocumentSummary,
+  asOf: string,
+): { label: string; tone: PillTone } {
+  if (item.status === 'paid') return { label: 'Paid', tone: 'positive' };
+  if (item.status === 'void') return { label: 'Void', tone: 'muted' };
+  if (item.status === 'draft') return { label: 'Draft', tone: 'muted' };
+
+  const overdue = item.dueDate !== null && item.dueDate < asOf;
+  if (overdue) return { label: 'Overdue', tone: 'negative' };
+
+  return { label: STATUS_LABELS[item.status], tone: 'neutral' };
+}
+
+/**
+ * The subset of bills each summary card stands for, so tapping the card narrows the list to
+ * exactly what the card counts (OB-069 UI). Client-side because these are not filters the
+ * `/v1/bills` query offers — "unpaid" spans two statuses and "overdue" is a due-date
+ * comparison — so they narrow the page already loaded rather than refetching. `outstanding`
+ * and `status` are still the server's; this only reads them.
+ */
+export type BillCardFilter = 'unpaid' | 'overdue' | 'paid';
+
+export function matchesCardFilter(
+  item: ApDocumentSummary,
+  filter: BillCardFilter,
+  asOf: string,
+): boolean {
+  const owing = item.settlement.outstanding !== '0';
+  switch (filter) {
+    case 'unpaid':
+      return owing;
+    case 'overdue':
+      return owing && item.dueDate !== null && item.dueDate < asOf;
+    case 'paid':
+      return item.status === 'paid';
+  }
+}
+
+/**
+ * The bills list's default order: what is still owed first, then by due date so the soonest
+ * (and the already-overdue) rise to the top — the order someone paying bills works in. A
+ * settled bill (`outstanding === '0'`, covering paid and void) sorts after every owing one,
+ * whatever its date. A bill with no due date sorts last within its group. `outstanding` is
+ * the server's; this only reads it to order the page, and reorders nothing on the server.
+ */
+export function compareBillsForList(a: ApDocumentSummary, b: ApDocumentSummary): number {
+  const aSettled = a.settlement.outstanding === '0' ? 1 : 0;
+  const bSettled = b.settlement.outstanding === '0' ? 1 : 0;
+  if (aSettled !== bSettled) return aSettled - bSettled;
+
+  if (a.dueDate === b.dueDate) return 0;
+  if (a.dueDate === null) return 1;
+  if (b.dueDate === null) return -1;
+  return a.dueDate < b.dueDate ? -1 : 1;
+}

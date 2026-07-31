@@ -139,7 +139,7 @@ describe('BillCapturesScreen', () => {
     const withinRow = within(row as HTMLElement);
     expect(withinRow.getByText('Needs review')).toBeInTheDocument();
     expect(withinRow.getByText('Acme Supplies')).toBeInTheDocument();
-    expect(withinRow.getByText('500.00')).toBeInTheDocument();
+    expect(withinRow.getByText('$500.00')).toBeInTheDocument();
 
     // The default filter is `extracted`, so the drafted capture the stub also returns for
     // an unfiltered request must not appear on this screen.

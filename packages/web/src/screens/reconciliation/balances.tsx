@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { ReconciliationBalances } from './queries';
 
@@ -44,7 +44,7 @@ function isNegative(wireAmount: string): boolean {
 }
 
 /**
- * A signed figure whose sign is made to read. `formatMinorUnits` carries the `-`; the `+` is
+ * A signed figure whose sign is made to read. `formatMoney` carries the `-`; the `+` is
  * added for a positive non-zero amount so a reconciling difference states its direction
  * — money the books show that the bank has not, versus the other way round — rather than
  * leaving the reader to infer it.
@@ -56,7 +56,7 @@ export function SignedAmount({
   readonly value: string;
   readonly className?: string | undefined;
 }): ReactElement {
-  const formatted = formatMinorUnits(value);
+  const formatted = formatMoney(value);
   const withSign = isZero(value) || isNegative(value) ? formatted : `+${formatted}`;
   return (
     <span
@@ -112,7 +112,7 @@ export function BalancesPanel({
           hint="Opening balance plus every line cleared into this session — what the bank has actually processed."
         >
           <span className="font-mono tabular-nums text-text">
-            {formatMinorUnits(balances.clearedBalance)}
+            {formatMoney(balances.clearedBalance)}
           </span>
         </Figure>
         <Figure
@@ -120,7 +120,7 @@ export function BalancesPanel({
           hint="What the statement says the account held at the end date — the claim from outside being tested."
         >
           <span className="font-mono tabular-nums text-text">
-            {formatMinorUnits(balances.statementClosingBalance)}
+            {formatMoney(balances.statementClosingBalance)}
           </span>
         </Figure>
 
@@ -135,11 +135,11 @@ export function BalancesPanel({
             <div className="shrink-0 text-right">
               {balanced ? (
                 <span className="font-mono text-base font-semibold tabular-nums text-success-text">
-                  0.00
+                  {formatMoney('0')}
                 </span>
               ) : (
                 <span className="font-mono text-base font-semibold tabular-nums text-warning-text">
-                  {formatMinorUnits(balances.difference)}
+                  {formatMoney(balances.difference)}
                 </span>
               )}
               <span
@@ -170,7 +170,7 @@ export function BalancesPanel({
           hint="The ledger account's own balance at the end date, computed from journal lines."
         >
           <span className="font-mono tabular-nums text-text">
-            {formatMinorUnits(balances.bookBalance)}
+            {formatMoney(balances.bookBalance)}
           </span>
         </Figure>
         <Figure

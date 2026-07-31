@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
 import type { SalesDocument, SalesReferenceData } from './queries';
 
@@ -49,7 +49,7 @@ function Row({
           emphasis === true && 'font-semibold',
         )}
       >
-        {formatMinorUnits(value)}
+        {formatMoney(value)}
       </dd>
     </div>
   );

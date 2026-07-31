@@ -120,12 +120,12 @@ describe('ProfitAndLossReport — a sliced statement', () => {
       within(
         totals.getByRole('rowheader', { name: 'Revenue' }).closest('tr') ?? document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('3300.00');
+    ).toBe('$3,300.00');
     expect(
       within(
         totals.getByRole('rowheader', { name: 'Net income' }).closest('tr') ?? document.body,
       ).getAllByRole('cell')[0]?.textContent,
-    ).toBe('2200.00');
+    ).toBe('$2,200.00');
   });
 
   /**
@@ -207,6 +207,6 @@ describe('ProfitAndLossReport — an unsliced statement', () => {
     );
 
     const line = screen.getByRole('rowheader', { name: /Sales discounts/ }).closest('tr');
-    expect(within(line ?? document.body).getAllByRole('cell')[0]?.textContent).toBe('-200.00');
+    expect(within(line ?? document.body).getAllByRole('cell')[0]?.textContent).toBe('-$200.00');
   });
 });

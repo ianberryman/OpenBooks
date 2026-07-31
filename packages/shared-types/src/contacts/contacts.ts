@@ -37,6 +37,11 @@ export const CONTACT_NAME_MAX_LENGTH = 255;
 export const CONTACT_EMAIL_MAX_LENGTH = 320;
 export const CONTACT_PHONE_MAX_LENGTH = 64;
 export const CONTACT_NOTES_MAX_LENGTH = 512;
+export const CONTACT_ADDRESS_LINE_MAX_LENGTH = 256;
+export const CONTACT_CITY_MAX_LENGTH = 128;
+export const CONTACT_REGION_MAX_LENGTH = 128;
+export const CONTACT_POSTAL_CODE_MAX_LENGTH = 32;
+export const CONTACT_COUNTRY_MAX_LENGTH = 64;
 
 /**
  * `.trim()` before the length checks, so `uq_contacts_org_code` sees the value the
@@ -107,6 +112,38 @@ const notesSchema = z.string().trim().max(CONTACT_NOTES_MAX_LENGTH).meta({
   description: 'Optional free text. Send `null` to clear it.',
 });
 
+/**
+ * The postal address, six loose fields rather than one blob — the reason is on
+ * `0020_contact_address`: a bill or invoice view wants `city`/`region`/`country`
+ * on their own, which a single formatted string would not let it select out of.
+ * None is required, matching the columns: a contact may carry a street line with
+ * no city, or a country with nothing else, exactly as it may carry no address at
+ * all.
+ */
+const addressLine1Schema = z.string().trim().max(CONTACT_ADDRESS_LINE_MAX_LENGTH).meta({
+  description: 'Street address, first line. Send `null` to clear it.',
+});
+
+const addressLine2Schema = z.string().trim().max(CONTACT_ADDRESS_LINE_MAX_LENGTH).meta({
+  description: 'Street address, second line — suite, unit, floor. Send `null` to clear it.',
+});
+
+const citySchema = z.string().trim().max(CONTACT_CITY_MAX_LENGTH).meta({
+  description: 'City or town. Send `null` to clear it.',
+});
+
+const regionSchema = z.string().trim().max(CONTACT_REGION_MAX_LENGTH).meta({
+  description: 'State, province, or region, e.g. `WA`. Send `null` to clear it.',
+});
+
+const postalCodeSchema = z.string().trim().max(CONTACT_POSTAL_CODE_MAX_LENGTH).meta({
+  description: 'Postal or ZIP code. Send `null` to clear it.',
+});
+
+const countrySchema = z.string().trim().max(CONTACT_COUNTRY_MAX_LENGTH).meta({
+  description: 'Country, e.g. `US`. Send `null` to clear it.',
+});
+
 const isCustomerSchema = z.boolean().meta({
   description:
     'Whether this contact is invoiced. Independent of `isVendor`: a supplier who also buys from ' +
@@ -151,6 +188,12 @@ export const contactSchema = z
     isVendor: isVendorSchema,
     isEmployee: isEmployeeSchema,
     notes: notesSchema.nullable(),
+    addressLine1: addressLine1Schema.nullable(),
+    addressLine2: addressLine2Schema.nullable(),
+    city: citySchema.nullable(),
+    region: regionSchema.nullable(),
+    postalCode: postalCodeSchema.nullable(),
+    country: countrySchema.nullable(),
     isActive: z.boolean().meta({
       description:
         'Inactive contacts keep every journal line that names them and cannot be selected for new ' +
@@ -190,6 +233,12 @@ export const createContactRequestSchema = z
     isVendor: isVendorSchema.optional(),
     isEmployee: isEmployeeSchema.optional(),
     notes: notesSchema.nullish(),
+    addressLine1: addressLine1Schema.nullish(),
+    addressLine2: addressLine2Schema.nullish(),
+    city: citySchema.nullish(),
+    region: regionSchema.nullish(),
+    postalCode: postalCodeSchema.nullish(),
+    country: countrySchema.nullish(),
   })
   .meta({
     id: 'CreateContactRequest',
@@ -256,6 +305,12 @@ export const updateContactRequestSchema = z
     isVendor: isVendorSchema.optional(),
     isEmployee: isEmployeeSchema.optional(),
     notes: notesSchema.nullish(),
+    addressLine1: addressLine1Schema.nullish(),
+    addressLine2: addressLine2Schema.nullish(),
+    city: citySchema.nullish(),
+    region: regionSchema.nullish(),
+    postalCode: postalCodeSchema.nullish(),
+    country: countrySchema.nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
