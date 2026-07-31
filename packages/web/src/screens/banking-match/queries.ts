@@ -388,6 +388,34 @@ export function useClearLine(): UseMutationResult<
   });
 }
 
+export type CreateManualLineRequest =
+  components['schemas']['CreateManualStatementLineRequestInput'];
+
+/**
+ * Enter one statement line by hand. On success the lines list is refetched, so the new line
+ * appears under "To match" straight away.
+ */
+export function useCreateManualStatementLine(): UseMutationResult<
+  BankStatementLine,
+  Error,
+  IdempotentVariables<{ readonly body: CreateManualLineRequest }>
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ body, idempotencyKey }) =>
+      unwrap(
+        await api.POST('/v1/statement-lines', {
+          body,
+          params: { header: idempotencyHeader(idempotencyKey) },
+        }),
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: matchKeys.linesScope });
+    },
+  });
+}
+
 /**
  * Undoing a clearing.
  *

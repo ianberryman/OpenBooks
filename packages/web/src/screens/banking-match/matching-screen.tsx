@@ -14,6 +14,7 @@ import { cx } from '../../lib/cx';
 import { CorrectDialog } from './correct-dialog';
 import { LineRow } from './line-row';
 import { MultiEntryDialog } from './multi-entry-dialog';
+import { NewTransactionDialog } from './new-transaction-dialog';
 import {
   postEntryToAccount,
   proposalToClearRequest,
@@ -72,6 +73,7 @@ export function MatchingScreen(): ReactElement {
   const bankAccounts = useBankAccountOptions();
   const [bankAccountId, setBankAccountId] = useState<string | null>(null);
   const [view, setView] = useState<'to-match' | 'matched'>('to-match');
+  const [newTransactionOpen, setNewTransactionOpen] = useState(false);
 
   const accountOptions = useMemo(
     () =>
@@ -105,13 +107,18 @@ export function MatchingScreen(): ReactElement {
         <p className="text-text-muted">Pick a bank account to start matching its statement.</p>
       ) : (
         <>
-          <div className="flex gap-2" role="tablist" aria-label="Which lines to show">
-            <ViewTab active={view === 'to-match'} onClick={() => setView('to-match')}>
-              To match
-            </ViewTab>
-            <ViewTab active={view === 'matched'} onClick={() => setView('matched')}>
-              Matched
-            </ViewTab>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-2" role="tablist" aria-label="Which lines to show">
+              <ViewTab active={view === 'to-match'} onClick={() => setView('to-match')}>
+                To match
+              </ViewTab>
+              <ViewTab active={view === 'matched'} onClick={() => setView('matched')}>
+                Matched
+              </ViewTab>
+            </div>
+            {/* A line the bank shows before its file arrives — a same-day deposit, a fee — can
+                be entered by hand here; it joins "To match" and dedupes against a later import. */}
+            <Button onClick={() => setNewTransactionOpen(true)}>New transaction</Button>
           </div>
 
           {view === 'to-match' ? (
@@ -119,6 +126,12 @@ export function MatchingScreen(): ReactElement {
           ) : (
             <MatchedView key={`matched-${bankAccountId}`} bankAccountId={bankAccountId} />
           )}
+
+          <NewTransactionDialog
+            bankAccountId={bankAccountId}
+            open={newTransactionOpen}
+            onOpenChange={setNewTransactionOpen}
+          />
         </>
       )}
     </div>
