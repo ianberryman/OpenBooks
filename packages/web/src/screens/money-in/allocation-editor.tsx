@@ -193,8 +193,8 @@ export function AllocationEditor({
                     {over && (
                       <p className="pt-1 text-right text-xs text-warning-text">
                         More than the <Amount value={document.outstanding} /> outstanding. The
-                        server refuses an over-allocated document; over-paying is fine and lands
-                        as credit.
+                        server refuses an over-allocated document; over-paying is fine and lands as
+                        credit.
                       </p>
                     )}
                     {document.targetType === 'invoice' && (

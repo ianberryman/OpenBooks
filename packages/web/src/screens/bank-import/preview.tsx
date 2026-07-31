@@ -89,9 +89,7 @@ export function ImportPreview({
                     line.isDuplicate && 'text-text-subtle',
                   )}
                 >
-                  <td className="py-2 pr-3 font-mono text-sm text-text-muted">
-                    {line.postedDate}
-                  </td>
+                  <td className="py-2 pr-3 font-mono text-sm text-text-muted">{line.postedDate}</td>
                   <td className="py-2 pr-3">
                     <span className="text-text">{line.description}</span>
                     {line.counterparty !== null && (

@@ -96,8 +96,7 @@ export function DocumentList({
                   </button>
                 </td>
                 <td className="p-2 text-text">
-                  {reference.contactsById.get(document.contactId)?.displayName ??
-                    'Unknown contact'}
+                  {reference.contactsById.get(document.contactId)?.displayName ?? 'Unknown contact'}
                 </td>
                 <td className="p-2 font-mono text-text-muted">{document.issueDate}</td>
                 {kind === 'invoice' && (

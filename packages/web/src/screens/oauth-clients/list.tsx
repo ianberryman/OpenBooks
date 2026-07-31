@@ -47,9 +47,7 @@ export function OAuthClientList({
         </thead>
         <tbody>
           {clients.length === 0 && (
-            <EmptyRow columns={5}>
-              {loading ? 'Loading…' : 'No OAuth clients registered.'}
-            </EmptyRow>
+            <EmptyRow columns={5}>{loading ? 'Loading…' : 'No OAuth clients registered.'}</EmptyRow>
           )}
           {clients.map((client) => (
             <tr key={client.id}>

@@ -344,8 +344,8 @@ function DetailTable({ row }: { readonly row: AgingRow }): ReactElement | null {
                 >
                   <span className="text-text">Money on account</span>
                   <span className="block text-xs font-normal text-text-subtle">
-                    Already in the control account and not yet applied to anything. Shown as its
-                    own negative row rather than netted across the documents above — netting would
+                    Already in the control account and not yet applied to anything. Shown as its own
+                    negative row rather than netted across the documents above — netting would
                     invent an allocation nobody made.
                   </span>
                 </th>

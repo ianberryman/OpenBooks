@@ -411,9 +411,7 @@ function BillCard({
         </div>
         <div>
           <dt className="text-xs text-text-subtle">Outstanding</dt>
-          <dd className="font-mono tabular-nums text-text">
-            {formatMinorUnits(bill.outstanding)}
-          </dd>
+          <dd className="font-mono tabular-nums text-text">{formatMinorUnits(bill.outstanding)}</dd>
         </div>
         <div>
           <dt className="text-xs text-text-subtle">Committed</dt>
