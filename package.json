@@ -36,6 +36,12 @@
     "drift": "yarn spec:check && yarn client:check",
     "check": "yarn format:check && yarn lint && yarn lint:tokens && yarn lint:deps && yarn typecheck && yarn drift && yarn build && yarn test"
   },
+  "resolutions": {
+    "@fastify/static": "10.1.2",
+    "js-yaml": "4.3.0",
+    "brace-expansion@npm:^2.0.1": "5.0.9",
+    "brace-expansion@npm:^2.0.2": "5.0.9"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@openbooks/eslint-plugin": "workspace:*",
