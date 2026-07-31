@@ -7,7 +7,7 @@ export { Button } from './button';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './button';
 
 export { Combobox } from './combobox';
-export type { ComboboxOption, ComboboxProps } from './combobox';
+export type { ComboboxCreateAction, ComboboxOption, ComboboxProps } from './combobox';
 
 export { Dialog, DialogClose, DialogContent, DialogTrigger } from './dialog';
 export type { DialogContentProps } from './dialog';

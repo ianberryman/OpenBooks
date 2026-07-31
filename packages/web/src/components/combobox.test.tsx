@@ -33,12 +33,14 @@ interface HarnessProps {
   readonly options?: readonly ComboboxOption[];
   readonly initialValue?: string | null;
   readonly onCommit?: (value: string | null) => void;
+  readonly onCreate?: (query: string) => void;
 }
 
 function Harness({
   options = ACCOUNTS,
   initialValue = null,
   onCommit,
+  onCreate,
 }: HarnessProps): ReactElement {
   const [value, setValue] = useState<string | null>(initialValue);
   return (
@@ -50,6 +52,14 @@ function Harness({
         setValue(next);
         onCommit?.(next);
       }}
+      {...(onCreate === undefined
+        ? {}
+        : {
+            onCreate: {
+              label: (q) => (q === '' ? 'New account' : `Create "${q}"`),
+              onSelect: onCreate,
+            },
+          })}
     />
   );
 }
@@ -450,5 +460,42 @@ describe('Combobox — inside a Field', () => {
     const input = screen.getByRole('combobox', { name: 'Debit account' });
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(input).toHaveAccessibleDescription('Choose an account. Start typing a name or a code.');
+  });
+});
+
+describe('Combobox — create action', () => {
+  it('offers a create row that hands back the typed query on pointer', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    render(<Harness onCreate={onCreate} />);
+
+    await user.click(combobox());
+    await user.type(combobox(), 'Acme Roasting');
+    // The row reads back what was typed, and choosing it hands that text to the caller so
+    // the create form can prefill its name.
+    await user.click(screen.getByRole('option', { name: 'Create "Acme Roasting"' }));
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith('Acme Roasting');
+  });
+
+  it('is reachable and firable from the keyboard even when nothing matches', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    const onCommit = vi.fn();
+    render(<Harness onCreate={onCreate} onCommit={onCommit} />);
+
+    await user.click(combobox());
+    await user.type(combobox(), 'zzz nonexistent');
+    // No option matched, but the create row is the sole navigable item — ArrowDown lands on
+    // it and Enter fires it. It commits no value (creating is the caller's job).
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith('zzz nonexistent');
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('does not render a create row when no action is given', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(combobox());
+    expect(screen.queryByRole('option', { name: /Create|New account/ })).not.toBeInTheDocument();
   });
 });

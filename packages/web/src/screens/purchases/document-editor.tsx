@@ -38,7 +38,9 @@ import type { EditorLine, EditorState } from './editor-state';
 import { NO_TAX_RATE, LineCard, LineRow } from './line-row';
 import type { LineRowProps } from './line-row';
 import { documentIntentKey, releaseDocumentIntentKey, useFingerprintKey } from './intent-keys';
+import { purchasesKeys } from './queries';
 import type { BillSummary, DocumentStatus, ReferenceData } from './queries';
+import { ContactFormDialog } from '../contacts/contact-form';
 import { DuplicateVendorReference, isDuplicateVendorReference } from './refusal';
 
 /**
@@ -150,6 +152,8 @@ export function DocumentEditor({
    * costs nothing, since its value comes from state either way.
    */
   const [referenceFocusNonce, setReferenceFocusNonce] = useState(0);
+  // Inline vendor creation from the picker: the typed name, or null when the form is shut.
+  const [newVendorName, setNewVendorName] = useState<string | null>(null);
 
   const status: DocumentStatus = saved?.status ?? 'draft';
   const readOnly = status !== 'draft';
@@ -496,6 +500,12 @@ export function DocumentEditor({
               disabled={busy}
               onValueChange={(contactId) => {
                 edit({ ...state, contactId });
+              }}
+              onCreate={{
+                label: (q) => (q.trim() === '' ? 'New vendor' : `Create "${q.trim()}"`),
+                onSelect: (q) => {
+                  setNewVendorName(q.trim());
+                },
               }}
             />
           )}
@@ -880,6 +890,23 @@ export function DocumentEditor({
           }}
         />
       )}
+
+      {/* Inline vendor creation: seeded with the typed name and pre-marked a vendor, and on
+          success the vendors list is refetched (its own query key, which `useCreateContact`'s
+          `['contacts']` invalidation does not reach) and the new vendor selected. */}
+      <ContactFormDialog
+        contact={null}
+        open={newVendorName !== null}
+        onOpenChange={(open) => {
+          if (!open) setNewVendorName(null);
+        }}
+        initialDisplayName={newVendorName ?? ''}
+        initialIsVendor
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: purchasesKeys.vendors });
+          edit({ ...state, contactId: created.id });
+        }}
+      />
     </section>
   );
 }

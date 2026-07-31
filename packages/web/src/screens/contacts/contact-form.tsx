@@ -45,6 +45,17 @@ export interface ContactFormDialogProps {
   readonly contact: Contact | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  /**
+   * Inline-create seeds (used when `contact` is null): the name the user had typed into a
+   * picker, and which role to pre-check so a "new vendor" from the bill form arrives a
+   * vendor. `onCreated` hands the new contact back so the picker can select it. These let
+   * one form serve both the Contacts screen and every entity picker (D-24 — one form, not a
+   * second cut-down one that drifts from it).
+   */
+  readonly initialDisplayName?: string;
+  readonly initialIsCustomer?: boolean;
+  readonly initialIsVendor?: boolean;
+  readonly onCreated?: (contact: Contact) => void;
 }
 
 interface FormValues {
@@ -130,15 +141,27 @@ export function ContactFormDialog({
   contact,
   open,
   onOpenChange,
+  initialDisplayName,
+  initialIsCustomer,
+  initialIsVendor,
+  onCreated,
 }: ContactFormDialogProps): ReactElement {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Keyed on the contact so a second "Edit" starts from that row's values rather than
-          from the previous one's — the state below is initialised, not synchronised. */}
+          from the previous one's — the state below is initialised, not synchronised. The
+          key also carries the seed name, so re-opening the create form for a different typed
+          value re-seeds it. */}
       {open && (
         <ContactFormContent
-          key={contact?.id ?? 'new'}
+          key={contact?.id ?? `new:${initialDisplayName ?? ''}`}
           contact={contact}
+          seed={{
+            displayName: initialDisplayName ?? '',
+            isCustomer: initialIsCustomer ?? false,
+            isVendor: initialIsVendor ?? false,
+          }}
+          onCreated={onCreated}
           onDone={() => {
             onOpenChange(false);
           }}
@@ -148,15 +171,27 @@ export function ContactFormDialog({
   );
 }
 
+interface CreateSeed {
+  readonly displayName: string;
+  readonly isCustomer: boolean;
+  readonly isVendor: boolean;
+}
+
 function ContactFormContent({
   contact,
+  seed,
+  onCreated,
   onDone,
 }: {
   readonly contact: Contact | null;
+  readonly seed: CreateSeed;
+  readonly onCreated?: ((contact: Contact) => void) | undefined;
   readonly onDone: () => void;
 }): ReactElement {
   const formId = useId();
-  const [values, setValues] = useState<FormValues>(() => valuesOf(contact));
+  const [values, setValues] = useState<FormValues>(() =>
+    contact === null ? { ...EMPTY_VALUES, ...seed } : valuesOf(contact),
+  );
   const [nameError, setNameError] = useState<string | undefined>(undefined);
 
   const create = useCreateContact();
@@ -190,7 +225,12 @@ function ContactFormContent({
       const body = toCreateRequest(values);
       create.mutate(
         { ...body, idempotencyKey: intentKey(`create:${JSON.stringify(body)}`) },
-        { onSuccess: onDone },
+        {
+          onSuccess: (created) => {
+            onCreated?.(created);
+            onDone();
+          },
+        },
       );
       return;
     }

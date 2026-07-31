@@ -37,6 +37,20 @@ export interface ComboboxOption {
   readonly disabled?: boolean;
 }
 
+/**
+ * The inline "create a new one" action a picker can offer (e.g. a new vendor from the bill
+ * form). Rendered as the last row of the listbox and reachable by keyboard like any option;
+ * choosing it closes the popover and hands the typed text back so the create form prefills
+ * its name. The combobox owns none of the creating — that is the caller's dialog — so this
+ * stays a picker, not a mini-CRUD screen.
+ */
+export interface ComboboxCreateAction {
+  /** The row's label; receives the current query so it can read `Create "Acme Roasting"`. */
+  readonly label: (query: string) => string;
+  /** Chosen by pointer or keyboard; receives what the user had typed, for the form to seed. */
+  readonly onSelect: (query: string) => void;
+}
+
 export interface ComboboxProps {
   readonly value: string | null;
   readonly onValueChange: (value: string | null) => void;
@@ -44,6 +58,7 @@ export interface ComboboxProps {
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly emptyMessage?: string;
+  readonly onCreate?: ComboboxCreateAction | undefined;
   /** Only when there is no `<Field>` above — see `useFieldControl`. */
   readonly 'aria-label'?: string;
   readonly className?: string | undefined;
@@ -80,6 +95,7 @@ export function Combobox({
   placeholder = 'Search…',
   disabled,
   emptyMessage = 'No matches.',
+  onCreate,
   className,
   ...rest
 }: ComboboxProps): ReactElement {
@@ -118,8 +134,13 @@ export function Combobox({
    * a visible highlight on one row and an announced one on another, differing only for
    * the users who cannot see the first.
    */
-  const activeIndexInView = visible.length === 0 ? -1 : Math.min(activeIndex, visible.length - 1);
-  const activeOption = visible[activeIndexInView];
+  // The create row, when offered, is the last navigable item after the filtered options —
+  // reachable by ArrowDown past the list, and always reachable when nothing matches.
+  const createIndex = onCreate !== undefined ? visible.length : -1;
+  const navCount = visible.length + (onCreate !== undefined ? 1 : 0);
+  const activeIndexInView = navCount === 0 ? -1 : Math.min(activeIndex, navCount - 1);
+  const onCreateRow = createIndex !== -1 && activeIndexInView === createIndex;
+  const activeOption = onCreateRow ? undefined : visible[activeIndexInView];
 
   function openWith(nextQuery: string | null): void {
     setQuery(nextQuery);
@@ -144,6 +165,14 @@ export function Combobox({
     setOpen(false);
   }
 
+  function triggerCreate(): void {
+    if (onCreate === undefined) return;
+    const typed = query ?? '';
+    setQuery(null);
+    setOpen(false);
+    onCreate.onSelect(typed);
+  }
+
   function cancel(): void {
     setQuery(null);
     setOpen(false);
@@ -158,16 +187,23 @@ export function Combobox({
           openWith(query);
           return;
         }
-        if (visible.length === 0) return;
+        if (navCount === 0) return;
         const delta = event.key === 'ArrowDown' ? 1 : -1;
-        // Wrapping, so a long chart of accounts reaches its last entry with one ArrowUp.
-        setActiveIndex((current) => (current + delta + visible.length) % visible.length);
+        // Wrapping, so a long chart of accounts reaches its last entry with one ArrowUp;
+        // the create row (when present) is the last stop before it wraps.
+        setActiveIndex((current) => (current + delta + navCount) % navCount);
         return;
       }
       case 'Enter': {
-        if (!open || activeOption === undefined) return;
+        if (!open) return;
         // Only when the listbox is open, so Enter still submits the surrounding form when
         // it is not — a journal-entry form is saved from the keyboard.
+        if (onCreateRow) {
+          event.preventDefault();
+          triggerCreate();
+          return;
+        }
+        if (activeOption === undefined) return;
         event.preventDefault();
         commit(activeOption);
         return;
@@ -211,9 +247,13 @@ export function Combobox({
             aria-controls={open ? listboxId : undefined}
             aria-autocomplete="list"
             aria-activedescendant={
-              open && activeOption !== undefined
-                ? `${optionIdPrefix}-${activeOption.value}`
-                : undefined
+              !open
+                ? undefined
+                : onCreateRow
+                  ? `${optionIdPrefix}-create`
+                  : activeOption !== undefined
+                    ? `${optionIdPrefix}-${activeOption.value}`
+                    : undefined
             }
             disabled={disabled}
             placeholder={placeholder}
@@ -250,7 +290,7 @@ export function Combobox({
         className="w-[var(--radix-popper-anchor-width)] p-1"
       >
         <ul id={listboxId} role="listbox" className="flex flex-col">
-          {visible.length === 0 && (
+          {visible.length === 0 && onCreate === undefined && (
             <li className="px-2 py-1.5 text-sm text-text-subtle">{emptyMessage}</li>
           )}
           {visible.map((option, index) => (
@@ -286,6 +326,29 @@ export function Combobox({
               )}
             </li>
           ))}
+          {onCreate !== undefined && (
+            <li
+              id={`${optionIdPrefix}-create`}
+              role="option"
+              aria-selected={false}
+              className={cx(
+                'flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5',
+                'text-base text-accent',
+                visible.length > 0 && 'mt-1 border-t border-border pt-2',
+                onCreateRow && 'bg-surface-hover',
+              )}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                triggerCreate();
+              }}
+              onPointerMove={() => {
+                setActiveIndex(createIndex);
+              }}
+            >
+              <span aria-hidden>+</span>
+              <span>{onCreate.label(query ?? '')}</span>
+            </li>
+          )}
         </ul>
       </PopoverContent>
     </Popover>
