@@ -334,7 +334,12 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between text-sm text-text-muted">
+      <div
+        className={cx(
+          'flex flex-wrap items-center justify-between gap-x-3 gap-y-1',
+          'text-sm text-text-muted',
+        )}
+      >
         <span>
           Lines {windowStart + 1}–{windowEnd} of {lines.length} loaded
           {deferred.size > 0 ? ` · ${String(deferred.size)} deferred` : ''}
@@ -380,7 +385,7 @@ function ToMatchView({ bankAccountId }: { readonly bankAccountId: string }): Rea
         ))}
       </ul>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           variant="secondary"

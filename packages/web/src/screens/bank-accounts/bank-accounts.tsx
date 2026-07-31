@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
-import { Button, ErrorBanner, Select } from '../../components';
+import { Button, ErrorBanner, ResponsiveTable, Select } from '../../components';
 import type { SelectOption } from '../../components';
 import { CreateBankAccountDialog } from './create-dialog';
 import type { BankAccount } from './queries';
@@ -121,7 +121,7 @@ export function BankAccountsScreen(): ReactElement {
             onToggleActive={toggleActive}
           />
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <p className="text-sm text-text-subtle">
               {accounts.length} bank account{accounts.length === 1 ? '' : 's'} loaded
               {list.hasNextPage ? '.' : ' — that is all of them.'}
@@ -158,7 +158,7 @@ function BankAccountTable({
   readonly onToggleActive: (account: BankAccount) => void;
 }): ReactElement {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+    <ResponsiveTable className="rounded-lg border border-border bg-surface">
       <table className="w-full border-collapse text-base">
         <caption className="sr-only">Bank accounts, active and inactive.</caption>
         <thead className="border-b border-border">
@@ -213,7 +213,7 @@ function BankAccountTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ResponsiveTable>
   );
 }
 

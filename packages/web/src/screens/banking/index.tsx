@@ -41,7 +41,10 @@ const TABS: readonly { readonly to: string; readonly label: string }[] = [
 export function BankingScreen(): ReactElement {
   return (
     <div className="flex flex-col gap-6">
-      <nav aria-label="Banking" className="flex items-center gap-1 border-b border-border">
+      <nav
+        aria-label="Banking"
+        className="flex flex-wrap items-center gap-1 border-b border-border"
+      >
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}

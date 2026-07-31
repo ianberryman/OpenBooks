@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { ResponsiveTable, formatMinorUnits } from '../../components';
 import { cx } from '../../lib/cx';
 import type { BankStatementImportPreview } from './queries';
 
@@ -59,56 +59,60 @@ export function ImportPreview({
           The file parsed, but no transaction rows were read from it.
         </p>
       ) : (
-        <table className="w-full border-collapse text-base">
-          <caption className="sr-only">The first rows as they would be read</caption>
-          <thead>
-            <tr className="border-b border-border text-left text-sm text-text-muted">
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Posted
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Description
-              </th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">
-                Amount
-              </th>
-              <th scope="col" className="py-2 font-medium">
-                <span className="sr-only">Duplicate</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sample.map((line, index) => (
-              <tr
-                // The draft is not a persisted thing and has no id (`BankStatementLineDraft`);
-                // index within this preview is a stable enough key for a read-only sample.
-                key={index}
-                className={cx(
-                  'border-b border-border align-top',
-                  line.isDuplicate && 'text-text-subtle',
-                )}
-              >
-                <td className="py-2 pr-3 font-mono text-sm text-text-muted">{line.postedDate}</td>
-                <td className="py-2 pr-3">
-                  <span className="text-text">{line.description}</span>
-                  {line.counterparty !== null && (
-                    <span className="block text-xs text-text-subtle">{line.counterparty}</span>
-                  )}
-                </td>
-                <td className="py-2 pr-3 text-right">
-                  <SignedAmount value={line.amount} />
-                </td>
-                <td className="py-2 text-right">
-                  {line.isDuplicate && (
-                    <span className="rounded-sm border border-border bg-surface-sunken px-1.5 py-0.5 text-xs text-text-muted">
-                      Already present
-                    </span>
-                  )}
-                </td>
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-base">
+            <caption className="sr-only">The first rows as they would be read</caption>
+            <thead>
+              <tr className="border-b border-border text-left text-sm text-text-muted">
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Posted
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Description
+                </th>
+                <th scope="col" className="py-2 pr-3 text-right font-medium">
+                  Amount
+                </th>
+                <th scope="col" className="py-2 font-medium">
+                  <span className="sr-only">Duplicate</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sample.map((line, index) => (
+                <tr
+                  // The draft is not a persisted thing and has no id (`BankStatementLineDraft`);
+                  // index within this preview is a stable enough key for a read-only sample.
+                  key={index}
+                  className={cx(
+                    'border-b border-border align-top',
+                    line.isDuplicate && 'text-text-subtle',
+                  )}
+                >
+                  <td className="py-2 pr-3 font-mono text-sm text-text-muted">
+                    {line.postedDate}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <span className="text-text">{line.description}</span>
+                    {line.counterparty !== null && (
+                      <span className="block text-xs text-text-subtle">{line.counterparty}</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-right">
+                    <SignedAmount value={line.amount} />
+                  </td>
+                  <td className="py-2 text-right">
+                    {line.isDuplicate && (
+                      <span className="rounded-sm border border-border bg-surface-sunken px-1.5 py-0.5 text-xs text-text-muted">
+                        Already present
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
       )}
     </section>
   );

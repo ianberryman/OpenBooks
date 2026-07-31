@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ErrorBanner, formatMinorUnits } from '../../components';
+import { ErrorBanner, ResponsiveTable, formatMinorUnits } from '../../components';
 import { SignedAmount } from './balances';
 import type { ReconcilingItem, UnclearedStatementLine } from './queries';
 import { useReconciliationReport } from './queries';
@@ -66,32 +66,34 @@ export function ReconciliationReportView({
             Nothing. Every ledger movement in this window has been cleared against a statement line.
           </p>
         ) : (
-          <table className="w-full border-collapse text-base">
-            <caption className="sr-only">
-              Ledger movements not cleared into this session, oldest first
-            </caption>
-            <thead>
-              <tr className="border-b border-border text-left text-sm text-text-muted">
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Date
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Description
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Reference
-                </th>
-                <th scope="col" className="py-2 text-right font-medium">
-                  Amount
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {reconcilingItems.map((item) => (
-                <ReconcilingItemRow key={item.journalId} item={item} />
-              ))}
-            </tbody>
-          </table>
+          <ResponsiveTable>
+            <table className="w-full border-collapse text-base">
+              <caption className="sr-only">
+                Ledger movements not cleared into this session, oldest first
+              </caption>
+              <thead>
+                <tr className="border-b border-border text-left text-sm text-text-muted">
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Date
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Description
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Reference
+                  </th>
+                  <th scope="col" className="py-2 text-right font-medium">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {reconcilingItems.map((item) => (
+                  <ReconcilingItemRow key={item.journalId} item={item} />
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
         <p className="text-xs text-text-subtle">
           These sum to the uncleared amount,{' '}
@@ -111,32 +113,34 @@ export function ReconciliationReportView({
             Nothing. Every statement line in this window has been matched into the books.
           </p>
         ) : (
-          <table className="w-full border-collapse text-base">
-            <caption className="sr-only">
-              Statement lines the books have not caught, oldest first
-            </caption>
-            <thead>
-              <tr className="border-b border-border text-left text-sm text-text-muted">
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Date
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Description
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Reference
-                </th>
-                <th scope="col" className="py-2 text-right font-medium">
-                  Amount
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {unclearedStatementLines.map((line) => (
-                <UnclearedStatementLineRow key={line.lineId} line={line} />
-              ))}
-            </tbody>
-          </table>
+          <ResponsiveTable>
+            <table className="w-full border-collapse text-base">
+              <caption className="sr-only">
+                Statement lines the books have not caught, oldest first
+              </caption>
+              <thead>
+                <tr className="border-b border-border text-left text-sm text-text-muted">
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Date
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Description
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Reference
+                  </th>
+                  <th scope="col" className="py-2 text-right font-medium">
+                    Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {unclearedStatementLines.map((line) => (
+                  <UnclearedStatementLineRow key={line.lineId} line={line} />
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
         <p className="text-xs text-text-subtle">
           Shown so the backlog is visible, but outside the uncleared amount above: a statement line
