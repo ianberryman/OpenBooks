@@ -1,7 +1,16 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
-import { Button, Combobox, ErrorBanner, Field, FieldLabel, Select } from '../../components';
+import {
+  Button,
+  Combobox,
+  ErrorBanner,
+  Field,
+  FieldLabel,
+  ResponsiveTable,
+  Select,
+} from '../../components';
+import { useIsCompact } from '../../lib/use-viewport';
 import { Amount, isZeroAmount } from './amounts';
 import { CheckboxField, DateField } from './controls';
 import { PaymentDetail } from './payment-detail';
@@ -55,6 +64,7 @@ function toStatus(value: string): PaymentStatus | null {
 }
 
 export function PaymentsView(): ReactElement {
+  const isCompact = useIsCompact();
   const [filters, setFilters] = useState<PaymentFilters>(NO_PAYMENT_FILTERS);
   const [selected, setSelected] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -183,48 +193,61 @@ export function PaymentsView(): ReactElement {
         </p>
       )}
 
-      {rows.length > 0 && (
-        <table className="w-full border-collapse text-base">
-          <caption className="sr-only">Payments, oldest first by when they were recorded</caption>
-          <thead>
-            <tr className="border-b border-border text-left text-sm text-text-muted">
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Date
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Contact
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Reference
-              </th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">
-                Amount
-              </th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">
-                Applied
-              </th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">
-                On account
-              </th>
-              <th scope="col" className="py-2 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((payment) => (
-              <PaymentRow
-                key={payment.id}
-                payment={payment}
-                contactName={contactNames.get(payment.contactId) ?? '—'}
-                onOpen={() => {
-                  setSelected(payment.id);
-                }}
-              />
-            ))}
-          </tbody>
-        </table>
-      )}
+      {rows.length > 0 &&
+        (isCompact ? (
+          <PaymentCards
+            payments={rows}
+            contactNames={contactNames}
+            onOpen={(paymentId) => {
+              setSelected(paymentId);
+            }}
+          />
+        ) : (
+          <ResponsiveTable>
+            <table className="w-full border-collapse text-base">
+              <caption className="sr-only">
+                Payments, oldest first by when they were recorded
+              </caption>
+              <thead>
+                <tr className="border-b border-border text-left text-sm text-text-muted">
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Date
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Contact
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Reference
+                  </th>
+                  <th scope="col" className="py-2 pr-3 text-right font-medium">
+                    Amount
+                  </th>
+                  <th scope="col" className="py-2 pr-3 text-right font-medium">
+                    Applied
+                  </th>
+                  <th scope="col" className="py-2 pr-3 text-right font-medium">
+                    On account
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((payment) => (
+                  <PaymentRow
+                    key={payment.id}
+                    payment={payment}
+                    contactName={contactNames.get(payment.contactId) ?? '—'}
+                    onOpen={() => {
+                      setSelected(payment.id);
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
+        ))}
 
       {/* The button exists only when the server handed back a cursor. Presence is the only
           signal that more exists — a full page does not imply another (D-21). */}
@@ -298,5 +321,98 @@ function PaymentRow({
         </Button>
       </td>
     </tr>
+  );
+}
+
+/** The card presentation of the same rows `PaymentRow` draws (D-123's polish tier) — each
+ * card shows exactly the fields the row's cells show, in the same order. */
+function PaymentCards({
+  payments,
+  contactNames,
+  onOpen,
+}: {
+  readonly payments: readonly PaymentSummary[];
+  readonly contactNames: ReadonlyMap<string, string>;
+  readonly onOpen: (paymentId: string) => void;
+}): ReactElement {
+  return (
+    <ul
+      className="flex flex-col gap-3"
+      aria-label="Payments, oldest first by when they were recorded"
+    >
+      {payments.map((payment) => (
+        <PaymentCard
+          key={payment.id}
+          payment={payment}
+          contactName={contactNames.get(payment.contactId) ?? '—'}
+          onOpen={() => {
+            onOpen(payment.id);
+          }}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function PaymentCard({
+  payment,
+  contactName,
+  onOpen,
+}: {
+  readonly payment: PaymentSummary;
+  readonly contactName: string;
+  readonly onOpen: () => void;
+}): ReactElement {
+  const credit = payment.settlement.outstanding;
+
+  return (
+    <li className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-text">{contactName}</p>
+          <p className="text-xs text-text-subtle">
+            {payment.direction === 'received' ? 'Received' : 'Made'}
+            {payment.status === 'void' ? ' · voided' : ''}
+          </p>
+        </div>
+        <span className="font-mono text-xs text-text-muted">{payment.date}</span>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div>
+          <dt className="text-xs text-text-subtle">Reference</dt>
+          <dd className="text-text-muted">{payment.reference ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Amount</dt>
+          <dd>
+            <Amount value={payment.amount} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Applied</dt>
+          <dd>
+            <Amount value={payment.settlement.allocated} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">On account</dt>
+          <dd>
+            <Amount value={credit} />
+            {!isZeroAmount(credit) && payment.status !== 'void' && (
+              <span className="block text-xs text-text-subtle">credit on this contact</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <Button
+        className="min-h-[44px]"
+        aria-label={`Open the ${payment.date} payment for ${contactName}`}
+        onClick={onOpen}
+      >
+        Open
+      </Button>
+    </li>
   );
 }

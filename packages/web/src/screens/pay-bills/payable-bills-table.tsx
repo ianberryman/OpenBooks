@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 
-import { Button, Combobox, MoneyInput, formatMinorUnits } from '../../components';
+import { Button, Combobox, MoneyInput, ResponsiveTable, formatMinorUnits } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { cx } from '../../lib/cx';
+import { useIsCompact } from '../../lib/use-viewport';
 import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import { subtractMinorUnits, sumMinorUnits } from './amounts';
 import type { BillDraft } from './draft';
@@ -19,6 +20,11 @@ import { useDiscountSuggestion, useVendorCredits } from './queries';
  * bill an open pending payment already covers arrives with `availableToPay: "0"`, and its row
  * is disabled rather than hidden — hiding it would make "why can't I select this bill" a
  * mystery the operator has to go find the queue to answer.
+ *
+ * Below `md` this renders as a stack of cards instead of the grid (D-123's polish tier for
+ * the highest-traffic money tables) — `BillRow` and `BillCard` share `useBillPaymentEditor`
+ * and `BillPayFields` for the editable pay-amount/discount/credit area so the two
+ * presentations cannot answer "what is this bill's pay amount" differently.
  */
 export interface PayableBillsTableProps {
   readonly bills: readonly PayableBill[];
@@ -39,6 +45,7 @@ export function PayableBillsTable({
   loading,
   onChange,
 }: PayableBillsTableProps): ReactElement {
+  const isCompact = useIsCompact();
   const sorted = useMemo(
     () =>
       [...bills].sort(
@@ -49,8 +56,21 @@ export function PayableBillsTable({
     [bills],
   );
 
+  if (isCompact) {
+    return (
+      <BillCards
+        bills={sorted}
+        drafts={drafts}
+        paymentDate={paymentDate}
+        disabled={disabled}
+        loading={loading}
+        onChange={onChange}
+      />
+    );
+  }
+
   return (
-    <div className="overflow-x-auto">
+    <ResponsiveTable>
       <table className={TABLE_CLASSES}>
         <caption className="sr-only">Payable bills</caption>
         <thead>
@@ -101,12 +121,65 @@ export function PayableBillsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ResponsiveTable>
   );
 }
 
 const NONE = '';
 const NO_VENDOR_CREDIT: ComboboxOption = { value: NONE, label: 'No credit applied' };
+
+/**
+ * The checkbox's own transition, factored out so a card's `<label>` and a row's `<td>` make
+ * exactly the same state change from the same tap or click.
+ */
+function toggleBillSelection(
+  bill: PayableBill,
+  checked: boolean,
+  onChange: (patch: Partial<BillDraft>) => void,
+): void {
+  onChange(
+    checked
+      ? { selected: true, payAmount: bill.availableToPay }
+      : {
+          selected: false,
+          payAmount: null,
+          discountAmount: null,
+          discountAccountId: null,
+          appliedVendorCreditId: null,
+        },
+  );
+}
+
+/**
+ * The discount suggestion and vendor-credit options a selected bill needs — asked for only
+ * once selected, both hooks are `enabled` on their id being non-null, so an unselected row
+ * or card costs nothing. Shared so the row and the card ask the server the same question.
+ */
+function useBillPaymentEditor(
+  bill: PayableBill,
+  selected: boolean,
+  paymentDate: string,
+): {
+  readonly suggestion: ReturnType<typeof useDiscountSuggestion>;
+  readonly creditOptions: readonly ComboboxOption[];
+} {
+  const suggestion = useDiscountSuggestion(selected ? bill.billId : null, paymentDate);
+  const credits = useVendorCredits(selected ? bill.contactId : null);
+
+  const creditOptions = useMemo<ComboboxOption[]>(
+    () => [
+      NO_VENDOR_CREDIT,
+      ...(credits.data ?? []).map((credit) => ({
+        value: credit.id,
+        label: credit.documentNumber ?? 'Vendor credit',
+        detail: formatMinorUnits(credit.settlement.outstanding),
+      })),
+    ],
+    [credits.data],
+  );
+
+  return { suggestion, creditOptions };
+}
 
 function BillRow({
   bill,
@@ -123,23 +196,7 @@ function BillRow({
 }): ReactElement {
   const selected = draft?.selected ?? false;
   const payable = bill.availableToPay !== '0';
-
-  // Asked for only once a row is selected — `useDiscountSuggestion`/`useVendorCredits` are
-  // both `enabled` on their id being non-null, so an unselected row costs nothing.
-  const suggestion = useDiscountSuggestion(selected ? bill.billId : null, paymentDate);
-  const credits = useVendorCredits(selected ? bill.contactId : null);
-
-  const creditOptions = useMemo<ComboboxOption[]>(
-    () => [
-      NO_VENDOR_CREDIT,
-      ...(credits.data ?? []).map((credit) => ({
-        value: credit.id,
-        label: credit.documentNumber ?? 'Vendor credit',
-        detail: formatMinorUnits(credit.settlement.outstanding),
-      })),
-    ],
-    [credits.data],
-  );
+  const { suggestion, creditOptions } = useBillPaymentEditor(bill, selected, paymentDate);
 
   return (
     <tr className={cx('align-top', !payable && 'opacity-60')}>
@@ -151,18 +208,7 @@ function BillRow({
           aria-label={`Select ${bill.vendorName}${bill.reference !== null ? ` — ${bill.reference}` : ''}`}
           className="size-4 rounded-sm border border-border accent-accent"
           onChange={(event) => {
-            const checked = event.target.checked;
-            onChange(
-              checked
-                ? { selected: true, payAmount: bill.availableToPay }
-                : {
-                    selected: false,
-                    payAmount: null,
-                    discountAmount: null,
-                    discountAccountId: null,
-                    appliedVendorCreditId: null,
-                  },
-            );
+            toggleBillSelection(bill, event.target.checked, onChange);
           }}
         />
       </td>
@@ -182,51 +228,222 @@ function BillRow({
         {formatMinorUnits(bill.availableToPay)}
       </td>
       <td className={cx(TD_CLASSES, 'min-w-48')}>
-        {selected ? (
-          <div className="flex flex-col items-end gap-1">
-            <MoneyInput
-              className="w-32"
-              aria-label={`Pay amount for ${bill.vendorName}`}
-              value={draft?.payAmount ?? null}
-              disabled={disabled}
-              onValueChange={(amount) => {
-                onChange({ payAmount: amount });
-              }}
-            />
-
-            {suggestion.data !== null && suggestion.data !== undefined && (
-              <DiscountAffordance
-                suggestion={suggestion.data}
-                draft={draft}
-                disabled={disabled}
-                onChange={onChange}
-              />
-            )}
-
-            {creditOptions.length > 1 && (
-              <div className="w-40">
-                <Combobox
-                  aria-label={`Apply a vendor credit to ${bill.vendorName}`}
-                  options={creditOptions}
-                  value={draft?.appliedVendorCreditId ?? NONE}
-                  disabled={disabled}
-                  placeholder="No credit applied"
-                  onValueChange={(value) => {
-                    onChange({
-                      appliedVendorCreditId: value === null || value === NONE ? null : value,
-                    });
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        ) : (
-          <span className="block text-right text-text-subtle">
-            {payable ? '—' : 'Fully committed'}
-          </span>
-        )}
+        <BillPayFields
+          bill={bill}
+          draft={draft}
+          disabled={disabled}
+          selected={selected}
+          payable={payable}
+          suggestion={suggestion}
+          creditOptions={creditOptions}
+          onChange={onChange}
+          fullWidth={false}
+        />
       </td>
     </tr>
+  );
+}
+
+/**
+ * The pay-amount / discount / vendor-credit editor, and the "not selected" placeholder in
+ * its place — the one piece of markup `BillRow`'s last cell and `BillCard`'s body both
+ * render, so a change to what a selected bill can do cannot land in only one presentation.
+ */
+function BillPayFields({
+  bill,
+  draft,
+  disabled,
+  selected,
+  payable,
+  suggestion,
+  creditOptions,
+  onChange,
+  fullWidth,
+}: {
+  readonly bill: PayableBill;
+  readonly draft: BillDraft | null;
+  readonly disabled: boolean;
+  readonly selected: boolean;
+  readonly payable: boolean;
+  readonly suggestion: ReturnType<typeof useDiscountSuggestion>;
+  readonly creditOptions: readonly ComboboxOption[];
+  readonly onChange: (patch: Partial<BillDraft>) => void;
+  readonly fullWidth: boolean;
+}): ReactElement {
+  if (!selected) {
+    return (
+      <span className={cx('block text-text-subtle', fullWidth ? 'text-left' : 'text-right')}>
+        {payable ? '—' : 'Fully committed'}
+      </span>
+    );
+  }
+
+  return (
+    <div className={cx('flex flex-col gap-1', fullWidth ? 'items-stretch' : 'items-end')}>
+      <MoneyInput
+        className={fullWidth ? 'w-full' : 'w-32'}
+        aria-label={`Pay amount for ${bill.vendorName}`}
+        value={draft?.payAmount ?? null}
+        disabled={disabled}
+        onValueChange={(amount) => {
+          onChange({ payAmount: amount });
+        }}
+      />
+
+      {suggestion.data !== null && suggestion.data !== undefined && (
+        <DiscountAffordance
+          suggestion={suggestion.data}
+          draft={draft}
+          disabled={disabled}
+          touchTarget={fullWidth}
+          onChange={onChange}
+        />
+      )}
+
+      {creditOptions.length > 1 && (
+        <div className={fullWidth ? 'w-full' : 'w-40'}>
+          <Combobox
+            aria-label={`Apply a vendor credit to ${bill.vendorName}`}
+            options={creditOptions}
+            value={draft?.appliedVendorCreditId ?? NONE}
+            disabled={disabled}
+            placeholder="No credit applied"
+            onValueChange={(value) => {
+              onChange({
+                appliedVendorCreditId: value === null || value === NONE ? null : value,
+              });
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BillCards({
+  bills,
+  drafts,
+  paymentDate,
+  disabled,
+  loading,
+  onChange,
+}: {
+  readonly bills: readonly PayableBill[];
+  readonly drafts: ReadonlyMap<string, BillDraft>;
+  readonly paymentDate: string;
+  readonly disabled: boolean;
+  readonly loading: boolean;
+  readonly onChange: (billId: string, patch: Partial<BillDraft>) => void;
+}): ReactElement {
+  if (bills.length === 0) {
+    return (
+      <p className="rounded-lg border border-border bg-surface p-4 text-center text-text-muted">
+        {loading ? 'Loading…' : 'Nothing is payable right now.'}
+      </p>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-3" aria-label="Payable bills">
+      {bills.map((bill) => (
+        <BillCard
+          key={bill.billId}
+          bill={bill}
+          draft={drafts.get(bill.billId) ?? null}
+          paymentDate={paymentDate}
+          disabled={disabled}
+          onChange={(patch) => {
+            onChange(bill.billId, patch);
+          }}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function BillCard({
+  bill,
+  draft,
+  paymentDate,
+  disabled,
+  onChange,
+}: {
+  readonly bill: PayableBill;
+  readonly draft: BillDraft | null;
+  readonly paymentDate: string;
+  readonly disabled: boolean;
+  readonly onChange: (patch: Partial<BillDraft>) => void;
+}): ReactElement {
+  const selected = draft?.selected ?? false;
+  const payable = bill.availableToPay !== '0';
+  const { suggestion, creditOptions } = useBillPaymentEditor(bill, selected, paymentDate);
+
+  return (
+    <li
+      className={cx(
+        'flex flex-col gap-3 rounded-lg border border-border bg-surface p-3',
+        !payable && 'opacity-60',
+      )}
+    >
+      <label className="flex min-h-[44px] items-center gap-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={disabled || !payable}
+          aria-label={`Select ${bill.vendorName}${bill.reference !== null ? ` — ${bill.reference}` : ''}`}
+          className="size-4 shrink-0 rounded-sm border border-border accent-accent"
+          onChange={(event) => {
+            toggleBillSelection(bill, event.target.checked, onChange);
+          }}
+        />
+        <span className="font-medium text-text">{bill.vendorName}</span>
+      </label>
+
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div>
+          <dt className="text-xs text-text-subtle">Bill</dt>
+          <dd className="font-mono text-text">{bill.reference ?? '—'}</dd>
+          <dd className="text-xs text-text-subtle">Issued {bill.issueDate}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Due</dt>
+          <dd className="font-mono text-text">{bill.dueDate ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Outstanding</dt>
+          <dd className="font-mono tabular-nums text-text">
+            {formatMinorUnits(bill.outstanding)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Committed</dt>
+          <dd className="font-mono tabular-nums text-text-muted">
+            {formatMinorUnits(bill.committed)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-text-subtle">Available</dt>
+          <dd className="font-mono tabular-nums text-text">
+            {formatMinorUnits(bill.availableToPay)}
+          </dd>
+        </div>
+      </dl>
+
+      <div>
+        <p className="pb-1 text-xs text-text-subtle">Pay amount</p>
+        <BillPayFields
+          bill={bill}
+          draft={draft}
+          disabled={disabled}
+          selected={selected}
+          payable={payable}
+          suggestion={suggestion}
+          creditOptions={creditOptions}
+          onChange={onChange}
+          fullWidth
+        />
+      </div>
+    </li>
   );
 }
 
@@ -242,6 +459,7 @@ function DiscountAffordance({
   suggestion,
   draft,
   disabled,
+  touchTarget,
   onChange,
 }: {
   readonly suggestion: {
@@ -251,9 +469,13 @@ function DiscountAffordance({
   };
   readonly draft: BillDraft | null;
   readonly disabled: boolean;
+  /** The card presentation's buttons need a 44px touch target; the table's `sm` buttons
+   * stay as they are, since a mouse pointer has no minimum-target requirement. */
+  readonly touchTarget: boolean;
   readonly onChange: (patch: Partial<BillDraft>) => void;
 }): ReactElement {
   const applied = draft?.discountAmount !== null && draft?.discountAmount !== undefined;
+  const buttonClassName = cx(touchTarget && 'min-h-[44px]');
 
   return (
     <p className="text-right text-xs text-accent">
@@ -264,6 +486,7 @@ function DiscountAffordance({
           size="sm"
           variant="ghost"
           disabled={disabled}
+          className={buttonClassName}
           onClick={() => {
             const restored =
               draft?.payAmount !== null &&
@@ -281,6 +504,7 @@ function DiscountAffordance({
           size="sm"
           variant="ghost"
           disabled={disabled}
+          className={buttonClassName}
           onClick={() => {
             const reduced =
               draft?.payAmount !== null && draft?.payAmount !== undefined

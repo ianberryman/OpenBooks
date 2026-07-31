@@ -1,7 +1,14 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import { Combobox, ErrorBanner, Field, FieldLabel, Select } from '../../components';
+import {
+  Combobox,
+  ErrorBanner,
+  Field,
+  FieldLabel,
+  ResponsiveTable,
+  Select,
+} from '../../components';
 import { Amount, AmountCell, todayCalendarDate } from './amounts';
 import { CheckboxField, DateField } from './controls';
 import type { AgingAmounts, AgingControls, AgingDocument, AgingRow } from './queries';
@@ -241,48 +248,50 @@ function SummaryTable({
   readonly totals: AgingAmounts;
 }): ReactElement {
   return (
-    <table className="w-full border-collapse text-base">
-      <caption className="sr-only">Aging by contact and bucket</caption>
-      <thead>
-        <tr className="border-b border-border text-left text-sm text-text-muted">
-          <th scope="col" className="py-2 pr-3 font-medium">
-            Contact
-          </th>
-          {BUCKETS.map((bucket) => (
-            <th key={bucket.key} scope="col" className="px-3 py-2 text-right font-medium">
-              {bucket.label}
-            </th>
-          ))}
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Total
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.contactId} className="border-b border-border">
-            <th scope="row" className="py-1 pr-3 text-left font-normal text-text">
-              {row.contactName}
+    <ResponsiveTable>
+      <table className="w-full border-collapse text-base">
+        <caption className="sr-only">Aging by contact and bucket</caption>
+        <thead>
+          <tr className="border-b border-border text-left text-sm text-text-muted">
+            <th scope="col" className="py-2 pr-3 font-medium">
+              Contact
             </th>
             {BUCKETS.map((bucket) => (
-              <AmountCell key={bucket.key} value={row.amounts[bucket.key]} />
+              <th key={bucket.key} scope="col" className="px-3 py-2 text-right font-medium">
+                {bucket.label}
+              </th>
             ))}
-            <AmountCell value={row.amounts.total} emphasis />
+            <th scope="col" className="px-3 py-2 text-right font-medium">
+              Total
+            </th>
           </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr className="border-t-2 border-border-strong">
-          <th scope="row" className="py-1 pr-3 text-left font-semibold text-text">
-            All contacts
-          </th>
-          {BUCKETS.map((bucket) => (
-            <AmountCell key={bucket.key} value={totals[bucket.key]} emphasis />
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.contactId} className="border-b border-border">
+              <th scope="row" className="py-1 pr-3 text-left font-normal text-text">
+                {row.contactName}
+              </th>
+              {BUCKETS.map((bucket) => (
+                <AmountCell key={bucket.key} value={row.amounts[bucket.key]} />
+              ))}
+              <AmountCell value={row.amounts.total} emphasis />
+            </tr>
           ))}
-          <AmountCell value={totals.total} emphasis />
-        </tr>
-      </tfoot>
-    </table>
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-border-strong">
+            <th scope="row" className="py-1 pr-3 text-left font-semibold text-text">
+              All contacts
+            </th>
+            {BUCKETS.map((bucket) => (
+              <AmountCell key={bucket.key} value={totals[bucket.key]} emphasis />
+            ))}
+            <AmountCell value={totals.total} emphasis />
+          </tr>
+        </tfoot>
+      </table>
+    </ResponsiveTable>
   );
 }
 
@@ -294,62 +303,68 @@ function DetailTable({ row }: { readonly row: AgingRow }): ReactElement | null {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-md font-semibold text-text">{row.contactName}</h3>
-      <table className="w-full border-collapse text-base">
-        <caption className="sr-only">
-          Open items for {row.contactName}, oldest first, with money on account last
-        </caption>
-        <thead>
-          <tr className="border-b border-border text-left text-sm text-text-muted">
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Document
-            </th>
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Kind
-            </th>
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Issued
-            </th>
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Due
-            </th>
-            <th scope="col" className="py-1 pr-3 text-right font-medium">
-              Days past due
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Outstanding
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {aged.map((entry) => (
-            <DetailRow key={entry.documentId} entry={entry} />
-          ))}
-
-          {credits.length > 0 && (
-            <tr className="border-b border-border bg-surface-sunken">
-              <th scope="colgroup" colSpan={6} className="py-1 pr-3 text-left text-sm font-medium">
-                <span className="text-text">Money on account</span>
-                <span className="block text-xs font-normal text-text-subtle">
-                  Already in the control account and not yet applied to anything. Shown as its own
-                  negative row rather than netted across the documents above — netting would invent
-                  an allocation nobody made.
-                </span>
+      <ResponsiveTable>
+        <table className="w-full border-collapse text-base">
+          <caption className="sr-only">
+            Open items for {row.contactName}, oldest first, with money on account last
+          </caption>
+          <thead>
+            <tr className="border-b border-border text-left text-sm text-text-muted">
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Document
+              </th>
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Kind
+              </th>
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Issued
+              </th>
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Due
+              </th>
+              <th scope="col" className="py-1 pr-3 text-right font-medium">
+                Days past due
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Outstanding
               </th>
             </tr>
-          )}
-          {credits.map((entry) => (
-            <DetailRow key={entry.documentId} entry={entry} />
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-border-strong">
-            <th scope="row" colSpan={5} className="py-1 pr-3 text-left font-semibold text-text">
-              Total for {row.contactName}
-            </th>
-            <AmountCell value={row.amounts.total} emphasis />
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {aged.map((entry) => (
+              <DetailRow key={entry.documentId} entry={entry} />
+            ))}
+
+            {credits.length > 0 && (
+              <tr className="border-b border-border bg-surface-sunken">
+                <th
+                  scope="colgroup"
+                  colSpan={6}
+                  className="py-1 pr-3 text-left text-sm font-medium"
+                >
+                  <span className="text-text">Money on account</span>
+                  <span className="block text-xs font-normal text-text-subtle">
+                    Already in the control account and not yet applied to anything. Shown as its
+                    own negative row rather than netted across the documents above — netting would
+                    invent an allocation nobody made.
+                  </span>
+                </th>
+              </tr>
+            )}
+            {credits.map((entry) => (
+              <DetailRow key={entry.documentId} entry={entry} />
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border-strong">
+              <th scope="row" colSpan={5} className="py-1 pr-3 text-left font-semibold text-text">
+                Total for {row.contactName}
+              </th>
+              <AmountCell value={row.amounts.total} emphasis />
+            </tr>
+          </tfoot>
+        </table>
+      </ResponsiveTable>
     </div>
   );
 }

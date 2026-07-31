@@ -9,6 +9,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   TextInput,
 } from '../../components';
 import { AllocationEditor, AllocationRefusal, reduceToOutstanding } from './allocation-editor';
@@ -231,57 +232,59 @@ function AllocationList({
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-md font-semibold text-text">Applied to</h3>
-      <table className="w-full border-collapse text-base">
-        <caption className="sr-only">What this payment has settled</caption>
-        <thead>
-          <tr className="border-b border-border text-left text-sm text-text-muted">
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Document
-            </th>
-            <th scope="col" className="py-1 pr-3 font-medium">
-              Applied on
-            </th>
-            <th scope="col" className="py-1 pr-3 text-right font-medium">
-              Amount
-            </th>
-            <th scope="col" className="py-1 font-medium">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {allocations.map((allocation) => (
-            <tr key={allocation.id} className="border-b border-border">
-              <td className="py-1 pr-3 font-mono text-sm text-text">
-                {allocation.targetNumber ?? allocation.targetId}
-              </td>
-              {/* The allocation's own date, not the payment's: aging as at a date counts
-                  only the allocations dated on or before it (D-40), so this is the date
-                  that decides which report this settlement appears in. */}
-              <td className="py-1 pr-3 font-mono text-sm text-text-muted">{allocation.date}</td>
-              <td className="py-1 pr-3 text-right">
-                <Amount value={allocation.amount} />
-              </td>
-              <td className="py-1 text-right">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={disabled || unapply.isPending}
-                  aria-label={`Un-apply ${allocation.targetNumber ?? 'this allocation'}`}
-                  onClick={() => {
-                    unapply.mutate({
-                      allocationId: allocation.id,
-                      idempotencyKey: intentKey(`unapply:${allocation.id}`),
-                    });
-                  }}
-                >
-                  Un-apply
-                </Button>
-              </td>
+      <ResponsiveTable>
+        <table className="w-full border-collapse text-base">
+          <caption className="sr-only">What this payment has settled</caption>
+          <thead>
+            <tr className="border-b border-border text-left text-sm text-text-muted">
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Document
+              </th>
+              <th scope="col" className="py-1 pr-3 font-medium">
+                Applied on
+              </th>
+              <th scope="col" className="py-1 pr-3 text-right font-medium">
+                Amount
+              </th>
+              <th scope="col" className="py-1 font-medium">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {allocations.map((allocation) => (
+              <tr key={allocation.id} className="border-b border-border">
+                <td className="py-1 pr-3 font-mono text-sm text-text">
+                  {allocation.targetNumber ?? allocation.targetId}
+                </td>
+                {/* The allocation's own date, not the payment's: aging as at a date counts
+                    only the allocations dated on or before it (D-40), so this is the date
+                    that decides which report this settlement appears in. */}
+                <td className="py-1 pr-3 font-mono text-sm text-text-muted">{allocation.date}</td>
+                <td className="py-1 pr-3 text-right">
+                  <Amount value={allocation.amount} />
+                </td>
+                <td className="py-1 text-right">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled || unapply.isPending}
+                    aria-label={`Un-apply ${allocation.targetNumber ?? 'this allocation'}`}
+                    onClick={() => {
+                      unapply.mutate({
+                        allocationId: allocation.id,
+                        idempotencyKey: intentKey(`unapply:${allocation.id}`),
+                      });
+                    }}
+                  >
+                    Un-apply
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {unapply.isError && (
         <ErrorBanner
