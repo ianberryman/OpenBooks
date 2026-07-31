@@ -1,7 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { useId, useState } from 'react';
 
 import { presentApiError } from '../../api';
+import { ContactFormDialog } from '../contacts/contact-form';
 import {
   Button,
   Combobox,
@@ -21,6 +23,7 @@ import { todayCalendarDate } from './amounts';
 import { DateField } from './controls';
 import type { CreatePaymentRequest, PaymentDirection } from './queries';
 import {
+  moneyInKeys,
   useContactOptions,
   useIntentKey,
   useMoneyAccountOptions,
@@ -117,12 +120,20 @@ function RecordPaymentForm({
   });
   const [applying, setApplying] = useState(false);
   const [drafts, setDrafts] = useState<readonly AllocationDraft[]>([]);
+  // Inline contact creation from the picker: the typed name, or null when the form is shut.
+  const [newContactName, setNewContactName] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const contacts = useContactOptions();
   const accounts = useMoneyAccountOptions();
   const openDocuments = useOpenDocuments(values.direction, applying ? values.contactId : null);
   const record = useRecordPayment();
   const intentKey = useIntentKey();
+
+  // Which side the money is on decides what a new contact is: a received payment settles a
+  // customer's invoices, a made one a vendor's bills. Pre-marking the role means "New …"
+  // reads right and the contact lands where the next document will look for it.
+  const createsCustomer = values.direction === 'received';
 
   const documents = openDocuments.data ?? [];
   const fieldErrors = presentApiError(record.error).fieldErrors;
@@ -256,6 +267,17 @@ function RecordPaymentForm({
             onValueChange={(contactId) => {
               set('contactId', contactId);
               setDrafts([]);
+            }}
+            onCreate={{
+              label: (q) =>
+                q.trim() === ''
+                  ? createsCustomer
+                    ? 'New customer'
+                    : 'New vendor'
+                  : `Create "${q.trim()}"`,
+              onSelect: (q) => {
+                setNewContactName(q.trim());
+              },
             }}
           />
         </Field>
@@ -393,6 +415,25 @@ function RecordPaymentForm({
           )}
         </fieldset>
       </form>
+
+      {/* Inline contact creation: seeded with the typed name and pre-marked by the side the
+          money is on; on success the money-in contacts list is refetched (its own query key,
+          which useCreateContact's `['contacts']` invalidation does not reach) and selected. */}
+      <ContactFormDialog
+        contact={null}
+        open={newContactName !== null}
+        onOpenChange={(next) => {
+          if (!next) setNewContactName(null);
+        }}
+        initialDisplayName={newContactName ?? ''}
+        initialIsCustomer={createsCustomer}
+        initialIsVendor={!createsCustomer}
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: moneyInKeys.contacts });
+          set('contactId', created.id);
+          setDrafts([]);
+        }}
+      />
     </DialogContent>
   );
 }
