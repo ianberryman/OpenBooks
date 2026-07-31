@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner } from '../../components';
+import { ErrorBanner, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { AmountCell } from './cells';
 import type { ReportFilterState } from './filters';
@@ -80,19 +80,21 @@ export function CashFlowReport({
         recognition choice.
       </p>
 
-      <table aria-label="Cash flow" className="w-full border-collapse text-base">
-        <tbody>
-          <Row label="Net income" value={report.netIncome} />
-          <Row
-            label="Adjustments to reconcile net income to net cash"
-            note="Non-cash and working-capital changes, as a single figure — see below."
-            value={report.adjustments}
-          />
-          <Row label="Net change in cash" value={report.netChangeInCash} emphasis rule />
-          <Row label="Cash at start of period" value={report.openingCash} />
-          <Row label="Cash at end of period" value={report.closingCash} emphasis />
-        </tbody>
-      </table>
+      <ResponsiveTable>
+        <table aria-label="Cash flow" className="w-full border-collapse text-base">
+          <tbody>
+            <Row label="Net income" value={report.netIncome} />
+            <Row
+              label="Adjustments to reconcile net income to net cash"
+              note="Non-cash and working-capital changes, as a single figure — see below."
+              value={report.adjustments}
+            />
+            <Row label="Net change in cash" value={report.netChangeInCash} emphasis rule />
+            <Row label="Cash at start of period" value={report.openingCash} />
+            <Row label="Cash at end of period" value={report.closingCash} emphasis />
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       <ReconciliationNote reconciles={report.reconciles} />
     </div>

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 
+import { ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { AmountCell, DrillLink, isZeroAmount } from './cells';
 import type { HierarchyRow } from './tree';
@@ -61,67 +62,69 @@ export function StatementSection<Row extends StatementRow>({
       <h4 className="text-sm font-semibold tracking-wide text-text-muted uppercase">{title}</h4>
       {/* Named, because a statement puts two or three of these on one page with identical
           column headers, and an unnamed table is "table" three times to a screen reader. */}
-      <table aria-label={title} className="w-full border-collapse text-base">
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Account
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Amount
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Subtotal
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.length === 0 && (
-            <tr>
-              <td colSpan={3} className="px-3 py-2 text-text-subtle">
-                {hideZeroRows ? 'Every account in this section stands at zero.' : 'No accounts.'}
-              </td>
-            </tr>
-          )}
-          {visible.map(({ row, depth, hasChildren }) => (
-            <tr key={row.accountId} className="border-b border-border last:border-0">
-              <th scope="row" className="px-3 py-1 text-left font-normal">
-                <span
-                  className="flex items-baseline gap-2"
-                  // Indentation is the hierarchy, so it is a real offset rather than a
-                  // class per depth: a chart may nest deeper than any fixed set of classes.
-                  style={{ paddingInlineStart: `calc(var(--spacing) * ${String(depth * 4)})` }}
-                >
-                  <span className="font-mono text-xs text-text-subtle">{row.code}</span>
-                  <DrillLink
-                    onClick={() => {
-                      onDrillThrough(row.accountId);
-                    }}
-                    title="Show the entries behind this line"
-                  >
-                    <span className={cx(hasChildren && 'font-medium')}>{row.name}</span>
-                  </DrillLink>
-                  {!row.isActive && <span className="text-xs text-text-subtle">(inactive)</span>}
-                </span>
+      <ResponsiveTable>
+        <table aria-label={title} className="w-full border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Account
               </th>
-              <AmountCell value={row.amount} />
-              {/* Empty on a leaf: `subtotal` equals `amount` there, and printing one figure
-                  twice is an invitation to total the wrong column. */}
-              <AmountCell value={hasChildren ? row.subtotal : null} />
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Amount
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Subtotal
+              </th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-border-strong">
-            <th scope="row" className="px-3 py-1 text-left font-semibold">
-              {totalLabel}
-            </th>
-            {/* The server's own total, under the Amount column it is the sum of. */}
-            <AmountCell value={total} emphasis />
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-2 text-text-subtle">
+                  {hideZeroRows ? 'Every account in this section stands at zero.' : 'No accounts.'}
+                </td>
+              </tr>
+            )}
+            {visible.map(({ row, depth, hasChildren }) => (
+              <tr key={row.accountId} className="border-b border-border last:border-0">
+                <th scope="row" className="px-3 py-1 text-left font-normal">
+                  <span
+                    className="flex items-baseline gap-2"
+                    // Indentation is the hierarchy, so it is a real offset rather than a
+                    // class per depth: a chart may nest deeper than any fixed set of classes.
+                    style={{ paddingInlineStart: `calc(var(--spacing) * ${String(depth * 4)})` }}
+                  >
+                    <span className="font-mono text-xs text-text-subtle">{row.code}</span>
+                    <DrillLink
+                      onClick={() => {
+                        onDrillThrough(row.accountId);
+                      }}
+                      title="Show the entries behind this line"
+                    >
+                      <span className={cx(hasChildren && 'font-medium')}>{row.name}</span>
+                    </DrillLink>
+                    {!row.isActive && <span className="text-xs text-text-subtle">(inactive)</span>}
+                  </span>
+                </th>
+                <AmountCell value={row.amount} />
+                {/* Empty on a leaf: `subtotal` equals `amount` there, and printing one figure
+                    twice is an invitation to total the wrong column. */}
+                <AmountCell value={hasChildren ? row.subtotal : null} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border-strong">
+              <th scope="row" className="px-3 py-1 text-left font-semibold">
+                {totalLabel}
+              </th>
+              {/* The server's own total, under the Amount column it is the sum of. */}
+              <AmountCell value={total} emphasis />
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </ResponsiveTable>
     </section>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner, Select } from '../../components';
+import { ErrorBanner, ResponsiveTable, Select } from '../../components';
 import { cx } from '../../lib/cx';
 import { AmountCell, GroupHeading, isZeroAmount } from './cells';
 import type { ReportFilterState } from './filters';
@@ -274,64 +274,66 @@ function BudgetVsActualSectionTable({
   return (
     <section className="flex flex-col gap-1">
       <h4 className="text-sm font-semibold tracking-wide text-text-muted uppercase">{title}</h4>
-      <table aria-label={title} className="w-full border-collapse text-base">
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Account
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Budget
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Actual
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Variance
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Variance %
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.length === 0 && (
-            <tr>
-              <td colSpan={5} className="px-3 py-2 text-text-subtle">
-                {hideZeroRows ? 'Every account in this section stands at zero.' : 'No accounts.'}
-              </td>
-            </tr>
-          )}
-          {visible.map((row) => (
-            <tr key={row.accountId} className="border-b border-border last:border-0">
-              <th scope="row" className="px-3 py-1 text-left font-normal">
-                <span className="flex items-baseline gap-2">
-                  <span className="font-mono text-xs text-text-subtle">{row.code}</span>
-                  {row.name}
-                </span>
+      <ResponsiveTable>
+        <table aria-label={title} className="w-full border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Account
               </th>
-              <AmountCell value={row.budget} />
-              <AmountCell value={row.actual} />
-              {/* Signed to the section the same way `ProfitAndLossRow`'s amounts are — a
-                  positive variance is favourable, and `AmountCell` colors it accordingly
-                  with no sign flip in this layer (`cells.tsx`). */}
-              <AmountCell value={row.variance} />
-              <VariancePercentCell value={row.variancePercent} />
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Budget
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Actual
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Variance
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Variance %
+              </th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-border-strong">
-            <th scope="row" className="px-3 py-1 text-left font-semibold">
-              Total {title.toLowerCase()}
-            </th>
-            <AmountCell value={section.budget} emphasis />
-            <AmountCell value={section.actual} emphasis />
-            <AmountCell value={section.variance} emphasis />
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-2 text-text-subtle">
+                  {hideZeroRows ? 'Every account in this section stands at zero.' : 'No accounts.'}
+                </td>
+              </tr>
+            )}
+            {visible.map((row) => (
+              <tr key={row.accountId} className="border-b border-border last:border-0">
+                <th scope="row" className="px-3 py-1 text-left font-normal">
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-mono text-xs text-text-subtle">{row.code}</span>
+                    {row.name}
+                  </span>
+                </th>
+                <AmountCell value={row.budget} />
+                <AmountCell value={row.actual} />
+                {/* Signed to the section the same way `ProfitAndLossRow`'s amounts are — a
+                    positive variance is favourable, and `AmountCell` colors it accordingly
+                    with no sign flip in this layer (`cells.tsx`). */}
+                <AmountCell value={row.variance} />
+                <VariancePercentCell value={row.variancePercent} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border-strong">
+              <th scope="row" className="px-3 py-1 text-left font-semibold">
+                Total {title.toLowerCase()}
+              </th>
+              <AmountCell value={section.budget} emphasis />
+              <AmountCell value={section.actual} emphasis />
+              <AmountCell value={section.variance} emphasis />
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </ResponsiveTable>
     </section>
   );
 }
@@ -380,51 +382,55 @@ function TripletTable({
   }[];
 }): ReactElement {
   return (
-    <table aria-label={ariaLabel} className="w-full border-collapse text-base">
-      {caption !== undefined && (
-        <caption className="pt-2 pb-1 text-left text-sm font-semibold text-text">{caption}</caption>
-      )}
-      <thead>
-        <tr className="border-b border-border text-xs text-text-subtle">
-          <th scope="col" className="px-3 py-1 text-left font-medium">
-            <span className="sr-only">Line</span>
-          </th>
-          <th scope="col" className="px-3 py-1 text-right font-medium">
-            Budget
-          </th>
-          <th scope="col" className="px-3 py-1 text-right font-medium">
-            Actual
-          </th>
-          <th scope="col" className="px-3 py-1 text-right font-medium">
-            Variance
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr
-            key={row.label}
-            className={
-              row.emphasis === true
-                ? 'border-t-2 border-border-strong'
-                : 'border-b border-border last:border-0'
-            }
-          >
-            <th
-              scope="row"
-              className={cx(
-                'px-3 py-1 text-left',
-                row.emphasis === true ? 'font-semibold' : 'font-normal',
-              )}
-            >
-              {row.label}
+    <ResponsiveTable>
+      <table aria-label={ariaLabel} className="w-full border-collapse text-base">
+        {caption !== undefined && (
+          <caption className="pt-2 pb-1 text-left text-sm font-semibold text-text">
+            {caption}
+          </caption>
+        )}
+        <thead>
+          <tr className="border-b border-border text-xs text-text-subtle">
+            <th scope="col" className="px-3 py-1 text-left font-medium">
+              <span className="sr-only">Line</span>
             </th>
-            <AmountCell value={row.triplet.budget} emphasis={row.emphasis ?? false} />
-            <AmountCell value={row.triplet.actual} emphasis={row.emphasis ?? false} />
-            <AmountCell value={row.triplet.variance} emphasis={row.emphasis ?? false} />
+            <th scope="col" className="px-3 py-1 text-right font-medium">
+              Budget
+            </th>
+            <th scope="col" className="px-3 py-1 text-right font-medium">
+              Actual
+            </th>
+            <th scope="col" className="px-3 py-1 text-right font-medium">
+              Variance
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.label}
+              className={
+                row.emphasis === true
+                  ? 'border-t-2 border-border-strong'
+                  : 'border-b border-border last:border-0'
+              }
+            >
+              <th
+                scope="row"
+                className={cx(
+                  'px-3 py-1 text-left',
+                  row.emphasis === true ? 'font-semibold' : 'font-normal',
+                )}
+              >
+                {row.label}
+              </th>
+              <AmountCell value={row.triplet.budget} emphasis={row.emphasis ?? false} />
+              <AmountCell value={row.triplet.actual} emphasis={row.emphasis ?? false} />
+              <AmountCell value={row.triplet.variance} emphasis={row.emphasis ?? false} />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

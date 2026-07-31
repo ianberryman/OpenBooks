@@ -2,7 +2,15 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { newIdempotencyKey } from '../api';
-import { Button, ErrorBanner, Field, FieldLabel, Select, TextInput } from '../components';
+import {
+  Button,
+  ErrorBanner,
+  Field,
+  FieldLabel,
+  ResponsiveTable,
+  Select,
+  TextInput,
+} from '../components';
 import { cx } from '../lib/cx';
 import { useCreateStatementPackage, useStatementPackages } from './statement-packages/queries';
 import type { ReportBasis, StatementPackage } from './statement-packages/queries';
@@ -156,30 +164,32 @@ export function StatementPackagesScreen(): ReactElement {
       )}
 
       {packages.isSuccess && packages.data.packages.length > 0 && (
-        <table className="w-full border-collapse text-base">
-          <caption className="sr-only">Rendered statement packages, newest first</caption>
-          <thead>
-            <tr className="border-b border-border text-left text-sm text-text-muted">
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Period
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Basis
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Rendered
-              </th>
-              <th scope="col" className="py-2 font-medium">
-                <span className="sr-only">Download</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {packages.data.packages.map((pkg) => (
-              <PackageRow key={pkg.id} pkg={pkg} />
-            ))}
-          </tbody>
-        </table>
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-base">
+            <caption className="sr-only">Rendered statement packages, newest first</caption>
+            <thead>
+              <tr className="border-b border-border text-left text-sm text-text-muted">
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Period
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Basis
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Rendered
+                </th>
+                <th scope="col" className="py-2 font-medium">
+                  <span className="sr-only">Download</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {packages.data.packages.map((pkg) => (
+                <PackageRow key={pkg.id} pkg={pkg} />
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
   useFieldControl,
@@ -202,83 +203,85 @@ export function PaymentTermsSection(): ReactElement {
         </Field>
       </div>
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Payment terms</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Name
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Net days
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Early-pay discount
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 && (
-            <EmptyRow columns={5}>
-              {terms.isPending
-                ? 'Loading…'
-                : 'No payment terms yet. Documents and contacts have none to default to until one exists.'}
-            </EmptyRow>
-          )}
-          {items.map((term) => (
-            <tr key={term.id}>
-              <td className={TD_CLASSES}>{term.name}</td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{term.netDays}</td>
-              <td className={TD_CLASSES}>
-                {term.discountRatePpm === null || term.discountWindowDays === null ? (
-                  <span className="text-text-subtle">None — a simple term</span>
-                ) : (
-                  <span className="font-mono">
-                    {ppmToPercentText(term.discountRatePpm)}% within {term.discountWindowDays} day
-                    {term.discountWindowDays === 1 ? '' : 's'}
-                  </span>
-                )}
-              </td>
-              <td className={TD_CLASSES}>
-                <Pill tone={term.isActive ? 'positive' : 'muted'}>
-                  {term.isActive ? 'Active' : 'Archived'}
-                </Pill>
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      update.reset();
-                      setDialog({ kind: 'edit', term });
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={!term.isActive}
-                    aria-label={`Archive ${term.name}`}
-                    onClick={() => {
-                      deactivate.reset();
-                      setDialog({ kind: 'deactivate', term });
-                    }}
-                  >
-                    Archive
-                  </Button>
-                </div>
-              </td>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Payment terms</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Name
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Net days
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Early-pay discount
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.length === 0 && (
+              <EmptyRow columns={5}>
+                {terms.isPending
+                  ? 'Loading…'
+                  : 'No payment terms yet. Documents and contacts have none to default to until one exists.'}
+              </EmptyRow>
+            )}
+            {items.map((term) => (
+              <tr key={term.id}>
+                <td className={TD_CLASSES}>{term.name}</td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{term.netDays}</td>
+                <td className={TD_CLASSES}>
+                  {term.discountRatePpm === null || term.discountWindowDays === null ? (
+                    <span className="text-text-subtle">None — a simple term</span>
+                  ) : (
+                    <span className="font-mono">
+                      {ppmToPercentText(term.discountRatePpm)}% within {term.discountWindowDays} day
+                      {term.discountWindowDays === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={term.isActive ? 'positive' : 'muted'}>
+                    {term.isActive ? 'Active' : 'Archived'}
+                  </Pill>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        update.reset();
+                        setDialog({ kind: 'edit', term });
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={!term.isActive}
+                      aria-label={`Archive ${term.name}`}
+                      onClick={() => {
+                        deactivate.reset();
+                        setDialog({ kind: 'deactivate', term });
+                      }}
+                    >
+                      Archive
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       <TermFormDialog
         title="New payment term"

@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner } from '../../components';
+import { ErrorBanner, ResponsiveTable } from '../../components';
 import { AmountCell, GroupHeading } from './cells';
 import type { DrillTarget, ReportFilterState } from './filters';
 import { basisQuery, rangeQuery, sliceQuery } from './filters';
@@ -111,16 +111,18 @@ export function ProfitAndLossReport({
       ))}
 
       {groupBy !== null && (
-        <table className="w-full border-collapse text-base">
-          <caption className="pt-2 pb-1 text-left text-sm font-semibold text-text">
-            Every slice, including unassigned
-          </caption>
-          <tbody>
-            <TotalRow label="Revenue" value={report.totals.revenue} />
-            <TotalRow label="Expenses" value={report.totals.expenses} />
-            <TotalRow label="Net income" value={report.totals.netIncome} emphasis />
-          </tbody>
-        </table>
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-base">
+            <caption className="pt-2 pb-1 text-left text-sm font-semibold text-text">
+              Every slice, including unassigned
+            </caption>
+            <tbody>
+              <TotalRow label="Revenue" value={report.totals.revenue} />
+              <TotalRow label="Expenses" value={report.totals.expenses} />
+              <TotalRow label="Net income" value={report.totals.netIncome} emphasis />
+            </tbody>
+          </table>
+        </ResponsiveTable>
       )}
 
       {groupBy !== null && (
@@ -165,13 +167,15 @@ function ProfitAndLossGroupView({
         onDrillThrough={onDrillThrough}
       />
 
-      <table aria-label="Result" className="w-full border-collapse text-base">
-        <tbody>
-          {/* The server's own `netIncome`, not `revenue.total − expenses.total` recomputed
-              here. There is one place these figures are summed and it is not the browser. */}
-          <TotalRow label="Net income" value={group.netIncome} emphasis />
-        </tbody>
-      </table>
+      <ResponsiveTable>
+        <table aria-label="Result" className="w-full border-collapse text-base">
+          <tbody>
+            {/* The server's own `netIncome`, not `revenue.total − expenses.total` recomputed
+                here. There is one place these figures are summed and it is not the browser. */}
+            <TotalRow label="Net income" value={group.netIncome} emphasis />
+          </tbody>
+        </table>
+      </ResponsiveTable>
     </div>
   );
 }

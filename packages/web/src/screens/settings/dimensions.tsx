@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   TextInput,
 } from '../../components';
 import { cx } from '../../lib/cx';
@@ -227,94 +228,96 @@ export function DimensionsSection(): ReactElement {
 
       {setArchived.isError && <ErrorBanner error={setArchived.error} />}
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Reporting axes</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Code
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Name
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {axes.length === 0 && (
-            <EmptyRow columns={4}>
-              {dimensions.isPending
-                ? 'Loading…'
-                : 'No axes yet. Entries can still be posted; they simply cannot be sliced.'}
-            </EmptyRow>
-          )}
-          {axes.map((axis) => (
-            <tr key={axis.id}>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{axis.code}</td>
-              <td className={TD_CLASSES}>
-                <span className="text-text">{axis.name}</span>
-                {axis.description !== null && axis.description !== '' && (
-                  <span className="block text-xs text-text-subtle">{axis.description}</span>
-                )}
-              </td>
-              <td className={TD_CLASSES}>
-                <Pill tone={axis.isActive ? 'positive' : 'muted'}>
-                  {axis.isActive ? 'Active' : 'Archived'}
-                </Pill>
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  <Button
-                    size="sm"
-                    aria-expanded={openAxisId === axis.id}
-                    onClick={() => {
-                      setOpenAxisId(openAxisId === axis.id ? null : axis.id);
-                    }}
-                  >
-                    Values
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      rename.reset();
-                      setDialog({ kind: 'rename', dimension: axis });
-                    }}
-                  >
-                    Rename
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setArchived.mutate({
-                        dimensionId: axis.id,
-                        archived: axis.isActive,
-                        idempotencyKey: newIdempotencyKey(),
-                      });
-                    }}
-                  >
-                    {axis.isActive ? 'Archive' : 'Unarchive'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => {
-                      remove.reset();
-                      setDialog({ kind: 'delete', dimension: axis });
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </td>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Reporting axes</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Code
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Name
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {axes.length === 0 && (
+              <EmptyRow columns={4}>
+                {dimensions.isPending
+                  ? 'Loading…'
+                  : 'No axes yet. Entries can still be posted; they simply cannot be sliced.'}
+              </EmptyRow>
+            )}
+            {axes.map((axis) => (
+              <tr key={axis.id}>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{axis.code}</td>
+                <td className={TD_CLASSES}>
+                  <span className="text-text">{axis.name}</span>
+                  {axis.description !== null && axis.description !== '' && (
+                    <span className="block text-xs text-text-subtle">{axis.description}</span>
+                  )}
+                </td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={axis.isActive ? 'positive' : 'muted'}>
+                    {axis.isActive ? 'Active' : 'Archived'}
+                  </Pill>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      aria-expanded={openAxisId === axis.id}
+                      onClick={() => {
+                        setOpenAxisId(openAxisId === axis.id ? null : axis.id);
+                      }}
+                    >
+                      Values
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        rename.reset();
+                        setDialog({ kind: 'rename', dimension: axis });
+                      }}
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setArchived.mutate({
+                          dimensionId: axis.id,
+                          archived: axis.isActive,
+                          idempotencyKey: newIdempotencyKey(),
+                        });
+                      }}
+                    >
+                      {axis.isActive ? 'Archive' : 'Unarchive'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => {
+                        remove.reset();
+                        setDialog({ kind: 'delete', dimension: axis });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {openAxis !== undefined && <DimensionValues key={openAxis.id} dimension={openAxis} />}
 
@@ -659,87 +662,89 @@ function DimensionValues({ dimension }: { readonly dimension: Dimension }): Reac
       )}
       {setArchived.isError && <ErrorBanner error={setArchived.error} />}
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Values on {dimension.name}</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Code
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Name
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 && (
-            <EmptyRow columns={4}>
-              {values.isPending ? 'Loading…' : 'No values on this axis yet.'}
-            </EmptyRow>
-          )}
-          {items.map((value) => (
-            <tr key={value.id}>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{value.code}</td>
-              <td className={TD_CLASSES}>{value.name}</td>
-              <td className={TD_CLASSES}>
-                <Pill tone={value.isActive ? 'positive' : 'muted'}>
-                  {value.isActive ? 'Active' : 'Archived'}
-                </Pill>
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      rename.reset();
-                      setDraftName(value.name);
-                      setDialog({ kind: 'rename', value });
-                    }}
-                  >
-                    Rename
-                  </Button>
-                  {/*
-                    Archive and delete are adjacent and separate, and they stay separate.
-                    They are not two words for the same tidy-up: archiving is the only
-                    removal a value in use has, and deleting one that is in use is refused
-                    by a foreign key rather than by anyone's care.
-                  */}
-                  <Button
-                    size="sm"
-                    aria-label={`${value.isActive ? 'Archive' : 'Unarchive'} ${value.name}`}
-                    onClick={() => {
-                      setArchived.mutate({
-                        valueId: value.id,
-                        archived: value.isActive,
-                        idempotencyKey: newIdempotencyKey(),
-                      });
-                    }}
-                  >
-                    {value.isActive ? 'Archive' : 'Unarchive'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    aria-label={`Delete ${value.name}`}
-                    onClick={() => {
-                      remove.reset();
-                      setDialog({ kind: 'delete', value });
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </td>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Values on {dimension.name}</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Code
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Name
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.length === 0 && (
+              <EmptyRow columns={4}>
+                {values.isPending ? 'Loading…' : 'No values on this axis yet.'}
+              </EmptyRow>
+            )}
+            {items.map((value) => (
+              <tr key={value.id}>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{value.code}</td>
+                <td className={TD_CLASSES}>{value.name}</td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={value.isActive ? 'positive' : 'muted'}>
+                    {value.isActive ? 'Active' : 'Archived'}
+                  </Pill>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        rename.reset();
+                        setDraftName(value.name);
+                        setDialog({ kind: 'rename', value });
+                      }}
+                    >
+                      Rename
+                    </Button>
+                    {/*
+                      Archive and delete are adjacent and separate, and they stay separate.
+                      They are not two words for the same tidy-up: archiving is the only
+                      removal a value in use has, and deleting one that is in use is refused
+                      by a foreign key rather than by anyone's care.
+                    */}
+                    <Button
+                      size="sm"
+                      aria-label={`${value.isActive ? 'Archive' : 'Unarchive'} ${value.name}`}
+                      onClick={() => {
+                        setArchived.mutate({
+                          valueId: value.id,
+                          archived: value.isActive,
+                          idempotencyKey: newIdempotencyKey(),
+                        });
+                      }}
+                    >
+                      {value.isActive ? 'Archive' : 'Unarchive'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      aria-label={`Delete ${value.name}`}
+                      onClick={() => {
+                        remove.reset();
+                        setDialog({ kind: 'delete', value });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {values.data?.nextCursor != null && (
         <Notice tone="info">Showing the first {String(PAGE_LIMIT)} values on this axis.</Notice>

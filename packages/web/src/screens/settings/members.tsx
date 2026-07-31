@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
 } from '../../components';
@@ -212,82 +213,84 @@ export function MembersSection(): ReactElement {
       )}
       {!lastOwnerRefusal && changeRole.isError && <ErrorBanner error={changeRole.error} />}
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Members</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Person
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Role
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {people.length === 0 && (
-            <EmptyRow columns={4}>{members.isPending ? 'Loading…' : 'No members.'}</EmptyRow>
-          )}
-          {people.map((person) => {
-            const sole = isSoleOwner(person);
-            return (
-              <tr key={person.userId}>
-                <td className={TD_CLASSES}>
-                  <span className="text-text">{person.displayName}</span>
-                  <span className="block text-xs text-text-subtle">{person.email}</span>
-                </td>
-                <td className={TD_CLASSES}>
-                  <Select
-                    aria-label={`Role for ${person.displayName}`}
-                    value={person.roleId}
-                    options={roleOptions}
-                    disabled={sole || changeRole.isPending}
-                    onValueChange={(roleId) => {
-                      if (roleId === person.roleId) return;
-                      changeRole.mutate({
-                        userId: person.userId,
-                        roleId,
-                        idempotencyKey: newIdempotencyKey(),
-                      });
-                    }}
-                    className="w-48"
-                  />
-                  {sole && (
-                    <span className="mt-1 block text-xs text-text-subtle">
-                      The only Owner. Promote someone else first.
-                    </span>
-                  )}
-                </td>
-                <td className={TD_CLASSES}>
-                  <Pill tone={person.isActive ? 'positive' : 'muted'}>
-                    {person.isActive ? 'Active' : 'Deactivated'}
-                  </Pill>
-                </td>
-                <td className={cx(TD_CLASSES, 'text-right')}>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={sole}
-                    aria-label={`Remove ${person.displayName}`}
-                    onClick={() => {
-                      removeMember.reset();
-                      setPendingRemoval(person);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Members</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Person
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Role
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.length === 0 && (
+              <EmptyRow columns={4}>{members.isPending ? 'Loading…' : 'No members.'}</EmptyRow>
+            )}
+            {people.map((person) => {
+              const sole = isSoleOwner(person);
+              return (
+                <tr key={person.userId}>
+                  <td className={TD_CLASSES}>
+                    <span className="text-text">{person.displayName}</span>
+                    <span className="block text-xs text-text-subtle">{person.email}</span>
+                  </td>
+                  <td className={TD_CLASSES}>
+                    <Select
+                      aria-label={`Role for ${person.displayName}`}
+                      value={person.roleId}
+                      options={roleOptions}
+                      disabled={sole || changeRole.isPending}
+                      onValueChange={(roleId) => {
+                        if (roleId === person.roleId) return;
+                        changeRole.mutate({
+                          userId: person.userId,
+                          roleId,
+                          idempotencyKey: newIdempotencyKey(),
+                        });
+                      }}
+                      className="w-48"
+                    />
+                    {sole && (
+                      <span className="mt-1 block text-xs text-text-subtle">
+                        The only Owner. Promote someone else first.
+                      </span>
+                    )}
+                  </td>
+                  <td className={TD_CLASSES}>
+                    <Pill tone={person.isActive ? 'positive' : 'muted'}>
+                      {person.isActive ? 'Active' : 'Deactivated'}
+                    </Pill>
+                  </td>
+                  <td className={cx(TD_CLASSES, 'text-right')}>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={sole}
+                      aria-label={`Remove ${person.displayName}`}
+                      onClick={() => {
+                        removeMember.reset();
+                        setPendingRemoval(person);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {issued !== null && <IssuedInviteNotice issued={issued} />}
 
@@ -402,67 +405,69 @@ function InvitesTable({
       <h3 className="text-sm font-semibold text-text">Invitations</h3>
       {error !== null && error !== undefined && <ErrorBanner error={error} />}
       {revokeError !== null && revokeError !== undefined && <ErrorBanner error={revokeError} />}
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Invitations</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Address
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Role
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {invites.length === 0 && (
-            <EmptyRow columns={4}>{loading ? 'Loading…' : 'No invitations.'}</EmptyRow>
-          )}
-          {invites.map((invitation) => (
-            <tr key={invitation.id}>
-              <td className={TD_CLASSES}>{invitation.email}</td>
-              <td className={cx(TD_CLASSES, 'font-mono text-xs')}>{invitation.roleCode}</td>
-              <td className={TD_CLASSES}>
-                <Pill tone={INVITE_TONES[invitation.status]}>{invitation.status}</Pill>
-                {invitation.status === 'pending' && (
-                  <span className="ml-2 text-xs text-text-subtle">
-                    expires {formatTimestamp(invitation.expiresAt)}
-                  </span>
-                )}
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                {invitation.status === 'accepted' ? (
-                  /*
-                   * Not a disabled button with no explanation: an accepted invitation is
-                   * not revocable at all — the person is a member now, and the operation
-                   * that undoes that is removing them, which carries the last-Owner rule.
-                   */
-                  <span className="text-xs text-text-subtle">
-                    Accepted — remove the member instead
-                  </span>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={invitation.status === 'revoked' || revoking === invitation.id}
-                    aria-label={`Revoke the invitation for ${invitation.email}`}
-                    onClick={() => {
-                      onRevoke(invitation.id);
-                    }}
-                  >
-                    Revoke
-                  </Button>
-                )}
-              </td>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Invitations</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Address
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Role
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {invites.length === 0 && (
+              <EmptyRow columns={4}>{loading ? 'Loading…' : 'No invitations.'}</EmptyRow>
+            )}
+            {invites.map((invitation) => (
+              <tr key={invitation.id}>
+                <td className={TD_CLASSES}>{invitation.email}</td>
+                <td className={cx(TD_CLASSES, 'font-mono text-xs')}>{invitation.roleCode}</td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={INVITE_TONES[invitation.status]}>{invitation.status}</Pill>
+                  {invitation.status === 'pending' && (
+                    <span className="ml-2 text-xs text-text-subtle">
+                      expires {formatTimestamp(invitation.expiresAt)}
+                    </span>
+                  )}
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  {invitation.status === 'accepted' ? (
+                    /*
+                     * Not a disabled button with no explanation: an accepted invitation is
+                     * not revocable at all — the person is a member now, and the operation
+                     * that undoes that is removing them, which carries the last-Owner rule.
+                     */
+                    <span className="text-xs text-text-subtle">
+                      Accepted — remove the member instead
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={invitation.status === 'revoked' || revoking === invitation.id}
+                      aria-label={`Revoke the invitation for ${invitation.email}`}
+                      onClick={() => {
+                        onRevoke(invitation.id);
+                      }}
+                    >
+                      Revoke
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
     </div>
   );
 }

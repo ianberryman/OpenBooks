@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button } from '../../components';
+import { Button, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import type { Account } from './accounts-api';
 import type { AccountTreeRow } from './tree';
@@ -40,7 +40,7 @@ export function AccountTable({
   busyAccountId,
 }: AccountTableProps): ReactElement {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+    <ResponsiveTable className="rounded-lg border border-border bg-surface">
       <table className="w-full border-collapse text-base">
         <caption className="sr-only">
           Chart of accounts, ordered by code, with each account nested under the one it rolls up
@@ -172,6 +172,6 @@ export function AccountTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ResponsiveTable>
   );
 }

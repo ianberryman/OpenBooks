@@ -3,6 +3,7 @@ import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { presentApiError } from '../api';
+import { ResponsiveTable } from '../components';
 import { cx } from '../lib/cx';
 import { thinRequest } from '../lib/thin-client';
 import { formatMinorUnits } from '../money/format';
@@ -246,7 +247,7 @@ function PublicInvoiceDocument({
 
           {view.memo !== null && <p className="text-sm text-text-muted">{view.memo}</p>}
 
-          <div className="overflow-x-auto">
+          <ResponsiveTable>
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">Invoice lines</caption>
               <thead>
@@ -290,7 +291,7 @@ function PublicInvoiceDocument({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ResponsiveTable>
 
           <div className="flex justify-end">
             <dl className="flex w-full max-w-xs flex-col gap-1">

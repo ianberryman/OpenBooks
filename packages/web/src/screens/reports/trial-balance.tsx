@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner } from '../../components';
+import { ErrorBanner, ResponsiveTable } from '../../components';
 import { AmountCell, DrillLink } from './cells';
 import type { ReportFilterState } from './filters';
 import { ReportPending, ReportTitle } from './layout';
@@ -73,64 +73,66 @@ export function TrialBalanceReport({
         subtitle={report.asOf === null ? 'Every posting to date' : `As at ${report.asOf}`}
       />
 
-      <table aria-label="Trial balance" className="w-full border-collapse text-base">
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Account
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Debits
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Credits
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Balance
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map((row) => (
-            <tr key={row.accountId} className="border-b border-border last:border-0">
-              <th scope="row" className="px-3 py-1 text-left font-normal">
-                <span className="flex items-baseline gap-2">
-                  <span className="font-mono text-xs text-text-subtle">{row.code}</span>
-                  <DrillLink
-                    onClick={() => {
-                      onDrillThrough(row.accountId);
-                    }}
-                    title="Show the entries behind this line"
-                  >
-                    {row.name}
-                  </DrillLink>
-                </span>
+      <ResponsiveTable>
+        <table aria-label="Trial balance" className="w-full border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Account
               </th>
-              <AmountCell value={row.debits} />
-              <AmountCell value={row.credits} />
-              <AmountCell value={row.balance} />
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Debits
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Credits
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Balance
+              </th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-border-strong">
-            <th scope="row" className="px-3 py-1 text-left font-semibold">
-              Totals
-            </th>
-            <AmountCell value={report.totalDebits} emphasis />
-            <AmountCell value={report.totalCredits} emphasis />
-            <td />
-          </tr>
-          <tr>
-            <th scope="row" className="px-3 py-1 text-left font-medium text-text-muted">
-              Difference
-            </th>
-            <td />
-            <td />
-            <AmountCell value={report.difference} emphasis />
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {report.rows.map((row) => (
+              <tr key={row.accountId} className="border-b border-border last:border-0">
+                <th scope="row" className="px-3 py-1 text-left font-normal">
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-mono text-xs text-text-subtle">{row.code}</span>
+                    <DrillLink
+                      onClick={() => {
+                        onDrillThrough(row.accountId);
+                      }}
+                      title="Show the entries behind this line"
+                    >
+                      {row.name}
+                    </DrillLink>
+                  </span>
+                </th>
+                <AmountCell value={row.debits} />
+                <AmountCell value={row.credits} />
+                <AmountCell value={row.balance} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-border-strong">
+              <th scope="row" className="px-3 py-1 text-left font-semibold">
+                Totals
+              </th>
+              <AmountCell value={report.totalDebits} emphasis />
+              <AmountCell value={report.totalCredits} emphasis />
+              <td />
+            </tr>
+            <tr>
+              <th scope="row" className="px-3 py-1 text-left font-medium text-text-muted">
+                Difference
+              </th>
+              <td />
+              <td />
+              <AmountCell value={report.difference} emphasis />
+            </tr>
+          </tfoot>
+        </table>
+      </ResponsiveTable>
 
       <p className="text-xs text-text-subtle">
         A consistent ledger has a difference of 0.00. It is reported rather than asserted, so a

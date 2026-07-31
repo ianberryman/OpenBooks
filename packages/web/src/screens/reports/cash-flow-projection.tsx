@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner, Select } from '../../components';
+import { ErrorBanner, ResponsiveTable, Select } from '../../components';
 import type { SelectOption } from '../../components';
 import { cx } from '../../lib/cx';
 import { AmountCell } from './cells';
@@ -167,38 +167,40 @@ export function CashFlowProjectionReport({
         subtitle={`Forecast from ${report.asOf}, ${report.granularity} buckets`}
       />
 
-      <table aria-label="Cash-flow projection" className="w-full border-collapse text-base">
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Period
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Expected in
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Expected out
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Net change
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Projected closing cash
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-border bg-surface-sunken">
-            <th scope="row" className="px-3 py-1 text-left font-semibold" colSpan={4}>
-              Opening cash, at {report.asOf}
-            </th>
-            <AmountCell value={report.openingCash} emphasis />
-          </tr>
-          {report.buckets.map((bucket) => (
-            <BucketRow key={`${bucket.periodStart}-${bucket.periodEnd}`} bucket={bucket} />
-          ))}
-        </tbody>
-      </table>
+      <ResponsiveTable>
+        <table aria-label="Cash-flow projection" className="w-full border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Period
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Expected in
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Expected out
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Net change
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Projected closing cash
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border bg-surface-sunken">
+              <th scope="row" className="px-3 py-1 text-left font-semibold" colSpan={4}>
+                Opening cash, at {report.asOf}
+              </th>
+              <AmountCell value={report.openingCash} emphasis />
+            </tr>
+            {report.buckets.map((bucket) => (
+              <BucketRow key={`${bucket.periodStart}-${bucket.periodEnd}`} bucket={bucket} />
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {report.buckets.length === 0 && (
         <p className="text-text-subtle">Nothing to project — the horizon has no buckets in it.</p>

@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { Button, Combobox, ErrorBanner } from '../../components';
+import { Button, Combobox, ErrorBanner, ResponsiveTable } from '../../components';
 import { Amount, AmountCell } from './cells';
 import type { ReportFilterState } from './filters';
 import { encodeDimensionFilters, rangeQuery } from './filters';
@@ -187,70 +187,74 @@ export function GeneralLedgerPage({
         </p>
       )}
 
-      <table aria-label="Balances" className="w-full border-collapse text-base">
-        <caption className="pb-1 text-left text-sm text-text-subtle">
-          Opening plus movement equals closing (B4), recomputed on every page.
-        </caption>
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium" />
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Debits
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Credits
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Balance
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <AmountsRow label="Opening" amounts={page.opening} />
-          <AmountsRow label="Movement" amounts={page.movement} />
-          <AmountsRow label="Closing" amounts={page.closing} emphasis />
-        </tbody>
-      </table>
-
-      <table aria-label="Entries" className="w-full border-collapse text-base">
-        <thead>
-          <tr className="border-b border-border text-xs text-text-subtle">
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Date
-            </th>
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Entry
-            </th>
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Memo
-            </th>
-            <th scope="col" className="px-3 py-1 text-left font-medium">
-              Other side
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Debit
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Credit
-            </th>
-            <th scope="col" className="px-3 py-1 text-right font-medium">
-              Running balance
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {page.entries.length === 0 && (
-            <tr>
-              <td colSpan={7} className="px-3 py-2 text-text-subtle">
-                No entries in this range.
-              </td>
+      <ResponsiveTable>
+        <table aria-label="Balances" className="w-full border-collapse text-base">
+          <caption className="pb-1 text-left text-sm text-text-subtle">
+            Opening plus movement equals closing (B4), recomputed on every page.
+          </caption>
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium" />
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Debits
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Credits
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Balance
+              </th>
             </tr>
-          )}
-          {page.entries.map((entry) => (
-            <EntryRow key={entry.lineId} entry={entry} />
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            <AmountsRow label="Opening" amounts={page.opening} />
+            <AmountsRow label="Movement" amounts={page.movement} />
+            <AmountsRow label="Closing" amounts={page.closing} emphasis />
+          </tbody>
+        </table>
+      </ResponsiveTable>
+
+      <ResponsiveTable>
+        <table aria-label="Entries" className="w-full border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-xs text-text-subtle">
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Date
+              </th>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Entry
+              </th>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Memo
+              </th>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Other side
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Debit
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Credit
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Running balance
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {page.entries.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-3 py-2 text-text-subtle">
+                  No entries in this range.
+                </td>
+              </tr>
+            )}
+            {page.entries.map((entry) => (
+              <EntryRow key={entry.lineId} entry={entry} />
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
     </div>
   );
 }

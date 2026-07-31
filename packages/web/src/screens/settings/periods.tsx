@@ -12,6 +12,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   useFieldControl,
 } from '../../components';
@@ -302,66 +303,71 @@ export function FiscalPeriodsSection(): ReactElement {
           <h3 className="text-sm font-semibold text-text">
             {fiscalYearLabel(group.fiscalYear, startMonth)}
           </h3>
-          <table className={TABLE_CLASSES}>
-            <caption className="sr-only">
-              Periods in {fiscalYearLabel(group.fiscalYear, startMonth)}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col" className={TH_CLASSES}>
-                  Period
-                </th>
-                <th scope="col" className={TH_CLASSES}>
-                  Dates
-                </th>
-                <th scope="col" className={TH_CLASSES}>
-                  Status
-                </th>
-                <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.periods.map((period) => {
-                const closed = period.status === 'closed';
-                const busy = closed
-                  ? reopenPeriod.isPending && reopenPeriod.variables?.periodId === period.id
-                  : closePeriod.isPending && closePeriod.variables?.periodId === period.id;
+          <ResponsiveTable>
+            <table className={TABLE_CLASSES}>
+              <caption className="sr-only">
+                Periods in {fiscalYearLabel(group.fiscalYear, startMonth)}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={TH_CLASSES}>
+                    Period
+                  </th>
+                  <th scope="col" className={TH_CLASSES}>
+                    Dates
+                  </th>
+                  <th scope="col" className={TH_CLASSES}>
+                    Status
+                  </th>
+                  <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.periods.map((period) => {
+                  const closed = period.status === 'closed';
+                  const busy = closed
+                    ? reopenPeriod.isPending && reopenPeriod.variables?.periodId === period.id
+                    : closePeriod.isPending && closePeriod.variables?.periodId === period.id;
 
-                return (
-                  <tr key={period.id}>
-                    <td className={cx(TD_CLASSES, 'font-mono')}>{period.name}</td>
-                    <td className={cx(TD_CLASSES, 'text-text-muted')}>
-                      {formatCalendarDate(period.startDate)} – {formatCalendarDate(period.endDate)}
-                    </td>
-                    <td className={TD_CLASSES}>
-                      <Pill tone={closed ? 'muted' : 'positive'}>{closed ? 'Closed' : 'Open'}</Pill>
-                      {closed && period.closedAt !== null && (
-                        <span className="ml-2 text-xs text-text-subtle">
-                          {formatTimestamp(period.closedAt)}
-                        </span>
-                      )}
-                    </td>
-                    <td className={cx(TD_CLASSES, 'text-right')}>
-                      <Button
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => {
-                          // Opens the sign-off dialog rather than closing directly (P3):
-                          // the checklist is fetched once the target is set, below.
-                          if (closed) setReopenTarget(period);
-                          else setCloseTarget(period);
-                        }}
-                      >
-                        {closed ? 'Reopen' : 'Close'}
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={period.id}>
+                      <td className={cx(TD_CLASSES, 'font-mono')}>{period.name}</td>
+                      <td className={cx(TD_CLASSES, 'text-text-muted')}>
+                        {formatCalendarDate(period.startDate)} –{' '}
+                        {formatCalendarDate(period.endDate)}
+                      </td>
+                      <td className={TD_CLASSES}>
+                        <Pill tone={closed ? 'muted' : 'positive'}>
+                          {closed ? 'Closed' : 'Open'}
+                        </Pill>
+                        {closed && period.closedAt !== null && (
+                          <span className="ml-2 text-xs text-text-subtle">
+                            {formatTimestamp(period.closedAt)}
+                          </span>
+                        )}
+                      </td>
+                      <td className={cx(TD_CLASSES, 'text-right')}>
+                        <Button
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => {
+                            // Opens the sign-off dialog rather than closing directly (P3):
+                            // the checklist is fetched once the target is set, below.
+                            if (closed) setReopenTarget(period);
+                            else setCloseTarget(period);
+                          }}
+                        >
+                          {closed ? 'Reopen' : 'Close'}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         </div>
       ))}
 

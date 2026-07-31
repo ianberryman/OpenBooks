@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
-import { Button, ErrorBanner, Field, FieldLabel, Select } from '../components';
+import { Button, ErrorBanner, Field, FieldLabel, ResponsiveTable, Select } from '../components';
 import { ContactFormDialog } from './contacts/contact-form';
 import { DeleteContactDialog } from './contacts/delete-contact-dialog';
 import type { Contact, ContactFilters } from './contacts/queries';
@@ -197,103 +197,105 @@ export function ContactsScreen(): ReactElement {
       )}
 
       {rows.length > 0 && (
-        <table className="w-full border-collapse text-base">
-          <caption className="sr-only">
-            {sort === 'created'
-              ? 'Contacts, oldest first by creation'
-              : 'Contacts, sorted by name within the rows loaded'}
-          </caption>
-          <thead>
-            <tr className="border-b border-border text-left text-sm text-text-muted">
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Code
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Name
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Roles
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Contact
-              </th>
-              <th scope="col" className="py-2 pr-3 font-medium">
-                Status
-              </th>
-              <th scope="col" className="py-2 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((contact) => (
-              <tr key={contact.id} className="border-b border-border align-top">
-                <td className="py-2 pr-3 font-mono text-sm text-text-muted">
-                  {contact.code ?? '—'}
-                </td>
-                <td className="py-2 pr-3">
-                  <span className="text-text">{contact.displayName}</span>
-                  {contact.legalName !== null && (
-                    <span className="block text-xs text-text-subtle">{contact.legalName}</span>
-                  )}
-                </td>
-                <td className="py-2 pr-3">
-                  <Roles contact={contact} />
-                </td>
-                <td className="py-2 pr-3 text-sm text-text-muted">
-                  {contact.email ?? contact.phone ?? '—'}
-                </td>
-                <td className="py-2 pr-3 text-sm">
-                  {contact.isActive ? (
-                    <span className="text-text-muted">Active</span>
-                  ) : (
-                    <span className="text-warning-text">Inactive</span>
-                  )}
-                </td>
-                <td className="py-2">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      size="sm"
-                      aria-label={`Edit ${contact.displayName}`}
-                      onClick={() => {
-                        setEditing(contact);
-                        setFormOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={setActive.isPending}
-                      aria-label={`${contact.isActive ? 'Deactivate' : 'Reactivate'} ${contact.displayName}`}
-                      onClick={() => {
-                        setActive.mutate({
-                          contactId: contact.id,
-                          active: !contact.isActive,
-                          idempotencyKey: intentKey(
-                            `${contact.isActive ? 'deactivate' : 'reactivate'}:${contact.id}`,
-                          ),
-                        });
-                      }}
-                    >
-                      {contact.isActive ? 'Deactivate' : 'Reactivate'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label={`Delete ${contact.displayName}`}
-                      onClick={() => {
-                        setDeleting(contact);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </td>
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-base">
+            <caption className="sr-only">
+              {sort === 'created'
+                ? 'Contacts, oldest first by creation'
+                : 'Contacts, sorted by name within the rows loaded'}
+            </caption>
+            <thead>
+              <tr className="border-b border-border text-left text-sm text-text-muted">
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Code
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Name
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Roles
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Contact
+                </th>
+                <th scope="col" className="py-2 pr-3 font-medium">
+                  Status
+                </th>
+                <th scope="col" className="py-2 font-medium">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((contact) => (
+                <tr key={contact.id} className="border-b border-border align-top">
+                  <td className="py-2 pr-3 font-mono text-sm text-text-muted">
+                    {contact.code ?? '—'}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <span className="text-text">{contact.displayName}</span>
+                    {contact.legalName !== null && (
+                      <span className="block text-xs text-text-subtle">{contact.legalName}</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Roles contact={contact} />
+                  </td>
+                  <td className="py-2 pr-3 text-sm text-text-muted">
+                    {contact.email ?? contact.phone ?? '—'}
+                  </td>
+                  <td className="py-2 pr-3 text-sm">
+                    {contact.isActive ? (
+                      <span className="text-text-muted">Active</span>
+                    ) : (
+                      <span className="text-warning-text">Inactive</span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        aria-label={`Edit ${contact.displayName}`}
+                        onClick={() => {
+                          setEditing(contact);
+                          setFormOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={setActive.isPending}
+                        aria-label={`${contact.isActive ? 'Deactivate' : 'Reactivate'} ${contact.displayName}`}
+                        onClick={() => {
+                          setActive.mutate({
+                            contactId: contact.id,
+                            active: !contact.isActive,
+                            idempotencyKey: intentKey(
+                              `${contact.isActive ? 'deactivate' : 'reactivate'}:${contact.id}`,
+                            ),
+                          });
+                        }}
+                      >
+                        {contact.isActive ? 'Deactivate' : 'Reactivate'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Delete ${contact.displayName}`}
+                        onClick={() => {
+                          setDeleting(contact);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
       )}
 
       {setActive.isError && (

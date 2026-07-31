@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 
 import { api, presentApiError, unwrap } from '../../api';
 import type { components } from '../../api';
-import { Button, ErrorBanner, Select } from '../../components';
+import { Button, ErrorBanner, ResponsiveTable, Select } from '../../components';
 import { cx } from '../../lib/cx';
 import { ReportPending, ReportTitle } from './layout';
 
@@ -190,32 +190,34 @@ export function AuditView(): ReactElement {
               No activity in this window.
             </p>
           ) : (
-            <table aria-label="Audit trail" className="w-full border-collapse text-base">
-              <thead>
-                <tr className="border-b border-border text-left text-sm text-text-muted">
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    When
-                  </th>
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    Actor
-                  </th>
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    Action
-                  </th>
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    Summary
-                  </th>
-                  <th scope="col" className="py-2 font-medium">
-                    Reference
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((entry) => (
-                  <EntryRow key={entry.id} entry={entry} />
-                ))}
-              </tbody>
-            </table>
+            <ResponsiveTable>
+              <table aria-label="Audit trail" className="w-full border-collapse text-base">
+                <thead>
+                  <tr className="border-b border-border text-left text-sm text-text-muted">
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      When
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Actor
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Action
+                    </th>
+                    <th scope="col" className="py-2 pr-3 font-medium">
+                      Summary
+                    </th>
+                    <th scope="col" className="py-2 font-medium">
+                      Reference
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((entry) => (
+                    <EntryRow key={entry.id} entry={entry} />
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
           )}
 
           {/* Presence of a cursor is the only signal more exists — a full page does not

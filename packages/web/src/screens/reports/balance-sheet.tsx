@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { api, unwrap } from '../../api';
 import type { components } from '../../api';
-import { ErrorBanner } from '../../components';
+import { ErrorBanner, ResponsiveTable } from '../../components';
 import { AmountCell, GroupHeading, isZeroAmount } from './cells';
 import type { DrillTarget, ReportFilterState } from './filters';
 import { sliceQuery } from './filters';
@@ -214,39 +214,41 @@ function FootingTable({
   const balanced = isZeroAmount(totals.difference);
 
   return (
-    <table aria-label="Footing" className="w-full border-collapse text-base">
-      <tbody>
-        <FootingRow label="Total liabilities" value={totals.liabilities} />
-        <FootingRow label="Total equity accounts" value={totals.equity} />
-        <FootingRow
-          label="Prior-year earnings"
-          note={`Derived, not an account — revenue less expenses for every fiscal year before ${fiscalYear.startDate}.`}
-          value={totals.priorYearEarnings}
-        />
-        <FootingRow
-          label="Current-year earnings"
-          note={`Derived, not an account — revenue less expenses over fiscal year ${String(fiscalYear.year)} (${fiscalYear.startDate} to ${fiscalYear.endDate}).`}
-          value={totals.currentYearEarnings}
-        />
-        <FootingRow
-          label="Total liabilities and equity"
-          value={totals.liabilitiesAndEquity}
-          emphasis
-          rule
-        />
-        <FootingRow label="Total assets" value={totals.assets} emphasis />
-        <FootingRow
-          label="Difference"
-          note={
-            balanced
-              ? 'Assets less liabilities and equity. The sheet balances without a closing journal (B3).'
-              : 'Assets less liabilities and equity. Reported rather than asserted, so a discrepancy is visible.'
-          }
-          value={totals.difference}
-          emphasis={!balanced}
-        />
-      </tbody>
-    </table>
+    <ResponsiveTable>
+      <table aria-label="Footing" className="w-full border-collapse text-base">
+        <tbody>
+          <FootingRow label="Total liabilities" value={totals.liabilities} />
+          <FootingRow label="Total equity accounts" value={totals.equity} />
+          <FootingRow
+            label="Prior-year earnings"
+            note={`Derived, not an account — revenue less expenses for every fiscal year before ${fiscalYear.startDate}.`}
+            value={totals.priorYearEarnings}
+          />
+          <FootingRow
+            label="Current-year earnings"
+            note={`Derived, not an account — revenue less expenses over fiscal year ${String(fiscalYear.year)} (${fiscalYear.startDate} to ${fiscalYear.endDate}).`}
+            value={totals.currentYearEarnings}
+          />
+          <FootingRow
+            label="Total liabilities and equity"
+            value={totals.liabilitiesAndEquity}
+            emphasis
+            rule
+          />
+          <FootingRow label="Total assets" value={totals.assets} emphasis />
+          <FootingRow
+            label="Difference"
+            note={
+              balanced
+                ? 'Assets less liabilities and equity. The sheet balances without a closing journal (B3).'
+                : 'Assets less liabilities and equity. Reported rather than asserted, so a discrepancy is visible.'
+            }
+            value={totals.difference}
+            emphasis={!balanced}
+          />
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }
 
