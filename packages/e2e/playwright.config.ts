@@ -125,7 +125,27 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      // The milestone narratives, at the desktop width the top-level `use` sets. They
+      // ignore the mobile smoke test, whose drawer and reflow assertions only hold below
+      // `md` — at 1440px the nav is a static sidebar and there is no hamburger to open.
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /mobile-smoke\.spec\.ts$/,
+    },
+    {
+      // Initiative R (D-125). One dedicated narrative at phone width proving the responsive
+      // shell end to end: the nav is a drawer, a journal posts, a report reads, and the body
+      // never scrolls sideways. `iPhone 13` for its 390px viewport and touch emulation, but
+      // driven by Chromium — `test:e2e:install` installs chromium only, and adding a WebKit
+      // download to CI is not worth it for one narrative. `isMobile`/`hasTouch` from the
+      // descriptor are Chromium features, so the override keeps both.
+      name: 'mobile',
+      testMatch: /mobile-smoke\.spec\.ts$/,
+      use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' },
+    },
+  ],
 
   webServer: [
     {
