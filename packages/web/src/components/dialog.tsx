@@ -40,15 +40,16 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-scrim" />
       <DialogPrimitive.Content
         className={cx(
-          // Compact (< md), D-124: a full-width bottom sheet. A centred modal on a phone
-          // leaves a cramped strip down each side and puts its confirm button under the
-          // thumb-unfriendly middle of the screen; a sheet anchored to the bottom edge
-          // uses the full width and sits where the thumb already is.
-          'fixed inset-x-0 bottom-0 z-50 max-h-[90vh] w-full rounded-t-xl rounded-b-none',
-          // md and up: the centred dialog, unchanged from D-24 — restore the anchor,
-          // width cap, centring translate, full rounding and the tighter height cap.
-          'md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:max-h-[85vh] md:w-[calc(100vw-2rem)]',
-          'md:max-w-dialog md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl',
+          // Compact (< md), D-124: a full-width sheet anchored to the *top* of the screen.
+          // A centred modal leaves a cramped strip down each side on a phone; a full-width
+          // sheet fixes that, and the top edge (not the bottom) is where a form's first field
+          // and its title should sit — the header owns the top of the screen, the form drops
+          // in beneath it rather than floating up from the bottom.
+          'fixed inset-x-0 top-0 z-50 max-h-[90vh] w-full rounded-b-xl',
+          // md and up: the centred dialog, unchanged from D-24 — restore the anchor, width
+          // cap, centring translate, full rounding and the tighter height cap.
+          'md:inset-x-auto md:top-1/2 md:left-1/2 md:max-h-[85vh] md:w-[calc(100vw-2rem)]',
+          'md:max-w-dialog md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-t-xl',
           'border border-border bg-surface-overlay p-5 shadow-overlay',
           'flex flex-col gap-4',
           className,

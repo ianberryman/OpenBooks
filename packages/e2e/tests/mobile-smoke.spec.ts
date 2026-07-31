@@ -34,35 +34,53 @@ async function navigateVia(page: Page, link: string): Promise<void> {
 }
 
 /**
- * The initiative's headline promise: no horizontal `<body>` scroll at phone width. A wide
- * table is *allowed* to scroll inside its own `ResponsiveTable` wrapper (D-123); what must
- * not happen is a region's own content forcing the region sideways.
+ * The initiative's headline promise: no horizontal scroll at phone width. A wide table is
+ * *allowed* to scroll inside its own `ResponsiveTable` wrapper (D-123); what must not happen
+ * is any other element pushing past the device width.
  *
- * So this measures the actual scroll regions — the fixed chrome (`<header>`) and the content
- * scroller (`#main`) — and asserts neither overflows its own width. It deliberately does
- * **not** measure `document.scrollingElement.scrollWidth`: under Chromium's mobile emulation
- * that value aggregates the scrollWidth of *contained* horizontal scrollers (the wide table
- * inside its wrapper), reporting a body overflow the user cannot actually perform — verified
- * against `window.scrollX`, which stays 0. A region whose *own* `scrollWidth` exceeds its
- * `clientWidth` is the real defect: an un-wrapped wide element, or chrome that will not
- * shrink, pushing the page sideways (the header org-switcher was exactly that, and this
- * check catches it). The callback is typed through `globalThis` because this package's
- * tsconfig carries no DOM lib on purpose.
+ * So this walks every element and flags one whose right edge exceeds
+ * `documentElement.clientWidth` (the device width, which stays put) *unless* it sits inside a
+ * horizontal scroll container — that one is allowed to scroll internally. This is measured
+ * rather than `document.scrollingElement.scrollWidth` for two reasons the earlier, weaker
+ * checks each missed: that value over-reports a contained scroller under Chromium's mobile
+ * emulation (a false positive `window.scrollX` disproves), and a per-region
+ * `scrollWidth − clientWidth` reads 0 when overflowing chrome *expands the whole layout
+ * viewport* — which grows `clientWidth` in step and hides the very defect (the header
+ * org-switcher did exactly that, and a payment sheet inherited its width). Measuring the
+ * uncontained overrun against the fixed device width catches both. Typed through `globalThis`
+ * because this package's tsconfig carries no DOM lib on purpose.
  */
 async function expectNoHorizontalScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => {
-    type Region = { readonly scrollWidth: number; readonly clientWidth: number };
-    const { document: doc } = globalThis as unknown as {
-      document: { querySelector: (s: string) => Region | null };
+  const overrun = await page.evaluate(() => {
+    type El = {
+      getBoundingClientRect: () => { right: number };
+      parentElement: El | null;
     };
+    const g = globalThis as unknown as {
+      document: {
+        documentElement: { clientWidth: number };
+        querySelectorAll: (s: string) => Iterable<El>;
+      };
+      getComputedStyle: (el: El) => { overflowX: string };
+    };
+    const width = g.document.documentElement.clientWidth;
     let worst = 0;
-    for (const selector of ['header', '#main']) {
-      const region = doc.querySelector(selector);
-      if (region !== null) worst = Math.max(worst, region.scrollWidth - region.clientWidth);
+    for (const el of g.document.querySelectorAll('body *')) {
+      const over = el.getBoundingClientRect().right - width;
+      if (over <= 1) continue;
+      let contained = false;
+      for (let a = el.parentElement; a !== null; a = a.parentElement) {
+        const ox = g.getComputedStyle(a).overflowX;
+        if (ox === 'auto' || ox === 'scroll' || ox === 'hidden') {
+          contained = true;
+          break;
+        }
+      }
+      if (!contained) worst = Math.max(worst, over);
     }
     return worst;
   });
-  expect(overflow).toBeLessThanOrEqual(1);
+  expect(overrun).toBeLessThanOrEqual(1);
 }
 
 test('the responsive shell keeps a set of books on a phone-sized viewport', async ({ page }) => {

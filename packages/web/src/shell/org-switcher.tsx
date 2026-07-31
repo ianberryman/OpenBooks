@@ -37,28 +37,40 @@ export function OrgControls({ identity }: OrgControlsProps): ReactElement {
           shared table's — only the title is shown. */}
       {switchOrg.isError && <FieldError>{presentApiError(switchOrg.error).title}</FieldError>}
 
-      <Select
-        aria-label="Active organization"
-        value={identity.activeOrgId}
-        disabled={switchOrg.isPending}
-        options={identity.memberships.map((membership) => ({
-          value: membership.org.id,
-          label: membership.org.name,
-        }))}
-        onValueChange={(orgId) => {
-          // Minted at the point the user commits, and carried in the variables, so a repeat
-          // of the same switch replays rather than issuing a second one.
-          switchOrg.mutate({ orgId, idempotencyKey: newIdempotencyKey() });
-        }}
-        className="w-36 sm:w-48"
-      />
+      {/* Width lives on this wrapper, not the trigger: `Select` carries `CONTROL_CLASSES`'
+          `w-full`, which wins the source-order tie against a `w-*` on the trigger, so the
+          only reliable cap is a sized box the full-width trigger fills. Without it the
+          trigger grows to the org name and shoves the header past the phone's width. */}
+      <div className="w-32 shrink-0 sm:w-48">
+        <Select
+          aria-label="Active organization"
+          value={identity.activeOrgId}
+          disabled={switchOrg.isPending}
+          options={identity.memberships.map((membership) => ({
+            value: membership.org.id,
+            label: membership.org.name,
+          }))}
+          onValueChange={(orgId) => {
+            // Minted at the point the user commits, and carried in the variables, so a repeat
+            // of the same switch replays rather than issuing a second one.
+            switchOrg.mutate({ orgId, idempotencyKey: newIdempotencyKey() });
+          }}
+        />
+      </div>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogTrigger asChild>
-          <Button size="sm" variant="ghost">
-            New organization
-          </Button>
-        </DialogTrigger>
+        {/* Hidden below `sm` via a wrapper, not `hidden` on the button: `Button` hard-codes
+            `inline-flex`, which wins the source-order tie against `hidden`, so the button
+            cannot hide itself. The header cannot hold the switcher, this, and sign-out at
+            phone width without overflowing (a payment sheet inherits that width); creating an
+            org is rare and stays one breakpoint up. */}
+        <span className="hidden sm:inline-flex">
+          <DialogTrigger asChild>
+            <Button size="sm" variant="ghost">
+              New organization
+            </Button>
+          </DialogTrigger>
+        </span>
         <DialogContent
           title="Create an organization"
           description="A separate set of books, with you as its Owner."
