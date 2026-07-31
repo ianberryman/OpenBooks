@@ -180,8 +180,11 @@ export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): R
               </DialogPrimitive.Portal>
             </DialogPrimitive.Root>
           )}
-          <span className="font-semibold tracking-tight text-text">OpenBooks</span>
-          <div className="ml-auto flex items-center gap-2">
+          {/* The wordmark yields below `sm`: the header's session controls (org switcher,
+              sign out) are fixed-width and cannot shrink, so on a phone the brand is what
+              gives — the hamburger and the drawer's own title already carry the identity. */}
+          <span className="hidden font-semibold tracking-tight text-text sm:inline">OpenBooks</span>
+          <div className="ml-auto flex min-w-0 items-center gap-2">
             {orgIndicator}
             <ThemeToggle />
           </div>

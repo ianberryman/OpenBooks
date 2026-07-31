@@ -35,22 +35,32 @@ async function navigateVia(page: Page, link: string): Promise<void> {
 
 /**
  * The initiative's headline promise: no horizontal `<body>` scroll at phone width. A wide
- * table is allowed to scroll inside its own wrapper (D-123), but the document itself must
- * not — so this measures the scrolling element, not any inner box. One pixel of slack for
- * sub-pixel rounding; anything more is a real sideways scroll.
+ * table is *allowed* to scroll inside its own `ResponsiveTable` wrapper (D-123); what must
+ * not happen is a region's own content forcing the region sideways.
+ *
+ * So this measures the actual scroll regions — the fixed chrome (`<header>`) and the content
+ * scroller (`#main`) — and asserts neither overflows its own width. It deliberately does
+ * **not** measure `document.scrollingElement.scrollWidth`: under Chromium's mobile emulation
+ * that value aggregates the scrollWidth of *contained* horizontal scrollers (the wide table
+ * inside its wrapper), reporting a body overflow the user cannot actually perform — verified
+ * against `window.scrollX`, which stays 0. A region whose *own* `scrollWidth` exceeds its
+ * `clientWidth` is the real defect: an un-wrapped wide element, or chrome that will not
+ * shrink, pushing the page sideways (the header org-switcher was exactly that, and this
+ * check catches it). The callback is typed through `globalThis` because this package's
+ * tsconfig carries no DOM lib on purpose.
  */
 async function expectNoHorizontalScroll(page: Page): Promise<void> {
-  // The callback runs in the browser, but it is typechecked against this package's tsconfig,
-  // which carries `types: ["node"]` and no DOM lib on purpose. So the document is reached
-  // through a locally-typed `globalThis` view rather than an ambient `document` the compiler
-  // here does not know — no DOM lib, no `any`, no unsafe access.
   const overflow = await page.evaluate(() => {
-    type Measurable = { readonly scrollWidth: number; readonly clientWidth: number };
+    type Region = { readonly scrollWidth: number; readonly clientWidth: number };
     const { document: doc } = globalThis as unknown as {
-      document: { scrollingElement: Measurable | null; documentElement: Measurable };
+      document: { querySelector: (s: string) => Region | null };
     };
-    const el = doc.scrollingElement ?? doc.documentElement;
-    return el.scrollWidth - el.clientWidth;
+    let worst = 0;
+    for (const selector of ['header', '#main']) {
+      const region = doc.querySelector(selector);
+      if (region !== null) worst = Math.max(worst, region.scrollWidth - region.clientWidth);
+    }
+    return worst;
   });
   expect(overflow).toBeLessThanOrEqual(1);
 }

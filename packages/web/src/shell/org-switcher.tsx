@@ -50,7 +50,7 @@ export function OrgControls({ identity }: OrgControlsProps): ReactElement {
           // of the same switch replays rather than issuing a second one.
           switchOrg.mutate({ orgId, idempotencyKey: newIdempotencyKey() });
         }}
-        className="w-48"
+        className="w-36 sm:w-48"
       />
 
       <Dialog open={creating} onOpenChange={setCreating}>
