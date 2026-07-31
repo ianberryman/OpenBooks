@@ -56,7 +56,7 @@ export function templateListQueryKey(activeOnly: boolean | null): readonly unkno
   return [...TEMPLATES_SCOPE, 'list', activeOnly];
 }
 
-const referenceKeys = {
+export const referenceKeys = {
   contacts: ['recurring-invoices', 'contacts'] as const,
   accounts: ['recurring-invoices', 'income-accounts'] as const,
   taxRates: ['recurring-invoices', 'tax-rates'] as const,

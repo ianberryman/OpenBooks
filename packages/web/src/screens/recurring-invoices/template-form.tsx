@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { useId, useMemo, useState } from 'react';
 
@@ -16,9 +17,10 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
+import { ContactFormDialog } from '../contacts/contact-form';
 import { LineRow, NO_TAX_RATE } from './line-row';
 import type { RecurringInvoiceTemplate, TemplateFrequency, TemplateReferenceData } from './queries';
-import { useCreateTemplate, useIntentKey, useUpdateTemplate } from './queries';
+import { referenceKeys, useCreateTemplate, useIntentKey, useUpdateTemplate } from './queries';
 import {
   blankLine,
   blankFormState,
@@ -114,9 +116,11 @@ function TemplateFormContent({
   readonly onDone: () => void;
 }): ReactElement {
   const formId = useId();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<TemplateFormState>(() =>
     template === null ? blankFormState() : stateFromTemplate(template),
   );
+  const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
 
   const create = useCreateTemplate();
   const update = useUpdateTemplate();
@@ -242,6 +246,12 @@ function TemplateFormContent({
               placeholder="Search contacts…"
               onValueChange={(value) => {
                 edit({ contactId: value });
+              }}
+              onCreate={{
+                label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
+                onSelect: (q) => {
+                  setNewCustomerName(q.trim());
+                },
               }}
             />
           </Field>
@@ -448,6 +458,24 @@ function TemplateFormContent({
             )
           )}
         </div>
+
+        {/* Inline customer creation: seeded with the typed name and pre-marked a customer, and
+            on success the contacts list is refetched (this screen's own query key) and the new
+            customer selected. Nested in the form rather than beside it: the dialog is portaled,
+            so placement here doesn't affect layout. */}
+        <ContactFormDialog
+          contact={null}
+          open={newCustomerName !== null}
+          onOpenChange={(open) => {
+            if (!open) setNewCustomerName(null);
+          }}
+          initialDisplayName={newCustomerName ?? ''}
+          initialIsCustomer
+          onCreated={(created) => {
+            void queryClient.invalidateQueries({ queryKey: referenceKeys.contacts });
+            edit({ contactId: created.id });
+          }}
+        />
       </form>
     </DialogContent>
   );

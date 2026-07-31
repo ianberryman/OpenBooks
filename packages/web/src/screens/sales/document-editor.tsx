@@ -15,6 +15,7 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
+import { ContactFormDialog } from '../contacts/contact-form';
 import { blankLine, patchFromState, stateFromDocument } from './document-state';
 import type { EditorLine, EditorState } from './document-state';
 import { APPROVE_DOCUMENT, idempotencyKeyFor, releaseIdempotencyKey } from './intent-keys';
@@ -100,6 +101,7 @@ export function DocumentEditor({
   const [dirty, setDirty] = useState(false);
   const [confirming, setConfirming] = useState<'approve' | 'discard' | null>(null);
   const [repricing, setRepricing] = useState<TaxMode | null>(null);
+  const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
   /**
    * The last refusal, held rather than derived from the three mutations: only the most
    * recent attempt is the one the user is looking at, and reading `approve.error ??
@@ -279,6 +281,12 @@ export function DocumentEditor({
             placeholder="Search contacts…"
             onValueChange={(value) => {
               edit({ ...state, contactId: value });
+            }}
+            onCreate={{
+              label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
+              onSelect: (q) => {
+                setNewCustomerName(q.trim());
+              },
             }}
           />
         </Field>
@@ -571,6 +579,23 @@ export function DocumentEditor({
           </p>
         </DialogContent>
       </Dialog>
+
+      {/* Inline customer creation: seeded with the typed name and pre-marked a customer, and
+          on success the contacts list is refetched (this screen's own query key) and the new
+          customer selected. */}
+      <ContactFormDialog
+        contact={null}
+        open={newCustomerName !== null}
+        onOpenChange={(open) => {
+          if (!open) setNewCustomerName(null);
+        }}
+        initialDisplayName={newCustomerName ?? ''}
+        initialIsCustomer
+        onCreated={(created) => {
+          void queryClient.invalidateQueries({ queryKey: salesKeys.contacts });
+          edit({ ...state, contactId: created.id });
+        }}
+      />
     </section>
   );
 }
