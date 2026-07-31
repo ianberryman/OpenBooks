@@ -1,9 +1,20 @@
 import type { ReactElement } from 'react';
 
-import { Button, Combobox, Field, MoneyInput, TextInput, formatMinorUnits } from '../../components';
+import type { components } from '../../api';
+import {
+  Button,
+  Combobox,
+  Field,
+  LineItemCombobox,
+  MoneyInput,
+  TextInput,
+  formatMinorUnits,
+} from '../../components';
 import type { ComboboxOption } from '../../components';
 import { cx } from '../../lib/cx';
 import type { EditorLine } from './document-state';
+
+type CatalogItem = components['schemas']['CatalogItem'];
 
 /**
  * One document line: what the user enters, and — read-only, in the last three columns —
@@ -30,11 +41,31 @@ export interface LineRowProps {
   readonly index: number;
   readonly accountOptions: readonly ComboboxOption[];
   readonly taxRateOptions: readonly ComboboxOption[];
+  /** The active sales items this line's description picker suggests (D-CAT-2). */
+  readonly catalogItems: readonly CatalogItem[];
   readonly fieldErrors: Readonly<Record<string, string>>;
   readonly stale: boolean;
   readonly disabled: boolean;
   readonly onChange: (line: EditorLine) => void;
+  /** Opens the inline create-item dialog, seeded with the typed description. */
+  readonly onCreateItem: (typed: string) => void;
   readonly onRemove: () => void;
+}
+
+/**
+ * A catalog item's defaults applied to a line (D-CAT-2). Each default falls back to what the
+ * line already holds, so an item that carries no price or account leaves the ones the user
+ * had. `catalogItemId` records the provenance and nothing rereads it.
+ */
+export function applyCatalogItem(line: EditorLine, item: CatalogItem): EditorLine {
+  return {
+    ...line,
+    description: item.name,
+    unitAmount: item.defaultUnitAmount ?? line.unitAmount,
+    accountId: item.defaultAccountId ?? line.accountId,
+    taxRateId: item.defaultTaxRateId ?? line.taxRateId,
+    catalogItemId: item.id,
+  };
 }
 
 /**
@@ -81,10 +112,12 @@ export function LineRow({
   index,
   accountOptions,
   taxRateOptions,
+  catalogItems,
   fieldErrors,
   stale,
   disabled,
   onChange,
+  onCreateItem,
   onRemove,
 }: LineRowProps): ReactElement {
   const path = `lines.${String(index)}`;
@@ -94,13 +127,18 @@ export function LineRow({
     <tr className="align-top">
       <td className="p-1">
         <Field error={fieldErrors[`${path}.description`]}>
-          <TextInput
+          <LineItemCombobox
             aria-label={`Description, line ${number}`}
             value={line.description}
+            items={catalogItems}
             disabled={disabled}
-            onChange={(event) => {
-              onChange({ ...line, description: event.target.value });
+            onValueChange={(text) => {
+              onChange({ ...line, description: text });
             }}
+            onItemSelect={(item) => {
+              onChange(applyCatalogItem(line, item));
+            }}
+            onCreate={onCreateItem}
           />
         </Field>
       </td>

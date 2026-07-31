@@ -140,9 +140,14 @@ async function resolvePurchaseOrderLines(
     readonly unitAmount: string;
     readonly accountId: string;
     readonly taxRateId?: string | null | undefined;
+    readonly catalogItemId?: string | null | undefined;
   }[],
   taxMode: TaxMode,
 ): Promise<readonly NewPurchaseOrderLineRow[]> {
+  // The shared AP `resolveLines` validates the catalog item as a `'purchase'` one
+  // (D-CAT-1) and returns it as bytes on the priced row; a purchase order carries it
+  // through unchanged, provenance only (D-CAT-2). The dimensions it also resolves are
+  // dropped below (D-M7); the catalog id is not, since this table has a column for it.
   const priced = await resolveLines(db, lines, taxMode);
 
   return priced.map((line) => ({
@@ -152,6 +157,7 @@ async function resolvePurchaseOrderLines(
     unitAmountMinor: line.unitAmountMinor,
     accountId: line.accountId,
     taxRateId: line.taxRateId,
+    catalogItemId: line.catalogItemId,
     lineAmountMinor: line.lineAmountMinor,
     taxAmountMinor: line.taxAmountMinor,
   }));
@@ -531,6 +537,7 @@ function toPurchaseOrderLine(
     unitAmount: toMinorString(fromMinorUnits(row.unit_amount_minor)),
     accountId: bufferToUuid(row.account_id),
     taxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    catalogItemId: row.catalog_item_id === null ? null : bufferToUuid(row.catalog_item_id),
     taxRatePercentage: rate === undefined ? null : percentOf(rate),
     netAmount: toMinorString(net),
     taxAmount: toMinorString(tax),

@@ -17,6 +17,8 @@ import {
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { ContactFormDialog } from '../contacts/contact-form';
+import { CatalogItemDialog } from '../settings/catalog-item-dialog';
+import { useCatalogItemChoices } from '../settings/catalog-queries';
 import type { Estimate, EstimateReferenceData } from './queries';
 import {
   CONTACTS_QUERY_KEY,
@@ -35,7 +37,7 @@ import {
   toUpdateRequest,
 } from './estimate-state';
 import type { EstimateFormState, EstimateLineDraft } from './estimate-state';
-import { LineRow } from './line-row';
+import { LineRow, applyCatalogItem } from './line-row';
 
 /**
  * The one dialog for raising and editing an estimate (OB-172, OB-176; ROADMAP D-M3, D-M4,
@@ -144,6 +146,16 @@ function EstimateFormContent({
     estimate === null ? blankFormState() : stateFromEstimate(estimate),
   );
   const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
+  /**
+   * The line that opened the inline "Create item" dialog, and the description it had typed —
+   * held so the created item can be applied back to that line (D-CAT-2).
+   */
+  const [creatingItemFor, setCreatingItemFor] = useState<{ key: string; typed: string } | null>(
+    null,
+  );
+
+  // An estimate seeds from the sales catalog; its picker suggests only active sales items.
+  const catalogItems = useCatalogItemChoices('sales');
 
   const create = useCreateEstimate();
   const update = useUpdateEstimate();
@@ -342,9 +354,13 @@ function EstimateFormContent({
                   line={line}
                   index={index}
                   accountOptions={accountOptions}
+                  catalogItems={catalogItems.data ?? []}
                   fieldErrors={fieldErrors}
                   disabled={pending}
                   onChange={editLine}
+                  onCreateItem={(typed) => {
+                    setCreatingItemFor({ key: line.key, typed });
+                  }}
                   onRemove={() => {
                     edit({ lines: state.lines.filter((it) => it.key !== line.key) });
                   }}
@@ -386,6 +402,27 @@ function EstimateFormContent({
         onCreated={(created) => {
           void queryClient.invalidateQueries({ queryKey: CONTACTS_QUERY_KEY });
           edit({ contactId: created.id });
+        }}
+      />
+
+      {/* Inline item creation from a line's description picker: preset to the sales side and
+          seeded with the typed text; on success the item is applied to the originating line
+          (D-CAT-2), and the create mutation's invalidation refetches the picker's choices. */}
+      <CatalogItemDialog
+        open={creatingItemFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreatingItemFor(null);
+        }}
+        presetDirection="sales"
+        initialName={creatingItemFor?.typed ?? ''}
+        onSaved={(item) => {
+          const key = creatingItemFor?.key;
+          if (key === undefined) return;
+          edit({
+            lines: state.lines.map((existing) =>
+              existing.key === key ? applyCatalogItem(existing, item) : existing,
+            ),
+          });
         }}
       />
     </DialogContent>

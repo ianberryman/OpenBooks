@@ -1078,6 +1078,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/catalog-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List catalog items
+         * @description One page, oldest first by creation. Deliberately not alphabetical: `name` is the field most likely to be edited, and a keyset cursor over a mutable column drops the rows that moved behind it (ROADMAP D-21). A picker that wants the list by name sorts the bounded set it holds.
+         */
+        get: operations["listCatalogItems"];
+        put?: never;
+        /**
+         * Create a catalog item
+         * @description Items are created active. Only `name` and `direction` are required: the defaults (account, unit price, tax rate) are optional, since an item can be a reusable description on its own. `direction` is immutable — a thing you both buy and sell is two items (D-CAT-1).
+         */
+        post: operations["createCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/catalog-items/{catalogItemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One catalog item */
+        get: operations["getCatalogItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a catalog item
+         * @description An absent field is unchanged and an explicit `null` clears it. `direction` is not here — it is immutable — and `isActive` is not either: deactivation is its own operation.
+         */
+        patch: operations["updateCatalogItem"];
+        trace?: never;
+    };
+    "/v1/catalog-items/{catalogItemId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate a catalog item
+         * @description Takes an item out of circulation without removing it, which is the only removal a referenced item allows (the line FKs are `ON DELETE RESTRICT`, D-CAT-5). An inactive item keeps every line that already cited it and cannot be chosen for new ones. Idempotent: an already-inactive item is returned unchanged.
+         */
+        post: operations["deactivateCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/catalog-items/{catalogItemId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a catalog item
+         * @description The counterpart, so that deactivation is not a one-way door.
+         */
+        post: operations["reactivateCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/change-feed": {
         parameters: {
             query?: never;
@@ -5985,6 +6070,62 @@ export interface components {
             /** @description This org’s cash/bank balance at the close of `asOf` — the accounts registered in `bank_accounts`, plus any account an org has marked with the `cash` basis role that is not separately registered. Read from the same ledger every other report reads (D-13); there is no separate stored balance to drift from it (D-46). */
             openingCash: components["schemas"]["MinorUnitsInput"];
         };
+        /** @description A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2). */
+        CatalogItem: {
+            code: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            defaultAccountId: string | null;
+            defaultTaxRateId: string | null;
+            defaultUnitAmount: components["schemas"]["MinorUnits"] | null;
+            /**
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @enum {string}
+             */
+            direction: "sales" | "purchase";
+            /** Format: uuid */
+            id: string;
+            /** @description Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5). */
+            isActive: boolean;
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2). */
+        CatalogItemInput: {
+            code: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            defaultAccountId: string | null;
+            defaultTaxRateId: string | null;
+            defaultUnitAmount: components["schemas"]["MinorUnitsInput"] | null;
+            /**
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @enum {string}
+             */
+            direction: "sales" | "purchase";
+            /** Format: uuid */
+            id: string;
+            /** @description Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5). */
+            isActive: boolean;
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of the org’s catalog items, oldest first by creation (not by name: a cursor into a list ordered by an editable column drops the rows that moved behind it — the contacts note). */
+        CatalogItemPage: {
+            items: components["schemas"]["CatalogItem"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of the org’s catalog items, oldest first by creation (not by name: a cursor into a list ordered by an editable column drops the rows that moved behind it — the contacts note). */
+        CatalogItemPageInput: {
+            items: components["schemas"]["CatalogItemInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
         /** @description Who or what caused a change-feed event. */
         ChangeFeedActor: {
             /** @description The acting user, API key, or agent session. A string rather than `z.uuid()`: an automation actor is not always keyed by a UUID the way a user row is. */
@@ -6534,6 +6675,34 @@ export interface components {
              * @enum {string}
              */
             taxMode: "exclusive" | "inclusive";
+        };
+        /** @description Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own. */
+        CreateCatalogItemRequest: {
+            code?: string | null;
+            defaultAccountId?: string | null;
+            defaultTaxRateId?: string | null;
+            defaultUnitAmount?: components["schemas"]["MinorUnits"] | null;
+            /**
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @enum {string}
+             */
+            direction: "sales" | "purchase";
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name: string;
+        };
+        /** @description Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own. */
+        CreateCatalogItemRequestInput: {
+            code?: string | null;
+            defaultAccountId?: string | null;
+            defaultTaxRateId?: string | null;
+            defaultUnitAmount?: components["schemas"]["MinorUnitsInput"] | null;
+            /**
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @enum {string}
+             */
+            direction: "sales" | "purchase";
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name: string;
         };
         /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequest: {
@@ -7755,6 +7924,8 @@ export interface components {
         DocumentLine: {
             /** Format: uuid */
             accountId: string;
+            /** @description The catalog item this line was selected from, or null for a free-form line. Provenance only (D-CAT-2): it records where the line came from and never drives what it says. */
+            catalogItemId: string | null;
             description: string;
             dimensionValueIds: string[];
             /** @description `netAmount + taxAmount`, exactly. What this line adds to what is owed. */
@@ -7776,6 +7947,8 @@ export interface components {
         DocumentLineInput: {
             /** Format: uuid */
             accountId: string;
+            /** @description The catalog item this line was selected from, or null for a free-form line. Provenance only (D-CAT-2): it records where the line came from and never drives what it says. */
+            catalogItemId: string | null;
             description: string;
             dimensionValueIds: string[];
             /** @description `netAmount + taxAmount`, exactly. What this line adds to what is owed. */
@@ -7800,6 +7973,8 @@ export interface components {
              * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
              */
             accountId: string;
+            /** @description The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one. */
+            catalogItemId?: string | null;
             /** @description What the line is for. This is what prints on the document. */
             description: string;
             /** @description Every dimension value this line carries. A value names its own axis; an omitted axis is untagged. Carried onto the journal line the document posts. */
@@ -7817,6 +7992,8 @@ export interface components {
              * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
              */
             accountId: string;
+            /** @description The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one. */
+            catalogItemId?: string | null;
             /** @description What the line is for. This is what prints on the document. */
             description: string;
             /** @description Every dimension value this line carries. A value names its own axis; an omitted axis is untagged. Carried onto the journal line the document posts. */
@@ -9793,6 +9970,8 @@ export interface components {
              * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
              */
             accountId: string;
+            /** @description The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one. */
+            catalogItemId?: string | null;
             /** @description What the line is for. This is what prints on the document. */
             description: string;
             quantity: components["schemas"]["Quantity"];
@@ -9808,6 +9987,8 @@ export interface components {
              * @description The income account this line credits on an invoice, or the expense or asset account it debits on a bill. The tax, if any, posts to the rate’s own account instead.
              */
             accountId: string;
+            /** @description The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one. */
+            catalogItemId?: string | null;
             /** @description What the line is for. This is what prints on the document. */
             description: string;
             quantity: components["schemas"]["QuantityInput"];
@@ -11319,6 +11500,24 @@ export interface components {
              * @enum {string}
              */
             taxMode?: "exclusive" | "inclusive";
+        };
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation. */
+        UpdateCatalogItemRequest: {
+            code?: string | null;
+            defaultAccountId?: string | null;
+            defaultTaxRateId?: string | null;
+            defaultUnitAmount?: components["schemas"]["MinorUnits"] | null;
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name?: string;
+        };
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation. */
+        UpdateCatalogItemRequestInput: {
+            code?: string | null;
+            defaultAccountId?: string | null;
+            defaultTaxRateId?: string | null;
+            defaultUnitAmount?: components["schemas"]["MinorUnitsInput"] | null;
+            /** @description What the item is called, and what fills the line description when it is selected. */
+            name?: string;
         };
         /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
         UpdateContactRequest: {
@@ -14628,6 +14827,218 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCatalogItems: {
+        parameters: {
+            query?: {
+                /** @description Restrict to sales items or to purchase items. */
+                direction?: "sales" | "purchase";
+                /** @description Omitted matches active and inactive items alike. */
+                isActive?: string;
+                /** @description Filters to items whose name or code contains this text. */
+                q?: string;
+                /** @description How many catalog items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogItemRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCatalogItemRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reactivateCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                catalogItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"];
+                };
             };
             /** @description Default Response */
             default: {

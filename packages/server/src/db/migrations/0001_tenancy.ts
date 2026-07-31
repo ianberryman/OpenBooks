@@ -343,7 +343,9 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('expenses.approve',         'Approve an employee expense into a payable (M)'),
       ('budgets.read',             'View budgets and budget-vs-actual (N)'),
       ('budgets.write',            'Enter and import budget figures (N)'),
-      ('audit.read',               'View the audit trail — who changed what, and period close history (P)')
+      ('audit.read',               'View the audit trail — who changed what, and period close history (P)'),
+      ('catalog.read',             'View the item catalog (CAT)'),
+      ('catalog.write',            'Create, modify, and deactivate catalog items (CAT)')
   `.execute(db);
 }
 
@@ -459,7 +461,10 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         -- expenses. expenses.approve is withheld — approving an expense into a payable
         -- is a separate duty (the disbursements.issue split, applied to expenses).
         'purchase_orders.read', 'purchase_orders.write',
-        'expenses.read', 'expenses.write'
+        'expenses.read', 'expenses.write',
+        -- The item catalog (CAT): the AP clerk picks and inline-adds purchase items
+        -- while entering a bill or purchase order.
+        'catalog.read', 'catalog.write'
       )
   `.execute(db);
 
@@ -480,7 +485,10 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         'tax_rates.read', 'dimensions.read', 'reports.read',
         -- Procure-to-pay (M): the AR clerk raises estimates/quotes, the sales mirror
         -- of the AP clerk's purchase orders.
-        'estimates.read', 'estimates.write'
+        'estimates.read', 'estimates.write',
+        -- The item catalog (CAT): the AR clerk picks and inline-adds sales items
+        -- while entering an invoice or estimate.
+        'catalog.read', 'catalog.write'
       )
   `.execute(db);
 

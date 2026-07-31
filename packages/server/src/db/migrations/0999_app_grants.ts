@@ -464,6 +464,14 @@ const MUTABLE_TABLES = [
   // `journal_drafts` row, and the ledger entry only ever comes from a human's post.
   'automations',
   'work_items',
+  // ── Item catalog (0019_catalog) ────────────────────────────────────────────
+  //
+  // A reusable list of priced items a document line can be selected from (D-CAT-1).
+  // Mutable because a catalog is settings — items are renamed, repriced, and
+  // deactivated (`is_active`, D-CAT-5) — the `contacts`/`dimensions` reason. It
+  // holds no financial fact: the item only seeds a line's defaults and never binds
+  // it (D-CAT-2), so editing one restates nothing a trial balance depends on.
+  'catalog_items',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

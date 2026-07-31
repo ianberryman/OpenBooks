@@ -115,6 +115,13 @@ describe('the /v1 route table', () => {
         'deactivateContact',
         'reactivateContact',
         'deleteContact',
+        // Item catalog (initiative CAT).
+        'createCatalogItem',
+        'listCatalogItems',
+        'getCatalogItem',
+        'updateCatalogItem',
+        'deactivateCatalogItem',
+        'reactivateCatalogItem',
         'createDimension',
         'listDimensions',
         'getDimension',

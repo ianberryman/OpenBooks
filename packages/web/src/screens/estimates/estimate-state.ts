@@ -31,6 +31,11 @@ export interface EstimateLineDraft {
   /** Minor units (D-13), or `null` for an empty field. */
   readonly unitAmountMinor: string | null;
   readonly accountId: string | null;
+  /**
+   * The catalog item this line was seeded from, or `null` for a hand-typed line. Provenance
+   * only (D-CAT-2) — carried through unedited, never re-read to reprice.
+   */
+  readonly catalogItemId: string | null;
 }
 
 export interface EstimateFormState {
@@ -56,6 +61,7 @@ export function blankLine(): EstimateLineDraft {
     quantity: '1',
     unitAmountMinor: null,
     accountId: null,
+    catalogItemId: null,
   };
 }
 
@@ -86,6 +92,7 @@ export function stateFromEstimate(estimate: Estimate): EstimateFormState {
     quantity: line.quantity,
     unitAmountMinor: line.unitAmount,
     accountId: line.accountId,
+    catalogItemId: line.catalogItemId,
   }));
 
   return {
@@ -136,6 +143,8 @@ function toLineInput(line: EstimateLineDraft): PredocumentLineRequest {
     quantity: line.quantity.trim(),
     unitAmount: line.unitAmountMinor,
     accountId: line.accountId,
+    // Provenance only (D-CAT-2): recorded so the line remembers the item it was seeded from.
+    catalogItemId: line.catalogItemId,
   };
 }
 

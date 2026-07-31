@@ -48,6 +48,7 @@ describe('test database harness', () => {
         '0016_budgets',
         '0017_accountant_close',
         '0018_automations',
+        '0019_catalog',
         '0999_app_grants',
       ]);
     });
@@ -89,7 +90,7 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 70-permission catalog', async () => {
+    it('has the fixed 72-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
@@ -101,7 +102,8 @@ describe('test database harness', () => {
       // expenses.read/write/approve.
       // 69 since N (Budgets) added budgets.read/write.
       // 70 since P (accountant access & period close) added audit.read.
-      expect(Number(row.count)).toBe(70);
+      // 72 since CAT (the item catalog) added catalog.read/write.
+      expect(Number(row.count)).toBe(72);
     });
 
     it('has the seven system roles at their reserved ids', async () => {

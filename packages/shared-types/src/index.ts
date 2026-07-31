@@ -16,6 +16,7 @@ export * from './auth';
 export * from './automations';
 export * from './banking';
 export * from './budgets';
+export * from './catalog';
 export * from './contacts';
 export * from './delivery';
 export * from './dimensions';

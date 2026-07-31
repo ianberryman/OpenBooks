@@ -35,6 +35,7 @@ import {
   assertFound,
   parseInput,
 } from '../../errors';
+import { assertCatalogItemsUsable } from '../catalog';
 import { createInvoice } from '../invoices';
 import type { TaxRateRow } from '../invoices/ar-documents.repository';
 import {
@@ -484,6 +485,7 @@ function toDocumentLine(
     unitAmount: row.unit_amount_minor.toString(),
     accountId: bufferToUuid(row.account_id),
     taxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    catalogItemId: row.catalog_item_id === null ? null : bufferToUuid(row.catalog_item_id),
     taxRatePercentage: rate === undefined ? null : taxRateToPercentString(toTaxRate(rate.rate_ppm)),
     netAmount: row.line_amount_minor.toString(),
     taxAmount: row.tax_amount_minor.toString(),
@@ -508,6 +510,10 @@ function toDocumentLineInput(row: EstimateLineRow): DocumentLineInput {
     unitAmount: row.unit_amount_minor.toString(),
     accountId: bufferToUuid(row.account_id),
     taxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    // Carried onto the invoice the estimate converts into, so the line keeps its
+    // provenance across the conversion (D-CAT-2). `createInvoice`'s own `resolveLines`
+    // re-checks it is a live-enough `'sales'` item exactly as any other invoice line.
+    catalogItemId: row.catalog_item_id === null ? null : bufferToUuid(row.catalog_item_id),
   };
 }
 
@@ -551,6 +557,19 @@ async function resolveEstimateLines(
   if (requestedRateIds.some((id) => !rates.has(id.toString('hex')))) {
     throw new NotFoundError('tax_rate');
   }
+
+  // A catalog item on a line is checked here, where the line first cites it: it must
+  // exist in this org (a cross-org id is A7's 404, B11) and be a `'sales'` item — an
+  // estimate becomes an invoice, which earns (D-CAT-1). Its `is_active` is not
+  // re-validated (D-CAT-2).
+  await assertCatalogItemsUsable(
+    db,
+    lines.flatMap((line) =>
+      line.catalogItemId == null
+        ? []
+        : [{ catalogItemId: line.catalogItemId, expected: 'sales' as const }],
+    ),
+  );
 
   const issues: ValidationIssue[] = [];
   const priceable: PriceableLine[] = [];
@@ -611,6 +630,10 @@ async function resolveEstimateLines(
       unitAmountMinor: toMinorUnits(unitAmount),
       accountId: idBytes(line.accountId, 'account'),
       taxRateId: line.taxRateId == null ? null : idBytes(line.taxRateId, 'tax_rate'),
+      // Existence and direction were checked above; a malformed id is A7's 404 here
+      // too (D-CAT-2: provenance).
+      catalogItemId:
+        line.catalogItemId == null ? null : idBytes(line.catalogItemId, 'catalog_item'),
     });
   }
 
@@ -660,6 +683,9 @@ async function repriceLines(db: TenantDatabase, id: Buffer, mode: TaxMode): Prom
         unitAmountMinor: line.unit_amount_minor,
         accountId: line.account_id,
         taxRateId: line.tax_rate_id,
+        // Preserved across a mode-change reprice — the item did not change, only what
+        // `unitAmount` means (D-CAT-2).
+        catalogItemId: line.catalog_item_id,
         lineAmountMinor: minor(split.net),
         taxAmountMinor: minor(split.tax),
       };

@@ -190,6 +190,9 @@ describe('EstimatesScreen', () => {
             quantity: '2',
             unitAmount: '50000',
             accountId: ACCOUNT_ID,
+            // Provenance for the item a line was seeded from — `null` for this hand-typed one
+            // (initiative Catalog, D-CAT-2).
+            catalogItemId: null,
           },
         ],
       });

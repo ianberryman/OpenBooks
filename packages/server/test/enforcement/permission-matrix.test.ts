@@ -47,6 +47,14 @@ import {
   voidVendorCredit,
 } from '../../src/modules/bills';
 import {
+  createCatalogItem,
+  deactivateCatalogItem,
+  getCatalogItem,
+  listCatalogItems,
+  reactivateCatalogItem,
+  updateCatalogItem,
+} from '../../src/modules/catalog';
+import {
   createContact,
   deactivateContact,
   deleteContact,
@@ -526,6 +534,12 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // AP-only and AR-only hold `contacts.write` — a vendor or a customer is created
   // in the course of entering the bill or the invoice it belongs to.
   'contacts.write': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
+  // The item catalog (initiative CAT). Read off the two `IN (…)` lists and the
+  // `%.read` pattern in `0001_tenancy`: `catalog.read` reaches every seeded role (it
+  // is a `%.read`), and `catalog.write` is the exact `contacts.write` set — both
+  // clerks inline-add a sales or purchase item while entering a document (D-CAT-1).
+  'catalog.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver', 'accountant'],
+  'catalog.write': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
   'dimensions.read': [
     'owner',
     'bookkeeper',
@@ -803,6 +817,7 @@ interface Scene {
   readonly journalId: string;
   readonly journalLineId: string;
   readonly contactId: string;
+  readonly catalogItemId: string;
   readonly dimensionId: string;
   readonly dimensionValueId: string;
   readonly draftId: string;
@@ -1045,6 +1060,42 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'deleteContact',
     permission: 'contacts.write',
     call: (s) => deleteContact(s.contactId, s.ctx),
+  },
+  {
+    name: 'createCatalogItem',
+    operationId: 'createCatalogItem',
+    permission: 'catalog.write',
+    call: (s) => createCatalogItem({ direction: 'sales', name: 'Widget' }, s.ctx),
+  },
+  {
+    name: 'getCatalogItem',
+    operationId: 'getCatalogItem',
+    permission: 'catalog.read',
+    call: (s) => getCatalogItem(s.catalogItemId, s.ctx),
+  },
+  {
+    name: 'listCatalogItems',
+    operationId: 'listCatalogItems',
+    permission: 'catalog.read',
+    call: (s) => listCatalogItems({}, s.ctx),
+  },
+  {
+    name: 'updateCatalogItem',
+    operationId: 'updateCatalogItem',
+    permission: 'catalog.write',
+    call: (s) => updateCatalogItem(s.catalogItemId, { name: 'Gadget' }, s.ctx),
+  },
+  {
+    name: 'deactivateCatalogItem',
+    operationId: 'deactivateCatalogItem',
+    permission: 'catalog.write',
+    call: (s) => deactivateCatalogItem(s.catalogItemId, s.ctx),
+  },
+  {
+    name: 'reactivateCatalogItem',
+    operationId: 'reactivateCatalogItem',
+    permission: 'catalog.write',
+    call: (s) => reactivateCatalogItem(s.catalogItemId, s.ctx),
   },
   {
     name: 'createDimension',
@@ -3452,6 +3503,10 @@ async function scene(role: SystemRoleName): Promise<Scene> {
    */
   const setup = contextFor(org.uuid, SYSTEM_ROLE_UUIDS.owner, user.uuid);
   const contact = await createContact({ displayName: 'Acme Ltd' }, setup);
+  const catalogItem = await createCatalogItem(
+    { direction: 'sales', name: 'Consulting hour' },
+    setup,
+  );
   const dimension = await createDimension({ code: 'DEPT', name: 'Department' }, setup);
   const value = await createDimensionValue(dimension.id, { code: 'SALES', name: 'Sales' }, setup);
   const draft = await createDraft({ entryDate: period.startDate, memo: 'Draft' }, setup);
@@ -3697,6 +3752,7 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     journalId: journal.uuid,
     journalLineId: String(line.id),
     contactId: contact.id,
+    catalogItemId: catalogItem.id,
     dimensionId: dimension.id,
     dimensionValueId: value.id,
     draftId: draft.id,
@@ -4183,8 +4239,8 @@ describe('gap 6 — the grants that nothing checks yet', () => {
    * codes each clerk *holds* is asserted alongside it.
    */
   it.each([
-    ['apOnly', 23],
-    ['arOnly', 20],
+    ['apOnly', 25],
+    ['arOnly', 22],
   ] as const)('%s now holds %i codes and can exercise every one', async (role, held) => {
     const rows = await db.app
       .selectFrom('role_permissions')

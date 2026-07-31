@@ -35,8 +35,10 @@ import {
   todayIsoDate,
 } from './editor-state';
 import type { EditorLine, EditorState } from './editor-state';
-import { NO_TAX_RATE, LineCard, LineRow } from './line-row';
+import { NO_TAX_RATE, LineCard, LineRow, applyCatalogItem } from './line-row';
 import type { LineRowProps } from './line-row';
+import { CatalogItemDialog } from '../settings/catalog-item-dialog';
+import { useCatalogItemChoices } from '../settings/catalog-queries';
 import { documentIntentKey, releaseDocumentIntentKey, useFingerprintKey } from './intent-keys';
 import { purchasesKeys } from './queries';
 import type { BillSummary, DocumentStatus, ReferenceData } from './queries';
@@ -154,6 +156,17 @@ export function DocumentEditor({
   const [referenceFocusNonce, setReferenceFocusNonce] = useState(0);
   // Inline vendor creation from the picker: the typed name, or null when the form is shut.
   const [newVendorName, setNewVendorName] = useState<string | null>(null);
+  /**
+   * The line that opened the inline "Create item" dialog, and the description it had typed —
+   * held so the created item can be applied back to that line (D-CAT-2).
+   */
+  const [creatingItemFor, setCreatingItemFor] = useState<{ key: string; typed: string } | null>(
+    null,
+  );
+
+  // A bill/vendor credit seeds from the purchase catalog; only active purchase items are
+  // suggested, sorted by name.
+  const catalogItems = useCatalogItemChoices('purchase');
 
   const status: DocumentStatus = saved?.status ?? 'draft';
   const readOnly = status !== 'draft';
@@ -300,6 +313,7 @@ export function DocumentEditor({
       index,
       accountOptions,
       taxRateOptions,
+      catalogItems: catalogItems.data ?? [],
       grossAmount: priced ? (grossByLineKey.get(line.key) ?? null) : null,
       problem: problems.lines.get(line.key),
       serverError: serverLineErrors.get(line.key),
@@ -310,6 +324,9 @@ export function DocumentEditor({
           ...state,
           lines: state.lines.map((existing) => (existing.key === next.key ? next : existing)),
         });
+      },
+      onCreateItem: (typed: string) => {
+        setCreatingItemFor({ key: line.key, typed });
       },
       onRemove: () => {
         edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
@@ -905,6 +922,28 @@ export function DocumentEditor({
         onCreated={(created) => {
           void queryClient.invalidateQueries({ queryKey: purchasesKeys.vendors });
           edit({ ...state, contactId: created.id });
+        }}
+      />
+
+      {/* Inline item creation from a line's description picker: preset to the purchase side
+          and seeded with the typed text. On success the new item is applied to the line that
+          asked for it (D-CAT-2); the create mutation's own invalidation refetches the choices. */}
+      <CatalogItemDialog
+        open={creatingItemFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreatingItemFor(null);
+        }}
+        presetDirection="purchase"
+        initialName={creatingItemFor?.typed ?? ''}
+        onSaved={(item) => {
+          const key = creatingItemFor?.key;
+          if (key === undefined) return;
+          edit({
+            ...state,
+            lines: state.lines.map((existing) =>
+              existing.key === key ? applyCatalogItem(existing, item) : existing,
+            ),
+          });
         }}
       />
     </section>

@@ -42,6 +42,7 @@ import {
   ValidationError,
   assertFound,
 } from '../../errors';
+import { assertCatalogItemsUsable } from '../catalog';
 import { resolveTagsForNewLine } from '../dimensions';
 import { postJournal, reverseJournal } from '../ledger';
 import { resolveControlAccount } from '../settings';
@@ -198,6 +199,20 @@ export async function resolveLines(
     throw new NotFoundError('tax_rate');
   }
 
+  // A catalog item on a line is checked here, where the line first cites it: it must
+  // exist in this org (a cross-org id is A7's 404, B11) and be a `'purchase'` item —
+  // a bill, a vendor credit, a purchase order and an expense all spend rather than
+  // earn (D-CAT-1). Its `is_active` is not re-validated (D-CAT-2), so a repriced or
+  // converted document does not begin to fail because the catalog was tidied.
+  await assertCatalogItemsUsable(
+    db,
+    lines.flatMap((line) =>
+      line.catalogItemId == null
+        ? []
+        : [{ catalogItemId: line.catalogItemId, expected: 'purchase' as const }],
+    ),
+  );
+
   const issues: ValidationIssue[] = [];
   const rows: NewApDocumentLineRow[] = [];
 
@@ -277,6 +292,12 @@ export async function resolveLines(
       unitAmountMinor: toMinorUnits(unitAmount),
       accountId,
       taxRateId: rateId,
+      // Existence and direction were checked above; a malformed id is A7's 404 here
+      // too, the same shape `accountId` and `taxRateId` take (D-CAT-2: provenance).
+      catalogItemId:
+        line.catalogItemId === undefined || line.catalogItemId === null
+          ? null
+          : idBytes(line.catalogItemId, 'catalog_item'),
       lineAmountMinor: toMinorUnits(split.net),
       taxAmountMinor: toMinorUnits(split.tax),
       // Resolved through the module that owns them, so the refusals a tag can
@@ -356,6 +377,9 @@ export function linesAsInput(
     unitAmount: toMinorString(fromMinorUnits(line.unit_amount_minor)),
     accountId: bufferToUuid(line.account_id),
     taxRateId: line.tax_rate_id === null ? null : bufferToUuid(line.tax_rate_id),
+    // Carried through the round-trip so a mode-change reprice and a purchase-order
+    // conversion keep the line's provenance (D-CAT-2).
+    catalogItemId: line.catalog_item_id === null ? null : bufferToUuid(line.catalog_item_id),
     dimensionValueIds: [...(tags.get(line.id.toString()) ?? [])],
   }));
 }
@@ -450,6 +474,7 @@ function toDocumentLine(
     unitAmount: toMinorString(fromMinorUnits(row.unit_amount_minor)),
     accountId: bufferToUuid(row.account_id),
     taxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    catalogItemId: row.catalog_item_id === null ? null : bufferToUuid(row.catalog_item_id),
     // Read from the rate rather than stored on the line, which is only safe
     // because a rate's percentage is immutable — `updateTaxRateRequestSchema`
     // makes a new percentage a new rate precisely so a document stays printable

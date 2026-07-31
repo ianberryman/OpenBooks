@@ -273,6 +273,16 @@ export const documentLineInputSchema = z
           'The single rate this line is taxed at (D-35). Absent or null means no tax — there is no ' +
           'default rate, because a rate nobody chose is a rate that ends up on a filing.',
       }),
+    catalogItemId: z
+      .uuid()
+      .nullish()
+      .meta({
+        description:
+          'The catalog item this line was selected from (D-CAT-2). Provenance only — the item ' +
+          'seeds the description, price, account and tax the picker fills in, but the line above ' +
+          'is authoritative and this never changes what the line says. Null for a free-form line. ' +
+          'A sales document accepts only a sales item, a purchase document only a purchase one.',
+      }),
     dimensionValueIds: lineDimensionValueIdsSchema.optional(),
   })
   .meta({
@@ -338,6 +348,14 @@ export const documentLineSchema = z
     accountId: z.uuid(),
     taxRateId: z.uuid().nullable(),
     taxRatePercentage: linePercentageSchema,
+    catalogItemId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The catalog item this line was selected from, or null for a free-form line. Provenance ' +
+          'only (D-CAT-2): it records where the line came from and never drives what it says.',
+      }),
     netAmount: minorUnitsSchema.meta({
       description:
         'What posts to `accountId`. The extended amount, less tax when the mode is inclusive.',

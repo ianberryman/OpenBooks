@@ -1,8 +1,26 @@
 import type { ReactElement } from 'react';
 
-import { Button, Combobox, Field, MoneyInput, TextInput } from '../../components';
+import type { components } from '../../api';
+import { Button, Combobox, Field, LineItemCombobox, MoneyInput, TextInput } from '../../components';
 import type { ComboboxOption } from '../../components';
 import type { EstimateLineDraft } from './estimate-state';
+
+type CatalogItem = components['schemas']['CatalogItem'];
+
+/**
+ * A catalog item's defaults applied to an estimate line (D-CAT-2). Each default falls back to
+ * what the line already holds; `catalogItemId` records the provenance and nothing rereads it.
+ * The estimate line holds its price as `unitAmountMinor`.
+ */
+export function applyCatalogItem(line: EstimateLineDraft, item: CatalogItem): EstimateLineDraft {
+  return {
+    ...line,
+    description: item.name,
+    unitAmountMinor: item.defaultUnitAmount ?? line.unitAmountMinor,
+    accountId: item.defaultAccountId ?? line.accountId,
+    catalogItemId: item.id,
+  };
+}
 
 /**
  * One estimate line — `recurring-invoices/line-row.tsx`'s shape, minus the tax-rate column:
@@ -14,9 +32,13 @@ export interface LineRowProps {
   readonly line: EstimateLineDraft;
   readonly index: number;
   readonly accountOptions: readonly ComboboxOption[];
+  /** The active sales items this line's description picker suggests (D-CAT-2). */
+  readonly catalogItems: readonly CatalogItem[];
   readonly fieldErrors: Readonly<Record<string, string>>;
   readonly disabled: boolean;
   readonly onChange: (line: EstimateLineDraft) => void;
+  /** Opens the inline create-item dialog, seeded with the typed description. */
+  readonly onCreateItem: (typed: string) => void;
   readonly onRemove: () => void;
 }
 
@@ -24,9 +46,11 @@ export function LineRow({
   line,
   index,
   accountOptions,
+  catalogItems,
   fieldErrors,
   disabled,
   onChange,
+  onCreateItem,
   onRemove,
 }: LineRowProps): ReactElement {
   const path = `lines.${String(index)}`;
@@ -36,13 +60,18 @@ export function LineRow({
     <tr className="align-top">
       <td className="p-1">
         <Field error={fieldErrors[`${path}.description`]}>
-          <TextInput
+          <LineItemCombobox
             aria-label={`Description, line ${number}`}
             value={line.description}
+            items={catalogItems}
             disabled={disabled}
-            onChange={(event) => {
-              onChange({ ...line, description: event.target.value });
+            onValueChange={(text) => {
+              onChange({ ...line, description: text });
             }}
+            onItemSelect={(item) => {
+              onChange(applyCatalogItem(line, item));
+            }}
+            onCreate={onCreateItem}
           />
         </Field>
       </td>

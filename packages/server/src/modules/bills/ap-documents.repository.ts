@@ -81,6 +81,7 @@ const LINE_COLUMNS = [
   'unit_amount_minor',
   'account_id',
   'tax_rate_id',
+  'catalog_item_id',
   'line_amount_minor',
   'tax_amount_minor',
 ] as const;
@@ -112,6 +113,8 @@ export interface ApDocumentLineRow {
   readonly unit_amount_minor: bigint;
   readonly account_id: Buffer;
   readonly tax_rate_id: Buffer | null;
+  /** The catalog item this line was selected from, provenance only (D-CAT-2). */
+  readonly catalog_item_id: Buffer | null;
   readonly line_amount_minor: bigint;
   readonly tax_amount_minor: bigint;
 }
@@ -146,6 +149,8 @@ export interface NewApDocumentLineRow {
   readonly unitAmountMinor: bigint;
   readonly accountId: Buffer;
   readonly taxRateId: Buffer | null;
+  /** The catalog item this line was selected from, or null for a free-form line (D-CAT-2). */
+  readonly catalogItemId: Buffer | null;
   readonly lineAmountMinor: bigint;
   readonly taxAmountMinor: bigint;
   /** `(dimension, value)` pairs, the axis already resolved from the value (D-18). */
@@ -458,6 +463,7 @@ export async function replaceDocumentLines(
         unit_amount_minor: line.unitAmountMinor,
         account_id: line.accountId,
         tax_rate_id: line.taxRateId,
+        catalog_item_id: line.catalogItemId,
         line_amount_minor: line.lineAmountMinor,
         tax_amount_minor: line.taxAmountMinor,
       })),

@@ -61,6 +61,7 @@ export interface ApDocumentLineDimensions {
 
 export interface ApDocumentLines {
   account_id: Buffer;
+  catalog_item_id: Buffer | null;
   created_at: Generated<Date>;
   description: string | null;
   document_id: Buffer;
@@ -132,6 +133,7 @@ export interface ArDocumentLineDimensions {
 
 export interface ArDocumentLines {
   account_id: Buffer;
+  catalog_item_id: Buffer | null;
   created_at: Generated<Date>;
   description: string | null;
   document_id: Buffer;
@@ -355,6 +357,20 @@ export interface Budgets {
   updated_at: Generated<Date>;
 }
 
+export interface CatalogItems {
+  account_id: Buffer | null;
+  code: string | null;
+  created_at: Generated<Date>;
+  direction: string;
+  id: Buffer;
+  is_active: Generated<number>;
+  name: string;
+  org_id: Buffer;
+  tax_rate_id: Buffer | null;
+  unit_amount_minor: bigint | null;
+  updated_at: Generated<Date>;
+}
+
 export interface ChangeFeedCursors {
   created_at: Generated<Date>;
   id: Buffer;
@@ -480,6 +496,7 @@ export interface DunningStages {
 
 export interface EstimateLines {
   account_id: Buffer;
+  catalog_item_id: Buffer | null;
   created_at: Generated<Date>;
   description: string | null;
   estimate_id: Buffer;
@@ -939,6 +956,7 @@ export interface ProcessorEvents {
 
 export interface PurchaseOrderLines {
   account_id: Buffer;
+  catalog_item_id: Buffer | null;
   created_at: Generated<Date>;
   description: string | null;
   id: Generated<bigint>;
@@ -1189,6 +1207,7 @@ export interface DB {
   bank_statement_lines: BankStatementLines;
   bill_attachments: BillAttachments;
   budgets: Budgets;
+  catalog_items: CatalogItems;
   change_feed_cursors: ChangeFeedCursors;
   check_number_sequences: CheckNumberSequences;
   contacts: Contacts;

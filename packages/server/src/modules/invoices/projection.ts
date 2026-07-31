@@ -106,6 +106,7 @@ export function toDocumentLine(
     unitAmount: row.unit_amount_minor.toString(),
     accountId: bufferToUuid(row.account_id),
     taxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    catalogItemId: row.catalog_item_id === null ? null : bufferToUuid(row.catalog_item_id),
     // Null when the line carries no rate, which is not the same as a zero-rated
     // one — a VAT return reports those separately.
     taxRatePercentage: rate === undefined ? null : taxRateToPercentString(toTaxRate(rate.rate_ppm)),

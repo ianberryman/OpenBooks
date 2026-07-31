@@ -35,6 +35,11 @@ export interface OrderFormLine {
    * optional and absent means no tax, which is why a brand-new line leaves this `null`.
    */
   readonly taxRateId: string | null;
+  /**
+   * The catalog item this line was seeded from, or `null` for a hand-typed line. Provenance
+   * only (D-CAT-2) — carried through unedited, never re-read to reprice.
+   */
+  readonly catalogItemId: string | null;
 }
 
 export interface OrderFormState {
@@ -60,6 +65,7 @@ export function blankLine(): OrderFormLine {
     accountId: null,
     unitAmount: null,
     taxRateId: null,
+    catalogItemId: null,
   };
 }
 
@@ -97,6 +103,7 @@ function lineFromDocumentLine(line: DocumentLine): OrderFormLine {
     accountId: line.accountId,
     unitAmount: line.unitAmount,
     taxRateId: line.taxRateId,
+    catalogItemId: line.catalogItemId,
   };
 }
 
@@ -184,6 +191,7 @@ function toRequestLine(line: OrderFormLine): {
   accountId: string;
   unitAmount: string;
   taxRateId: string | null;
+  catalogItemId: string | null;
 } {
   return {
     description: line.description.trim(),
@@ -195,6 +203,8 @@ function toRequestLine(line: OrderFormLine): {
     accountId: line.accountId ?? '',
     unitAmount: line.unitAmount ?? '',
     taxRateId: line.taxRateId,
+    // Provenance only (D-CAT-2): recorded so the line remembers the item it was seeded from.
+    catalogItemId: line.catalogItemId,
   };
 }
 

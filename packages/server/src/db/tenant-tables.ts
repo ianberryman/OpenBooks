@@ -63,6 +63,7 @@ export const TENANT_TABLES = [
   'bank_statement_lines',
   'bill_attachments',
   'budgets',
+  'catalog_items',
   'change_feed_cursors',
   'check_number_sequences',
   'contacts',

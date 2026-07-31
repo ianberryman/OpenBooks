@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { useId, useMemo, useState } from 'react';
 
 import { presentApiError } from '../../api';
+import type { components } from '../../api';
 import {
   Button,
   Combobox,
@@ -13,12 +14,15 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  LineItemCombobox,
   MoneyInput,
   ResponsiveTable,
   TextInput,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
 import { ContactFormDialog } from '../contacts/contact-form';
+import { CatalogItemDialog } from '../settings/catalog-item-dialog';
+import { useCatalogItemChoices } from '../settings/catalog-queries';
 import {
   blankFormState,
   blankLine,
@@ -65,6 +69,21 @@ import {
  * `purchase-orders/list.tsx` never offers Edit past that point, and this dialog does not
  * try to degrade gracefully into a read view for the case; there is nothing left to edit.
  */
+type CatalogItem = components['schemas']['CatalogItem'];
+
+/**
+ * A catalog item's defaults as a line patch (D-CAT-2). Each falls back to what the line
+ * already holds; `catalogItemId` records the provenance and nothing rereads it.
+ */
+function catalogPatch(line: OrderFormLine, item: CatalogItem): Partial<OrderFormLine> {
+  return {
+    description: item.name,
+    unitAmount: item.defaultUnitAmount ?? line.unitAmount,
+    accountId: item.defaultAccountId ?? line.accountId,
+    catalogItemId: item.id,
+  };
+}
+
 export interface OrderFormDialogProps {
   /** `null` creates; an order id edits it. */
   readonly orderId: string | null;
@@ -155,6 +174,16 @@ function OrderFormContent({
     order === null ? blankFormState() : stateFromOrder(order),
   );
   const [newVendorName, setNewVendorName] = useState<string | null>(null);
+  /**
+   * The line that opened the inline "Create item" dialog, and the description it had typed —
+   * held so the created item can be applied back to that line (D-CAT-2).
+   */
+  const [creatingItemFor, setCreatingItemFor] = useState<{ key: string; typed: string } | null>(
+    null,
+  );
+
+  // A purchase order seeds from the purchase catalog; only active purchase items are suggested.
+  const catalogItems = useCatalogItemChoices('purchase');
 
   const create = useCreatePurchaseOrder();
   const update = useUpdatePurchaseOrder();
@@ -353,10 +382,14 @@ function OrderFormContent({
                   line={line}
                   index={index}
                   accountOptions={accountOptions}
+                  catalogItems={catalogItems.data ?? []}
                   problem={problems.lines.get(line.key)}
                   disabled={pending}
                   onChange={(next) => {
                     editLine(line.key, next);
+                  }}
+                  onCreateItem={(typed) => {
+                    setCreatingItemFor({ key: line.key, typed });
                   }}
                   onRemove={() => {
                     edit({ lines: state.lines.filter((existing) => existing.key !== line.key) });
@@ -399,6 +432,25 @@ function OrderFormContent({
           edit({ contactId: created.id });
         }}
       />
+
+      {/* Inline item creation from a line's description picker: preset to the purchase side
+          and seeded with the typed text; on success the item is applied to the originating
+          line (D-CAT-2), and the create mutation's invalidation refetches the picker's choices. */}
+      <CatalogItemDialog
+        open={creatingItemFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreatingItemFor(null);
+        }}
+        presetDirection="purchase"
+        initialName={creatingItemFor?.typed ?? ''}
+        onSaved={(item) => {
+          const key = creatingItemFor?.key;
+          if (key === undefined) return;
+          const line = state.lines.find((existing) => existing.key === key);
+          if (line === undefined) return;
+          editLine(key, catalogPatch(line, item));
+        }}
+      />
     </DialogContent>
   );
 }
@@ -407,9 +459,12 @@ interface OrderLineRowProps {
   readonly line: OrderFormLine;
   readonly index: number;
   readonly accountOptions: readonly ComboboxOption[];
+  /** The active purchase items this line's description picker suggests (D-CAT-2). */
+  readonly catalogItems: readonly CatalogItem[];
   readonly problem: LineProblem | undefined;
   readonly disabled: boolean;
   readonly onChange: (line: Partial<OrderFormLine>) => void;
+  readonly onCreateItem: (typed: string) => void;
   readonly onRemove: () => void;
 }
 
@@ -424,9 +479,11 @@ function OrderLineRow({
   line,
   index,
   accountOptions,
+  catalogItems,
   problem,
   disabled,
   onChange,
+  onCreateItem,
   onRemove,
 }: OrderLineRowProps): ReactElement {
   const position = String(index + 1);
@@ -436,13 +493,18 @@ function OrderLineRow({
     <tr className="align-top">
       <td className="p-1">
         <Field error={message}>
-          <TextInput
+          <LineItemCombobox
             aria-label={`Description, line ${position}`}
             value={line.description}
+            items={catalogItems}
             disabled={disabled}
-            onChange={(event) => {
-              onChange({ description: event.target.value });
+            onValueChange={(text) => {
+              onChange({ description: text });
             }}
+            onItemSelect={(item) => {
+              onChange(catalogPatch(line, item));
+            }}
+            onCreate={onCreateItem}
           />
         </Field>
       </td>

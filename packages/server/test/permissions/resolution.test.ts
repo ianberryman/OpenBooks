@@ -29,8 +29,8 @@ import { contextFor, useServiceDatabase } from './support';
  * the seeds changed and the change needs a reason — not a new number here.
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
-  // The entire catalog.
-  ['owner', 70],
+  // The entire catalog (72 since CAT added catalog.read/write).
+  ['owner', 72],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate, and now
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only) — eight
@@ -40,34 +40,38 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // procure-to-pay's purchase_orders.read/write, estimates.read/write and
   // expenses.read/write/approve (M — all seven, none excluded), and N's
   // budgets.read/write (both — the catch-all grants them, no SoD gate to withhold),
-  // and P's audit.read (the catch-all grants it — not an administration exclusion).
-  ['bookkeeper', 62],
+  // and P's audit.read (the catch-all grants it — not an administration exclusion), and
+  // CAT's catalog.read/write (both — neither is an administration exclusion).
+  ['bookkeeper', 64],
   // Every `.read` except api_keys.read (28, now including branding.read,
   // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,
   // M's purchase_orders.read/estimates.read/expenses.read, and N's budgets.read via
   // `%.read`), plus agents.review, journals.post, and expenses.approve (M — the approver
   // is the expense-approval gate, the disbursements.issue split applied to expenses),
-  // and P's audit.read via `%.read`.
-  ['approver', 32],
+  // and P's audit.read via `%.read`, and CAT's catalog.read via `%.read` (not
+  // catalog.write — the approver reads the catalog but does not maintain it).
+  ['approver', 33],
   // Every `.read` except api_keys.read (now including branding.read, processing.read,
   // pending_payments.read, recurring_journals.read, fixed_assets.read, M's
-  // purchase_orders.read/estimates.read/expenses.read, N's budgets.read, and P's
-  // audit.read).
-  ['readOnly', 29],
-  // Accountant (P, D-96): readOnly's read bundle (29, `%.read` minus api_keys.read,
-  // audit.read included) plus journals.post/journals.reverse and periods.close/
-  // periods.reopen — the four capabilities that make it an accountant rather than a
-  // reader (reports.read is already in the read bundle).
-  ['accountant', 33],
+  // purchase_orders.read/estimates.read/expenses.read, N's budgets.read, P's
+  // audit.read, and CAT's catalog.read).
+  ['readOnly', 30],
+  // Accountant (P, D-96): readOnly's read bundle (30, `%.read` minus api_keys.read,
+  // audit.read and catalog.read included) plus journals.post/journals.reverse and
+  // periods.close/periods.reopen — the four capabilities that make it an accountant
+  // rather than a reader (reports.read is already in the read bundle).
+  ['accountant', 34],
   // 15 document/read codes plus journals.post and journals.reverse (OB-093), the Pay
   // Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the queue
   // but cannot issue), and M's purchase_orders.read/write + expenses.read/write (raise
-  // POs, enter expenses; expenses.approve withheld — the SoD split), so a clerk can
-  // finish — approve, void, pay, queue — the documents they enter.
-  ['apOnly', 23],
+  // POs, enter expenses; expenses.approve withheld — the SoD split), and CAT's
+  // catalog.read/write (pick and inline-add purchase items while entering a bill/PO),
+  // so a clerk can finish — approve, void, pay, queue — the documents they enter.
+  ['apOnly', 25],
   // The AR mirror of apOnly, plus invoices.send (INV) so a clerk can send the invoices
-  // they raise, and M's estimates.read/write (the sales pre-document).
-  ['arOnly', 20],
+  // they raise, M's estimates.read/write (the sales pre-document), and CAT's
+  // catalog.read/write (inline-add sales items while entering an invoice/estimate).
+  ['arOnly', 22],
 ];
 
 describe('the six system roles resolve to the bundles migration 0001 gives them', () => {
@@ -264,10 +268,11 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 32 since P: the `%.read` bundle now also picks up `audit.read` (was 31 after N
-    // added `budgets.read`, itself after M added `purchase_orders.read`/`estimates.read`/
-    // `expenses.read` and the approver's `expenses.approve`).
-    expect(resolution.permissions.size).toBe(32);
+    // 33 since CAT: the `%.read` bundle now also picks up `catalog.read` (was 32 after P
+    // added `audit.read`, itself after N added `budgets.read` and M added
+    // `purchase_orders.read`/`estimates.read`/`expenses.read` and the approver's
+    // `expenses.approve`).
+    expect(resolution.permissions.size).toBe(33);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

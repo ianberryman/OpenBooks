@@ -13,6 +13,7 @@ import { registerBillInboundRoutes } from './bill-inbound';
 import { registerBillRoutes } from './bills';
 import { registerBrandingRoutes } from './branding';
 import { registerBudgetRoutes } from './budgets';
+import { registerCatalogRoutes } from './catalog';
 import { registerChangeFeedRoutes } from './change-feed';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
@@ -458,6 +459,27 @@ import { registerTaxRateRoutes } from './tax-rates';
  * item count) rather than a state change to echo back; a retried call with the same
  * `Idempotency-Key` replays that one firing's result rather than firing again.
  *
+ * ### Initiative CAT — the item catalog
+ *
+ * | Method   | Path                                            | operationId                | Idempotency-Key | Claim scope |
+ * | -------- | ------------------------------------------------ | --------------------------- | --------------- | ----------- |
+ * | `POST`   | `/v1/catalog-items`                              | `createCatalogItem`         | required        | org         |
+ * | `GET`    | `/v1/catalog-items`                              | `listCatalogItems`          | —                | —           |
+ * | `GET`    | `/v1/catalog-items/:catalogItemId`               | `getCatalogItem`            | —                | —           |
+ * | `PATCH`  | `/v1/catalog-items/:catalogItemId`               | `updateCatalogItem`         | required        | org         |
+ * | `POST`   | `/v1/catalog-items/:catalogItemId/deactivate`    | `deactivateCatalogItem`     | required        | org         |
+ * | `POST`   | `/v1/catalog-items/:catalogItemId/reactivate`    | `reactivateCatalogItem`     | required        | org         |
+ *
+ * The write operations take `catalog.write` and the reads `catalog.read`
+ * (`catalog.service.ts` enforces each, not repeated here). There is no delete: a
+ * referenced item's line FKs are `ON DELETE RESTRICT`, so deactivation is the only
+ * removal (D-CAT-5), the same shape `/v1/contacts` takes for a posted-to contact.
+ * `catalogItemId` is also new, optional and nullable, on every document and
+ * pre-document line (`documentLineInputSchema`, not its own route): it records which
+ * catalog item a line was selected from and never binds the line (D-CAT-2). The
+ * service refuses a line that cites a cross-org item (404, B11) or one of the wrong
+ * direction (`precondition_failed` with `catalog_item_wrong_direction`).
+ *
  * ## What a handler in this directory is allowed to contain
  *
  * Argument mapping, and nothing else (spec §2.4). Concretely: read the validated
@@ -598,6 +620,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerBrandingRoutes(app);
   registerChartTemplateRoutes(app);
   registerContactRoutes(app);
+  registerCatalogRoutes(app);
   registerDimensionRoutes(app);
   registerJournalLineRoutes(app);
   registerPeriodRoutes(app);

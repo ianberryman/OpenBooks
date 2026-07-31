@@ -14,6 +14,7 @@ import {
   ValidationError,
   assertFound,
 } from '../../errors';
+import { assertCatalogItemsUsable } from '../catalog';
 import { resolveTagsForNewLine } from '../dimensions';
 import { emitEvent } from '../events';
 import { postJournal, reverseJournal } from '../ledger';
@@ -642,6 +643,19 @@ async function resolveLines(
     throw new NotFoundError('tax_rate');
   }
 
+  // A catalog item on a line is checked here, where the line first cites it: it must
+  // exist in this org (a cross-org id is A7's 404, B11) and be a `'sales'` item, an
+  // invoice and a credit note both earning rather than spending (D-CAT-1). Its
+  // `is_active` is deliberately not re-validated (D-CAT-2) — see `assertCatalogItemsUsable`.
+  await assertCatalogItemsUsable(
+    db,
+    lines.flatMap((line) =>
+      line.catalogItemId == null
+        ? []
+        : [{ catalogItemId: line.catalogItemId, expected: 'sales' as const }],
+    ),
+  );
+
   const issues: ValidationIssue[] = [];
   const priceable: PriceableLine[] = [];
   const resolved: Omit<NewDocumentLineRow, 'lineAmountMinor' | 'taxAmountMinor'>[] = [];
@@ -724,6 +738,10 @@ async function resolveLines(
       unitAmountMinor: toMinorUnits(unitAmount),
       accountId: idBytes(line.accountId, 'account'),
       taxRateId: line.taxRateId == null ? null : idBytes(line.taxRateId, 'tax_rate'),
+      // Existence and direction were checked above; a malformed id is A7's 404 here
+      // too, the same shape `accountId` and `taxRateId` take (D-CAT-2: provenance).
+      catalogItemId:
+        line.catalogItemId == null ? null : idBytes(line.catalogItemId, 'catalog_item'),
       // Resolved through the dimensions module, so the refusals a tag can earn —
       // unknown, cross-org, archived, two values on one axis — are that module's
       // rules and not a second implementation of them (D-18).

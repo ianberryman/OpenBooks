@@ -50,6 +50,12 @@ export interface EditorLine {
   readonly accountId: string | null;
   readonly taxRateId: string | null;
   readonly dimensionValueIds: readonly string[];
+  /**
+   * The catalog item this line was seeded from, or `null` for a hand-typed line. Provenance
+   * only (D-CAT-2): it seeds the description, price, account and tax and then travels
+   * unedited — nothing here reads it back to re-apply a default.
+   */
+  readonly catalogItemId: string | null;
   /** What the server last made of this line, or `null` for a row it has never seen. */
   readonly priced: LinePricing | null;
 }
@@ -86,6 +92,7 @@ export function blankLine(): EditorLine {
     accountId: null,
     taxRateId: null,
     dimensionValueIds: [],
+    catalogItemId: null,
     priced: null,
   };
 }
@@ -99,6 +106,7 @@ export function stateFromDocument(document: SalesDocument): EditorState {
     accountId: line.accountId,
     taxRateId: line.taxRateId,
     dimensionValueIds: line.dimensionValueIds,
+    catalogItemId: line.catalogItemId,
     priced: {
       netAmount: line.netAmount,
       taxAmount: line.taxAmount,
@@ -149,6 +157,9 @@ function toRequestLine(line: EditorLine): DocumentLineRequest | null {
     // nobody chose is a rate that ends up on a filing (D-35).
     taxRateId: line.taxRateId,
     dimensionValueIds: [...line.dimensionValueIds],
+    // Provenance only (D-CAT-2): recorded so the line remembers the item it was seeded from,
+    // never re-read to reprice.
+    catalogItemId: line.catalogItemId,
   };
 }
 

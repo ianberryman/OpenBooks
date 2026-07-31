@@ -53,8 +53,9 @@ describe('the permission catalog and the seeded table agree', () => {
     // expenses.read/write/approve (M, D-M2).
     // 67 → 69: Budgets added budgets.read/write (N, D-N6).
     // 69 → 70: Accountant access & period close added audit.read (P, D-98).
-    expect(await selectCatalogCodes()).toHaveLength(70);
-    expect(PERMISSION_KEYS).toHaveLength(70);
+    // 70 → 72: The item catalog added catalog.read/write (CAT, D-CAT-1).
+    expect(await selectCatalogCodes()).toHaveLength(72);
+    expect(PERMISSION_KEYS).toHaveLength(72);
   });
 
   it('lists no code twice', async () => {

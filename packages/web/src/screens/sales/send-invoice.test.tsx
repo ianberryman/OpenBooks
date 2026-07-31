@@ -80,6 +80,7 @@ function invoice(status: Invoice['status']): Invoice {
         taxRateId: null,
         taxRatePercentage: null,
         dimensionValueIds: [],
+        catalogItemId: null,
       },
     ],
     totals: { net: '100000', tax: '0', gross: '100000' },

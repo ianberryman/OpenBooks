@@ -338,6 +338,16 @@ const OVERRIDES = {
     // instants (kept `Date`) and JSON (mapped correctly), with no money or BIGINT
     // counter among them.
     'automations.last_fired_run_date': 'string | null',
+
+    // ── Item catalog (0019_catalog) ───────────────────────────────────────────
+    //
+    // One override: `unit_amount_minor` is the item's default price, a nullable
+    // BIGINT money column, so the generator's `number` becomes `bigint | null`
+    // (nullability spelled out, since an override replaces the whole mapped type) —
+    // `ar_document_lines.unit_amount_minor`'s correction, made optional. The new
+    // `catalog_item_id` BINARY(16) columns on the four line tables need no entry:
+    // the generator maps BINARY(16) to `Buffer` and carries the nullability itself.
+    'catalog_items.unit_amount_minor': 'bigint | null',
   },
 };
 

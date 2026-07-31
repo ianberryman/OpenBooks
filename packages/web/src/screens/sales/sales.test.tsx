@@ -147,6 +147,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
         taxAmount: '20000',
         grossAmount: '120000',
         dimensionValueIds: [],
+        catalogItemId: null,
       },
     ],
     totals: { net: '100000', tax: '20000', gross: '120000' },

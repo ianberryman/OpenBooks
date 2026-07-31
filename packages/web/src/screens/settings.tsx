@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 
+import { permissionSet, useIdentity } from '../auth/identity';
 import { BrandingSection } from './settings/branding';
+import { CatalogSection } from './settings/catalog';
 import { DimensionsSection } from './settings/dimensions';
 import { DiscountAccountsSection } from './settings/discount-accounts';
 import { MembersSection } from './settings/members';
@@ -26,6 +28,12 @@ import { FiscalPeriodsSection } from './settings/periods';
  * the tests next to them do.
  */
 export function SettingsScreen(): ReactElement {
+  // Advisory, exactly as the nav filter is (D-25): the catalog section is hidden from a
+  // caller without `catalog.read` so the page does not offer a list that would only refuse to
+  // load, but the service is the gate — every `/v1/catalog-items` call enforces it regardless.
+  const identity = useIdentity();
+  const permissions = permissionSet(identity.data ?? null);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -39,6 +47,7 @@ export function SettingsScreen(): ReactElement {
 
       <FiscalPeriodsSection />
       <DimensionsSection />
+      {permissions.has('catalog.read') && <CatalogSection />}
       <MembersSection />
       <BrandingSection />
       <PaymentTermsSection />

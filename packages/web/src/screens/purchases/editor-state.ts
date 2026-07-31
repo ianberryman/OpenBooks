@@ -25,6 +25,11 @@ export interface EditorLine {
   readonly taxRateId: string | null;
   /** Minor units on the wire (D-13), or `null` for an empty amount field. */
   readonly unitAmount: string | null;
+  /**
+   * The catalog item this line was seeded from, or `null` for a hand-typed line. Provenance
+   * only (D-CAT-2) — carried through unedited, never re-read to reprice.
+   */
+  readonly catalogItemId: string | null;
 }
 
 export interface EditorState {
@@ -51,6 +56,7 @@ export function blankLine(): EditorLine {
     accountId: null,
     taxRateId: null,
     unitAmount: null,
+    catalogItemId: null,
   };
 }
 
@@ -90,6 +96,7 @@ export function stateFromDocument(document: ApDocument): EditorState {
     accountId: line.accountId,
     taxRateId: line.taxRateId,
     unitAmount: line.unitAmount,
+    catalogItemId: line.catalogItemId,
   }));
 
   return {
@@ -185,6 +192,8 @@ function toRequestLine(line: EditorLine): DocumentLineRequest {
     accountId: line.accountId ?? '',
     unitAmount: line.unitAmount ?? '',
     taxRateId: line.taxRateId,
+    // Provenance only (D-CAT-2): recorded so the line remembers the item it was seeded from.
+    catalogItemId: line.catalogItemId,
   };
 }
 

@@ -138,6 +138,13 @@ export const PERMISSION_KEYS = [
   // `journals.source`, not a permission), and `reports.read` gates the statement
   // package (it renders reports the holder can already run).
   'audit.read',
+  // Item catalog (initiative CAT, OB-220…). A reusable list of priced items a
+  // document line can be selected from (D-CAT-1). A plain read/write pair with no
+  // separation-of-duties gate: the item only seeds a line's defaults and posts no
+  // journal (D-CAT-2). `catalog.write` is held by the AR/AP clerks too, so inline
+  // "add item" works while entering an invoice or a bill.
+  'catalog.read',
+  'catalog.write',
 ] as const;
 
 /**
@@ -167,12 +174,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 70 codes and the seven system roles are set operations
+ * Migration `0001` seeds 72 codes and the seven system roles are set operations
  * over that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 70> = true;
+type AssertCatalogSize<_N extends 72> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

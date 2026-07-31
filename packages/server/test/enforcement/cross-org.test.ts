@@ -70,6 +70,7 @@ interface Scene {
   readonly journalId: string;
   readonly journalLineId: string;
   readonly contactId: string;
+  readonly catalogItemId: string;
   readonly dimensionId: string;
   readonly dimensionValueId: string;
   /** Posted by the control pass, which consumes it. */
@@ -278,6 +279,10 @@ async function scene(app: App): Promise<Scene> {
   // control pass has to reach a `204` rather than the `precondition_failed` a contact
   // on a posting or a draft line earns.
   const contactId = await created('contact', '/v1/contacts', { displayName: 'Acme' });
+  const catalogItemId = await created('catalog', '/v1/catalog-items', {
+    direction: 'sales',
+    name: 'Consulting hour',
+  });
   const dimensionId = await created('dimension', '/v1/dimensions', {
     code: 'DEPT',
     name: 'Department',
@@ -510,6 +515,7 @@ async function scene(app: App): Promise<Scene> {
     journalId,
     journalLineId,
     contactId,
+    catalogItemId,
     dimensionId,
     dimensionValueId,
     draftId,
@@ -1180,6 +1186,34 @@ const SURFACES: readonly Surface[] = [
     method: 'DELETE',
     path: '/v1/contacts/%s',
     id: (s) => s.contactId,
+  },
+  // The item catalog (CAT): the four id-addressed routes. None destroys the item — the
+  // only removal is deactivation (D-CAT-5) — so any order leaves it there for the
+  // control pass, and deactivate/reactivate are idempotent.
+  {
+    operationId: 'getCatalogItem',
+    method: 'GET',
+    path: '/v1/catalog-items/%s',
+    id: (s) => s.catalogItemId,
+  },
+  {
+    operationId: 'updateCatalogItem',
+    method: 'PATCH',
+    path: '/v1/catalog-items/%s',
+    id: (s) => s.catalogItemId,
+    payload: () => ({ name: 'Renamed' }),
+  },
+  {
+    operationId: 'deactivateCatalogItem',
+    method: 'POST',
+    path: '/v1/catalog-items/%s/deactivate',
+    id: (s) => s.catalogItemId,
+  },
+  {
+    operationId: 'reactivateCatalogItem',
+    method: 'POST',
+    path: '/v1/catalog-items/%s/reactivate',
+    id: (s) => s.catalogItemId,
   },
   // Phase 4: the recurring template and dunning policy id-addressed routes.
   {

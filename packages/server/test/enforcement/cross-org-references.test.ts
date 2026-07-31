@@ -32,6 +32,7 @@ import {
   updateBill,
   updateVendorCredit,
 } from '../../src/modules/bills';
+import { createCatalogItem, updateCatalogItem } from '../../src/modules/catalog';
 import { createContact } from '../../src/modules/contacts';
 import {
   createDimension,
@@ -207,6 +208,15 @@ interface Org {
    */
   readonly partyId: string;
   readonly taxRateId: string;
+  /**
+   * The item catalog (CAT): a sales item and a purchase item, one of each direction
+   * (D-CAT-1). A document line's `catalogItemId` must match the document's direction,
+   * so the control pass of a sales-document reference row needs the sales item and a
+   * purchase-document row the purchase one — a single item would turn half the control
+   * passes into `catalog_item_wrong_direction`, a `412` that is not the `404` under test.
+   */
+  readonly salesCatalogItemId: string;
+  readonly purchaseCatalogItemId: string;
   /** Cash application (OB-139): `createInvoice`/`createBill`'s `paymentTermId` field. */
   readonly paymentTermId: string;
   /**
@@ -585,6 +595,8 @@ type SubledgerFixtures = Pick<
   | 'disposableFixedAssetGainLossId'
   | 'disposableFixedAssetProceedsId'
   | 'taxRateId'
+  | 'salesCatalogItemId'
+  | 'purchaseCatalogItemId'
   | 'vendorCreditId'
 >;
 
@@ -625,6 +637,14 @@ async function subledgerFixtures(
   // Cash application (OB-139): a term for the `paymentTermId` reference rows on
   // `createInvoice`/`createBill` to name across orgs.
   const paymentTerm = await asOwner(() => createPaymentTerm({ name: 'Net 30', netDays: 30 }, ctx));
+  // The item catalog (CAT): one sales item and one purchase item, so a document
+  // reference row can name a direction-appropriate one on the control pass.
+  const salesCatalogItem = await asOwner(() =>
+    createCatalogItem({ direction: 'sales', name: 'Consulting hour' }, ctx),
+  );
+  const purchaseCatalogItem = await asOwner(() =>
+    createCatalogItem({ direction: 'purchase', name: 'Raw material' }, ctx),
+  );
 
   const arLines = [
     {
@@ -752,6 +772,8 @@ async function subledgerFixtures(
     draftExpenseId: await expenseDoc(),
     partyId: party.id,
     taxRateId: taxRate.id,
+    salesCatalogItemId: salesCatalogItem.id,
+    purchaseCatalogItemId: purchaseCatalogItem.id,
     paymentTermId: paymentTerm.id,
     recurringTemplateId,
     recurringJournalTemplateId,
@@ -3047,6 +3069,383 @@ const REFERENCES: readonly Reference[] = [
         },
         s.caller.ctx,
       ),
+  },
+
+  // ---------------------------------------------------------------------------
+  // The item catalog (CAT). `catalogItemId` rides on every document and pre-document
+  // line, resolved by `assertCatalogItemsUsable` through `tenantDb` before the
+  // direction check — so a stranger's item id is a 404 (B11) on the same line as its
+  // `taxRateId` sibling. The control pass names a direction-appropriate item of the
+  // caller's own (a sales item on a sales document, a purchase item on a purchase one),
+  // or it would earn `catalog_item_wrong_direction` instead of resolving.
+  // ---------------------------------------------------------------------------
+  {
+    operationId: 'createInvoice',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      createInvoice(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateInvoice',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      updateInvoice(
+        s.caller.draftInvoiceId,
+        {
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCreditNote',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      createCreditNote(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateCreditNote',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      updateCreditNote(
+        s.caller.draftCreditNoteId,
+        {
+          lines: [
+            {
+              description: 'Credit',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createBill',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      createBill(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateBill',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      updateBill(
+        s.caller.draftBillId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createPurchaseOrder',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      createPurchaseOrder(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updatePurchaseOrder',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      updatePurchaseOrder(
+        s.caller.draftPurchaseOrderId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createEstimate',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      createEstimate(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateEstimate',
+    field: 'catalogItemId',
+    subject: (o) => o.salesCatalogItemId,
+    reach: (id, s) =>
+      updateEstimate(
+        s.caller.draftEstimateId,
+        {
+          lines: [
+            {
+              description: 'Consulting',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.revenueId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createExpense',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      createExpense(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateExpense',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      updateExpense(
+        s.caller.draftExpenseId,
+        {
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createVendorCredit',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      createVendorCredit(
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'updateVendorCredit',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: (id, s) =>
+      updateVendorCredit(
+        s.caller.draftVendorCreditId,
+        {
+          lines: [
+            {
+              description: 'Returned',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createDraftFromBillCapture',
+    field: 'catalogItemId',
+    subject: (o) => o.purchaseCatalogItemId,
+    reach: async (id, s, nonce) =>
+      createDraftFromCapture(
+        await extractedCaptureIn(s.caller, nonce),
+        {
+          contactId: s.caller.partyId,
+          issueDate: DATE,
+          dueDate: DATE,
+          taxMode: 'exclusive',
+          lines: [
+            {
+              description: 'Paper',
+              quantity: '1',
+              unitAmount: '100000',
+              accountId: s.caller.expenseId,
+              catalogItemId: id,
+            },
+          ],
+        },
+        s.caller.ctx,
+      ),
+  },
+
+  // The catalog item's own default references: the account and tax rate a line
+  // inherits when the item is picked. Both are read through `tenantDb` before the
+  // insert (`requireAccount`/`requireTaxRate`), so a stranger's id is a 404 rather
+  // than the FK's 500. The `update*` rows edit the caller's own sales item — direction
+  // is immutable, so mutating its default account cannot disturb a later row.
+  {
+    operationId: 'createCatalogItem',
+    field: 'defaultAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      createCatalogItem({ direction: 'sales', name: 'Item', defaultAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'createCatalogItem',
+    field: 'defaultTaxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      createCatalogItem({ direction: 'sales', name: 'Item', defaultTaxRateId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateCatalogItem',
+    field: 'defaultAccountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updateCatalogItem(s.caller.salesCatalogItemId, { defaultAccountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'updateCatalogItem',
+    field: 'defaultTaxRateId',
+    subject: (o) => o.taxRateId,
+    reach: (id, s) =>
+      updateCatalogItem(s.caller.salesCatalogItemId, { defaultTaxRateId: id }, s.caller.ctx),
   },
 
   // ---------------------------------------------------------------------------

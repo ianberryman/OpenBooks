@@ -16,10 +16,12 @@ import {
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
 import { ContactFormDialog } from '../contacts/contact-form';
+import { CatalogItemDialog } from '../settings/catalog-item-dialog';
+import { useCatalogItemChoices } from '../settings/catalog-queries';
 import { blankLine, patchFromState, stateFromDocument } from './document-state';
 import type { EditorLine, EditorState } from './document-state';
 import { APPROVE_DOCUMENT, idempotencyKeyFor, releaseIdempotencyKey } from './intent-keys';
-import { LineRow, NO_TAX_RATE } from './line-row';
+import { LineRow, NO_TAX_RATE, applyCatalogItem } from './line-row';
 import { apiFor, salesKeys } from './queries';
 import type {
   SalesDocument,
@@ -102,6 +104,18 @@ export function DocumentEditor({
   const [confirming, setConfirming] = useState<'approve' | 'discard' | null>(null);
   const [repricing, setRepricing] = useState<TaxMode | null>(null);
   const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
+  /**
+   * The line that opened the inline "Create item" dialog, and the description it had typed.
+   * Held so the item the dialog creates can be applied back to *that* line (D-CAT-2).
+   */
+  const [creatingItemFor, setCreatingItemFor] = useState<{ key: string; typed: string } | null>(
+    null,
+  );
+
+  // An invoice/credit note seeds from the sales catalog; its picker suggests only active sales
+  // items, sorted by name. Archived ones are never offered — a hand-typed description is the
+  // fallback, not a stale item.
+  const catalogItems = useCatalogItemChoices('sales');
   /**
    * The last refusal, held rather than derived from the three mutations: only the most
    * recent attempt is the one the user is looking at, and reading `approve.error ??
@@ -414,10 +428,14 @@ export function DocumentEditor({
                 index={index}
                 accountOptions={accountOptions}
                 taxRateOptions={taxRateOptions}
+                catalogItems={catalogItems.data ?? []}
                 fieldErrors={fieldErrors}
                 stale={dirty}
                 disabled={busy}
                 onChange={editLine}
+                onCreateItem={(typed) => {
+                  setCreatingItemFor({ key: line.key, typed });
+                }}
                 onRemove={() => {
                   edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
                 }}
@@ -594,6 +612,30 @@ export function DocumentEditor({
         onCreated={(created) => {
           void queryClient.invalidateQueries({ queryKey: salesKeys.contacts });
           edit({ ...state, contactId: created.id });
+        }}
+      />
+
+      {/* Inline item creation from a line's description picker: preset to the sales side and
+          seeded with the typed text. On success the new item is applied to the line that
+          asked for it (D-CAT-2), and the create mutation's own invalidation refetches the
+          picker's choices. */}
+      <CatalogItemDialog
+        open={creatingItemFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreatingItemFor(null);
+        }}
+        presetDirection="sales"
+        initialName={creatingItemFor?.typed ?? ''}
+        onSaved={(item) => {
+          const key = creatingItemFor?.key;
+          if (key === undefined) return;
+          setState((current) => ({
+            ...current,
+            lines: current.lines.map((existing) =>
+              existing.key === key ? applyCatalogItem(existing, item) : existing,
+            ),
+          }));
+          setDirty(true);
         }}
       />
     </section>

@@ -1,9 +1,11 @@
 import type { ReactElement, ReactNode } from 'react';
 
+import type { components } from '../../api';
 import {
   Button,
   Combobox,
   Field,
+  LineItemCombobox,
   MoneyInput,
   Select,
   TextInput,
@@ -11,6 +13,23 @@ import {
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
 import type { EditorLine, LineProblem } from './editor-state';
+
+type CatalogItem = components['schemas']['CatalogItem'];
+
+/**
+ * A catalog item's defaults applied to a purchase line (D-CAT-2). Each default falls back to
+ * what the line already holds; `catalogItemId` records the provenance and nothing rereads it.
+ */
+export function applyCatalogItem(line: EditorLine, item: CatalogItem): EditorLine {
+  return {
+    ...line,
+    description: item.name,
+    unitAmount: item.defaultUnitAmount ?? line.unitAmount,
+    accountId: item.defaultAccountId ?? line.accountId,
+    taxRateId: item.defaultTaxRateId ?? line.taxRateId,
+    catalogItemId: item.id,
+  };
+}
 
 /**
  * One document line: what was typed, and what the server made of it.
@@ -41,6 +60,8 @@ export interface LineRowProps {
   readonly index: number;
   readonly accountOptions: readonly ComboboxOption[];
   readonly taxRateOptions: readonly SelectOption[];
+  /** The active purchase items this line's description picker suggests (D-CAT-2). */
+  readonly catalogItems: readonly CatalogItem[];
   /** The server's gross for this line, or `null` when the document is not priced. */
   readonly grossAmount: string | null;
   readonly problem: LineProblem | undefined;
@@ -49,6 +70,8 @@ export interface LineRowProps {
   readonly disabled: boolean;
   readonly readOnly: boolean;
   readonly onChange: (line: EditorLine) => void;
+  /** Opens the inline create-item dialog, seeded with the typed description. */
+  readonly onCreateItem: (typed: string) => void;
   readonly onRemove: () => void;
 }
 
@@ -73,12 +96,14 @@ function lineControls({
   index,
   accountOptions,
   taxRateOptions,
+  catalogItems,
   grossAmount,
   problem,
   serverError,
   disabled,
   readOnly,
   onChange,
+  onCreateItem,
   onRemove,
 }: LineRowProps): LineControls {
   const position = String(index + 1);
@@ -93,13 +118,18 @@ function lineControls({
       // the `aria-label` here, because a per-row visible label would repeat the column
       // heading on every line.
       <Field error={message}>
-        <TextInput
+        <LineItemCombobox
           aria-label={`Description, line ${position}`}
           value={line.description}
+          items={catalogItems}
           disabled={disabled}
-          onChange={(event) => {
-            onChange({ ...line, description: event.target.value });
+          onValueChange={(text) => {
+            onChange({ ...line, description: text });
           }}
+          onItemSelect={(item) => {
+            onChange(applyCatalogItem(line, item));
+          }}
+          onCreate={onCreateItem}
         />
       </Field>
     ),

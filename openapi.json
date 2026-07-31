@@ -7623,6 +7623,266 @@
         ],
         "type": "object"
       },
+      "CatalogItem": {
+        "additionalProperties": false,
+        "description": "A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2).",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction": {
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "enum": [
+              "sales",
+              "purchase"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5).",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "name",
+          "code",
+          "defaultAccountId",
+          "defaultUnitAmount",
+          "defaultTaxRateId",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CatalogItemInput": {
+        "additionalProperties": false,
+        "description": "A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2).",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction": {
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "enum": [
+              "sales",
+              "purchase"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isActive": {
+            "description": "Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5).",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "name",
+          "code",
+          "defaultAccountId",
+          "defaultUnitAmount",
+          "defaultTaxRateId",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "CatalogItemPage": {
+        "additionalProperties": false,
+        "description": "One page of the org’s catalog items, oldest first by creation (not by name: a cursor into a list ordered by an editable column drops the rows that moved behind it — the contacts note).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogItem"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "CatalogItemPageInput": {
+        "additionalProperties": false,
+        "description": "One page of the org’s catalog items, oldest first by creation (not by name: a cursor into a list ordered by an editable column drops the rows that moved behind it — the contacts note).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "ChangeFeedActor": {
         "additionalProperties": false,
         "description": "Who or what caused a change-feed event.",
@@ -9693,6 +9953,156 @@
           "contactId",
           "issueDate",
           "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateCatalogItemRequest": {
+        "additionalProperties": false,
+        "description": "Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction": {
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "enum": [
+              "sales",
+              "purchase"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CreateCatalogItemRequestInput": {
+        "additionalProperties": false,
+        "description": "Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direction": {
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "enum": [
+              "sales",
+              "purchase"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "name"
         ],
         "type": "object"
       },
@@ -14076,6 +14486,19 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from, or null for a free-form line. Provenance only (D-CAT-2): it records where the line came from and never drives what it says."
+          },
           "description": {
             "type": "string"
           },
@@ -14147,6 +14570,7 @@
           "accountId",
           "taxRateId",
           "taxRatePercentage",
+          "catalogItemId",
           "netAmount",
           "taxAmount",
           "grossAmount",
@@ -14162,6 +14586,19 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from, or null for a free-form line. Provenance only (D-CAT-2): it records where the line came from and never drives what it says."
           },
           "description": {
             "type": "string"
@@ -14234,6 +14671,7 @@
           "accountId",
           "taxRateId",
           "taxRatePercentage",
+          "catalogItemId",
           "netAmount",
           "taxAmount",
           "grossAmount",
@@ -14250,6 +14688,19 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one."
           },
           "description": {
             "description": "What the line is for. This is what prints on the document.",
@@ -14305,6 +14756,19 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one."
           },
           "description": {
             "description": "What the line is for. This is what prints on the document.",
@@ -21850,6 +22314,19 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one."
+          },
           "description": {
             "description": "What the line is for. This is what prints on the document.",
             "maxLength": 512,
@@ -21894,6 +22371,19 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
+          },
+          "catalogItemId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog item this line was selected from (D-CAT-2). Provenance only — the item seeds the description, price, account and tax the picker fills in, but the line above is authoritative and this never changes what the line says. Null for a free-form line. A sales document accepts only a sales item, a purchase document only a purchase one."
           },
           "description": {
             "description": "What the line is for. This is what prints on the document.",
@@ -27367,6 +27857,132 @@
               "exclusive",
               "inclusive"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateCatalogItemRequest": {
+        "additionalProperties": false,
+        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateCatalogItemRequestInput": {
+        "additionalProperties": false,
+        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "description": "Optional SKU, unique within the org under the column’s case- and accent-insensitive collation. `uq_catalog_items_org_code` treats NULLs as distinct, so any number of items may carry none. Send `null` to clear it.",
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultAccountId": {
+            "anyOf": [
+              {
+                "description": "The account a line inherits when this item is chosen — income for a sales item, expense for a purchase one. A default the picker fills in, not a binding: the line keeps its own copy (D-CAT-2). Send `null` to leave the line’s account for the user to pick.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultTaxRateId": {
+            "anyOf": [
+              {
+                "description": "The tax rate a line inherits when this item is chosen (D-35: one rate). Null means the line starts untaxed — there is no default rate, the `documentLineInputSchema` argument.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultUnitAmount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The item’s default unit price in minor units, seeded onto the line. Null when the item has no standing price and the user types one each time."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "description": "What the item is called, and what fills the line description when it is selected.",
+            "maxLength": 512,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -35560,6 +36176,357 @@
         "summary": "Delete a budget figure",
         "tags": [
           "budgets"
+        ]
+      }
+    },
+    "/v1/catalog-items": {
+      "get": {
+        "description": "One page, oldest first by creation. Deliberately not alphabetical: `name` is the field most likely to be edited, and a keyset cursor over a mutable column drops the rows that moved behind it (ROADMAP D-21). A picker that wants the list by name sorts the bounded set it holds.",
+        "operationId": "listCatalogItems",
+        "parameters": [
+          {
+            "description": "Restrict to sales items or to purchase items.",
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "enum": [
+                "sales",
+                "purchase"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Omitted matches active and inactive items alike.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filters to items whose name or code contains this text.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many catalog items to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List catalog items",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "post": {
+        "description": "Items are created active. Only `name` and `direction` are required: the defaults (account, unit price, tax rate) are optional, since an item can be a reusable description on its own. `direction` is immutable — a thing you both buy and sell is two items (D-CAT-1).",
+        "operationId": "createCatalogItem",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogItemRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a catalog item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/v1/catalog-items/{catalogItemId}": {
+      "get": {
+        "operationId": "getCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalogItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One catalog item",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "patch": {
+        "description": "An absent field is unchanged and an explicit `null` clears it. `direction` is not here — it is immutable — and `isActive` is not either: deactivation is its own operation.",
+        "operationId": "updateCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalogItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCatalogItemRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Update a catalog item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/v1/catalog-items/{catalogItemId}/deactivate": {
+      "post": {
+        "description": "Takes an item out of circulation without removing it, which is the only removal a referenced item allows (the line FKs are `ON DELETE RESTRICT`, D-CAT-5). An inactive item keeps every line that already cited it and cannot be chosen for new ones. Idempotent: an already-inactive item is returned unchanged.",
+        "operationId": "deactivateCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalogItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Deactivate a catalog item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/v1/catalog-items/{catalogItemId}/reactivate": {
+      "post": {
+        "description": "The counterpart, so that deactivation is not a one-way door.",
+        "operationId": "reactivateCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalogItemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItem"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reactivate a catalog item",
+        "tags": [
+          "catalog"
         ]
       }
     },
