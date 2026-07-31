@@ -18,6 +18,7 @@ import {
   TextInput,
   formatMinorUnits,
 } from '../../components';
+import { useIsCompact } from '../../lib/use-viewport';
 import type { ComboboxOption, SelectOption } from '../../components';
 import { AllocateDialog } from './allocate-dialog';
 import { STATUS_LABELS, allocateVendorCredit, documentApi, vocabularyFor } from './ap-document';
@@ -34,7 +35,8 @@ import {
   todayIsoDate,
 } from './editor-state';
 import type { EditorLine, EditorState } from './editor-state';
-import { NO_TAX_RATE, LineRow } from './line-row';
+import { NO_TAX_RATE, LineCard, LineRow } from './line-row';
+import type { LineRowProps } from './line-row';
 import { documentIntentKey, releaseDocumentIntentKey, useFingerprintKey } from './intent-keys';
 import type { BillSummary, DocumentStatus, ReferenceData } from './queries';
 import { DuplicateVendorReference, isDuplicateVendorReference } from './refusal';
@@ -279,6 +281,36 @@ export function DocumentEditor({
   function edit(next: EditorState): void {
     setState(next);
     setDirty(true);
+  }
+
+  const isCompact = useIsCompact();
+
+  /**
+   * The props one line hands to either `LineRow` (table) or `LineCard` (compact) — built
+   * once so the two presentations are driven from the same source and cannot disagree on a
+   * handler.
+   */
+  function lineProps(line: EditorLine, index: number): LineRowProps {
+    return {
+      line,
+      index,
+      accountOptions,
+      taxRateOptions,
+      grossAmount: priced ? (grossByLineKey.get(line.key) ?? null) : null,
+      problem: problems.lines.get(line.key),
+      serverError: serverLineErrors.get(line.key),
+      disabled: busy,
+      readOnly,
+      onChange: (next: EditorLine) => {
+        edit({
+          ...state,
+          lines: state.lines.map((existing) => (existing.key === next.key ? next : existing)),
+        });
+      },
+      onRemove: () => {
+        edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
+      },
+    };
   }
 
   function adopt(next: ApDocument): void {
@@ -570,63 +602,52 @@ export function DocumentEditor({
         </Field>
       </div>
 
-      <ResponsiveTable>
-        <table className="w-full border-collapse">
-          <caption className="sr-only">{vocabulary.singular} lines</caption>
-          <thead>
-            <tr className="text-left text-xs text-text-subtle">
-              <th scope="col" className="p-1 font-medium">
-                Description
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Quantity
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                Account
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                Tax rate
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Unit price
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Line total
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                <span className="sr-only">Remove</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {state.lines.map((line, index) => (
-              <LineRow
-                key={line.key}
-                line={line}
-                index={index}
-                accountOptions={accountOptions}
-                taxRateOptions={taxRateOptions}
-                grossAmount={priced ? (grossByLineKey.get(line.key) ?? null) : null}
-                problem={problems.lines.get(line.key)}
-                serverError={serverLineErrors.get(line.key)}
-                disabled={busy}
-                readOnly={readOnly}
-                onChange={(next: EditorLine) => {
-                  edit({
-                    ...state,
-                    lines: state.lines.map((existing) =>
-                      existing.key === next.key ? next : existing,
-                    ),
-                  });
-                }}
-                onRemove={() => {
-                  edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
-                }}
-              />
-            ))}
-          </tbody>
-        </table>
-      </ResponsiveTable>
+      {isCompact ? (
+        // D-123: a seven-column entry grid only fits a phone by scrolling sideways, so on
+        // compact each line is a stacked card instead. `LineCard` and `LineRow` share their
+        // controls (`lineControls`), so the two presentations cannot drift.
+        <ul aria-label={`${vocabulary.singular} lines`} className="flex flex-col gap-3">
+          {state.lines.map((line, index) => (
+            <LineCard key={line.key} {...lineProps(line, index)} />
+          ))}
+        </ul>
+      ) : (
+        <ResponsiveTable>
+          <table className="w-full border-collapse">
+            <caption className="sr-only">{vocabulary.singular} lines</caption>
+            <thead>
+              <tr className="text-left text-xs text-text-subtle">
+                <th scope="col" className="p-1 font-medium">
+                  Description
+                </th>
+                <th scope="col" className="p-1 text-right font-medium">
+                  Quantity
+                </th>
+                <th scope="col" className="p-1 font-medium">
+                  Account
+                </th>
+                <th scope="col" className="p-1 font-medium">
+                  Tax rate
+                </th>
+                <th scope="col" className="p-1 text-right font-medium">
+                  Unit price
+                </th>
+                <th scope="col" className="p-1 text-right font-medium">
+                  Line total
+                </th>
+                <th scope="col" className="p-1 font-medium">
+                  <span className="sr-only">Remove</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.lines.map((line, index) => (
+                <LineRow key={line.key} {...lineProps(line, index)} />
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
+      )}
 
       {!readOnly && (
         <div>
