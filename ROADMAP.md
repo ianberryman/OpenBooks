@@ -226,6 +226,24 @@ The responsive review above is a prerequisite: the wrapped web views must alread
 phone-sized viewport before a native shell is worth building. Also unscheduled; the decision
 between Capacitor and a fuller native/React-Native rewrite is itself deferred.
 
+### Follow-up — the document-line UI redesign must restore per-line dimensions
+
+The AR/AP document-line editors (invoice, credit note, bill, vendor credit) are being
+redesigned. That redesign **must incorporate per-line dimension tagging** — the current editors
+omit it entirely (they send an empty `dimensionValueIds`), so all invoice/bill activity reaches
+the ledger untagged and P&L / GL-by-dimension is blind to the bulk of the books. **This is
+UI-only work: the backend is already complete end-to-end** — create/update validate
+(`resolveTagsForNewLine`) and persist (`ar_document_line_dimensions` / `ap_document_line_dimensions`),
+reads return `dimensionValueIds`, and approval propagates the tags onto the journal
+(`journal_line_dimensions`) for reporting. Reuse the journal-entry editor's per-line
+**"Details (N)"** expander pattern rather than inline columns (the subledger row is already wide,
+more so after the catalog picker). This holds **only if the redesign keeps dimensions per line**
+(D-18); a header-level or other-granularity model would need backend changes. POs/estimates
+(D-M7) and recurring-invoice templates carry no dimensions today — extending the redesign to
+either is a separate, well-patterned backend chunk (a `*_line_dimensions` table + wire + persist
+
+- convert/materialize carry-through).
+
 ### Product follow-up — a customizable landing page / launchpad (future)
 
 Today the app opens straight into a screen; there is no **home / landing page** that orients a
