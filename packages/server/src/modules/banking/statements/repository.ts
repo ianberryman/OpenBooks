@@ -338,7 +338,8 @@ export async function selectImportsPage(
 export interface NewLineRow {
   readonly id: Buffer;
   readonly bankAccountId: Buffer;
-  readonly importId: Buffer;
+  /** Null for a hand-entered line (no file); a Buffer for every imported one. */
+  readonly importId: Buffer | null;
   readonly postedDate: string;
   readonly valueDate: string | null;
   readonly description: string;

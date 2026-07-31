@@ -148,4 +148,8 @@ export {
   reactivateBankAccount,
   updateBankAccount,
 } from './bank-accounts/bank-accounts.service';
-export { getStatementLine, listStatementLines } from './statement-lines/service';
+export {
+  createManualStatementLine,
+  getStatementLine,
+  listStatementLines,
+} from './statement-lines/service';

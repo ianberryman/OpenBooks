@@ -486,7 +486,13 @@ export async function up(db: MigrationDb): Promise<void> {
       id               BINARY(16)   NOT NULL,
       org_id           BINARY(16)   NOT NULL,
       bank_account_id  BINARY(16)   NOT NULL,
-      import_id        BINARY(16)   NOT NULL,
+      -- NULL means the line was entered by hand rather than imported from a file: the
+      -- match/reconcile flow needs a transaction the bank shows before its file arrives
+      -- (a same-day deposit, a fee), and there is no file to point at. A hand-entered
+      -- line is otherwise indistinguishable from an imported one -- same signed amount,
+      -- same fingerprint and occurrence index, so it dedupes against a later import of
+      -- the same transaction exactly as two imports of it would.
+      import_id        BINARY(16)   NULL,
       posted_date      DATE         NOT NULL,
       value_date       DATE         NULL,
       description      VARCHAR(512) NOT NULL,

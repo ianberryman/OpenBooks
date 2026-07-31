@@ -51,7 +51,7 @@ const LINE_COLUMNS = [
 interface StatementLineRow {
   readonly id: Buffer;
   readonly bank_account_id: Buffer;
-  readonly import_id: Buffer;
+  readonly import_id: Buffer | null;
   readonly posted_date: string;
   readonly value_date: string | null;
   readonly amount_minor: bigint;
@@ -223,7 +223,7 @@ export function toStatementLine(
   return {
     id: bufferToUuid(row.id),
     bankAccountId: bufferToUuid(row.bank_account_id),
-    importId: bufferToUuid(row.import_id),
+    importId: row.import_id === null ? null : bufferToUuid(row.import_id),
     postedDate: row.posted_date,
     valueDate: row.value_date,
     amount: row.amount_minor.toString(),

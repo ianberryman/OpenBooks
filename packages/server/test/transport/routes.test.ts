@@ -252,6 +252,7 @@ describe('the /v1 route table', () => {
         'importQuickBooks',
         'listStatementLines',
         'getStatementLine',
+        'createManualStatementLine',
         'proposeBankMatches',
         'clearBankStatementLine',
         'removeBankLineClearing',

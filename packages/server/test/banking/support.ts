@@ -204,7 +204,7 @@ export interface StoredLine {
   readonly amount_minor: bigint;
   readonly description: string;
   readonly counterparty: string | null;
-  readonly import_id: Buffer;
+  readonly import_id: Buffer | null;
 }
 
 export async function linesOf(db: Kysely<DB>, bankAccountId: Buffer): Promise<StoredLine[]> {

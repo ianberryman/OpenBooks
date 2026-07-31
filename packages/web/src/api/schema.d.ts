@@ -3634,7 +3634,11 @@ export interface paths {
          */
         get: operations["listStatementLines"];
         put?: never;
-        post?: never;
+        /**
+         * Enter a statement line by hand
+         * @description For the match/reconcile flow when a transaction the bank shows has no file yet — a same-day deposit, a fee. `amount` is signed (positive money in, negative money out). The line records no import (`importId` is null) and dedupes against a later import of the same transaction exactly as two imports would (D-42). Takes `banking.import`.
+         */
+        post: operations["createManualStatementLine"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5483,11 +5487,8 @@ export interface components {
             fingerprint: string;
             /** Format: uuid */
             id: string;
-            /**
-             * Format: uuid
-             * @description The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.
-             */
-            importId: string;
+            /** @description The import that first created this line, or null when it was entered by hand rather than imported from a file. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it. */
+            importId: string | null;
             /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
             occurrenceIndex: number;
             /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
@@ -5557,11 +5558,8 @@ export interface components {
             fingerprint: string;
             /** Format: uuid */
             id: string;
-            /**
-             * Format: uuid
-             * @description The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.
-             */
-            importId: string;
+            /** @description The import that first created this line, or null when it was entered by hand rather than imported from a file. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it. */
+            importId: string | null;
             /** @description How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42). */
             occurrenceIndex: number;
             /** @description The date the bank posted it, which is the date its own balance moved on — and therefore the date a reconciliation counts it under (D-45). */
@@ -6946,6 +6944,50 @@ export interface components {
              * @enum {string}
              */
             taxMode: "exclusive" | "inclusive";
+        };
+        /** @description The facts a human supplies to enter one bank statement line by hand. The fingerprint and occurrence index are the server’s, computed as an import computes them. */
+        CreateManualStatementLineRequest: {
+            /**
+             * @description Signed minor units: positive is money in, negative is money out — the convention a statement line stores. Never zero.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            amount: components["schemas"]["MinorUnits"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @default null */
+            bankReference: string | null;
+            /** @default null */
+            counterparty: string | null;
+            /** @description What the transaction is — free text, as it would read on a statement. */
+            description: string;
+            /** @description The date the transaction posted — the date a reconciliation counts it under. */
+            postedDate: components["schemas"]["CalendarDate"];
+            /** @default null */
+            valueDate: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description The facts a human supplies to enter one bank statement line by hand. The fingerprint and occurrence index are the server’s, computed as an import computes them. */
+        CreateManualStatementLineRequestInput: {
+            /**
+             * @description Signed minor units: positive is money in, negative is money out — the convention a statement line stores. Never zero.
+             * @example 150000
+             * @example -150000
+             * @example 0
+             */
+            amount: components["schemas"]["MinorUnitsInput"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** @default null */
+            bankReference: string | null;
+            /** @default null */
+            counterparty: string | null;
+            /** @description What the transaction is — free text, as it would read on a statement. */
+            description: string;
+            /** @description The date the transaction posted — the date a reconciliation counts it under. */
+            postedDate: components["schemas"]["CalendarDateInput"];
+            /** @default null */
+            valueDate: components["schemas"]["CalendarDateInput"] | null;
         };
         /** @description Creates an organization with the calling user as its Owner. No slug — it is derived from the name. */
         CreateOrgRequest: {
@@ -20834,6 +20876,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankStatementLinePage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createManualStatementLine: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateManualStatementLineRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankStatementLine"];
                 };
             };
             /** @description Default Response */

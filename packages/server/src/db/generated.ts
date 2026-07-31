@@ -322,7 +322,7 @@ export interface BankStatementLines {
   description: string;
   fingerprint: string;
   id: Buffer;
-  import_id: Buffer;
+  import_id: Buffer | null;
   occurrence_index: Generated<number>;
   org_id: Buffer;
   posted_date: string;

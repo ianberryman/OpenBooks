@@ -158,6 +158,7 @@ import {
   clearBankStatementLine,
   createBankAccount,
   createBankRule,
+  createManualStatementLine,
   createReconciliationSession,
   deactivateBankAccount,
   finaliseReconciliationSession,
@@ -2275,6 +2276,19 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'getStatementLine',
     permission: 'banking.read',
     call: (s) => getStatementLine(s.statementLineId, s.ctx),
+  },
+  {
+    // A hand-entered line produces a `bank_statement_lines` row just as an import does, so
+    // it reuses `banking.import` — the key already granted to owner + bookkeeper. Any valid
+    // calendar date works; a statement line, unlike a journal, is under no period lock.
+    name: 'createManualStatementLine',
+    operationId: 'createManualStatementLine',
+    permission: 'banking.import',
+    call: (s) =>
+      createManualStatementLine(
+        { bankAccountId: s.bankAccountId, postedDate: '2025-06-15', amount: '1000', description: 'By hand' },
+        s.ctx,
+      ),
   },
   {
     name: 'proposeBankMatches',

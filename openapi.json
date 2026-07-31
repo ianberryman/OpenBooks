@@ -5721,10 +5721,17 @@
             "type": "string"
           },
           "importId": {
-            "description": "The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The import that first created this line, or null when it was entered by hand rather than imported from a file. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it."
           },
           "occurrenceIndex": {
             "description": "How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42).",
@@ -5993,10 +6000,17 @@
             "type": "string"
           },
           "importId": {
-            "description": "The import that first created this line. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it.",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The import that first created this line, or null when it was entered by hand rather than imported from a file. A re-import that recognised it as a duplicate does not become its import — the line records where it came from, and that is the upload that introduced it."
           },
           "occurrenceIndex": {
             "description": "How many earlier lines in the same file were identical in every other supplied field. Zero for almost every line; it exists so that two identical transactions on the same day both survive, and so that re-importing the file still collapses them to two (D-42).",
@@ -11200,6 +11214,155 @@
           "contactId",
           "issueDate",
           "taxMode"
+        ],
+        "type": "object"
+      },
+      "CreateManualStatementLineRequest": {
+        "additionalProperties": false,
+        "description": "The facts a human supplies to enter one bank statement line by hand. The fingerprint and occurrence index are the server’s, computed as an import computes them.",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Signed minor units: positive is money in, negative is money out — the convention a statement line stores. Never zero.",
+            "examples": [
+              "150000",
+              "-150000",
+              "0"
+            ],
+            "pattern": "^-?(?:0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "bankReference": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "description": "What the transaction is — free text, as it would read on a statement.",
+            "maxLength": 512,
+            "type": "string"
+          },
+          "postedDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the transaction posted — the date a reconciliation counts it under."
+          },
+          "valueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "bankAccountId",
+          "postedDate",
+          "valueDate",
+          "amount",
+          "description",
+          "counterparty",
+          "bankReference"
+        ],
+        "type": "object"
+      },
+      "CreateManualStatementLineRequestInput": {
+        "additionalProperties": false,
+        "description": "The facts a human supplies to enter one bank statement line by hand. The fingerprint and occurrence index are the server’s, computed as an import computes them.",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Signed minor units: positive is money in, negative is money out — the convention a statement line stores. Never zero.",
+            "examples": [
+              "150000",
+              "-150000",
+              "0"
+            ],
+            "pattern": "^-?(?:0|[1-9][0-9]*)$",
+            "type": "string"
+          },
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "bankReference": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "description": {
+            "description": "What the transaction is — free text, as it would read on a statement.",
+            "maxLength": 512,
+            "type": "string"
+          },
+          "postedDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the transaction posted — the date a reconciliation counts it under."
+          },
+          "valueDate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "bankAccountId",
+          "postedDate",
+          "amount",
+          "description"
         ],
         "type": "object"
       },
@@ -45860,6 +46023,58 @@
           }
         },
         "summary": "List statement lines",
+        "tags": [
+          "statement-lines"
+        ]
+      },
+      "post": {
+        "description": "For the match/reconcile flow when a transaction the bank shows has no file yet — a same-day deposit, a fee. `amount` is signed (positive money in, negative money out). The line records no import (`importId` is null) and dedupes against a later import of the same transaction exactly as two imports would (D-42). Takes `banking.import`.",
+        "operationId": "createManualStatementLine",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateManualStatementLineRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankStatementLine"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Enter a statement line by hand",
         "tags": [
           "statement-lines"
         ]

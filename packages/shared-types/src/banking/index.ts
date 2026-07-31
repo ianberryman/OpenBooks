@@ -109,6 +109,7 @@ export {
   bankStatementLineDraftSchema,
   bankStatementLinePageSchema,
   bankStatementLineSchema,
+  createManualStatementLineRequestSchema,
   listBankStatementLinesQuerySchema,
 } from './statement-lines';
 export type {
@@ -116,6 +117,7 @@ export type {
   BankStatementLine,
   BankStatementLineDraft,
   BankStatementLinePage,
+  CreateManualStatementLineRequest,
   ListBankStatementLinesQuery,
 } from './statement-lines';
 

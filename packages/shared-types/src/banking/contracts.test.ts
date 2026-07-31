@@ -294,6 +294,12 @@ const SAMPLES: Readonly<Record<string, unknown>> = {
   bankLineFingerprintSchema: 'ZmluZ2VycHJpbnQ',
   bankStatementLineDraftSchema: { ...LINE_FACTS, isDuplicate: false },
   bankStatementLineSchema: LINE,
+  createManualStatementLineRequestSchema: {
+    bankAccountId: UUID(1),
+    postedDate: DATE,
+    amount: '-4500',
+    description: 'Bank fee',
+  },
   bankStatementLinePageSchema: page(LINE),
   listBankStatementLinesQuerySchema: { bankAccountId: UUID(5), cleared: false },
 
@@ -378,6 +384,7 @@ describe('what M4 publishes as an OpenAPI component', () => {
         'BankStatementImport',
         'BankStatementImportPage',
         'CreateBankStatementImportRequest',
+        'CreateManualStatementLineRequest',
         'BankStatementImportQueued',
         'PreviewBankStatementImportRequest',
         'BankStatementImportPreview',

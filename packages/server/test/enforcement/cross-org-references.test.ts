@@ -7,6 +7,7 @@ import {
   clearBankStatementLine,
   createBankAccount,
   createBankRule,
+  createManualStatementLine,
   createReconciliationSession,
   previewImportWithParsers,
   startImport,
@@ -2705,6 +2706,16 @@ const REFERENCES: readonly Reference[] = [
     reach: (id, s) =>
       createReconciliationSession(
         { bankAccountId: id, endDate: DATE, statementClosingBalance: '0' },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createManualStatementLine',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      createManualStatementLine(
+        { bankAccountId: id, postedDate: DATE, amount: '1000', description: 'By hand' },
         s.caller.ctx,
       ),
   },

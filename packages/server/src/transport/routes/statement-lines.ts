@@ -7,6 +7,7 @@ import {
   bankStatementLineSchema,
   calendarDateSchema,
   clearBankStatementLineRequestSchema,
+  createManualStatementLineRequestSchema,
   pageCursorSchema,
   removeBankLineClearingRequestSchema,
 } from '@openbooks/shared-types';
@@ -21,6 +22,7 @@ import { z } from 'zod';
 import { getContext } from '../../context';
 import {
   clearBankStatementLine,
+  createManualStatementLine,
   getStatementLine,
   listStatementLines,
   proposeMatchesWithRules,
@@ -146,6 +148,39 @@ export function registerStatementLineRoutes(app: App): void {
     },
     async (request): Promise<BankStatementLine> =>
       getStatementLine(request.params.lineId, getContext()),
+  );
+
+  app.post(
+    '/v1/statement-lines',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'createManualStatementLine',
+        summary: 'Enter a statement line by hand',
+        description:
+          'For the match/reconcile flow when a transaction the bank shows has no file yet — a ' +
+          'same-day deposit, a fee. `amount` is signed (positive money in, negative money out). ' +
+          'The line records no import (`importId` is null) and dedupes against a later import of ' +
+          'the same transaction exactly as two imports would (D-42). Takes `banking.import`.',
+        tags: [LINE_TAG],
+        headers: idempotencyKeyHeaderSchema,
+        body: createManualStatementLineRequestSchema,
+        response: { 201: bankStatementLineSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const result = await withIdempotency(
+        {
+          endpoint: 'createManualStatementLine',
+          request: { body: request.body },
+          successStatus: 201,
+        },
+        () => createManualStatementLine(request.body, ctx),
+      );
+
+      return reply.status(result.status).send(idempotentBody<BankStatementLine>(result));
+    },
   );
 
   app.post(

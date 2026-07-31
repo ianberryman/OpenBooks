@@ -42,9 +42,13 @@ import { bankLineClearingSchema } from './clearing';
  *
  * ## The component ids arrived with OB-084's routes — see `banking.ts`.
  *
- * The line, its preview draft and the page are routed now (list, get, and the preview
- * sample), so they are components. There is still no update shape and no `id` on one,
- * because there is still no update route — D-42 has no wire surface to acquire.
+ * The line, its preview draft and the page are routed (list, get, and the preview sample),
+ * so they are components. There is now a *create* shape too —
+ * `createManualStatementLineRequestSchema`, for entering one line by hand when a
+ * transaction has no file yet — but still no *update* shape and no `id` on the line: a
+ * hand-entered line is written once and never modified, exactly like an imported one, so
+ * the argument above is untouched. The correction to a wrong line is still an entry or a
+ * clearing, never an edit to the evidence.
  */
 
 export const BANK_LINE_DESCRIPTION_MAX_LENGTH = 512;
@@ -173,12 +177,15 @@ export const bankStatementLineSchema = z
   .strictObject({
     id: z.uuid(),
     bankAccountId: z.uuid(),
-    importId: z.uuid().meta({
-      description:
-        'The import that first created this line. A re-import that recognised it as a duplicate ' +
-        'does not become its import — the line records where it came from, and that is the upload ' +
-        'that introduced it.',
-    }),
+    importId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The import that first created this line, or null when it was entered by hand rather than ' +
+          'imported from a file. A re-import that recognised it as a duplicate does not become its ' +
+          'import — the line records where it came from, and that is the upload that introduced it.',
+      }),
     ...bankLineFactsShape,
     clearing: bankLineClearingSchema.nullable().meta({
       description:
@@ -195,6 +202,47 @@ export const bankStatementLineSchema = z
   });
 
 export type BankStatementLine = z.infer<typeof bankStatementLineSchema>;
+
+/**
+ * What a caller supplies to enter a single line by hand, for the match/reconcile flow, when
+ * a transaction the bank shows has no file yet — a same-day deposit, a fee.
+ *
+ * It carries only what a human knows: which account, when, how much (signed — positive money
+ * in, negative money out, the same convention `amount_minor` uses), and the narrative. The
+ * `fingerprint` and `occurrenceIndex` are the server's — computed exactly as an import
+ * computes them, so a hand-entered line dedupes against a later import of the same
+ * transaction. There is no `importId`: that is the point.
+ */
+export const createManualStatementLineRequestSchema = z
+  .strictObject({
+    bankAccountId: z.uuid(),
+    postedDate: calendarDateSchema.meta({
+      description: 'The date the transaction posted — the date a reconciliation counts it under.',
+    }),
+    valueDate: calendarDateSchema.nullable().default(null),
+    amount: bankLineAmountSchema
+      .refine((value) => value !== '0', { error: 'A transaction amount cannot be zero.' })
+      .meta({
+        description:
+          'Signed minor units: positive is money in, negative is money out — the convention a ' +
+          'statement line stores. Never zero.',
+      }),
+    description: lineDescriptionSchema.meta({
+      description: 'What the transaction is — free text, as it would read on a statement.',
+    }),
+    counterparty: z.string().max(BANK_LINE_COUNTERPARTY_MAX_LENGTH).nullable().default(null),
+    bankReference: z.string().max(BANK_LINE_REFERENCE_MAX_LENGTH).nullable().default(null),
+  })
+  .meta({
+    id: 'CreateManualStatementLineRequest',
+    description:
+      'The facts a human supplies to enter one bank statement line by hand. The fingerprint and ' +
+      'occurrence index are the server’s, computed as an import computes them.',
+  });
+
+export type CreateManualStatementLineRequest = z.infer<
+  typeof createManualStatementLineRequestSchema
+>;
 
 /**
  * `cleared` is the matching screen's whole filter: the lines with nothing against
