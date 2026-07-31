@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button, ErrorBanner, formatMinorUnits } from '../../components';
+import { Button, ErrorBanner, formatMinorUnits, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { FixedAsset, FixedAssetReferenceData, FixedAssetScheduleRow } from './queries';
@@ -150,7 +150,7 @@ function ScheduleTable({
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-text">Depreciation schedule</h3>
-      <div className="overflow-x-auto">
+      <ResponsiveTable>
         <table className={TABLE_CLASSES}>
           <caption className="sr-only">Depreciation schedule</caption>
           <thead>
@@ -195,7 +195,7 @@ function ScheduleTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </ResponsiveTable>
     </div>
   );
 }

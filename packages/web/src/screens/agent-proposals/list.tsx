@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button } from '../../components';
+import { Button, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { JournalDraftSummary } from './queries';
@@ -17,51 +17,53 @@ export interface ProposalListProps {
 
 export function ProposalList({ proposals, loading, onReview }: ProposalListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Agent proposals</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Entry date
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Reference
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Memo
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Proposed
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {proposals.length === 0 && (
-          <EmptyRow columns={5}>{loading ? 'Loading…' : 'Nothing waiting on review.'}</EmptyRow>
-        )}
-        {proposals.map((proposal) => (
-          <tr key={proposal.id}>
-            <td className={cx(TD_CLASSES, 'font-mono')}>{proposal.entryDate ?? '—'}</td>
-            <td className={TD_CLASSES}>{proposal.reference ?? '—'}</td>
-            <td className={TD_CLASSES}>{proposal.memo ?? '—'}</td>
-            <td className={cx(TD_CLASSES, 'text-text-muted')}>{proposal.createdAt}</td>
-            <td className={cx(TD_CLASSES, 'text-right')}>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  onReview(proposal);
-                }}
-              >
-                Review
-              </Button>
-            </td>
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Agent proposals</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Entry date
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Reference
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Memo
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Proposed
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {proposals.length === 0 && (
+            <EmptyRow columns={5}>{loading ? 'Loading…' : 'Nothing waiting on review.'}</EmptyRow>
+          )}
+          {proposals.map((proposal) => (
+            <tr key={proposal.id}>
+              <td className={cx(TD_CLASSES, 'font-mono')}>{proposal.entryDate ?? '—'}</td>
+              <td className={TD_CLASSES}>{proposal.reference ?? '—'}</td>
+              <td className={TD_CLASSES}>{proposal.memo ?? '—'}</td>
+              <td className={cx(TD_CLASSES, 'text-text-muted')}>{proposal.createdAt}</td>
+              <td className={cx(TD_CLASSES, 'text-right')}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    onReview(proposal);
+                  }}
+                >
+                  Review
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

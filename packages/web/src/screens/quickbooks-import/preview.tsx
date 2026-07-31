@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import { formatMinorUnits } from '../../components';
+import { formatMinorUnits, ResponsiveTable } from '../../components';
 import type {
   QuickBooksAccountDraft,
   QuickBooksContactDraft,
@@ -105,33 +105,35 @@ function AccountDraftTable({
   readonly drafts: readonly QuickBooksAccountDraft[];
 }): ReactElement {
   return (
-    <table className="w-full border-collapse text-sm">
-      <caption className="sr-only">Accounts that would be created</caption>
-      <thead>
-        <tr className="border-b border-border text-left text-xs text-text-muted">
-          <th scope="col" className="py-1 pr-2 font-medium">
-            Code
-          </th>
-          <th scope="col" className="py-1 pr-2 font-medium">
-            Name
-          </th>
-          <th scope="col" className="py-1 font-medium">
-            Type
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {drafts.map((draft, index) => (
-          // A draft has no id — it is not a persisted thing (`QuickBooksAccountDraft`) — so
-          // the index within this preview is a stable enough key for a read-only list.
-          <tr key={index} className="border-b border-border align-top">
-            <td className="py-1 pr-2 font-mono text-text-muted">{draft.code}</td>
-            <td className="py-1 pr-2 text-text">{draft.name}</td>
-            <td className="py-1 text-text-muted">{capitalize(draft.type)}</td>
+    <ResponsiveTable>
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Accounts that would be created</caption>
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-text-muted">
+            <th scope="col" className="py-1 pr-2 font-medium">
+              Code
+            </th>
+            <th scope="col" className="py-1 pr-2 font-medium">
+              Name
+            </th>
+            <th scope="col" className="py-1 font-medium">
+              Type
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {drafts.map((draft, index) => (
+            // A draft has no id — it is not a persisted thing (`QuickBooksAccountDraft`) —
+            // so the index within this preview is a stable enough key for a read-only list.
+            <tr key={index} className="border-b border-border align-top">
+              <td className="py-1 pr-2 font-mono text-text-muted">{draft.code}</td>
+              <td className="py-1 pr-2 text-text">{draft.name}</td>
+              <td className="py-1 text-text-muted">{capitalize(draft.type)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }
 
@@ -141,33 +143,35 @@ function ContactDraftTable({
   readonly drafts: readonly QuickBooksContactDraft[];
 }): ReactElement {
   return (
-    <table className="w-full border-collapse text-sm">
-      <caption className="sr-only">Customers and vendors that would be created</caption>
-      <thead>
-        <tr className="border-b border-border text-left text-xs text-text-muted">
-          <th scope="col" className="py-1 pr-2 font-medium">
-            Name
-          </th>
-          <th scope="col" className="py-1 font-medium">
-            Role
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {drafts.map((draft, index) => (
-          <tr key={index} className="border-b border-border align-top">
-            <td className="py-1 pr-2 text-text">{draft.displayName}</td>
-            <td className="py-1 text-text-muted">
-              {draft.isCustomer && draft.isVendor
-                ? 'Customer and vendor'
-                : draft.isCustomer
-                  ? 'Customer'
-                  : 'Vendor'}
-            </td>
+    <ResponsiveTable>
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Customers and vendors that would be created</caption>
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-text-muted">
+            <th scope="col" className="py-1 pr-2 font-medium">
+              Name
+            </th>
+            <th scope="col" className="py-1 font-medium">
+              Role
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {drafts.map((draft, index) => (
+            <tr key={index} className="border-b border-border align-top">
+              <td className="py-1 pr-2 text-text">{draft.displayName}</td>
+              <td className="py-1 text-text-muted">
+                {draft.isCustomer && draft.isVendor
+                  ? 'Customer and vendor'
+                  : draft.isCustomer
+                    ? 'Customer'
+                    : 'Vendor'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }
 

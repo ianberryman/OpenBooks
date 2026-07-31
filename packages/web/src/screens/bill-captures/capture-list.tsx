@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
-import { Button, formatMinorUnits } from '../../components';
+import { Button, formatMinorUnits, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { PillTone } from '../settings/section';
@@ -69,100 +69,102 @@ export function CaptureList({
   onDismiss,
 }: CaptureListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Bill captures</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            File
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Source
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Status
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Vendor
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            Total
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Received
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.length === 0 && (
-          <EmptyRow columns={7}>
-            {isPending
-              ? 'Loading…'
-              : 'No captures match this filter. Upload a bill, or forward one to the address above.'}
-          </EmptyRow>
-        )}
-        {items.map((capture) => (
-          <tr key={capture.id}>
-            <td className={TD_CLASSES}>
-              <span className="text-text">{capture.filename}</span>
-            </td>
-            <td className={TD_CLASSES}>{SOURCE_LABELS[capture.source]}</td>
-            <td className={TD_CLASSES}>
-              <Pill tone={STATUS_TONES[capture.status]}>{STATUS_LABELS[capture.status]}</Pill>
-              {capture.status === 'failed' && capture.extractionError !== null && (
-                <span className="mt-1 block max-w-64 text-xs text-text-subtle">
-                  {capture.extractionError}
-                </span>
-              )}
-            </td>
-            <td className={TD_CLASSES}>{vendorNameOf(capture, reference)}</td>
-            <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-              {capture.extractedTotalMinor === null
-                ? '—'
-                : formatMinorUnits(capture.extractedTotalMinor)}
-            </td>
-            <td className={cx(TD_CLASSES, 'font-mono text-text-muted')}>
-              {formatCreatedAt(capture.createdAt)}
-            </td>
-            <td className={cx(TD_CLASSES, 'text-right')}>
-              <div className="flex items-center justify-end gap-1">
-                {capture.status === 'extracted' && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => {
-                      onReview(capture);
-                    }}
-                  >
-                    Review
-                  </Button>
-                )}
-                {(capture.status === 'extracted' || capture.status === 'failed') && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      onDismiss(capture);
-                    }}
-                  >
-                    Dismiss
-                  </Button>
-                )}
-                {capture.status === 'drafted' && (
-                  <Link
-                    to="/purchases"
-                    className="text-xs font-medium text-accent underline-offset-2 hover:underline"
-                  >
-                    View in Purchases
-                  </Link>
-                )}
-              </div>
-            </td>
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Bill captures</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              File
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Source
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Status
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Vendor
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              Total
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Received
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {items.length === 0 && (
+            <EmptyRow columns={7}>
+              {isPending
+                ? 'Loading…'
+                : 'No captures match this filter. Upload a bill, or forward one to the address above.'}
+            </EmptyRow>
+          )}
+          {items.map((capture) => (
+            <tr key={capture.id}>
+              <td className={TD_CLASSES}>
+                <span className="text-text">{capture.filename}</span>
+              </td>
+              <td className={TD_CLASSES}>{SOURCE_LABELS[capture.source]}</td>
+              <td className={TD_CLASSES}>
+                <Pill tone={STATUS_TONES[capture.status]}>{STATUS_LABELS[capture.status]}</Pill>
+                {capture.status === 'failed' && capture.extractionError !== null && (
+                  <span className="mt-1 block max-w-64 text-xs text-text-subtle">
+                    {capture.extractionError}
+                  </span>
+                )}
+              </td>
+              <td className={TD_CLASSES}>{vendorNameOf(capture, reference)}</td>
+              <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
+                {capture.extractedTotalMinor === null
+                  ? '—'
+                  : formatMinorUnits(capture.extractedTotalMinor)}
+              </td>
+              <td className={cx(TD_CLASSES, 'font-mono text-text-muted')}>
+                {formatCreatedAt(capture.createdAt)}
+              </td>
+              <td className={cx(TD_CLASSES, 'text-right')}>
+                <div className="flex items-center justify-end gap-1">
+                  {capture.status === 'extracted' && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        onReview(capture);
+                      }}
+                    >
+                      Review
+                    </Button>
+                  )}
+                  {(capture.status === 'extracted' || capture.status === 'failed') && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onDismiss(capture);
+                      }}
+                    >
+                      Dismiss
+                    </Button>
+                  )}
+                  {capture.status === 'drafted' && (
+                    <Link
+                      to="/purchases"
+                      className="text-xs font-medium text-accent underline-offset-2 hover:underline"
+                    >
+                      View in Purchases
+                    </Link>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

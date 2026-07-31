@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { ErrorBanner, formatMinorUnits } from '../../components';
+import { ErrorBanner, formatMinorUnits, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import {
   EmptyRow,
@@ -45,48 +45,50 @@ export function OverduePanel(): ReactElement {
         />
       )}
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Overdue invoices, most overdue first</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Contact
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Invoice
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Due
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              Days overdue
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              Outstanding
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.length === 0 && (
-            <EmptyRow columns={5}>
-              {overdue.isPending ? 'Loading…' : `Nothing is overdue as at ${asOf}.`}
-            </EmptyRow>
-          )}
-          {shown.map((entry) => (
-            <tr key={entry.documentId}>
-              <td className={TD_CLASSES}>{entry.contactName}</td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{entry.documentNumber}</td>
-              <td className={cx(TD_CLASSES, 'font-mono')}>{entry.dueDate}</td>
-              <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                {entry.daysPastDue}
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                {formatMinorUnits(entry.outstanding)}
-              </td>
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Overdue invoices, most overdue first</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Contact
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Invoice
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Due
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                Days overdue
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                Outstanding
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {shown.length === 0 && (
+              <EmptyRow columns={5}>
+                {overdue.isPending ? 'Loading…' : `Nothing is overdue as at ${asOf}.`}
+              </EmptyRow>
+            )}
+            {shown.map((entry) => (
+              <tr key={entry.documentId}>
+                <td className={TD_CLASSES}>{entry.contactName}</td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{entry.documentNumber}</td>
+                <td className={cx(TD_CLASSES, 'font-mono')}>{entry.dueDate}</td>
+                <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
+                  {entry.daysPastDue}
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
+                  {formatMinorUnits(entry.outstanding)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       {items.length > DISPLAY_LIMIT && (
         <p className="text-xs text-text-subtle">

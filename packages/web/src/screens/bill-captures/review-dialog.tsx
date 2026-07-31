@@ -13,6 +13,7 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
 } from '../../components';
@@ -298,7 +299,7 @@ export function ReviewDialog({
             </Field>
           </div>
 
-          <div className="overflow-x-auto">
+          <ResponsiveTable>
             <table className="w-full border-collapse">
               <caption className="sr-only">Bill lines</caption>
               <thead>
@@ -349,7 +350,7 @@ export function ReviewDialog({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ResponsiveTable>
 
           <div>
             <Button

@@ -62,7 +62,7 @@ export function ActionEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Not `FieldLabel`: that component demands a `Field` ancestor to mint the id it
             labels, and this heading names the list of action rows below it, not a single
             control — `dunning/stage-editor.tsx`'s same reasoning. */}

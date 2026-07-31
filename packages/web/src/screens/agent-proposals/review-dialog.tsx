@@ -1,6 +1,13 @@
 import type { ReactElement } from 'react';
 
-import { Button, Dialog, DialogClose, DialogContent, ErrorBanner } from '../../components';
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  ErrorBanner,
+  ResponsiveTable,
+} from '../../components';
 import { formatMinorUnits } from '../../money/format';
 import type { Account, JournalDraftLine, JournalDraftSummary } from './queries';
 import { useApproveProposal, useIntentKey, useProposalDetail, useRejectProposal } from './queries';
@@ -120,7 +127,7 @@ function ReviewProposalContent({
         {detail.isPending && <p className="text-text-subtle">Loading lines…</p>}
 
         {detail.draft !== null && (
-          <div className="overflow-x-auto">
+          <ResponsiveTable>
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">Proposed lines</caption>
               <thead>
@@ -145,7 +152,7 @@ function ReviewProposalContent({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ResponsiveTable>
         )}
       </div>
     </DialogContent>

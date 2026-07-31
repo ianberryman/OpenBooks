@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button } from '../../components';
+import { Button, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import type { RecurringJournalTemplate } from './queries';
@@ -39,99 +39,101 @@ export function TemplateList({
   onDeactivate,
 }: TemplateListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Recurring journals</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Name
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Cadence
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Each cycle
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Next run
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Status
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {templates.length === 0 && (
-          <EmptyRow columns={6}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
-        )}
-        {templates.map((template) => (
-          <tr key={template.id}>
-            <td className={TD_CLASSES}>
-              <button
-                type="button"
-                onClick={() => {
-                  onEdit(template);
-                }}
-                className="rounded-sm text-left text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-              >
-                {template.name}
-              </button>
-              {template.memo !== null && template.memo !== '' && (
-                <span className="block text-xs text-text-subtle">{template.memo}</span>
-              )}
-            </td>
-            <td className={TD_CLASSES}>
-              {cadenceLabel(template.frequency, template.intervalCount)}
-            </td>
-            <td className={TD_CLASSES}>
-              {MATERIALIZATION_MODE_LABELS[template.materializationMode]}
-            </td>
-            <td className={cx(TD_CLASSES, 'font-mono')}>
-              {template.isActive ? template.nextRunDate : '—'}
-            </td>
-            <td className={TD_CLASSES}>
-              <Pill tone={template.isActive ? 'positive' : 'muted'}>
-                {template.isActive ? 'Active' : 'Paused'}
-              </Pill>
-            </td>
-            <td className={cx(TD_CLASSES, 'text-right')}>
-              <div className="flex justify-end gap-1">
-                <Button
-                  size="sm"
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Recurring journals</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Name
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Cadence
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Each cycle
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Next run
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Status
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {templates.length === 0 && (
+            <EmptyRow columns={6}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
+          )}
+          {templates.map((template) => (
+            <tr key={template.id}>
+              <td className={TD_CLASSES}>
+                <button
+                  type="button"
                   onClick={() => {
                     onEdit(template);
                   }}
+                  className="rounded-sm text-left text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
                 >
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={togglePendingId === template.id}
-                  aria-label={`${template.isActive ? 'Pause' : 'Resume'} ${template.name}`}
-                  onClick={() => {
-                    onToggleActive(template);
-                  }}
-                >
-                  {template.isActive ? 'Pause' : 'Resume'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  aria-label={`Retire ${template.name}`}
-                  onClick={() => {
-                    onDeactivate(template);
-                  }}
-                >
-                  Retire
-                </Button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                  {template.name}
+                </button>
+                {template.memo !== null && template.memo !== '' && (
+                  <span className="block text-xs text-text-subtle">{template.memo}</span>
+                )}
+              </td>
+              <td className={TD_CLASSES}>
+                {cadenceLabel(template.frequency, template.intervalCount)}
+              </td>
+              <td className={TD_CLASSES}>
+                {MATERIALIZATION_MODE_LABELS[template.materializationMode]}
+              </td>
+              <td className={cx(TD_CLASSES, 'font-mono')}>
+                {template.isActive ? template.nextRunDate : '—'}
+              </td>
+              <td className={TD_CLASSES}>
+                <Pill tone={template.isActive ? 'positive' : 'muted'}>
+                  {template.isActive ? 'Active' : 'Paused'}
+                </Pill>
+              </td>
+              <td className={cx(TD_CLASSES, 'text-right')}>
+                <div className="flex justify-end gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      onEdit(template);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={togglePendingId === template.id}
+                    aria-label={`${template.isActive ? 'Pause' : 'Resume'} ${template.name}`}
+                    onClick={() => {
+                      onToggleActive(template);
+                    }}
+                  >
+                    {template.isActive ? 'Pause' : 'Resume'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    aria-label={`Retire ${template.name}`}
+                    onClick={() => {
+                      onDeactivate(template);
+                    }}
+                  >
+                    Retire
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

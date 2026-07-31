@@ -2,7 +2,14 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { newIdempotencyKey } from '../../api';
-import { Button, Dialog, DialogClose, DialogContent, ErrorBanner } from '../../components';
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  ErrorBanner,
+  ResponsiveTable,
+} from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import { useDeactivateDunningPolicy, useSetDunningPolicyActive } from './queries';
@@ -38,84 +45,86 @@ export function PolicyList({ policies, isPending, onEdit }: PolicyListProps): Re
     <div className="flex flex-col gap-3">
       {setActive.isError && <ErrorBanner error={setActive.error} />}
 
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Dunning policies</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Name
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Stages
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {policies.length === 0 && (
-            <EmptyRow columns={4}>
-              {isPending
-                ? 'Loading…'
-                : 'No dunning policies yet. Invoices fall overdue with nothing chasing them until one exists.'}
-            </EmptyRow>
-          )}
-          {policies.map((policy) => (
-            <tr key={policy.id}>
-              <td className={TD_CLASSES}>
-                <span className="text-text">{policy.name}</span>
-              </td>
-              <td className={TD_CLASSES}>
-                {policy.stages.length} {policy.stages.length === 1 ? 'stage' : 'stages'}
-              </td>
-              <td className={TD_CLASSES}>
-                <Pill tone={policy.isActive ? 'positive' : 'muted'}>
-                  {policy.isActive ? 'Active' : 'Paused'}
-                </Pill>
-              </td>
-              <td className={cx(TD_CLASSES, 'text-right')}>
-                <div className="flex justify-end gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      onEdit(policy);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setActive.mutate({
-                        policyId: policy.id,
-                        isActive: !policy.isActive,
-                        idempotencyKey: newIdempotencyKey(),
-                      });
-                    }}
-                  >
-                    {policy.isActive ? 'Pause' : 'Resume'}
-                  </Button>
-                  {policy.isActive && (
+      <ResponsiveTable>
+        <table className={TABLE_CLASSES}>
+          <caption className="sr-only">Dunning policies</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={TH_CLASSES}>
+                Name
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Stages
+              </th>
+              <th scope="col" className={TH_CLASSES}>
+                Status
+              </th>
+              <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {policies.length === 0 && (
+              <EmptyRow columns={4}>
+                {isPending
+                  ? 'Loading…'
+                  : 'No dunning policies yet. Invoices fall overdue with nothing chasing them until one exists.'}
+              </EmptyRow>
+            )}
+            {policies.map((policy) => (
+              <tr key={policy.id}>
+                <td className={TD_CLASSES}>
+                  <span className="text-text">{policy.name}</span>
+                </td>
+                <td className={TD_CLASSES}>
+                  {policy.stages.length} {policy.stages.length === 1 ? 'stage' : 'stages'}
+                </td>
+                <td className={TD_CLASSES}>
+                  <Pill tone={policy.isActive ? 'positive' : 'muted'}>
+                    {policy.isActive ? 'Active' : 'Paused'}
+                  </Pill>
+                </td>
+                <td className={cx(TD_CLASSES, 'text-right')}>
+                  <div className="flex justify-end gap-1">
                     <Button
                       size="sm"
                       onClick={() => {
-                        deactivate.reset();
-                        setConfirming(policy);
+                        onEdit(policy);
                       }}
                     >
-                      Deactivate
+                      Edit
                     </Button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setActive.mutate({
+                          policyId: policy.id,
+                          isActive: !policy.isActive,
+                          idempotencyKey: newIdempotencyKey(),
+                        });
+                      }}
+                    >
+                      {policy.isActive ? 'Pause' : 'Resume'}
+                    </Button>
+                    {policy.isActive && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          deactivate.reset();
+                          setConfirming(policy);
+                        }}
+                      >
+                        Deactivate
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
 
       <Dialog
         open={confirming !== null}

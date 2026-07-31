@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { Button } from '../../components';
+import { Button, ResponsiveTable } from '../../components';
 import { cx } from '../../lib/cx';
 import { EmptyRow, Pill, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
 import { formatTimestamp } from '../settings/support';
@@ -42,73 +42,77 @@ export function ConnectionList({
   onToggleActive,
 }: ConnectionListProps): ReactElement {
   return (
-    <table className={TABLE_CLASSES}>
-      <caption className="sr-only">Payment-processor connections</caption>
-      <thead>
-        <tr>
-          <th scope="col" className={TH_CLASSES}>
-            Processor
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Clearing account
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Fee account
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Last polled
-          </th>
-          <th scope="col" className={TH_CLASSES}>
-            Status
-          </th>
-          <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-            <span className="sr-only">Actions</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {connections.length === 0 && (
-          <EmptyRow columns={6}>
-            {loading ? 'Loading…' : 'No payment processors connected yet.'}
-          </EmptyRow>
-        )}
-        {connections.map((connection) => (
-          <tr key={connection.id}>
-            <td className={TD_CLASSES}>
-              {PROCESSOR_LABEL[connection.processor]}
-              {connection.externalAccountId !== null && (
-                <span className="block text-xs text-text-subtle">
-                  {connection.externalAccountId}
-                </span>
-              )}
-            </td>
-            <td className={TD_CLASSES}>{accountLabel(reference, connection.clearingAccountId)}</td>
-            <td className={TD_CLASSES}>{accountLabel(reference, connection.feeAccountId)}</td>
-            <td className={cx(TD_CLASSES, 'text-text-muted')}>
-              {connection.lastPolledAt === null
-                ? 'Never'
-                : formatTimestamp(connection.lastPolledAt)}
-            </td>
-            <td className={TD_CLASSES}>
-              <Pill tone={connection.isActive ? 'positive' : 'muted'}>
-                {connection.isActive ? 'Active' : 'Inactive'}
-              </Pill>
-            </td>
-            <td className={cx(TD_CLASSES, 'text-right')}>
-              <Button
-                size="sm"
-                disabled={togglePendingId === connection.id}
-                aria-label={`${connection.isActive ? 'Deactivate' : 'Reactivate'} ${PROCESSOR_LABEL[connection.processor]}`}
-                onClick={() => {
-                  onToggleActive(connection);
-                }}
-              >
-                {connection.isActive ? 'Deactivate' : 'Reactivate'}
-              </Button>
-            </td>
+    <ResponsiveTable>
+      <table className={TABLE_CLASSES}>
+        <caption className="sr-only">Payment-processor connections</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={TH_CLASSES}>
+              Processor
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Clearing account
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Fee account
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Last polled
+            </th>
+            <th scope="col" className={TH_CLASSES}>
+              Status
+            </th>
+            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
+              <span className="sr-only">Actions</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {connections.length === 0 && (
+            <EmptyRow columns={6}>
+              {loading ? 'Loading…' : 'No payment processors connected yet.'}
+            </EmptyRow>
+          )}
+          {connections.map((connection) => (
+            <tr key={connection.id}>
+              <td className={TD_CLASSES}>
+                {PROCESSOR_LABEL[connection.processor]}
+                {connection.externalAccountId !== null && (
+                  <span className="block text-xs text-text-subtle">
+                    {connection.externalAccountId}
+                  </span>
+                )}
+              </td>
+              <td className={TD_CLASSES}>
+                {accountLabel(reference, connection.clearingAccountId)}
+              </td>
+              <td className={TD_CLASSES}>{accountLabel(reference, connection.feeAccountId)}</td>
+              <td className={cx(TD_CLASSES, 'text-text-muted')}>
+                {connection.lastPolledAt === null
+                  ? 'Never'
+                  : formatTimestamp(connection.lastPolledAt)}
+              </td>
+              <td className={TD_CLASSES}>
+                <Pill tone={connection.isActive ? 'positive' : 'muted'}>
+                  {connection.isActive ? 'Active' : 'Inactive'}
+                </Pill>
+              </td>
+              <td className={cx(TD_CLASSES, 'text-right')}>
+                <Button
+                  size="sm"
+                  disabled={togglePendingId === connection.id}
+                  aria-label={`${connection.isActive ? 'Deactivate' : 'Reactivate'} ${PROCESSOR_LABEL[connection.processor]}`}
+                  onClick={() => {
+                    onToggleActive(connection);
+                  }}
+                >
+                  {connection.isActive ? 'Deactivate' : 'Reactivate'}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </ResponsiveTable>
   );
 }

@@ -10,6 +10,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  ResponsiveTable,
   Select,
   TextInput,
 } from '../../components';
@@ -323,7 +324,7 @@ function TemplateFormContent({
           />
         </Field>
 
-        <div className="overflow-x-auto">
+        <ResponsiveTable>
           <table className="w-full border-collapse">
             <caption className="sr-only">Template lines</caption>
             <thead>
@@ -366,7 +367,7 @@ function TemplateFormContent({
               ))}
             </tbody>
           </table>
-        </div>
+        </ResponsiveTable>
 
         <div className="flex items-center gap-3">
           <Button
