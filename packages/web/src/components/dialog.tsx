@@ -66,9 +66,13 @@ export function DialogContent({
           )}
         </div>
 
-        {/* The body scrolls, not the dialog: a long chart-of-accounts form must not push
-            its own confirm button off the bottom of the viewport. */}
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {/* The body scrolls vertically, not the dialog: a long chart-of-accounts form must
+            not push its own confirm button off the bottom of the viewport. `overflow-x-hidden`
+            pins the horizontal axis (Initiative R): a form's fields stack and its wide tables
+            carry their own `ResponsiveTable` scroller, so nothing here should ever scroll
+            sideways — and a native control a hair too wide on a phone is clipped invisibly
+            rather than scrolling the whole sheet. */}
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
 
         {footer !== undefined && <div className="flex justify-end gap-2">{footer}</div>}
       </DialogPrimitive.Content>

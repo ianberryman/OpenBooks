@@ -115,7 +115,11 @@ export function FieldError({
  * trigger, and the combobox input are one appearance rather than three that drift.
  */
 export const CONTROL_CLASSES =
-  'h-9 w-full rounded-md border bg-surface px-2 text-base text-text ' +
+  // `min-w-0` so a control can shrink to its container. Inputs default to `min-width: auto`,
+  // which a `width: 100%` does not override — most visibly a native `<input type="date">` on
+  // mobile Safari, whose picker has an intrinsic min-width that then overflows a phone-width
+  // form and scrolls it sideways (Initiative R). With `min-w-0` the control fits instead.
+  'h-9 w-full min-w-0 rounded-md border bg-surface px-2 text-base text-text ' +
   'placeholder:text-text-subtle transition-colors ' +
   'disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-text-subtle ' +
   'aria-invalid:border-danger';
