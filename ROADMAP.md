@@ -23,6 +23,7 @@ deviation is recorded in [Decisions](#decisions) with a reason.
 | **PAY**   | _(none)_   | Payment integration — Stripe/Square, processor-as-clearing-account, hosted checkout                                                                                                       | **Built — gate-green**         |
 | **K–P**   | _(none)_   | Reporting (cash basis, cash flow) · fixed assets & recurring journals **(L — built)** · procure-to-pay **(M — built)** · budgets **(N — built)** · OCR · accountant/close **(P — built)** | **Scoped — L, M, N, P built**  |
 | **M6**    | Phase 5    | Automations — realised as a polled agent work queue, MCP-only (Q) — OpenBooks holds no model credentials                                                                                  | **Built — gate-green (2,726)** |
+| **R**     | _(none)_   | Responsive web & mobile-ready shell — a phone-width pass over all ~36 screens, nav drawer, dialog sheets; leaves the SPA Capacitor-ready (OB-211…219)                                     | **Scoped — next milestone**    |
 
 Minimum credible public launch is M1–M4 plus QuickBooks import. Eleven enhancements sit outside the
 spec's phase order — scoped from session conversation, sequenced by decision, not by phase. **AP/AR
@@ -108,15 +109,78 @@ green), and **OB-094** is subsumed. Nothing on this list remains outstanding.
 ledger asset-account picker (D-46) and deactivates/reactivates it, with `deactivateBankAccount`
 refusing an account that has an open reconciliation session (`bank_account_has_open_session`).
 
-### Cross-cutting follow-up — mobile responsiveness review (future)
+### Initiative R — Responsive web & mobile-ready shell (next milestone; OB-211…OB-219, D-120…D-125)
 
-The web app has been built desktop-first, screen by screen, and its **mobile/responsive
-behaviour has never been reviewed as a whole**. Before launch we owe a dedicated pass over the
-`packages/web` screens on small viewports — tables, dialogs, the nav shell, and the wider
-data-entry forms (journal entry, the match workbench, the Pay Bills window) are the likely
-trouble spots. Not scheduled yet; captured here so it is not rediscovered as a launch surprise.
+The web app was built desktop-first, screen by screen, and its **mobile/responsive behaviour has
+never been reviewed as a whole**. An inventory confirms it: across **~36 screen surfaces** (34
+domain directories) the codebase carries **~8 responsive utility classes total** (six files with a
+stray `sm:`), no `useMediaQuery` and no layout media query anywhere, a fixed-width `w-60` sidebar
+shell (`app-shell.tsx`), and `w-full` data tables that lack a scroll wrapper in most of the ~19
+places one would help. The breakpoint tokens already exist (`--ob-breakpoint-*` in `tokens.css`,
+40/48/64/80rem) but are **unwired into layout**. This initiative is the dedicated pass, and it is a
+**launch prerequisite** — and the prerequisite for the native app below, which cannot be wrapped
+around views that do not yet work at phone width.
 
-Beyond responsive web, we want a **native mobile app** (iOS/Android), most likely by wrapping
+**Goal.** Every `packages/web` surface usable down to ~360px: no horizontal `<body>` scroll,
+primary actions reachable, touch targets ≥ 44px — landing the mobile nav shell first (it is the
+one screen every other screen sits inside, and it was just rebuilt as a sidebar in the nav
+consolidation, so it is desktop-only by construction today).
+
+**Forks to settle up front:**
+
+- **[D-120] Minimum width & breakpoint tiers.** Support down to 360px; two tiers — _compact_
+  (`< md`, 768px) and _regular_ (`≥ md`) — reusing the existing `--ob-breakpoint-*` tokens rather
+  than inventing a scale. `no-raw-color`'s sibling discipline applies: breakpoints come from tokens.
+- **[D-121] Mechanism.** Tailwind v4 responsive utilities (`sm:`/`md:`) are the default; a single
+  small `useViewport`/`useIsCompact` hook is added only where layout must branch in JS (drawer vs.
+  static sidebar, table vs. cards). CSS-first keeps it testable and avoids a JS branch per screen.
+- **[D-122] Nav shell on compact.** An off-canvas **drawer behind a hamburger**, not a bottom tab
+  bar — eight grouped sections with sub-items exceed a tab bar, and a drawer preserves the grouped
+  nav the consolidation just shipped. The `w-60` sidebar is a drawer `< md`, static `≥ md`.
+- **[D-123] Tables on compact.** The floor is a horizontal-scroll wrapper on **every** data table
+  (cheap, universal). The polish, for the highest-traffic money tables only (Pay Bills, money-in,
+  journal-entry rows), is an opt-in **stacked/card** layout `< md`. Not every table is card-ified —
+  scroll is the floor, cards are reserved for where scrolling a wide money grid is genuinely painful.
+- **[D-124] Dialogs on compact.** `dialog.tsx` already caps to `w-[calc(100vw-2rem)]` + `max-h-[85vh]`;
+  promote it to a full-height **bottom sheet** `< md`. One seam fixes all ~25 dialogs at once.
+- **[D-125] Test strategy.** Add a **mobile Playwright project** (`devices['iPhone 13']`, ~390px)
+  running **one dedicated `mobile-smoke` narrative** (register → open the nav drawer → post a journal
+  → read a report) — not the full 15, whose wide-table figure assertions are desktop by design (the
+  config comment already says so). Component/unit tests stay desktop (jsdom has no layout engine). A
+  manual small-viewport review checklist is recorded per screen sweep.
+
+**Tickets:**
+
+- **OB-211 — Responsive foundation.** Wire the `--ob-breakpoint-*` tokens into active Tailwind
+  screens; add the `useViewport`/`useIsCompact` hook, a `<ResponsiveTable>` scroll-wrapper primitive,
+  and a compact-sheet variant hook for dialogs. No screen changes yet — the primitives the rest build on.
+- **OB-212 — Nav shell, Phase 2 (the load-bearing one).** Drawer + hamburger `< md`, static sidebar
+  `≥ md`; overlay, focus-trap, Esc-to-close, the skip-link and grouped sections preserved.
+- **OB-213 — Dialog → bottom sheet.** The `dialog.tsx` compact treatment, verified across the
+  dialog-heavy screens (Pay Bills batch-issue, bill-capture review, banking multi-entry, account dialogs).
+- **OB-214 — Tables baseline.** Wrap every remaining data table in the scroll primitive; sweep the
+  settings tables and every `TABLE_CLASSES` site.
+- **OB-215 — Ledger & AP/AR line grids.** The wide "workbench" forms — journal-entry `draft-editor`,
+  sales/purchases/estimates line rows, the budgets grid — compact treatment (sticky first column or stack).
+- **OB-216 — Banking workbenches.** The bank-match and reconciliation screens (side-by-side panels)
+  stack on compact.
+- **OB-217 — Pay Bills & money-in.** The named wide money tables → card layout `< md` (D-123's polish tier).
+- **OB-218 — Screen sweep, the rest.** Sales/Purchases/Reports toolbars, the Reports statement tables
+  (scroll), Settings, platform/automation, and auth — each verified at 360px.
+- **OB-219 — Mobile e2e + a11y/touch audit.** The mobile Playwright project and `mobile-smoke`
+  narrative; the touch-target and reflow audit; the review checklist recorded.
+
+**Acceptance:** every screen usable at 360–414px with no horizontal body scroll and touch targets
+≥ 44px; the nav is a drawer `< md` and static `≥ md` with correct keyboard/focus behaviour; dialogs
+are bottom sheets `< md`; the `mobile-smoke` narrative passes at 390px while the existing 15 desktop
+narratives still pass unchanged; `yarn check` green with the token/`no-raw-color` rules unviolated.
+
+**Shape of the work.** ~36 surfaces, but most are cheap (a scroll wrapper and a toolbar `flex-wrap`).
+The load-bearing three are the foundation, the shell, and the dialog seam (OB-211–213); the four
+wide workbenches (OB-215–217) carry the real design work; the screen sweep (OB-218) parallelises once
+the primitives exist.
+
+Beyond responsive web, we still want a **native mobile app** (iOS/Android), most likely by wrapping
 the existing `packages/web` SPA in a native shell via **Capacitor** rather than a separate
 codebase — it reuses the React app and the same `/v1` client, and adds native capabilities
 (camera for bill capture, push notifications, biometric unlock) behind a thin plugin layer.
