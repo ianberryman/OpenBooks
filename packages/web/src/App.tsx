@@ -39,7 +39,7 @@ import { SettingsScreen } from './screens/settings';
 import { StatementPackagesScreen } from './screens/statement-packages';
 import { WorkQueueScreen } from './screens/work-items';
 import { AppShell } from './shell/app-shell';
-import { landingPath, visibleNav } from './shell/nav';
+import { landingPath, visibleNavSections } from './shell/nav';
 import { OrgControls } from './shell/org-switcher';
 import { QueryScopeBoundary } from './shell/query-scope';
 
@@ -190,7 +190,7 @@ function OrgSelectionRoutes({ identity }: { readonly identity: CallerIdentity })
  * omitted "because the route is hidden".
  */
 function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): ReactElement {
-  const nav = visibleNav(permissionSet(identity));
+  const nav = visibleNavSections(permissionSet(identity));
 
   return (
     <AppShell nav={nav} orgIndicator={<OrgControls identity={identity} />}>

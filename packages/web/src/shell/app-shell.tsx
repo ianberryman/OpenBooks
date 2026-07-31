@@ -31,17 +31,47 @@ export interface NavItem {
   readonly label: string;
 }
 
+/**
+ * A sidebar section (nav consolidation, Phase 1). `to` is present when the section title is
+ * itself a destination — the section's own screen — so it renders as a link; absent, the
+ * title is an inert category heading. `items` are the surviving child links.
+ */
+export interface NavSection {
+  readonly label: string;
+  readonly to?: string;
+  readonly items: readonly NavItem[];
+}
+
 export interface AppShellProps {
-  readonly nav?: readonly NavItem[];
+  readonly nav?: readonly NavSection[];
   readonly orgIndicator?: ReactNode;
   readonly children: ReactNode;
 }
 
+/** One primary destination, shared by section headers and their children. */
+function NavRowLink({ to, label }: NavItem): ReactElement {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        cx(
+          'block rounded-md px-3 py-1.5 text-base transition-colors',
+          isActive
+            ? 'bg-surface-selected font-medium text-text'
+            : 'text-text-muted hover:bg-surface-hover hover:text-text',
+        )
+      }
+    >
+      {label}
+    </NavLink>
+  );
+}
+
 export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): ReactElement {
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-text">
-      {/* Skip link: the header holds the org switcher and every primary destination, so a
-          keyboard user reaches the content past all of it on every navigation. */}
+    <div className="flex h-screen flex-col bg-canvas text-text">
+      {/* Skip link: the sidebar holds every primary destination, so a keyboard user reaches
+          the content past all of it on every navigation. */}
       <a
         href="#main"
         className={cx(
@@ -52,29 +82,10 @@ export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): R
         Skip to content
       </a>
 
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex h-14 w-full max-w-content items-center gap-4 px-4">
+      {/* Full width — the desktop app fills the screen rather than centring on `max-w-content`. */}
+      <header className="shrink-0 border-b border-border bg-surface">
+        <div className="flex h-14 w-full items-center gap-4 px-4">
           <span className="font-semibold tracking-tight text-text">OpenBooks</span>
-
-          <nav aria-label="Primary" className="flex items-center gap-1">
-            {nav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cx(
-                    'rounded-md px-2 py-1 text-base transition-colors',
-                    isActive
-                      ? 'bg-surface-selected font-medium text-text'
-                      : 'text-text-muted hover:bg-surface-hover hover:text-text',
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-
           <div className="ml-auto flex items-center gap-2">
             {orgIndicator}
             <ThemeToggle />
@@ -82,9 +93,41 @@ export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): R
         </div>
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-content flex-1 px-4 py-6">
-        {children}
-      </main>
+      <div className="flex min-h-0 flex-1">
+        {nav.length > 0 && (
+          <nav
+            aria-label="Primary"
+            className="w-60 shrink-0 overflow-y-auto border-r border-border bg-surface px-3 py-4"
+          >
+            <ul className="flex flex-col gap-4">
+              {nav.map((section) => (
+                <li key={section.label}>
+                  {section.to !== undefined ? (
+                    <NavRowLink to={section.to} label={section.label} />
+                  ) : (
+                    <span className="block px-3 py-1 text-sm font-semibold tracking-wide text-text-subtle uppercase">
+                      {section.label}
+                    </span>
+                  )}
+                  {section.items.length > 0 && (
+                    <ul className="mt-0.5 flex flex-col gap-0.5 pl-2">
+                      {section.items.map((item) => (
+                        <li key={item.to}>
+                          <NavRowLink to={item.to} label={item.label} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+
+        <main id="main" className="min-w-0 flex-1 overflow-y-auto px-6 py-6">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
