@@ -49,6 +49,14 @@ const SECRET_FIELD_SUBSTRINGS = [
   'routingnumber',
   'accountnumber',
   'wireinstruction',
+  // Taxpayer identifiers (1099 reporting, OB-228, D-228-2). A vendor TIN — EIN/SSN/ITIN —
+  // is PII that lives encrypted in `vendor_tax_profiles.tax_id_ciphertext` and only its
+  // last four ever crosses the wire; these ensure a full TIN can never reach a durable log
+  // line. `taxid` covers every field here (all are `tax_id*`); `ssn` is a rare substring.
+  // Bare `tin`/`ein` are deliberately NOT used — they match "routing"/"being"/"meeting"
+  // and would over-redact far beyond the intent.
+  'taxid',
+  'ssn',
 ] as const;
 
 export const SECRET_LOG_FIELD_SUBSTRINGS: readonly string[] = SECRET_FIELD_SUBSTRINGS;

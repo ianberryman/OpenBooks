@@ -69,6 +69,8 @@ interface Scene {
   readonly periodId: string;
   readonly journalId: string;
   readonly journalLineId: string;
+  readonly ten99RunId: string;
+  readonly ten99FormId: string;
   readonly contactId: string;
   readonly catalogItemId: string;
   readonly dimensionId: string;
@@ -540,6 +542,45 @@ async function scene(app: App): Promise<Scene> {
     lines: [{ description: 'Item', quantity: '1', unitAmount: '1000', accountId }],
   });
 
+  // 1099 reporting (OB-228): a vendor tax profile + a paid payment over the $600 threshold to
+  // the owner's vendor, then a generated run — so `getTen99Run`/`getTen99FormPdf`/… have a real
+  // owner-accessible run and form for A7's control pass (SEALED needs `ownerGetsNotFound:false`).
+  const ten99Profile = await app.inject({
+    method: 'PUT',
+    url: `/v1/vendor-tax-profiles/${subledger.partyId}`,
+    headers: authorizedWrite(owner, 'a7-ten99-profile'),
+    payload: { isEligible: true, defaultForm: '1099_nec', defaultBox: 'nec_1' },
+  });
+  if (ten99Profile.statusCode !== 200) {
+    throw new Error(
+      `ten99 profile setup failed: ${String(ten99Profile.statusCode)} ${ten99Profile.body}`,
+    );
+  }
+  await created('ten99-payment', '/v1/payments', {
+    // `made` is the money-out wire vocabulary (the DB enum is `paid`); the rollup keys off the
+    // `paid` direction underneath. $1,000 to the vendor, over the $600 NEC threshold.
+    direction: 'made',
+    contactId: subledger.partyId,
+    date: '2026-06-15',
+    amount: '100000',
+    accountId,
+  });
+  const ten99RunResponse = await app.inject({
+    method: 'POST',
+    url: '/v1/ten99/runs',
+    headers: authorizedWrite(owner, 'a7-ten99-run'),
+    payload: { taxYear: 2026 },
+  });
+  if (ten99RunResponse.statusCode !== 200) {
+    throw new Error(
+      `ten99 run setup failed: ${String(ten99RunResponse.statusCode)} ${ten99RunResponse.body}`,
+    );
+  }
+  const ten99Run = ten99RunResponse.json<{ id: string; forms: { id: string }[] }>();
+  const ten99RunId = ten99Run.id;
+  const ten99FormId = ten99Run.forms[0]?.id;
+  if (ten99FormId === undefined) throw new Error('ten99 run setup produced no forms');
+
   return {
     owner,
     stranger,
@@ -547,6 +588,8 @@ async function scene(app: App): Promise<Scene> {
     periodId,
     journalId,
     journalLineId,
+    ten99RunId,
+    ten99FormId,
     contactId,
     catalogItemId,
     dimensionId,
@@ -1229,6 +1272,47 @@ const SURFACES: readonly Surface[] = [
     method: 'GET',
     path: '/v1/catalog-items/%s',
     id: (s) => s.catalogItemId,
+  },
+  // 1099 reporting (OB-228). The six id-addressed routes; `listVendorTaxProfiles`,
+  // `getTen99Worksheet`, `generateTen99Run` and `listTen99Runs` carry no resource id and are
+  // not surfaces. Fixtures (a real profile, run and form) are built in `scene()`.
+  {
+    operationId: 'getVendorTaxProfile',
+    method: 'GET',
+    path: '/v1/vendor-tax-profiles/%s',
+    id: (s) => s.partyId,
+  },
+  {
+    operationId: 'upsertVendorTaxProfile',
+    method: 'PUT',
+    path: '/v1/vendor-tax-profiles/%s',
+    id: (s) => s.partyId,
+    payload: () => ({ isEligible: true, defaultForm: '1099_nec', defaultBox: 'nec_1' }),
+  },
+  {
+    operationId: 'getTen99Run',
+    method: 'GET',
+    path: '/v1/ten99/runs/%s',
+    id: (s) => s.ten99RunId,
+  },
+  {
+    operationId: 'getTen99RunStatus',
+    method: 'GET',
+    path: '/v1/ten99/runs/%s/status',
+    id: (s) => s.ten99RunId,
+  },
+  {
+    operationId: 'efileTen99Run',
+    method: 'POST',
+    path: '/v1/ten99/runs/%s/efile',
+    id: (s) => s.ten99RunId,
+    payload: () => ({ provider: 'manual' }),
+  },
+  {
+    operationId: 'getTen99FormPdf',
+    method: 'GET',
+    path: '/v1/ten99/forms/%s/pdf',
+    id: (s) => s.ten99FormId,
   },
   {
     operationId: 'updateCatalogItem',

@@ -3901,6 +3901,16 @@ const EXEMPT: Readonly<Record<string, string>> = {
   // cross-org or unknown automation id yields an empty page rather than the 404 that
   // would confirm the id names an automation somewhere (A7).
   'listWorkItems.automationId': 'a filter over the caller’s own org — empty, not 404',
+  // OB-228: `generateTen99Run.contactIds` narrows a filing run to a subset of the caller's
+  // own eligible vendors. A cross-org or unknown contact simply matches none of the caller's
+  // worksheet rows, so the run is generated over the remaining (or zero) vendors — never a
+  // 404 that would confirm the contact names someone somewhere (A7), and never another org's
+  // vendor in the output, since the worksheet it filters is already org-scoped.
+  'generateTen99Run.contactIds': 'a filter over the caller’s own org — no match, not 404',
+  // OB-228: `upsertVendorTaxProfile.taxId` ends in `Id` and so trips the id-shaped heuristic,
+  // but it is a taxpayer identifier (a vendor's EIN/SSN) written into an encrypted column, not
+  // a tenant-row reference — there is no cross-org resource for it to name, so no A7 axis.
+  'upsertVendorTaxProfile.taxId': 'a taxpayer identifier (TIN), not a tenant-row reference',
   /**
    * M4's banking filters (OB-084). Each answers an unknown or cross-org value with an
    * empty page rather than a 404 — the E9 uniform-filter behaviour every banking `list*`

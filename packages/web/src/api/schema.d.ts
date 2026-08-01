@@ -4132,6 +4132,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ten99/forms/{formId}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The recipient Copy B PDF for one filed 1099 form
+         * @description Streams the rendered Copy B PDF for one immutable form on a filing run. Gated on `ten99.read`, the same permission every other read in this file takes.
+         */
+        get: operations["getTen99FormPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ten99/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The org's 1099 filing runs
+         * @description Every filing run this org has generated, newest first.
+         */
+        get: operations["listTen99Runs"];
+        put?: never;
+        /**
+         * Generate a 1099 filing run
+         * @description Snapshots one immutable form per eligible vendor at or over the threshold for a tax year (D-228-5). `contactIds` narrows to a subset; absent takes every over-threshold eligible vendor.
+         */
+        post: operations["generateTen99Run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ten99/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One 1099 filing run */
+        get: operations["getTen99Run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ten99/runs/{runId}/efile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a 1099 filing run for e-file
+         * @description Submits a generated run to an e-file provider. `manual` (the default) returns the IRIS file to download rather than transmitting anything itself.
+         */
+        post: operations["efileTen99Run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ten99/runs/{runId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The e-file status of one 1099 filing run */
+        get: operations["getTen99RunStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ten99/worksheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The calendar-year 1099 worksheet
+         * @description Cash actually paid to each 1099-eligible vendor in the tax year (card/third-party payments excluded, D-228-3/4), with the review flags a human needs before generating a run — over threshold, has a TIN on file, likely-exempt classification.
+         */
+        get: operations["getTen99Worksheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/vendor-credits": {
         parameters: {
             query?: never;
@@ -4232,6 +4350,44 @@ export interface paths {
          * @description A reversing journal, never a deletion. A vendor credit that has been applied to a bill is refused with `document_has_allocations`.
          */
         post: operations["voidVendorCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-tax-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every vendor's 1099 tax profile */
+        get: operations["listVendorTaxProfiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vendor-tax-profiles/{contactId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One vendor's 1099 tax profile */
+        get: operations["getVendorTaxProfile"];
+        /**
+         * Create or update a vendor's 1099 tax profile
+         * @description Creates or replaces one contact's 1099/W-9 profile. `taxId` is write-only (D-228-2): present sets or replaces the encrypted TIN, `null` clears it, absent leaves it untouched — the response never echoes it back, only `taxIdLast4`.
+         */
+        put: operations["upsertVendorTaxProfile"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8669,6 +8825,22 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description Submit a 1099 filing run for e-file. */
+        EfileTen99RunRequest: {
+            /**
+             * @default manual
+             * @enum {string}
+             */
+            provider: "manual" | "iris";
+        };
+        /** @description Submit a 1099 filing run for e-file. */
+        EfileTen99RunRequestInput: {
+            /**
+             * @default manual
+             * @enum {string}
+             */
+            provider: "manual" | "iris";
+        };
         /** @description The body of every non-2xx response. */
         ErrorResponse: {
             error: {
@@ -9244,6 +9416,20 @@ export interface components {
         GenerateFiscalYearRequestInput: {
             /** @description The calendar year the fiscal year *starts* in. A year beginning in April 2026 and ending in March 2027 is fiscal year 2026. */
             fiscalYear: number;
+        };
+        /** @description Generate a 1099 filing run for a year. */
+        GenerateTen99RunRequest: {
+            contactIds?: string[];
+            taxYear: number;
+            /** @description Override the reporting threshold (cents). Absent uses the NEC default ($600). */
+            thresholdMinor?: string;
+        };
+        /** @description Generate a 1099 filing run for a year. */
+        GenerateTen99RunRequestInput: {
+            contactIds?: string[];
+            taxYear: number;
+            /** @description Override the reporting threshold (cents). Absent uses the NEC default ($600). */
+            thresholdMinor?: string;
         };
         /** @description The generated fiscal year, its span, and the twelve periods inside it. */
         GeneratedFiscalYear: {
@@ -11980,6 +12166,158 @@ export interface components {
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
         };
+        /** @description One immutable filed 1099 form. */
+        Ten99Form: {
+            /** @description The reported amount, cents-only (D-13). */
+            amountMinor: string;
+            /** @enum {string} */
+            boxCode: "nec_1" | "misc_1" | "misc_3";
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @description The form this corrects, when this is a correction (D-02 house style). */
+            correctsFormId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the recipient Copy B PDF, minted on read. */
+            downloadUrl: string | null;
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            formType: "1099_nec" | "1099_misc";
+            /** Format: uuid */
+            id: string;
+            recipientLegalName: string;
+            recipientTinLast4: string | null;
+            /** Format: uuid */
+            runId: string;
+        };
+        /** @description One immutable filed 1099 form. */
+        Ten99FormInput: {
+            /** @description The reported amount, cents-only (D-13). */
+            amountMinor: string;
+            /** @enum {string} */
+            boxCode: "nec_1" | "misc_1" | "misc_3";
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @description The form this corrects, when this is a correction (D-02 house style). */
+            correctsFormId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the recipient Copy B PDF, minted on read. */
+            downloadUrl: string | null;
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            formType: "1099_nec" | "1099_misc";
+            /** Format: uuid */
+            id: string;
+            recipientLegalName: string;
+            recipientTinLast4: string | null;
+            /** Format: uuid */
+            runId: string;
+        };
+        /** @description A 1099 filing run and its immutable forms. */
+        Ten99Run: {
+            /** Format: date-time */
+            createdAt: string;
+            efileProvider: ("manual" | "iris") | null;
+            efileRef: string | null;
+            forms: components["schemas"]["Ten99Form"][];
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "draft" | "generated" | "submitted" | "accepted" | "rejected";
+            taxYear: number;
+            thresholdMinor: string;
+        };
+        /** @description A 1099 filing run and its immutable forms. */
+        Ten99RunInput: {
+            /** Format: date-time */
+            createdAt: string;
+            efileProvider: ("manual" | "iris") | null;
+            efileRef: string | null;
+            forms: components["schemas"]["Ten99FormInput"][];
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "draft" | "generated" | "submitted" | "accepted" | "rejected";
+            taxYear: number;
+            thresholdMinor: string;
+        };
+        /** @description The org’s 1099 filing runs, newest first. */
+        Ten99RunList: {
+            runs: components["schemas"]["Ten99Run"][];
+        };
+        /** @description The org’s 1099 filing runs, newest first. */
+        Ten99RunListInput: {
+            runs: components["schemas"]["Ten99RunInput"][];
+        };
+        /** @description The calendar-year cash-paid rollup for 1099 vendors, for human review. */
+        Ten99Worksheet: {
+            rows: components["schemas"]["Ten99WorksheetRow"][];
+            taxYear: number;
+            /** @description The reporting threshold applied, cents-only. */
+            thresholdMinor: string;
+        };
+        /** @description The calendar-year cash-paid rollup for 1099 vendors, for human review. */
+        Ten99WorksheetInput: {
+            rows: components["schemas"]["Ten99WorksheetRowInput"][];
+            taxYear: number;
+            /** @description The reporting threshold applied, cents-only. */
+            thresholdMinor: string;
+        };
+        /** @description One vendor on the 1099 worksheet. */
+        Ten99WorksheetRow: {
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @enum {string} */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            hasTaxId: boolean;
+            legalName: string;
+            /** @description True for a C/S-corp classification. */
+            likelyExempt: boolean;
+            meetsThreshold: boolean;
+            /** @description Cash paid to this vendor in the tax year, cents-only (D-13), card excluded. */
+            paidMinor: string;
+            taxClassification: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            taxIdLast4: string | null;
+        };
+        /** @description One vendor on the 1099 worksheet. */
+        Ten99WorksheetRowInput: {
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @enum {string} */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            hasTaxId: boolean;
+            legalName: string;
+            /** @description True for a C/S-corp classification. */
+            likelyExempt: boolean;
+            meetsThreshold: boolean;
+            /** @description Cash paid to this vendor in the tax year, cents-only (D-13), card excluded. */
+            paidMinor: string;
+            taxClassification: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            taxIdLast4: string | null;
+        };
         /** @description Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache anywhere in M1. */
         TrialBalance: {
             /** @description The upper bound that was applied, or null when every posting to date is in. */
@@ -12816,6 +13154,48 @@ export interface components {
             /** @description What the file was called at upload. Recorded and shown back at review. */
             filename: string;
         };
+        /** @description Create or update a vendor's 1099 profile. */
+        UpsertVendorTaxProfileRequest: {
+            /**
+             * @default nec_1
+             * @enum {string}
+             */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @default 1099_nec
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            isEligible: boolean;
+            legalNameOverride?: string | null;
+            taxClassification?: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            /** @description Write-only. Present sets the TIN, null clears it, absent keeps it. */
+            taxId?: string | null;
+            taxIdType?: ("ein" | "ssn" | "itin") | null;
+            w9ReceivedOn?: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description Create or update a vendor's 1099 profile. */
+        UpsertVendorTaxProfileRequestInput: {
+            /**
+             * @default nec_1
+             * @enum {string}
+             */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @default 1099_nec
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            isEligible: boolean;
+            legalNameOverride?: string | null;
+            taxClassification?: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            /** @description Write-only. Present sets the TIN, null clears it, absent keeps it. */
+            taxId?: string | null;
+            taxIdType?: ("ein" | "ssn" | "itin") | null;
+            w9ReceivedOn?: components["schemas"]["CalendarDateInput"] | null;
+        };
         /** @description A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due. */
         VendorCredit: {
             /** @description The bills this credit has been applied to, and for how much. */
@@ -12951,6 +13331,62 @@ export interface components {
             achRoutingNumber: string | null;
             preferredPaymentRail: ("check" | "ach" | "wire") | null;
             wireInstructions: string | null;
+        };
+        /** @description A vendor's 1099/W-9 profile. */
+        VendorTaxProfile: {
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @enum {string} */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            /** @description Whether this vendor should receive a 1099. */
+            isEligible: boolean;
+            /** @description The 1099 payee legal name — the override if set, else the contact legal name. */
+            legalName: string;
+            taxClassification: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            /** @description The last four of the TIN, all that is read back; null when none is stored. */
+            taxIdLast4: string | null;
+            taxIdType: ("ein" | "ssn" | "itin") | null;
+            /** Format: date-time */
+            updatedAt: string;
+            w9ReceivedOn: components["schemas"]["CalendarDate"] | null;
+        };
+        /** @description A vendor's 1099/W-9 profile. */
+        VendorTaxProfileInput: {
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** @enum {string} */
+            defaultBox: "nec_1" | "misc_1" | "misc_3";
+            /**
+             * @description 1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).
+             * @enum {string}
+             */
+            defaultForm: "1099_nec" | "1099_misc";
+            /** @description Whether this vendor should receive a 1099. */
+            isEligible: boolean;
+            /** @description The 1099 payee legal name — the override if set, else the contact legal name. */
+            legalName: string;
+            taxClassification: ("individual" | "c_corp" | "s_corp" | "partnership" | "llc" | "other") | null;
+            /** @description The last four of the TIN, all that is read back; null when none is stored. */
+            taxIdLast4: string | null;
+            taxIdType: ("ein" | "ssn" | "itin") | null;
+            /** Format: date-time */
+            updatedAt: string;
+            w9ReceivedOn: components["schemas"]["CalendarDateInput"] | null;
+        };
+        /** @description The org's vendor 1099 tax profiles. */
+        VendorTaxProfileList: {
+            profiles: components["schemas"]["VendorTaxProfile"][];
+        };
+        /** @description The org's vendor 1099 tax profiles. */
+        VendorTaxProfileListInput: {
+            profiles: components["schemas"]["VendorTaxProfileInput"][];
         };
         /** @description Voiding takes its own entry date, because the document’s own period is usually closed by the time someone voids it and the reversal has to land somewhere postable. One shape for all four documents and for a payment, because voiding is the same act everywhere: a reversing journal, never a deletion (D-16, D-38). */
         VoidDocumentRequest: {
@@ -22878,6 +23314,227 @@ export interface operations {
             };
         };
     };
+    getTen99FormPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listTen99Runs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99RunList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generateTen99Run: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateTen99RunRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99Run"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTen99Run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99Run"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    efileTen99Run: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EfileTen99RunRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99Run"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTen99RunStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99Run"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getTen99Worksheet: {
+        parameters: {
+            query: {
+                /** @description The calendar tax year to roll up cash payments for. */
+                taxYear: number;
+                /** @description Override the reporting threshold, cents-only (D-13). Absent uses the NEC default ($600). */
+                threshold?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ten99Worksheet"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listVendorCredits: {
         parameters: {
             query?: {
@@ -23152,6 +23809,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VendorCredit"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listVendorTaxProfiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorTaxProfileList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getVendorTaxProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorTaxProfile"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upsertVendorTaxProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                contactId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertVendorTaxProfileRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorTaxProfile"];
                 };
             };
             /** @description Default Response */

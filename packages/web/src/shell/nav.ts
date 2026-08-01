@@ -141,6 +141,9 @@ const NAV_GROUPS: readonly NavGroup[] = [
        */
       { to: '/customer-statements', label: 'Customer statements', permission: 'reports.read' },
       { to: '/budgets', label: 'Budgets', permission: 'budgets.read' },
+      // 1099 contractor tax reporting (OB-228): the worksheet, vendor W-9/TIN setup, and
+      // filing runs. `ten99.read` — its own key, PII-gated, distinct from `reports.read`.
+      { to: '/ten99', label: '1099 Center', permission: 'ten99.read' },
     ],
   },
   {

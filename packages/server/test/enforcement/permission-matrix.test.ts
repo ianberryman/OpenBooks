@@ -222,6 +222,18 @@ import {
   createCustomerStatement,
   listCustomerStatements,
 } from '../../src/modules/account-statements';
+import {
+  computeTen99Worksheet,
+  efileTen99Run,
+  generateTen99Run,
+  getTen99FilingStatus,
+  getTen99Run,
+  getVendorTaxProfile,
+  listTen99Runs,
+  listVendorTaxProfiles,
+  renderTen99FormPdf,
+  upsertVendorTaxProfile,
+} from '../../src/modules/ten99';
 import { exportReport } from '../../src/modules/reports/export';
 import { createStatementPackage, listStatementPackages } from '../../src/modules/statements';
 /**
@@ -564,6 +576,11 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // clerks inline-add a sales or purchase item while entering a document (D-CAT-1).
   'catalog.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'catalog.write': ['owner', 'bookkeeper', 'apOnly', 'arOnly'],
+  // 1099 reporting (OB-228). read reaches every `%.read` holder; write is owner + bookkeeper
+  // (1099 prep is clerk work, not a bookkeeper-administration exclusion) + accountant (D-228-6).
+  // Not the AP/AR clerks — their grants are explicit `IN(...)` lists that do not name ten99.
+  'ten99.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
+  'ten99.write': ['owner', 'bookkeeper', 'accountant'],
   'dimensions.read': [
     'owner',
     'bookkeeper',
@@ -818,20 +835,16 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // enforcement point — nothing is latent. The rows stay (as empty arrays) so the
   // per-role assertion below keeps naming each role, and so the next catalog-only
   // code has an obvious home.
-  // `ten99.read`/`ten99.write` are catalog-before-enforcement (OB-228): seeded in this
-  // trunk (Wave 0) but not yet checked by any service until the `modules/ten99` routes
-  // land (Wave 1/2), the exact `agents.review`/`workflows.*` pattern. They move into
-  // `GRANTED_TO` and these rows return to empty once the routes enforce them.
-  owner: ['ten99.read', 'ten99.write'],
-  bookkeeper: ['ten99.read', 'ten99.write'],
+  owner: [],
+  bookkeeper: [],
   // Empty since M3. Every code `0001_tenancy` grants an AP/AR clerk now has an
   // enforcement point — procure-to-pay's purchase_orders.*/expenses.*/estimates.*
   // gate the moment they are seeded (M), so neither clerk holds anything latent.
   apOnly: [],
   arOnly: [],
-  readOnly: ['ten99.read'],
-  approver: ['ten99.read'],
-  accountant: ['ten99.read', 'ten99.write'],
+  readOnly: [],
+  approver: [],
+  accountant: [],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -1472,6 +1485,75 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'exportReport',
     permission: 'reports.read',
     call: (s) => exportReport({ report: 'trial-balance', format: 'csv' }, s.ctx),
+  },
+  // 1099 reporting (OB-228). `requirePermission` is the first line of each service fn, so a
+  // placeholder run/form id is never reached by a role that lacks the gate — it is refused
+  // first; a role that holds the gate proceeds and (for a bogus id) hits a NotFound, which
+  // `judge` reads as `allowed`. So no ten99 fixtures are needed on the scene.
+  {
+    name: 'upsertVendorTaxProfile',
+    operationId: 'upsertVendorTaxProfile',
+    permission: 'ten99.write',
+    call: (s) =>
+      upsertVendorTaxProfile(
+        { contactId: s.contactId, isEligible: true, defaultForm: '1099_nec', defaultBox: 'nec_1' },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'getVendorTaxProfile',
+    operationId: 'getVendorTaxProfile',
+    permission: 'ten99.read',
+    call: (s) => getVendorTaxProfile(s.contactId, s.ctx),
+  },
+  {
+    name: 'listVendorTaxProfiles',
+    operationId: 'listVendorTaxProfiles',
+    permission: 'ten99.read',
+    call: (s) => listVendorTaxProfiles(s.ctx),
+  },
+  {
+    name: 'getTen99Worksheet',
+    operationId: 'getTen99Worksheet',
+    permission: 'ten99.read',
+    call: (s) => computeTen99Worksheet({ taxYear: 2025 }, s.ctx),
+  },
+  {
+    name: 'generateTen99Run',
+    operationId: 'generateTen99Run',
+    permission: 'ten99.write',
+    call: (s) => generateTen99Run({ taxYear: 2025 }, s.ctx),
+  },
+  {
+    name: 'listTen99Runs',
+    operationId: 'listTen99Runs',
+    permission: 'ten99.read',
+    call: (s) => listTen99Runs(s.ctx),
+  },
+  {
+    name: 'getTen99Run',
+    operationId: 'getTen99Run',
+    permission: 'ten99.read',
+    call: (s) => getTen99Run('11111111-1111-4111-8111-111111111111', s.ctx),
+  },
+  {
+    name: 'getTen99FormPdf',
+    operationId: 'getTen99FormPdf',
+    permission: 'ten99.read',
+    call: (s) => renderTen99FormPdf('11111111-1111-4111-8111-111111111111', s.ctx),
+  },
+  {
+    name: 'efileTen99Run',
+    operationId: 'efileTen99Run',
+    permission: 'ten99.write',
+    call: (s) =>
+      efileTen99Run({ runId: '11111111-1111-4111-8111-111111111111', provider: 'manual' }, s.ctx),
+  },
+  {
+    name: 'getTen99RunStatus',
+    operationId: 'getTen99RunStatus',
+    permission: 'ten99.read',
+    call: (s) => getTen99FilingStatus('11111111-1111-4111-8111-111111111111', s.ctx),
   },
   {
     name: 'getAuditReport',
@@ -4386,10 +4468,10 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // Procure-to-pay (M) added seven codes and enforced them in the same milestone,
     // so they never lingered here past their one schema-only wave. Q (M6) then wired
     // the last family — `workflows.read`/`write`/`activate` — in the automations
-    // module (OB-200…210). OB-228 re-opens the latent set with `ten99.read`/`ten99.write`:
-    // seeded in the Wave-0 trunk, enforced once the `modules/ten99` routes land — at which
-    // point this returns to 0. This number moves once per wave that wires a code.
-    expect(latent).toHaveLength(2);
+    // module (OB-200…210), and OB-228's `ten99.read`/`ten99.write` are enforced by the
+    // `modules/ten99` routes the moment they are seeded — so nothing is latent again. This
+    // number moves once per wave that wires a code.
+    expect(latent).toHaveLength(0);
   });
 
   /**
@@ -4637,7 +4719,9 @@ function serviceSources(): readonly ServiceSource[] {
  * then rejected, instead of failing to match and being counted as absent.
  */
 const REQUIRE_PERMISSION = /requirePermission\(\s*([^)]*?)\s*\)/g;
-const LITERAL_KEY = /^'([a-z_.]+)'$/;
+// `[a-z0-9_.]` and not `[a-z_.]`: a permission key may carry a digit (`ten99.read`,
+// `ten99.write`, OB-228), and the digit-free class misread the literal as a computed key.
+const LITERAL_KEY = /^'([a-z0-9_.]+)'$/;
 const MEMBER_KEY = /^[A-Za-z_$][\w$]*\.([\w$]+)$/;
 
 function enforcementPointsIn(file: ServiceSource): readonly string[] {

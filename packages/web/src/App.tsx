@@ -44,6 +44,7 @@ import { AppShell } from './shell/app-shell';
 import { landingPath, visibleNavSections } from './shell/nav';
 import { OrgControls } from './shell/org-switcher';
 import { QueryScopeBoundary } from './shell/query-scope';
+import { Ten99CenterScreen } from './ten99/ten99-center';
 
 /**
  * `<BrowserRouter>` with no data router.
@@ -220,6 +221,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/statement-packages" element={<StatementPackagesScreen />} />
         <Route path="/customer-statements" element={<CustomerStatementsScreen />} />
+        <Route path="/ten99/*" element={<Ten99CenterScreen />} />
         <Route path="/budgets" element={<BudgetsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />

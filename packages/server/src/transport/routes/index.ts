@@ -50,6 +50,7 @@ import { registerSettingsRoutes } from './settings';
 import { registerStatementLineRoutes } from './statement-lines';
 import { registerStatementPackageRoutes } from './statement-packages';
 import { registerTaxRateRoutes } from './tax-rates';
+import { registerTen99Routes } from './ten99';
 
 /**
  * The `/v1` route surface (OB-023, extended by OB-045 and OB-067).
@@ -684,4 +685,8 @@ export function registerV1Routes(app: App, config: Config): void {
   // work items their `agent_task` actions enqueue. The MCP half of Q — the queue
   // protocol the org's own agent polls — is `modules/mcp/tools.ts`, not this surface.
   registerAutomationsRoutes(app);
+  // 1099 contractor tax reporting (OB-228): vendor W-9/TIN profiles, the calendar-year
+  // cash-paid worksheet (card excluded), and immutable filing runs/forms + manual e-file.
+  // Gated on `ten99.read`/`ten99.write` in the service.
+  registerTen99Routes(app);
 }

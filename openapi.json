@@ -16531,6 +16531,39 @@
         ],
         "type": "object"
       },
+      "EfileTen99RunRequest": {
+        "additionalProperties": false,
+        "description": "Submit a 1099 filing run for e-file.",
+        "properties": {
+          "provider": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "iris"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "EfileTen99RunRequestInput": {
+        "additionalProperties": false,
+        "description": "Submit a 1099 filing run for e-file.",
+        "properties": {
+          "provider": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "iris"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ErrorResponse": {
         "additionalProperties": false,
         "description": "The body of every non-2xx response.",
@@ -18776,6 +18809,60 @@
         },
         "required": [
           "fiscalYear"
+        ],
+        "type": "object"
+      },
+      "GenerateTen99RunRequest": {
+        "additionalProperties": false,
+        "description": "Generate a 1099 filing run for a year.",
+        "properties": {
+          "contactIds": {
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "taxYear": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "description": "Override the reporting threshold (cents). Absent uses the NEC default ($600).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taxYear"
+        ],
+        "type": "object"
+      },
+      "GenerateTen99RunRequestInput": {
+        "additionalProperties": false,
+        "description": "Generate a 1099 filing run for a year.",
+        "properties": {
+          "contactIds": {
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "taxYear": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "description": "Override the reporting threshold (cents). Absent uses the NEC default ($600).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taxYear"
         ],
         "type": "object"
       },
@@ -28772,6 +28859,636 @@
         ],
         "type": "object"
       },
+      "Ten99Form": {
+        "additionalProperties": false,
+        "description": "One immutable filed 1099 form.",
+        "properties": {
+          "amountMinor": {
+            "description": "The reported amount, cents-only (D-13).",
+            "type": "string"
+          },
+          "boxCode": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "correctsFormId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The form this corrects, when this is a correction (D-02 house style)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "downloadUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A short-lived signed URL to the recipient Copy B PDF, minted on read."
+          },
+          "formType": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "recipientLegalName": {
+            "type": "string"
+          },
+          "recipientTinLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "contactId",
+          "contactName",
+          "formType",
+          "boxCode",
+          "amountMinor",
+          "recipientLegalName",
+          "recipientTinLast4",
+          "correctsFormId",
+          "downloadUrl",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "Ten99FormInput": {
+        "additionalProperties": false,
+        "description": "One immutable filed 1099 form.",
+        "properties": {
+          "amountMinor": {
+            "description": "The reported amount, cents-only (D-13).",
+            "type": "string"
+          },
+          "boxCode": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "correctsFormId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The form this corrects, when this is a correction (D-02 house style)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "downloadUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A short-lived signed URL to the recipient Copy B PDF, minted on read."
+          },
+          "formType": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "recipientLegalName": {
+            "type": "string"
+          },
+          "recipientTinLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "contactId",
+          "contactName",
+          "formType",
+          "boxCode",
+          "amountMinor",
+          "recipientLegalName",
+          "recipientTinLast4",
+          "correctsFormId",
+          "downloadUrl",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "Ten99Run": {
+        "additionalProperties": false,
+        "description": "A 1099 filing run and its immutable forms.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "efileProvider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "iris"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "efileRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99Form"
+            },
+            "type": "array"
+          },
+          "generatedByUserId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "generated",
+              "submitted",
+              "accepted",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "taxYear": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "taxYear",
+          "status",
+          "efileProvider",
+          "efileRef",
+          "thresholdMinor",
+          "generatedByUserId",
+          "createdAt",
+          "forms"
+        ],
+        "type": "object"
+      },
+      "Ten99RunInput": {
+        "additionalProperties": false,
+        "description": "A 1099 filing run and its immutable forms.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "efileProvider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "iris"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "efileRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "forms": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99FormInput"
+            },
+            "type": "array"
+          },
+          "generatedByUserId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "generated",
+              "submitted",
+              "accepted",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "taxYear": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "taxYear",
+          "status",
+          "efileProvider",
+          "efileRef",
+          "thresholdMinor",
+          "generatedByUserId",
+          "createdAt",
+          "forms"
+        ],
+        "type": "object"
+      },
+      "Ten99RunList": {
+        "additionalProperties": false,
+        "description": "The org’s 1099 filing runs, newest first.",
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99Run"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "type": "object"
+      },
+      "Ten99RunListInput": {
+        "additionalProperties": false,
+        "description": "The org’s 1099 filing runs, newest first.",
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99RunInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs"
+        ],
+        "type": "object"
+      },
+      "Ten99Worksheet": {
+        "additionalProperties": false,
+        "description": "The calendar-year cash-paid rollup for 1099 vendors, for human review.",
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99WorksheetRow"
+            },
+            "type": "array"
+          },
+          "taxYear": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "description": "The reporting threshold applied, cents-only.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taxYear",
+          "thresholdMinor",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "Ten99WorksheetInput": {
+        "additionalProperties": false,
+        "description": "The calendar-year cash-paid rollup for 1099 vendors, for human review.",
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/Ten99WorksheetRowInput"
+            },
+            "type": "array"
+          },
+          "taxYear": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "thresholdMinor": {
+            "description": "The reporting threshold applied, cents-only.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taxYear",
+          "thresholdMinor",
+          "rows"
+        ],
+        "type": "object"
+      },
+      "Ten99WorksheetRow": {
+        "additionalProperties": false,
+        "description": "One vendor on the 1099 worksheet.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "defaultBox": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "hasTaxId": {
+            "type": "boolean"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "likelyExempt": {
+            "description": "True for a C/S-corp classification.",
+            "type": "boolean"
+          },
+          "meetsThreshold": {
+            "type": "boolean"
+          },
+          "paidMinor": {
+            "description": "Cash paid to this vendor in the tax year, cents-only (D-13), card excluded.",
+            "type": "string"
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxIdLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "legalName",
+          "taxIdLast4",
+          "taxClassification",
+          "defaultForm",
+          "defaultBox",
+          "paidMinor",
+          "meetsThreshold",
+          "hasTaxId",
+          "likelyExempt"
+        ],
+        "type": "object"
+      },
+      "Ten99WorksheetRowInput": {
+        "additionalProperties": false,
+        "description": "One vendor on the 1099 worksheet.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "defaultBox": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "hasTaxId": {
+            "type": "boolean"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "likelyExempt": {
+            "description": "True for a C/S-corp classification.",
+            "type": "boolean"
+          },
+          "meetsThreshold": {
+            "type": "boolean"
+          },
+          "paidMinor": {
+            "description": "Cash paid to this vendor in the tax year, cents-only (D-13), card excluded.",
+            "type": "string"
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxIdLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "legalName",
+          "taxIdLast4",
+          "taxClassification",
+          "defaultForm",
+          "defaultBox",
+          "paidMinor",
+          "meetsThreshold",
+          "hasTaxId",
+          "likelyExempt"
+        ],
+        "type": "object"
+      },
       "TrialBalance": {
         "additionalProperties": false,
         "description": "Debit and credit totals per account plus the org-wide totals, which must be equal. A direct aggregation over journal lines — there is no balance cache anywhere in M1.",
@@ -32113,6 +32830,206 @@
         ],
         "type": "object"
       },
+      "UpsertVendorTaxProfileRequest": {
+        "additionalProperties": false,
+        "description": "Create or update a vendor's 1099 profile.",
+        "properties": {
+          "defaultBox": {
+            "default": "nec_1",
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "default": "1099_nec",
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "isEligible": {
+            "type": "boolean"
+          },
+          "legalNameOverride": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxId": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{2}-?\\d{7}$|^\\d{3}-?\\d{2}-?\\d{4}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Write-only. Present sets the TIN, null clears it, absent keeps it."
+          },
+          "taxIdType": {
+            "anyOf": [
+              {
+                "description": "Which taxpayer id the recipient filed on their W-9.",
+                "enum": [
+                  "ein",
+                  "ssn",
+                  "itin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "w9ReceivedOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "isEligible",
+          "defaultForm",
+          "defaultBox"
+        ],
+        "type": "object"
+      },
+      "UpsertVendorTaxProfileRequestInput": {
+        "additionalProperties": false,
+        "description": "Create or update a vendor's 1099 profile.",
+        "properties": {
+          "defaultBox": {
+            "default": "nec_1",
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "default": "1099_nec",
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "isEligible": {
+            "type": "boolean"
+          },
+          "legalNameOverride": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxId": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{2}-?\\d{7}$|^\\d{3}-?\\d{2}-?\\d{4}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Write-only. Present sets the TIN, null clears it, absent keeps it."
+          },
+          "taxIdType": {
+            "anyOf": [
+              {
+                "description": "Which taxpayer id the recipient filed on their W-9.",
+                "enum": [
+                  "ein",
+                  "ssn",
+                  "itin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "w9ReceivedOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "isEligible"
+        ],
+        "type": "object"
+      },
       "VendorCredit": {
         "additionalProperties": false,
         "description": "A vendor credit: the AP mirror of a credit note, and a document in its own right (D-39). It reduces what we owe by allocating against bills, and has no `dueDate` because nothing about it falls due.",
@@ -32742,6 +33659,264 @@
           "achRoutingNumber",
           "achAccountNumber",
           "wireInstructions"
+        ],
+        "type": "object"
+      },
+      "VendorTaxProfile": {
+        "additionalProperties": false,
+        "description": "A vendor's 1099/W-9 profile.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "defaultBox": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "isEligible": {
+            "description": "Whether this vendor should receive a 1099.",
+            "type": "boolean"
+          },
+          "legalName": {
+            "description": "The 1099 payee legal name — the override if set, else the contact legal name.",
+            "type": "string"
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxIdLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last four of the TIN, all that is read back; null when none is stored."
+          },
+          "taxIdType": {
+            "anyOf": [
+              {
+                "description": "Which taxpayer id the recipient filed on their W-9.",
+                "enum": [
+                  "ein",
+                  "ssn",
+                  "itin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "w9ReceivedOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "isEligible",
+          "taxIdLast4",
+          "taxIdType",
+          "taxClassification",
+          "defaultForm",
+          "defaultBox",
+          "legalName",
+          "w9ReceivedOn",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "VendorTaxProfileInput": {
+        "additionalProperties": false,
+        "description": "A vendor's 1099/W-9 profile.",
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "defaultBox": {
+            "enum": [
+              "nec_1",
+              "misc_1",
+              "misc_3"
+            ],
+            "type": "string"
+          },
+          "defaultForm": {
+            "description": "1099-NEC (nonemployee compensation) or 1099-MISC (rent/other income).",
+            "enum": [
+              "1099_nec",
+              "1099_misc"
+            ],
+            "type": "string"
+          },
+          "isEligible": {
+            "description": "Whether this vendor should receive a 1099.",
+            "type": "boolean"
+          },
+          "legalName": {
+            "description": "The 1099 payee legal name — the override if set, else the contact legal name.",
+            "type": "string"
+          },
+          "taxClassification": {
+            "anyOf": [
+              {
+                "description": "W-9 federal tax classification. C/S-corps are generally 1099-exempt.",
+                "enum": [
+                  "individual",
+                  "c_corp",
+                  "s_corp",
+                  "partnership",
+                  "llc",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taxIdLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last four of the TIN, all that is read back; null when none is stored."
+          },
+          "taxIdType": {
+            "anyOf": [
+              {
+                "description": "Which taxpayer id the recipient filed on their W-9.",
+                "enum": [
+                  "ein",
+                  "ssn",
+                  "itin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "w9ReceivedOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CalendarDateInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contactId",
+          "contactName",
+          "isEligible",
+          "taxIdLast4",
+          "taxIdType",
+          "taxClassification",
+          "defaultForm",
+          "defaultBox",
+          "legalName",
+          "w9ReceivedOn",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "VendorTaxProfileList": {
+        "additionalProperties": false,
+        "description": "The org's vendor 1099 tax profiles.",
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VendorTaxProfile"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles"
+        ],
+        "type": "object"
+      },
+      "VendorTaxProfileListInput": {
+        "additionalProperties": false,
+        "description": "The org's vendor 1099 tax profiles.",
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/VendorTaxProfileInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles"
         ],
         "type": "object"
       },
@@ -50184,6 +51359,328 @@
         ]
       }
     },
+    "/v1/ten99/forms/{formId}/pdf": {
+      "get": {
+        "description": "Streams the rendered Copy B PDF for one immutable form on a filing run. Gated on `ten99.read`, the same permission every other read in this file takes.",
+        "operationId": "getTen99FormPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The recipient Copy B PDF for one filed 1099 form",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/ten99/runs": {
+      "get": {
+        "description": "Every filing run this org has generated, newest first.",
+        "operationId": "listTen99Runs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99RunList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The org's 1099 filing runs",
+        "tags": [
+          "1099"
+        ]
+      },
+      "post": {
+        "description": "Snapshots one immutable form per eligible vendor at or over the threshold for a tax year (D-228-5). `contactIds` narrows to a subset; absent takes every over-threshold eligible vendor.",
+        "operationId": "generateTen99Run",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTen99RunRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99Run"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Generate a 1099 filing run",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/ten99/runs/{runId}": {
+      "get": {
+        "operationId": "getTen99Run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99Run"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One 1099 filing run",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/ten99/runs/{runId}/efile": {
+      "post": {
+        "description": "Submits a generated run to an e-file provider. `manual` (the default) returns the IRIS file to download rather than transmitting anything itself.",
+        "operationId": "efileTen99Run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EfileTen99RunRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99Run"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Submit a 1099 filing run for e-file",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/ten99/runs/{runId}/status": {
+      "get": {
+        "operationId": "getTen99RunStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99Run"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The e-file status of one 1099 filing run",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/ten99/worksheet": {
+      "get": {
+        "description": "Cash actually paid to each 1099-eligible vendor in the tax year (card/third-party payments excluded, D-228-3/4), with the review flags a human needs before generating a run — over threshold, has a TIN on file, likely-exempt classification.",
+        "operationId": "getTen99Worksheet",
+        "parameters": [
+          {
+            "description": "The calendar tax year to roll up cash payments for.",
+            "in": "query",
+            "name": "taxYear",
+            "required": true,
+            "schema": {
+              "maximum": 2100,
+              "minimum": 2000,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Override the reporting threshold, cents-only (D-13). Absent uses the NEC default ($600).",
+            "in": "query",
+            "name": "threshold",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ten99Worksheet"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The calendar-year 1099 worksheet",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
     "/v1/vendor-credits": {
       "get": {
         "description": "One page of headers, ordered by `(created_at, id)`. `settlement.outstanding` reads as “credit still available to apply against bills”.",
@@ -50669,6 +52166,142 @@
         "summary": "Void an approved vendor credit",
         "tags": [
           "vendor-credits"
+        ]
+      }
+    },
+    "/v1/vendor-tax-profiles": {
+      "get": {
+        "operationId": "listVendorTaxProfiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorTaxProfileList"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Every vendor's 1099 tax profile",
+        "tags": [
+          "1099"
+        ]
+      }
+    },
+    "/v1/vendor-tax-profiles/{contactId}": {
+      "get": {
+        "operationId": "getVendorTaxProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorTaxProfile"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One vendor's 1099 tax profile",
+        "tags": [
+          "1099"
+        ]
+      },
+      "put": {
+        "description": "Creates or replaces one contact's 1099/W-9 profile. `taxId` is write-only (D-228-2): present sets or replaces the encrypted TIN, `null` clears it, absent leaves it untouched — the response never echoes it back, only `taxIdLast4`.",
+        "operationId": "upsertVendorTaxProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertVendorTaxProfileRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorTaxProfile"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create or update a vendor's 1099 tax profile",
+        "tags": [
+          "1099"
         ]
       }
     },

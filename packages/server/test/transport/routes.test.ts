@@ -172,6 +172,18 @@ describe('the /v1 route table', () => {
         // hosted-artifact GET is outside /v1, so it is not in this v1 set.
         'createCustomerStatement',
         'listCustomerStatements',
+        // 1099 contractor tax reporting (OB-228). The `/v1/ten99/forms/{formId}/pdf` GET
+        // streams a PDF but is a normal authenticated `/v1` op, so it is in this set.
+        'upsertVendorTaxProfile',
+        'getVendorTaxProfile',
+        'listVendorTaxProfiles',
+        'getTen99Worksheet',
+        'generateTen99Run',
+        'listTen99Runs',
+        'getTen99Run',
+        'getTen99FormPdf',
+        'efileTen99Run',
+        'getTen99RunStatus',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',
         'updateControlAccounts',
