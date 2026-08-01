@@ -13,7 +13,7 @@
  */
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
-import { rm, mkdir, writeFile } from 'node:fs/promises';
+import { rm, mkdir, writeFile, cp } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -136,5 +136,26 @@ const result = await build({
 
 await writeFile(path.join(outDir, 'meta.json'), JSON.stringify(result.metafile, null, 2));
 
+/**
+ * pdfmake's font and line-break engines (@foliojs-fork/fontkit and .../linebreak)
+ * load Unicode data with `fs.readFileSync(__dirname + '/<name>.trie')`. After
+ * bundling, `__dirname` is `dist/server/`, where those files do not exist — so the
+ * API crash-loops at boot (pdfmake loads eagerly through the PDF renderers) with
+ * `ENOENT … /app/dist/server/data.trie`. Ship them next to the bundle. Listed by
+ * name, not globbed, so a dependency that stops shipping one fails this build rather
+ * than a booting container (the non-durable `docker cp` workaround this replaces).
+ */
+const TRIE_ASSETS = [
+  'node_modules/@foliojs-fork/fontkit/data.trie',
+  'node_modules/@foliojs-fork/fontkit/use.trie',
+  'node_modules/@foliojs-fork/fontkit/indic.trie',
+  'node_modules/@foliojs-fork/linebreak/src/classes.trie',
+];
+for (const asset of TRIE_ASSETS) {
+  await cp(path.join(repoRoot, asset), path.join(outDir, path.basename(asset)));
+}
+
 const bytes = Object.values(result.metafile.outputs).reduce((sum, o) => sum + o.bytes, 0);
-process.stdout.write(`\nBundled server → dist/server/main.js (${(bytes / 1024).toFixed(0)} kB)\n`);
+process.stdout.write(
+  `\nBundled server → dist/server/main.js (${(bytes / 1024).toFixed(0)} kB) + ${String(TRIE_ASSETS.length)} pdfmake assets\n`,
+);
