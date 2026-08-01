@@ -646,6 +646,9 @@ async function readBack(
     reversesJournalId: journal.reverses_journal_id
       ? bufferToUuid(journal.reverses_journal_id)
       : null,
+    // Always null here: `readBack` runs inside the posting transaction, so the
+    // journal it reads was just created and nothing can reverse it yet (OB-236).
+    reversedByJournalId: null,
     lines: postedLines,
   };
 }

@@ -11,6 +11,7 @@ import {
   ErrorBanner,
   Field,
   FieldLabel,
+  Pill,
   ResponsiveTable,
   TextInput,
   formatMoney,
@@ -71,6 +72,55 @@ function AccountCell({
         <span className="font-mono text-xs text-text-subtle">{account.code}</span>
       )}
     </span>
+  );
+}
+
+/**
+ * The entry's standing in the reversal chain, as a banner (OB-236). Three states, and
+ * they are exclusive — the double-reversal guard means an entry cannot both reverse
+ * another and have been reversed. "Reversed" is the one that changes what the user may
+ * do: a superseded entry cannot be reversed again, so the control below is withheld.
+ */
+function StatusBanner({ journal }: { readonly journal: PostedJournal }): ReactElement {
+  if (journal.reversedByJournalId) {
+    return (
+      <div className="flex flex-wrap items-start gap-3 rounded-lg border border-danger-border bg-danger-soft p-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-danger-text">This entry has been reversed</p>
+            <Pill tone="negative">Reversed</Pill>
+          </div>
+          <p className="text-sm text-text-muted">
+            A later reversing entry has undone it. Both remain in the books (D-02), and it cannot be
+            reversed again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  if (journal.reversesJournalId) {
+    return (
+      <div className="flex flex-wrap items-start gap-3 rounded-lg border border-accent-soft bg-accent-soft p-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-text">This entry reverses another</p>
+            <Pill tone="accent">Reversal</Pill>
+          </div>
+          <p className="text-sm text-text-muted">Both entries remain in the books.</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-start gap-3 rounded-lg border border-success-border bg-success-soft p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="text-sm font-semibold text-success-text">Posted to the ledger</p>
+        <p className="text-sm text-text-muted">
+          This entry is part of the books and cannot be edited or deleted. A correction is a
+          reversal.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -137,16 +187,7 @@ export function PostedEntry({
 
   return (
     <section className="flex flex-col gap-4" aria-label="Posted journal entry">
-      <div className="flex flex-wrap items-start gap-3 rounded-lg border border-success-border bg-success-soft p-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <p className="text-sm font-semibold text-success-text">Posted to the ledger</p>
-          <p className="text-sm text-text-muted">
-            {journal.reversesJournalId === null
-              ? 'This entry is part of the books and cannot be edited or deleted. A correction is a reversal.'
-              : 'This entry reverses another. Both entries remain in the books.'}
-          </p>
-        </div>
-      </div>
+      <StatusBanner journal={journal} />
 
       {/*
         Only when the dialog is closed. A reversal can only fail from inside that
@@ -248,7 +289,9 @@ export function PostedEntry({
 
         <div className="flex-1" />
 
-        {canReverse && (
+        {/* Withheld once the entry has been reversed: the server's double-reversal guard
+            would refuse a second reversal, so the affordance would only ever fail (D-02). */}
+        {canReverse && journal.reversedByJournalId === null && (
           <Button
             variant="danger"
             disabled={reverse.isPending}

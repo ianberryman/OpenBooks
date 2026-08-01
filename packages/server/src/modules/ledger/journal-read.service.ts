@@ -6,7 +6,7 @@ import { bufferToUuid, orgScope, tenantDb, tryUuidToBuffer } from '../../db';
 import { assertFound } from '../../errors';
 import { requirePermission } from '../permissions';
 
-import { selectJournalById } from './posting.repository';
+import { selectExistingReversal, selectJournalById } from './posting.repository';
 
 /**
  * Reading one posted journal, with its lines (OB-236; spec §7).
@@ -31,12 +31,17 @@ export async function getJournal(
   await requirePermission(ctx, 'journals.read');
 
   const orgId = orgScope(ctx.orgId);
+  const db = tenantDb(orgId);
   const targetId = tryUuidToBuffer(journalId);
 
   const journal = assertFound(
-    targetId ? await selectJournalById(tenantDb(orgId), targetId) : undefined,
+    targetId ? await selectJournalById(db, targetId) : undefined,
     'journal',
   );
+
+  // The reversal link lives on the reversing journal (D-02), so "has this been
+  // reversed?" is answered by looking for a journal that points back here (OB-236).
+  const reversedBy = await selectExistingReversal(db, journal.id);
 
   const lines: PostedJournalLine[] = journal.lines.map((line) => ({
     lineId: line.id.toString(),
@@ -58,6 +63,7 @@ export async function getJournal(
     actorId: bufferToUuid(journal.actorId),
     invocationMode: journal.invocationMode,
     reversesJournalId: journal.reversesJournalId ? bufferToUuid(journal.reversesJournalId) : null,
+    reversedByJournalId: reversedBy ? bufferToUuid(reversedBy) : null,
     lines,
   };
 }

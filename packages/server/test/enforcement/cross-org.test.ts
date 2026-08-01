@@ -1233,6 +1233,12 @@ const SURFACES: readonly Surface[] = [
     payload: () => ({ date: '2026-04-30' }),
   },
   {
+    operationId: 'getJournal',
+    method: 'GET',
+    path: '/v1/journals/%s',
+    id: (s) => s.journalId,
+  },
+  {
     operationId: 'getContact',
     method: 'GET',
     path: '/v1/contacts/%s',

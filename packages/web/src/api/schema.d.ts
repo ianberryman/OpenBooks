@@ -2751,6 +2751,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/journals/{journalId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One posted journal, with its lines
+         * @description The full journal `postJournal`/`reverseJournal` return, reached by id instead of by just having posted it — the same shape, including each line’s dimension tags.
+         */
+        get: operations["getJournal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journals/{journalId}/reverse": {
         parameters: {
             query?: never;
@@ -9982,6 +10002,8 @@ export interface components {
              * @description When the journal was written. An instant, not an accounting date.
              */
             postedAt: string;
+            /** @description Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236), so a list can flag a superseded entry without a second read. */
+            reversedByJournalId: string | null;
             /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
             reversesJournalId: string | null;
             /** @description The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total. */
@@ -10004,6 +10026,8 @@ export interface components {
              * @description When the journal was written. An instant, not an accounting date.
              */
             postedAt: string;
+            /** @description Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236), so a list can flag a superseded entry without a second read. */
+            reversedByJournalId: string | null;
             /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
             reversesJournalId: string | null;
             /** @description The org’s own gapless entry number (ROADMAP D-14). Monotonic, unique within the org, and the second half of this list’s ordering — `entryDate` alone is not total. */
@@ -10656,6 +10680,8 @@ export interface components {
              * @description When the journal was written. An instant, not an accounting date.
              */
             postedAt: string;
+            /** @description Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236). D-02 keeps the link on the reversing journal, so this is derived by looking for a journal that points back here; the double-reversal guard makes it at most one. */
+            reversedByJournalId: string | null;
             /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
             reversesJournalId: string | null;
         };
@@ -10682,6 +10708,8 @@ export interface components {
              * @description When the journal was written. An instant, not an accounting date.
              */
             postedAt: string;
+            /** @description Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236). D-02 keeps the link on the reversing journal, so this is derived by looking for a journal that points back here; the double-reversal guard makes it at most one. */
+            reversedByJournalId: string | null;
             /** @description Set when this journal reverses another. The link lives on the reversing journal because the original cannot be updated (ROADMAP D-02). */
             reversesJournalId: string | null;
         };
@@ -19970,6 +19998,37 @@ export interface operations {
         responses: {
             /** @description Default Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostedJournal"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getJournal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                journalId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

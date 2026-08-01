@@ -163,6 +163,7 @@ const POSTED: PostedJournal = {
   invocationMode: null,
   postedAt: TIMESTAMP,
   reversesJournalId: null,
+  reversedByJournalId: null,
   lines: [
     {
       lineId: 'jl-1',
@@ -279,6 +280,17 @@ function createApiDouble(): ApiDouble {
       body,
     });
 
+    // The Reverse control is gated on `journals.reverse` (OB-236), so the screen now
+    // reads the caller's permissions; without this the button would be hidden and the
+    // "offers reversal" assertion below would fail. `AuthGuard` seeds this in the real app.
+    if (method === 'GET' && pathname === '/v1/auth/me') {
+      return json(200, {
+        activeOrgId: 'org-1',
+        memberships: [],
+        permissions: ['journals.read', 'journals.post', 'journals.reverse'],
+        user: { id: 'user-1', email: 'owner@example.com', displayName: 'Owner' },
+      });
+    }
     if (method === 'GET' && pathname === '/v1/accounts') return page(ACCOUNTS);
     if (method === 'GET' && pathname === '/v1/contacts') return page(CONTACTS);
     if (method === 'GET' && pathname === '/v1/dimensions') return page([DIMENSION]);

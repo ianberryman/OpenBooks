@@ -203,6 +203,32 @@ export async function selectExistingReversal(
 }
 
 /**
+ * For a page of journals, which of them have since been reversed, and by what
+ * (OB-236). The link lives on the reversing journal (D-02), so "was X reversed?"
+ * is a lookup of journals whose `reverses_journal_id` is in the page — one extra
+ * read per page rather than a self-join that would multiply the rows. The
+ * double-reversal guard keeps it at most one reversal per original, so the returned
+ * map is one-to-one. Keyed by the original id's hex so the caller matches on the
+ * `Buffer` it already holds. An empty input skips the query (MySQL rejects `IN ()`).
+ */
+export async function selectReversalsFor(
+  db: TenantDatabase,
+  journalIds: readonly Buffer[],
+): Promise<Map<string, Buffer>> {
+  if (journalIds.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('journals')
+    .select(['id', 'reverses_journal_id'])
+    .where('journals.reverses_journal_id', 'in', journalIds)
+    .execute();
+  const byOriginal = new Map<string, Buffer>();
+  for (const row of rows) {
+    if (row.reverses_journal_id) byOriginal.set(row.reverses_journal_id.toString('hex'), row.id);
+  }
+  return byOriginal;
+}
+
+/**
  * Inserts the journal header. Append-only: there is no update counterpart, and the
  * app user holds no `UPDATE` grant on this table to write one with.
  */

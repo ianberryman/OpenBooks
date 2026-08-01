@@ -280,6 +280,37 @@ at minimum a role-defaulted set of shortcuts, at most user-arrangeable tiles wit
 Unscheduled; captured so the home surface is designed deliberately rather than defaulting to
 whatever screen happens to load first.
 
+**What it includes** — three jobs: orient, act, and surface what needs the user.
+
+1. **Orient — a "state of the business" strip.** A few glanceable tiles, each drilling into its
+   source screen (never a second cache): **cash position** (total across cash accounts — bank +
+   cards + Stripe clearing, the cashbook headline), **money in vs out** this month (the cash-in/out
+   register trend), **AR** outstanding + overdue (aging), **AP** due this week/next
+   (`GET /v1/bills/summary`), and a **P&L snapshot** (revenue / expense / net this month) with the
+   **cash-basis toggle** (K).
+2. **Act — the launchpad proper.** Prominent, permission-filtered shortcuts for the daily handful:
+   New invoice · Enter bill · Pay Bills · Record payment · New journal entry · Reconcile · Run
+   report. Role-defaulted (AP clerk → Bills/Pay Bills; accountant → Reports/Close; owner → the mix).
+3. **Attend — the "what needs me" queue** (the highest-value zone; a count + link per row, each
+   permission-gated). Assembled from existing surfaces, not a new subledger: bills to approve/due,
+   overdue invoices → reminder (aging/dunning), unmatched bank lines to reconcile, bill captures to
+   review (OCR), agent proposals awaiting a human (`agents.review`), draft journals not yet posted,
+   open period-close checklist items (P), and — once built — **Stripe payouts to review** (OB-237).
+
+**Design principles (pin these):** it is **assembly, not a new subledger** — a lens over existing
+summary endpoints + the `GET /v1/me` advisory set, exactly the STMT discipline; **every number
+drills to its source of truth** (D-34 — no cached totals); **empty-state = onboarding** (a new org's
+home is a getting-started checklist — QuickBooks import, chart setup, connect Stripe, first invoice —
+flipping to the operational dashboard once there's data, the natural M7 onboarding overlap); and it
+stays **permission-aware end to end**.
+
+**New vs reused:** nearly every metric/queue item already has an endpoint (aging, bills/invoices
+summary, banking, captures, agent-proposals, close, P&L) — the launchpad _aggregates_ them. Genuinely
+new: a **home aggregation endpoint** (one permission-filtered call returning the tiles + queue counts,
+so the page isn't 8 round-trips), a per-user **saved-layout** preference (the only new stored state),
+and **role-default templates**. Ship **role-defaulted fixed layouts first** (the "at minimum" above);
+user-arrangeable drag-and-drop tiles are a fast-follow once the content proves out.
+
 ### Product follow-up — public marketing site with high-quality docs (future)
 
 Distinct from the in-app launchpad above (which orients a signed-in user): we need a **public,
@@ -314,7 +345,39 @@ integration) for "link," distinct from the CSV path. The UI can still **favour c
 asset-only. Unscheduled; adjacent to the fixed-assets/recurring initiative (L) and the banking
 work already shipped.
 
-### Follow-up — reversal is unreachable for an already-posted entry (OB-236)
+### Follow-up — reversal is unreachable for an already-posted entry (OB-236) — BUILT
+
+**BUILT and gate-green (2,971 tests: 2,320 server / 521 web / 130 shared-types+plugin).** The
+read-and-navigate surface shipped, and scope shrank once investigation showed the list endpoint
+(`GET /v1/journals`, `listJournals`) and the `journals.read` permission **already existed** — the
+only genuinely new route was **`GET /v1/journals/{journalId}`** (`getJournal`, reusing the existing
+`PostedJournal` schema, so no new wire component and, being a pure read of existing tables, **no
+migration and no permission-catalog change**). Delivered by a two-stream orchestrated fan-out
+(Sonnet worktree streams: backend `getJournal` + web posted-journals list/detail; Opus integrated —
+regenerated `openapi.json`/`schema.d.ts`, wired `App.tsx`/`nav.ts`, and moved the three MySQL
+tripwires the isolated streams can't run: `routes.test.ts`, `permission-matrix.test.ts` OPERATIONS,
+`cross-org.test.ts` SURFACES with the real posted-journal fixture). What shipped: (1) `getJournal`
+(gated `journals.read`, `assertFound` so a cross-org id is a 404, A7); (2) a **Journals** list screen
+(`/journals`, `nav.ts` Accounting group) whose rows deep-link to a detail route (`/journals/:id`)
+rendering the existing `<PostedEntry>` where **Reverse entry** already works; (3) the client-side gate
+fixed — the Reverse button is now hidden without `journals.reverse` (advisory, D-25). **Bulk reverse
+(scope item 4) was deferred** to keep v1 tight. Two integration bugs the worktree streams couldn't
+catch were fixed at the gate: the subagent's `getJournal` wire-mapper carried a `readonly`
+`dimensionValueIds` and a phantom `invocationMode: undefined` through its spread (both failed
+`tsc`), and its list-screen error test used the retry-enabled app query client so a 500 timed out
+`findByRole('alert')` (swapped for a non-retrying client).
+
+**Reversal / reversed visual indicator (added mid-build).** Both directions of the reversal link are
+now surfaced. A new nullable **`reversedByJournalId`** rides `PostedJournal` and `JournalSummary`
+(the counterpart to the existing `reversesJournalId`; D-02 keeps the link on the reversing journal,
+so it is derived — `getJournal` via `selectExistingReversal`, the list via one batched
+`selectReversalsFor` read over the page rather than a per-row lookup or a self-join). In the UI: the
+list gives a reversing entry an accented source pill and a superseded entry a **"Reversed"** status
+badge, and the detail view's banner reads three exclusive states (reversed / is-a-reversal / plain).
+An already-reversed entry also **withholds the Reverse button** — the double-reversal guard would
+refuse a second reversal, so the affordance would only ever fail.
+
+Historical scoping notes follow.
 
 The reversal **engine** is complete and tested end to end (D-02): `reverseJournal`
 (`posting.service.ts`) flips a journal's sides under `journals.reverse` with the double-reversal,

@@ -15,6 +15,8 @@ import {
 } from '../../db';
 import { requirePermission } from '../permissions';
 
+import { selectReversalsFor } from './posting.repository';
+
 /**
  * Reading the journal list (spec §7; D-21).
  *
@@ -81,7 +83,8 @@ export async function listJournals(
 
   const limit = resolvePageLimit(query.limit);
 
-  const built = tenantDb(orgScope(ctx.orgId))
+  const db = tenantDb(orgScope(ctx.orgId));
+  const built = db
     .selectFrom('journals')
     .select([
       'id',
@@ -98,10 +101,21 @@ export async function listJournals(
   const rows = await applyKeyset(built, JOURNAL_KEYSET, limit, query.cursor).execute();
   const page = toKeysetPage(rows, JOURNAL_KEYSET, limit);
 
-  return { items: page.rows.map(toJournalSummary), nextCursor: page.nextCursor };
+  // Which of this page's entries have since been reversed, in one read rather than
+  // a per-row lookup (OB-236). The link lives on the reversing journal (D-02).
+  const reversedBy = await selectReversalsFor(
+    db,
+    page.rows.map((row) => row.id),
+  );
+
+  return {
+    items: page.rows.map((row) => toJournalSummary(row, reversedBy)),
+    nextCursor: page.nextCursor,
+  };
 }
 
-function toJournalSummary(row: JournalListRow): JournalSummary {
+function toJournalSummary(row: JournalListRow, reversedBy: Map<string, Buffer>): JournalSummary {
+  const reversal = reversedBy.get(row.id.toString('hex'));
   return {
     journalId: bufferToUuid(row.id),
     // A BIGINT, stringified for the reason `lineId` is: a JSON number cannot carry
@@ -116,5 +130,6 @@ function toJournalSummary(row: JournalListRow): JournalSummary {
     actorType: row.actor_type,
     actorId: bufferToUuid(row.actor_id),
     reversesJournalId: row.reverses_journal_id ? bufferToUuid(row.reverses_journal_id) : null,
+    reversedByJournalId: reversal ? bufferToUuid(reversal) : null,
   };
 }

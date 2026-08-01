@@ -212,6 +212,15 @@ export const postedJournalSchema = z
           'Set when this journal reverses another. The link lives on the reversing journal ' +
           'because the original cannot be updated (ROADMAP D-02).',
       }),
+    reversedByJournalId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'Set when another journal reverses this one — the counterpart to `reversesJournalId` ' +
+          '(OB-236). D-02 keeps the link on the reversing journal, so this is derived by looking ' +
+          'for a journal that points back here; the double-reversal guard makes it at most one.',
+      }),
     lines: z.array(postedJournalLineSchema),
   })
   .meta({
@@ -261,6 +270,14 @@ export const journalSummarySchema = z
         description:
           'Set when this journal reverses another. The link lives on the reversing journal ' +
           'because the original cannot be updated (ROADMAP D-02).',
+      }),
+    reversedByJournalId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'Set when another journal reverses this one — the counterpart to `reversesJournalId` ' +
+          '(OB-236), so a list can flag a superseded entry without a second read.',
       }),
   })
   .meta({

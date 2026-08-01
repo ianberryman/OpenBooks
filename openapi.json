@@ -21173,6 +21173,19 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
           },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236), so a list can flag a superseded entry without a second read."
+          },
           "reversesJournalId": {
             "anyOf": [
               {
@@ -21204,7 +21217,8 @@
           "postedAt",
           "actorType",
           "actorId",
-          "reversesJournalId"
+          "reversesJournalId",
+          "reversedByJournalId"
         ],
         "type": "object"
       },
@@ -21249,6 +21263,19 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
           },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236), so a list can flag a superseded entry without a second read."
+          },
           "reversesJournalId": {
             "anyOf": [
               {
@@ -21280,7 +21307,8 @@
           "postedAt",
           "actorType",
           "actorId",
-          "reversesJournalId"
+          "reversesJournalId",
+          "reversedByJournalId"
         ],
         "type": "object"
       },
@@ -23510,6 +23538,19 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
           },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236). D-02 keeps the link on the reversing journal, so this is derived by looking for a journal that points back here; the double-reversal guard makes it at most one."
+          },
           "reversesJournalId": {
             "anyOf": [
               {
@@ -23534,6 +23575,7 @@
           "actorId",
           "invocationMode",
           "reversesJournalId",
+          "reversedByJournalId",
           "lines"
         ],
         "type": "object"
@@ -23606,6 +23648,19 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "type": "string"
           },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when another journal reverses this one — the counterpart to `reversesJournalId` (OB-236). D-02 keeps the link on the reversing journal, so this is derived by looking for a journal that points back here; the double-reversal guard makes it at most one."
+          },
           "reversesJournalId": {
             "anyOf": [
               {
@@ -23630,6 +23685,7 @@
           "actorId",
           "invocationMode",
           "reversesJournalId",
+          "reversedByJournalId",
           "lines"
         ],
         "type": "object"
@@ -45569,6 +45625,50 @@
           }
         },
         "summary": "Post a manual journal",
+        "tags": [
+          "journals"
+        ]
+      }
+    },
+    "/v1/journals/{journalId}": {
+      "get": {
+        "description": "The full journal `postJournal`/`reverseJournal` return, reached by id instead of by just having posted it — the same shape, including each line’s dimension tags.",
+        "operationId": "getJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "journalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostedJournal"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One posted journal, with its lines",
         "tags": [
           "journals"
         ]

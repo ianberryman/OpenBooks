@@ -104,6 +104,7 @@ describe('the /v1 route table', () => {
         'postJournal',
         'reverseJournal',
         'listJournals',
+        'getJournal',
         'getTrialBalance',
         // OB-045.
         'listChartTemplates',

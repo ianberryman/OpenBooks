@@ -111,6 +111,13 @@ export interface PostedJournal {
   readonly invocationMode: ActorProvenance['invocationMode'] | null;
   /** Set when this journal reverses another; null otherwise (D-02). */
   readonly reversesJournalId: string | null;
+  /**
+   * Set when another journal reverses this one; null otherwise (OB-236). The
+   * counterpart to `reversesJournalId` — derived, since D-02 keeps the link on the
+   * reversing journal. Always null on a just-posted journal, which cannot yet have
+   * been reversed.
+   */
+  readonly reversedByJournalId: string | null;
   readonly lines: readonly PostedJournalLine[];
 }
 

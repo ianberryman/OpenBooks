@@ -1,4 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,9 +16,15 @@ const { fetchMock } = vi.hoisted(() => {
   return { fetchMock };
 });
 
-import { createQueryClient } from '../../query/client';
 import { JournalsList } from './journals-list';
 import type { JournalSummary } from './queries';
+
+// A non-retrying client so the failed-load case settles to an error in one attempt —
+// the app client retries 5xx twice with backoff (`query/client.ts`), which would time
+// out `findByRole('alert')`.
+function testQueryClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
 
 type Route = (request: Request, url: URL) => Response | Promise<Response>;
 
@@ -53,6 +59,7 @@ function journal(overrides: Partial<JournalSummary> = {}): JournalSummary {
     actorType: 'user',
     actorId: 'user-1',
     reversesJournalId: null,
+    reversedByJournalId: null,
     ...overrides,
   };
 }
@@ -72,7 +79,7 @@ beforeEach(() => {
 
 function renderList(onOpen: (journalId: string) => void = () => {}): void {
   render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={testQueryClient()}>
       <JournalsList onOpen={onOpen} />
     </QueryClientProvider>,
   );
@@ -105,6 +112,15 @@ describe('JournalsList', () => {
     expect(await screen.findByText('Reversal')).toBeInTheDocument();
   });
 
+  it('flags an entry that has since been reversed', async () => {
+    const reversed = journal({ reversedByJournalId: REVERSAL_JOURNAL_ID });
+    stub('GET', '/v1/journals', () => json(200, { items: [reversed], nextCursor: null }));
+
+    renderList();
+
+    expect(await screen.findByText('Reversed')).toBeInTheDocument();
+  });
+
   it('says so when nothing has posted yet', async () => {
     stub('GET', '/v1/journals', () => json(200, { items: [], nextCursor: null }));
 
@@ -114,9 +130,7 @@ describe('JournalsList', () => {
   });
 
   it('flags a further page rather than silently listing only the first', async () => {
-    stub('GET', '/v1/journals', () =>
-      json(200, { items: [journal()], nextCursor: 'cursor-2' }),
-    );
+    stub('GET', '/v1/journals', () => json(200, { items: [journal()], nextCursor: 'cursor-2' }));
 
     renderList();
 

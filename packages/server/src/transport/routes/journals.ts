@@ -268,9 +268,16 @@ export function registerJournalRoutes(app: App): void {
 function toWireJournal(journal: PostedJournal): PostedJournalResponse {
   return {
     ...journal,
+    // `PostedJournal.invocationMode` indexes an optional property, so its type admits
+    // `undefined`; `readBack` only ever produces `InvocationMode | null`, and the wire
+    // schema says so — collapse the phantom `undefined` the spread carries.
+    invocationMode: journal.invocationMode ?? null,
     lines: journal.lines.map((line) => ({
       ...line,
       amount: toMinorString(fromMinorUnits(line.amount)),
+      // `PostedJournalLine.dimensionValueIds` is `readonly`; the wire schema's
+      // array is mutable, so copy rather than share the reference.
+      dimensionValueIds: [...line.dimensionValueIds],
     })),
   };
 }

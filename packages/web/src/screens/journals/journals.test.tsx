@@ -82,6 +82,7 @@ function postedJournal(overrides: Record<string, unknown> = {}): Record<string, 
     invocationMode: null,
     postedAt: TIMESTAMP,
     reversesJournalId: null,
+    reversedByJournalId: null,
     lines: [
       {
         lineId: 'jl-1',
@@ -117,6 +118,7 @@ function journalSummary(): Record<string, unknown> {
     actorType: 'user',
     actorId: 'user-1',
     reversesJournalId: null,
+    reversedByJournalId: null,
   };
 }
 

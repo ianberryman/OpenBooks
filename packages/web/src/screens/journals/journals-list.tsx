@@ -32,6 +32,16 @@ function sourceLabel(source: string): string {
   return KNOWN_SOURCE_LABELS[source] ?? source;
 }
 
+/**
+ * Whether this entry has since been reversed (OB-236) — the "Reversed" status badge, or
+ * nothing. The other direction, "is a reversal", is carried by the source column's pill
+ * (accented) rather than repeated here, so a reversing entry and a superseded one read as
+ * two distinct signals instead of one word meaning both.
+ */
+function ReversedBadge({ journal }: { readonly journal: JournalSummary }): ReactElement | null {
+  return journal.reversedByJournalId ? <Pill tone="negative">Reversed</Pill> : null;
+}
+
 /** A local, browser-formatted rendering of the posted instant. Not a report figure —
  * `postedAt` is when the write happened, shown for orientation, not for arithmetic. */
 function formatPostedAt(iso: string): string {
@@ -80,6 +90,9 @@ export function JournalsList({ onOpen }: JournalsListProps): ReactElement {
                   Source
                 </th>
                 <th scope="col" className="p-2 font-medium">
+                  Status
+                </th>
+                <th scope="col" className="p-2 font-medium">
                   Posted
                 </th>
               </tr>
@@ -100,13 +113,14 @@ export function JournalsList({ onOpen }: JournalsListProps): ReactElement {
                     </button>
                   </td>
                   <td className="p-2 font-mono text-text-muted">{journal.date}</td>
-                  <td className="min-w-0 max-w-xs truncate p-2 text-text">
-                    {journal.memo ?? '—'}
-                  </td>
+                  <td className="min-w-0 max-w-xs truncate p-2 text-text">{journal.memo ?? '—'}</td>
                   <td className="p-2">
-                    <Pill tone={journal.reversesJournalId !== null ? 'accent' : 'neutral'}>
+                    <Pill tone={journal.reversesJournalId ? 'accent' : 'neutral'}>
                       {sourceLabel(journal.source)}
                     </Pill>
+                  </td>
+                  <td className="p-2">
+                    <ReversedBadge journal={journal} />
                   </td>
                   <td className="p-2 font-mono text-text-muted">
                     {formatPostedAt(journal.postedAt)}
@@ -120,8 +134,8 @@ export function JournalsList({ onOpen }: JournalsListProps): ReactElement {
 
       {list.truncated && (
         <p className="text-xs text-text-subtle">
-          Showing the first page. Journals are listed oldest first — the most recent entries are
-          on a later page.
+          Showing the first page. Journals are listed oldest first — the most recent entries are on
+          a later page.
         </p>
       )}
     </div>
@@ -145,13 +159,14 @@ function JournalCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-lg font-semibold text-text">{journal.memo ?? 'Untitled'}</p>
-            <p className="truncate font-mono text-sm text-text-subtle">
-              #{journal.sequenceNumber}
-            </p>
+            <p className="truncate font-mono text-sm text-text-subtle">#{journal.sequenceNumber}</p>
           </div>
-          <Pill tone={journal.reversesJournalId !== null ? 'accent' : 'neutral'}>
-            {sourceLabel(journal.source)}
-          </Pill>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Pill tone={journal.reversesJournalId ? 'accent' : 'neutral'}>
+              {sourceLabel(journal.source)}
+            </Pill>
+            <ReversedBadge journal={journal} />
+          </div>
         </div>
 
         <div className="flex items-end justify-between gap-3 border-t border-border pt-3">

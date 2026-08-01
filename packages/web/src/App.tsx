@@ -22,6 +22,7 @@ import { DunningScreen } from './screens/dunning';
 import { EstimatesScreen } from './screens/estimates';
 import { ExpensesScreen } from './screens/expenses';
 import { JournalEntryScreen } from './screens/journal-entry';
+import { JournalsScreen } from './screens/journals';
 import { MoneyInScreen } from './screens/money-in';
 import { PayBillsScreen } from './screens/pay-bills';
 import { OAuthClientsScreen } from './screens/oauth-clients';
@@ -201,6 +202,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/" element={<Navigate to={landingPath(nav)} replace />} />
         <Route path="/accounts" element={<AccountsScreen />} />
         <Route path="/journal-entry" element={<JournalEntryScreen />} />
+        <Route path="/journals/*" element={<JournalsScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
         <Route path="/sales/*" element={<SalesScreen />} />
         <Route path="/estimates/*" element={<EstimatesScreen />} />

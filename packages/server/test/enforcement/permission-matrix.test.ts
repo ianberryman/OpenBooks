@@ -139,6 +139,7 @@ import {
 import { getBranding, updateBranding, uploadLogo } from '../../src/modules/branding';
 import { sendInvoice } from '../../src/modules/delivery';
 import {
+  getJournal,
   getTrialBalance,
   listJournals,
   postJournal,
@@ -1314,6 +1315,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listJournals',
     permission: 'journals.read',
     call: (s) => listJournals({}, s.ctx),
+  },
+  {
+    name: 'getJournal',
+    operationId: 'getJournal',
+    permission: 'journals.read',
+    call: (s) => getJournal(s.journalId, s.ctx),
   },
   {
     name: 'listMembers',

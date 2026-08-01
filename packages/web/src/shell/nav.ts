@@ -114,6 +114,9 @@ const NAV_GROUPS: readonly NavGroup[] = [
     children: [
       { to: '/accounts', label: 'Accounts', permission: 'accounts.read' },
       { to: '/journal-entry', label: 'Journal entry', permission: 'journals.read' },
+      // OB-236: the posted-journals list — the read-and-navigate surface that makes an
+      // already-posted entry reachable again (and so reversible from the UI).
+      { to: '/journals', label: 'Journals', permission: 'journals.read' },
       // Initiative L: recurring GL templates read on their own key (D-117, no SoD); the
       // service enforces `recurring_journals.write` and the screen surfaces the refusal.
       {

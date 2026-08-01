@@ -14,7 +14,7 @@ import {
 } from '../../../test/ledger/support';
 
 import { getJournal } from './journal-read.service';
-import { postJournal } from './posting.service';
+import { postJournal, reverseJournal } from './posting.service';
 
 /**
  * `getJournal` (OB-236) — the by-id read counterpart to `postJournal`/
@@ -87,41 +87,77 @@ describe('getJournal', () => {
       dimensionValueIds: [bufferToUuid(sales)],
     });
     expect(fetched.lines[1]).toMatchObject({ side: 'credit', amount: 150000n, contactId: null });
+    // A journal nothing has reversed reports no reversal in either direction.
+    expect(fetched.reversesJournalId).toBeNull();
+    expect(fetched.reversedByJournalId).toBeNull();
   });
 
-  it(
-    'answers another org’s journal, a nonexistent one, and a malformed id identically (A7)',
-    async () => {
-      const mine = await scene();
-      const theirs = await scene();
+  it('links an original and its reversal in both directions (OB-236)', async () => {
+    const s = await scene();
 
-      const foreign = await withContext(theirs.ctx, () =>
-        postJournal({
-          date: theirs.date,
-          actorType: 'user',
-          actorId: theirs.ctx.actorId,
-          lines: [
-            { accountId: theirs.cash, side: 'debit', amount: 1n },
-            { accountId: theirs.revenue, side: 'credit', amount: 1n },
-          ],
-        }),
-      );
+    const original = await withContext(s.ctx, () =>
+      postJournal({
+        date: s.date,
+        actorType: 'user',
+        actorId: s.ctx.actorId,
+        lines: [
+          { accountId: s.cash, side: 'debit', amount: 4200n },
+          { accountId: s.revenue, side: 'credit', amount: 4200n },
+        ],
+      }),
+    );
 
-      const answers = await withContext(mine.ctx, async () =>
-        Promise.all(
-          [foreign.journalId, newUuid(), 'not-a-uuid'].map((id) =>
-            getJournal(id).then(
-              () => undefined,
-              (error: unknown) => toWireError(error),
-            ),
+    const reversal = await withContext(s.ctx, () =>
+      reverseJournal({
+        journalId: original.journalId,
+        date: s.date,
+        actorType: 'user',
+        actorId: s.ctx.actorId,
+      }),
+    );
+
+    const [readOriginal, readReversal] = await withContext(s.ctx, () =>
+      Promise.all([getJournal(original.journalId), getJournal(reversal.journalId)]),
+    );
+
+    // The original now points forward to the journal that reversed it...
+    expect(readOriginal.reversesJournalId).toBeNull();
+    expect(readOriginal.reversedByJournalId).toBe(reversal.journalId);
+    // ...and the reversal points back at the original, but is not itself reversed.
+    expect(readReversal.reversesJournalId).toBe(original.journalId);
+    expect(readReversal.reversedByJournalId).toBeNull();
+  });
+
+  it('answers another org’s journal, a nonexistent one, and a malformed id identically (A7)', async () => {
+    const mine = await scene();
+    const theirs = await scene();
+
+    const foreign = await withContext(theirs.ctx, () =>
+      postJournal({
+        date: theirs.date,
+        actorType: 'user',
+        actorId: theirs.ctx.actorId,
+        lines: [
+          { accountId: theirs.cash, side: 'debit', amount: 1n },
+          { accountId: theirs.revenue, side: 'credit', amount: 1n },
+        ],
+      }),
+    );
+
+    const answers = await withContext(mine.ctx, async () =>
+      Promise.all(
+        [foreign.journalId, newUuid(), 'not-a-uuid'].map((id) =>
+          getJournal(id).then(
+            () => undefined,
+            (error: unknown) => toWireError(error),
           ),
         ),
-      );
+      ),
+    );
 
-      expect(answers[0]).toMatchObject({ code: 'not_found', status: 404 });
-      // Byte-identical, not merely the same code: the body is what an enumerator reads.
-      expect(JSON.stringify(answers[1])).toBe(JSON.stringify(answers[0]));
-      expect(JSON.stringify(answers[2])).toBe(JSON.stringify(answers[0]));
-    },
-  );
+    expect(answers[0]).toMatchObject({ code: 'not_found', status: 404 });
+    // Byte-identical, not merely the same code: the body is what an enumerator reads.
+    expect(JSON.stringify(answers[1])).toBe(JSON.stringify(answers[0]));
+    expect(JSON.stringify(answers[2])).toBe(JSON.stringify(answers[0]));
+  });
 });
