@@ -20,5 +20,11 @@ export { postJournal, reverseJournal, postingService } from './posting.service';
  */
 export { listJournals } from './journal-list.service';
 
+/**
+ * One posted journal, with its lines — the by-id counterpart to `listJournals`
+ * (OB-236). See `journal-read.service.ts` for why this is not `posting.service.ts`.
+ */
+export { getJournal } from './journal-read.service';
+
 export { getTrialBalance } from './trial-balance.service';
 export type { TrialBalance, TrialBalanceQuery, TrialBalanceRow } from './trial-balance.service';

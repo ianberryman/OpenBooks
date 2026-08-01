@@ -327,6 +327,106 @@ export async function selectJournalTags(
   return tags;
 }
 
+/**
+ * One journal, with its lines and their dimension tags — the standalone-read
+ * counterpart to `readBack` in `posting.service.ts`, for `getJournal` (OB-236).
+ *
+ * `readBack` reads inside the transaction that just wrote the posting; this reads
+ * an arbitrary journal by id, any time after. The two intentionally produce the
+ * same shape of data (down to reusing `selectJournalTags`), because both feed the
+ * same `PostedJournal` — a journal fetched by id must report exactly what a
+ * journal returned from `postJournal` reports, and there is no third answer for
+ * "what does this journal contain."
+ *
+ * Returns `undefined` when the id names no journal, leaving the org check to the
+ * caller — this runs through `TenantDatabase`, so another org's journal already
+ * does not appear (A7).
+ */
+export async function selectJournalById(
+  db: TenantDatabase,
+  journalId: Buffer,
+): Promise<
+  | {
+      readonly id: Buffer;
+      readonly entryDate: string;
+      readonly memo: string | null;
+      readonly createdAt: Date;
+      readonly actorType: 'user' | 'automation' | 'agent';
+      readonly actorId: Buffer;
+      readonly invocationMode: 'interactive' | 'scheduled' | null;
+      readonly reversesJournalId: Buffer | null;
+      readonly lines: readonly {
+        readonly id: bigint;
+        readonly lineNumber: number;
+        readonly accountId: Buffer;
+        readonly contactId: Buffer | null;
+        readonly debitMinor: bigint;
+        readonly creditMinor: bigint;
+        readonly memo: string | null;
+        readonly dimensionValueIds: readonly Buffer[];
+      }[];
+    }
+  | undefined
+> {
+  const journal = await db
+    .selectFrom('journals')
+    .select([
+      'id',
+      'entry_date',
+      'memo',
+      'created_at',
+      'actor_type',
+      'actor_id',
+      'invocation_mode',
+      'reverses_journal_id',
+    ])
+    .where('journals.id', '=', journalId)
+    .executeTakeFirst();
+
+  if (!journal) return undefined;
+
+  const lines = await db
+    .selectFrom('journal_lines')
+    .select([
+      'id',
+      'line_number',
+      'account_id',
+      'contact_id',
+      'debit_minor',
+      'credit_minor',
+      'memo',
+    ])
+    .where('journal_lines.journal_id', '=', journalId)
+    .orderBy('line_number')
+    .execute();
+
+  const tags = await selectJournalTags(
+    db,
+    lines.map((line) => line.id),
+  );
+
+  return {
+    id: journal.id,
+    entryDate: journal.entry_date,
+    memo: journal.memo,
+    createdAt: journal.created_at,
+    actorType: journal.actor_type,
+    actorId: journal.actor_id,
+    invocationMode: journal.invocation_mode,
+    reversesJournalId: journal.reverses_journal_id,
+    lines: lines.map((line) => ({
+      id: line.id,
+      lineNumber: line.line_number,
+      accountId: line.account_id,
+      contactId: line.contact_id,
+      debitMinor: line.debit_minor,
+      creditMinor: line.credit_minor,
+      memo: line.memo,
+      dimensionValueIds: tags.get(line.id.toString()) ?? [],
+    })),
+  };
+}
+
 export function newJournalId(): Buffer {
   return newUuidBuffer();
 }

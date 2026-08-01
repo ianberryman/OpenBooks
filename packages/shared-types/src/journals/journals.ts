@@ -224,12 +224,13 @@ export type PostedJournalResponse = z.infer<typeof postedJournalSchema>;
 /**
  * A journal in a list: the header, and no lines.
  *
- * Reading a journal's lines is `GET /v1/journals/{id}` and the general-ledger
- * surface (OB-044), not a field on every row of every page. Embedding them would
- * make the size of one page depend on how many lines an org's entries happen to
- * carry, which is the property the page-size bound exists to remove — a page of
- * two-line journals and a page of two-hundred-line allocations would be the same
- * `limit` and three orders of magnitude apart.
+ * Reading a journal's lines is `GET /v1/journals/{id}` (OB-236), or the
+ * general-ledger surface (OB-044) for a report across many journals — not a field
+ * on every row of every page. Embedding them would make the size of one page
+ * depend on how many lines an org's entries happen to carry, which is the
+ * property the page-size bound exists to remove — a page of two-line journals
+ * and a page of two-hundred-line allocations would be the same `limit` and three
+ * orders of magnitude apart.
  *
  * `sequenceNumber` is a string for the reason `lineId` is: it is a `BIGINT`, and a
  * JSON number cannot carry one past 2^53 in any mainstream parser (D-13's argument

@@ -248,8 +248,9 @@ export function registerDraftRoutes(app: App): void {
   /**
    * 201, and the body is a `PostedJournal` rather than the draft — the draft does
    * not exist any more, because posting it and deleting it are one transaction
-   * (D-19). No `Location`: there is no `GET /v1/journals/{id}`, and the body already
-   * carries the new `journalId`.
+   * (D-19). No `Location`: `GET /v1/journals/{id}` exists (OB-236), but the body
+   * already carries the identical `PostedJournal` and the new `journalId`, so a
+   * follow-up fetch would tell the caller nothing new.
    *
    * No request body at all. Everything the posting needs is on the draft, and a
    * body here would be a second place to say what is being posted — the first edit

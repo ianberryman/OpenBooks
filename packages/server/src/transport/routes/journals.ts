@@ -1,18 +1,20 @@
 import type { PostedJournal } from '@openbooks/plugin-api';
 import {
   fromMinorString,
+  fromMinorUnits,
   journalPageSchema,
   pageCursorSchema,
   postedJournalSchema,
   postJournalRequestSchema,
   reverseJournalRequestSchema,
+  toMinorString,
 } from '@openbooks/shared-types';
 import type { JournalPage, PostedJournalResponse } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
 import { withIdempotency } from '../../modules/idempotency';
-import { listJournals, postJournal, reverseJournal } from '../../modules/ledger';
+import { getJournal, listJournals, postJournal, reverseJournal } from '../../modules/ledger';
 import type { App } from '../types';
 import {
   ERROR_RESPONSES,
@@ -108,6 +110,41 @@ export function registerJournalRoutes(app: App): void {
     },
   );
 
+  /**
+   * One journal, with its lines — `listJournals`'s by-id counterpart (OB-236).
+   * `journalSummarySchema` deliberately carries no `lines`, precisely so a page's
+   * size does not depend on how many lines an org's entries happen to carry; this
+   * is where a caller who needs them fetches one journal at a time.
+   *
+   * `requireOrgScope` and no `Idempotency-Key`, for the same reason the list route
+   * has neither a write hook nor a key: this writes nothing.
+   *
+   * Money is stringified here, in the handler, rather than by the layer that does
+   * it for `postJournal`/`reverseJournal`: those go through `withIdempotency`,
+   * whose `normalizeResponseBody` renders every `bigint` on its way into the
+   * stored replay body, and a plain `GET` takes no such path. `toWireJournal`
+   * below is the same rendering (`toMinorString`/`fromMinorUnits`), applied once,
+   * at the one place this route's response leaves `bigint` behind.
+   */
+  app.get(
+    '/v1/journals/:journalId',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getJournal',
+        summary: 'One posted journal, with its lines',
+        description:
+          'The full journal `postJournal`/`reverseJournal` return, reached by id instead of by ' +
+          'just having posted it — the same shape, including each line’s dimension tags.',
+        tags: [TAG],
+        params: journalParamsSchema,
+        response: { 200: postedJournalSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<PostedJournalResponse> =>
+      toWireJournal(await getJournal(request.params.journalId, getContext())),
+  );
+
   app.post(
     '/v1/journals',
     {
@@ -168,9 +205,10 @@ export function registerJournalRoutes(app: App): void {
    * number, and its own actor, and after it both journals exist. A `DELETE` would
    * describe the one thing this system cannot do.
    *
-   * 201 with no `Location`: the created journal has no `GET` route in M1 (journal
-   * *reads* are M2's general-ledger surface), and the body already carries the new
-   * `journalId`.
+   * 201 with no `Location`: `GET /v1/journals/{id}` exists (OB-236), but the body
+   * already carries the new `journalId` and the identical `PostedJournal` shape, so
+   * a follow-up fetch would tell the caller nothing a `Location` redirect would not
+   * already be repeating.
    */
   app.post(
     '/v1/journals/:journalId/reverse',
@@ -217,6 +255,24 @@ export function registerJournalRoutes(app: App): void {
       return reply.status(result.status).send(idempotentBody<PostedJournalResponse>(result));
     },
   );
+}
+
+/**
+ * `getJournal`'s money rendering — the one place this file converts `bigint` to
+ * the wire's cents-only string outside `idempotentBody` (see the note on the
+ * route above for why this route needs its own). `fromMinorUnits` then
+ * `toMinorString` rather than a bare `.toString()`, matching
+ * `normalizeResponseBody`'s bigint case exactly, so a line's amount renders
+ * identically whichever path produced it.
+ */
+function toWireJournal(journal: PostedJournal): PostedJournalResponse {
+  return {
+    ...journal,
+    lines: journal.lines.map((line) => ({
+      ...line,
+      amount: toMinorString(fromMinorUnits(line.amount)),
+    })),
+  };
 }
 
 /**
