@@ -275,6 +275,15 @@ const MUTABLE_TABLES = [
   'bank_import_mappings',
   'bank_rules',
   'bank_rule_dimensions',
+  // ── Live bank feeds (0021_bank_feeds, OB-227) ──────────────────────────────
+  //
+  // A connection is settings, not evidence: it holds a credential handle, the
+  // nominated bank account, and the pull cursor. Mutable because the sync advances
+  // `cursor`/`last_synced_at` on every run (D-128) and disconnecting is a soft
+  // `is_active = 0`. The transactions it pulls land in `bank_statement_lines`,
+  // which stays append-only above — that is where the feed's immutability lives, the
+  // same split D-42 draws for the CSV path.
+  'bank_feed_connections',
   // Moved out of APPEND_ONLY_TABLES by OB-078 (D-47/D-49). The import is asynchronous
   // now: `startImport` writes this row `queued` before parsing, and the worker updates
   // it to `complete` with the counts (or `failed` with a reason) when it is done — an

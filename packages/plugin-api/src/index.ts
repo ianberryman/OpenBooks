@@ -74,7 +74,10 @@ export { HTTP_METHODS } from './routes';
 export type { HttpMethod, RouteDefinition } from './routes';
 
 export type {
+  BankFeedAccountRef,
   BankFeedProvider,
+  BankFeedSource,
+  BankFeedTransaction,
   DocumentExtractionProvider,
   EmailProvider,
   ExtractedBill,

@@ -18,6 +18,7 @@ import {
   resolveSessionIdentity,
 } from '../modules/auth';
 import { registerAutomationsJob } from '../modules/automations';
+import { registerBankFeedSyncJob } from '../modules/bank-feeds';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
@@ -124,6 +125,9 @@ export async function startApi(): Promise<void> {
     // The D-85 polling backstop (OB-148), same reason as the jobs above: under the
     // in-process adapter this is the process that consumes what it enqueues.
     await registerProcessorPollJob(queueProvider(), { logger });
+    // Live bank feeds (OB-227), same reason as the jobs above: under the in-process
+    // adapter this is the process that consumes the daily bank-feed sweep it enqueues.
+    await registerBankFeedSyncJob(queueProvider(), { logger });
     // The agent work-queue sweep (initiative Q, OB-200…210), same reason as the jobs
     // above: under the in-process adapter this is the process that consumes what it
     // enqueues.

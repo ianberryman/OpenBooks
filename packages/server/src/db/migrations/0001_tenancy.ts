@@ -319,6 +319,7 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('banking.match',          'Match and split bank transactions (M4)'),
       ('banking.reconcile',      'Complete a reconciliation session (M4)'),
       ('banking.reopen',         'Reopen a completed reconciliation (M4)'),
+      ('banking.connect',        'Connect and manage a live bank feed (OB-227)'),
       ('integrations.read',      'View third-party integrations (M5)'),
       ('integrations.write',     'Authorize and revoke third-party integrations (M5)'),
       ('agents.review',          'Review and approve scheduled agent proposals (M5)'),
@@ -422,6 +423,12 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
   // which the catch-all grants) — they build the Pay Bills queue — but releasing it,
   // posting the payment and cutting the check, is the controller's act. Without this
   // line the catch-all would hand a bookkeeper both halves and collapse the split.
+  //
+  // `banking.connect` joins the exclusion for `processing.write`'s reason (OB-227,
+  // D-131): connecting a live feed stores a per-org restricted credential in the
+  // secrets provider, an organization-administration act rather than a bookkeeping
+  // one. The bookkeeper keeps `banking.import`/`banking.match`/`banking.reconcile` —
+  // they run the books off the feed — but not the act of wiring the credential up.
   await sql`
     INSERT INTO role_permissions (role_id, permission_code)
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
@@ -429,7 +436,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
       AND p.code NOT IN (
         'orgs.write', 'members.write', 'api_keys.read', 'api_keys.write',
         'integrations.write', 'processing.write', 'workflows.activate',
-        'disbursements.issue'
+        'disbursements.issue', 'banking.connect'
       )
   `.execute(db);
 

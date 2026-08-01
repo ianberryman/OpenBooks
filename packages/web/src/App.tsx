@@ -11,6 +11,7 @@ import { AgentProposalsScreen } from './screens/agent-proposals';
 import { ApiKeysScreen } from './screens/api-keys';
 import { AuthScreen } from './screens/auth';
 import { AutomationsScreen } from './screens/automations';
+import { BankFeedsScreen } from './screens/bank-feeds';
 import { BankingScreen } from './screens/banking';
 import { BillCapturesScreen } from './screens/bill-captures';
 import { BudgetsScreen } from './screens/budgets';
@@ -213,6 +214,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/disbursements" element={<DisbursementsScreen />} />
         <Route path="/money" element={<MoneyInScreen />} />
         <Route path="/banking/*" element={<BankingScreen />} />
+        <Route path="/bank-feeds" element={<BankFeedsScreen />} />
         <Route path="/processing" element={<ProcessingScreen />} />
         <Route path="/reports" element={<ReportsScreen />} />
         <Route path="/statement-packages" element={<StatementPackagesScreen />} />

@@ -96,6 +96,13 @@ const NAV_GROUPS: readonly NavGroup[] = [
        */
       { to: '/money', label: 'Money', permission: 'payments_received.read' },
       /**
+       * `banking.read`, the read half `bank-feeds/connections.service.ts` enforces for every
+       * `GET` on this surface (OB-227); connecting and disconnecting want `banking.connect` and
+       * a manual sync wants `banking.import`, but naming a write code here would hide the link
+       * from a caller who can legitimately view the connections (D-25).
+       */
+      { to: '/bank-feeds', label: 'Bank feeds', permission: 'banking.read' },
+      /**
        * `processing.read`, the read half `connections.service.ts` enforces for every `GET` on
        * this surface (OB-151); the write actions want `processing.write` (D-25).
        */

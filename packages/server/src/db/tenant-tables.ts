@@ -53,6 +53,7 @@ export const TENANT_TABLES = [
   'automation_annotations',
   'automations',
   'bank_accounts',
+  'bank_feed_connections',
   'bank_import_mappings',
   'bank_line_clearing_entries',
   'bank_line_clearings',

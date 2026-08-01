@@ -6,6 +6,7 @@ import { registerApiKeyRoutes } from './api-keys';
 import { registerAuthRoutes } from './auth';
 import { registerAutomationsRoutes } from './automations';
 import { registerBankAccountRoutes } from './bank-accounts';
+import { registerBankFeedRoutes } from './bank-feeds';
 import { registerBankImportRoutes } from './bank-imports';
 import { registerBankRuleRoutes } from './bank-rules';
 import { registerBillCaptureRoutes } from './bill-captures';
@@ -645,6 +646,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerStatementLineRoutes(app);
   registerBankRuleRoutes(app);
   registerReconciliationRoutes(app);
+  // Live bank feeds (OB-227, D-126…D-131): connect an org's own Stripe Financial
+  // Connections credential to a bank account and pull into the M4 statement pipeline.
+  registerBankFeedRoutes(app);
   registerImportRoutes(app);
   registerApiKeyRoutes(app);
   registerOAuthClientRoutes(app);

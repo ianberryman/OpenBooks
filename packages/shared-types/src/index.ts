@@ -14,6 +14,7 @@ export * from './accountant';
 export * from './accounts';
 export * from './auth';
 export * from './automations';
+export * from './bank-feeds';
 export * from './banking';
 export * from './budgets';
 export * from './catalog';

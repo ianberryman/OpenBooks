@@ -276,6 +276,13 @@ describe('the /v1 route table', () => {
         'finaliseReconciliationSession',
         'reopenReconciliationSession',
         'getReconciliationReport',
+        // Live bank feeds (OB-227).
+        'connectBankFeed',
+        'listBankFeeds',
+        'getBankFeed',
+        'syncBankFeed',
+        'deactivateBankFeed',
+        'createBankFeedLinkSession',
         // M5 — the platform surface (OB-104).
         'listApiKeys',
         'createApiKey',

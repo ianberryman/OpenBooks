@@ -22,6 +22,14 @@ yarn drift          # spec:check + client:check — both artifacts must match th
 yarn build          # esbuild server bundle + Vite web bundle
 ```
 
+Two things about running the gate that waste a cycle if you don't know them. **`yarn check` is
+`&&`-chained and its first step is `format:check` (`prettier --check .` over the whole repo)** — so a
+single unformatted file **anywhere**, including one committed by an unrelated earlier change, halts the
+gate before lint/typecheck/build/test ever run. If a `check` fails at format, `yarn format` and re-run.
+And **never read a gate or test result through `… | tail`/`| grep`**: the pipe's exit code is `0` even
+when the command failed, so a `vitest`/`yarn check` failure hides behind a `tail` that reports success —
+redirect to a file and check `$?` (or read the file) when the exit code matters.
+
 Yarn 4 is pinned in-repo at `.yarn/releases/`. Do not `corepack enable` — the committed
 release exists so nothing needs the network. `enableScripts: false` is deliberate;
 argon2 and esbuild resolve platform prebuilds at require time.
@@ -51,8 +59,19 @@ yarn migrate && yarn codegen   # codegen reads only DATABASE_HOST/PORT/NAME/MIGR
 docker rm -f ob-codegen
 ```
 
+**Iterating the throwaway DB:** a migration that fails is not recorded in `kysely_migration`, so
+after fixing it just re-run `yarn migrate` against the **same** container — no teardown/recreate
+needed. Two schema-authoring traps that each cost a re-run: a column named with a **MySQL reserved
+word** (`cursor`, `rank`, …) fails `CREATE TABLE` with an opaque syntax error — prefix it
+(`sync_cursor`), the way `bank_match_proposals.rank` is backquoted; and a **backtick inside a
+`` sql`…` `` template literal — even in a `-- …` SQL comment** — closes the template and esbuild
+fails to _parse_ the migration file, so keep SQL comments backtick-free.
+
 A new `BIGINT`/`DATE` column also needs an entry in `scripts/codegen.mjs` (`OVERRIDES.columns`)
-or the type silently disagrees with runtime. A **route** change instead needs the wire artifacts:
+or the type silently disagrees with runtime. **Widening an existing `ENUM` in place still needs
+`yarn codegen`** — `generated.ts` types an `ENUM` as a literal union, so a new member changes the
+type — and it ripples into any hand-written repository row type that pinned the old union (e.g. a
+`feed_source: 'file'` field). A **route** change instead needs the wire artifacts:
 `yarn spec` (writes `openapi.json`; needs the same four app-config env vars as migrate, no DB)
 then `yarn workspace @openbooks/web codegen` (→ `packages/web/src/api/schema.d.ts`).
 
@@ -141,6 +160,11 @@ nothing following the convention can sort after it; a registry test asserts it.
 - No `console.*` — use the logger, which attaches actor provenance automatically. No
   `process.env` outside `src/config/`.
 - Zod is **v4**; check installed behaviour rather than assuming v3 idioms.
+- Provider adapters (`packages/server/src/providers/*`) call their vendor over global `fetch`, **never
+  a vendor SDK** — there is no `stripe`/`square` npm dependency (`enableScripts: false`, and the
+  narrowest-surface rule); copy `providers/payment/stripe.ts`. A new provider interface type added to
+  `packages/plugin-api/src/providers.ts` must also be re-exported from that package's `index.ts` barrel,
+  or no consumer can import it.
 - Prettier: 100 col, single quotes, semicolons, trailing commas.
 - Pre-release, **migrations are edited in place** rather than appended to (D-15). This
   inverts permanently at first release.

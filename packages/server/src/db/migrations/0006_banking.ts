@@ -122,11 +122,14 @@ export async function up(db: MigrationDb): Promise<void> {
   // and is a perfectly ordinary thing to import a statement into, so the service's
   // rule is narrower than "asset" anyway.
   //
-  // `feed_source` has exactly one member today and is an ENUM rather than nothing at
-  // all because D-41 is a decision about sequencing, not about capability: file
-  // import ships first and the provider interface exists so a hosted feed slots in
-  // behind it. The column is where that second member lands, and until it does,
-  // every row saying 'file' is the honest statement that nothing else is supported.
+  // `feed_source` began with one member because D-41 was a decision about sequencing,
+  // not capability: file import shipped first and the provider interface existed so a
+  // hosted feed could slot in behind it. OB-227 lands that second (and third) member —
+  // `'stripe_financial_connections'` for a live Stripe Financial Connections feed and
+  // `'fake'`, the deterministic feed the gate exercises in place of a network call
+  // (D-126/D-102). An account is `'file'` until a `bank_feed_connections` row is
+  // created for it, which flips this to the connection's source; disconnecting flips
+  // it back. It is widened in place because migrations are edited pre-release (D-15).
   //
   // `external_account_id` and not the account number. What a user needs is enough to
   // tell two accounts apart and enough for a feed to key on later; a full account
@@ -140,7 +143,7 @@ export async function up(db: MigrationDb): Promise<void> {
       name                VARCHAR(255) NOT NULL,
       institution_name    VARCHAR(255) NULL,
       external_account_id VARCHAR(64)  NULL,
-      feed_source         ENUM('file') NOT NULL DEFAULT 'file',
+      feed_source         ENUM('file','stripe_financial_connections','fake') NOT NULL DEFAULT 'file',
       is_active           TINYINT(1)   NOT NULL DEFAULT 1,
       created_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       updated_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3)

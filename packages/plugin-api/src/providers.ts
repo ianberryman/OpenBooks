@@ -43,13 +43,81 @@ export interface EmailProvider {
 }
 
 /**
- * M4 owns this (D-07). It is a placeholder rather than a guess: the real shape
- * follows from whichever aggregator the banking phase selects, and inventing
- * methods now would mean M4 either breaking the contract or working around it.
+ * Which live-feed backend a `bank_feed_connections` row and a `BankFeedProvider`
+ * instance both name (OB-227, ROADMAP D-126). `fake` is the third, real,
+ * deterministic implementation the gate exercises in place of a network call to
+ * Stripe Financial Connections (the D-102 pattern PAY set) — not a test double
+ * bolted onto the union; see `createFakeBankFeed` in
+ * `packages/server/src/providers/bankfeed/fake.ts`. `stripe_financial_connections`
+ * is a *data* surface (a transaction feed), a distinct Stripe product from PAY's
+ * charge/payout use, and must never share a `processor_connections` row.
+ */
+export type BankFeedSource = 'stripe_financial_connections' | 'fake';
+
+/**
+ * One account the connected credential can pull, surfaced by the link/setup flow
+ * so a human picks which linked account this connection feeds (OB-227). `category`
+ * is the provider's own classification (Stripe FC reports `'cash'` for a bank
+ * account, `'credit'` for a card) — v1 feeds asset accounts only (D-130), so it is
+ * advisory here and the credit-card follow-on (OB-227b) is what acts on it.
+ */
+export interface BankFeedAccountRef {
+  readonly externalAccountId: string;
+  readonly institution: string | null;
+  readonly displayName: string;
+  readonly category: string | null;
+}
+
+/**
+ * One transaction off a live feed, normalised the way `ExtractedBill` and
+ * `NormalizedProcessorEvent` are — Stripe FC (and any later aggregator) reports on
+ * its own schema, and this is the single shape the ingest maps onto so the
+ * fingerprint dedup, the matching engine and reconciliation are written once.
+ *
+ * `externalId` is the provider's own stable transaction id, and it is load-bearing
+ * for idempotency (D-127): the ingest carries it into `bank_statement_lines.bank_reference`,
+ * so `computeFingerprint` makes a re-synced overlap collapse on the unique key
+ * rather than double-post. `amountMinor` is a signed cents string (D-13) in the
+ * asset frame — positive is money *into* the account, the same frame a statement
+ * line's signed amount already uses — never a decimal or a float.
+ */
+export interface BankFeedTransaction {
+  readonly externalId: string;
+  readonly postedDate: string;
+  readonly valueDate: string | null;
+  readonly amountMinor: string;
+  readonly description: string;
+  readonly counterparty: string | null;
+}
+
+/**
+ * A live bank feed (OB-227, ROADMAP D-126…D-131) — the concrete shape the M4
+ * placeholder deferred to. Behind it, Stripe Financial Connections' session and
+ * transaction-refresh calls are normalised to one contract, so the ingest is
+ * written against `BankFeedTransaction` and never against a Stripe SDK.
+ *
+ * Constructed per `bank_feed_connections` **row**, not once per process — each
+ * connection carries its own restricted key and linked account, and an org holds
+ * one per bank account. So it does not belong in the `Providers` bag below, for
+ * the same reason `PaymentProcessorProvider` does not; see `bankFeedProviderFor`
+ * in `packages/server/src/providers/bankfeed/`.
  */
 export interface BankFeedProvider {
-  /** Identifies the backing aggregator in logs and stored connection records. */
+  /** Identifies the backing feed in logs and stored connection records. */
   readonly name: string;
+  /** The linked accounts this credential can pull — the setup flow's picker (BYO, D-131). */
+  listLinkedAccounts(): Promise<readonly BankFeedAccountRef[]>;
+  /**
+   * Transactions since `cursor` (`null` for the first pull), the next cursor to
+   * persist, and whether more remain. The cursor lives in its own column
+   * (D-128) — advanced only on a successful sync — so a live feed never reuses a
+   * timestamp as a cursor the way PAY's poll mistakenly did.
+   */
+  fetchTransactions(input: { readonly cursor: string | null }): Promise<{
+    readonly transactions: readonly BankFeedTransaction[];
+    readonly cursor: string;
+    readonly hasMore: boolean;
+  }>;
 }
 
 /**
@@ -241,8 +309,11 @@ export interface Providers {
   readonly storage: StorageProvider;
   readonly secrets: SecretsProvider;
   readonly email: EmailProvider;
-  /** Absent before M4. */
-  readonly bankFeed?: BankFeedProvider;
+  // `BankFeedProvider` is deliberately not a member here (OB-227). Like
+  // `PaymentProcessorProvider` below, a live feed is constructed per
+  // `bank_feed_connections` row — each carries its own restricted key and linked
+  // account — not resolved once at process start; see `bankFeedProviderFor` in
+  // `packages/server/src/providers/bankfeed/`.
   /** Absent before initiative O. */
   readonly documentExtraction?: DocumentExtractionProvider;
   /** Absent before initiative O. */

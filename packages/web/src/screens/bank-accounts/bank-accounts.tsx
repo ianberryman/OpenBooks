@@ -148,6 +148,12 @@ export function BankAccountsScreen(): ReactElement {
 const CELL = 'px-3 py-2 align-top';
 const HEADER_CELL = 'px-3 py-2 text-left text-xs font-medium text-text-muted';
 
+/** The live sources (OB-227); `file` is rendered separately, so it needs no entry here. */
+const FEED_SOURCE_LABEL: Readonly<Record<'stripe_financial_connections' | 'fake', string>> = {
+  stripe_financial_connections: 'Stripe feed',
+  fake: 'Fake feed',
+};
+
 function BankAccountTable({
   accounts,
   busyId,
@@ -165,6 +171,9 @@ function BankAccountTable({
           <tr>
             <th scope="col" className={HEADER_CELL}>
               Name
+            </th>
+            <th scope="col" className={HEADER_CELL}>
+              Source
             </th>
             <th scope="col" className={HEADER_CELL}>
               Institution
@@ -187,6 +196,17 @@ function BankAccountTable({
                 <span className={account.isActive ? 'text-text' : 'text-text-muted'}>
                   {account.name}
                 </span>
+              </td>
+              <td className={`${CELL} whitespace-nowrap`}>
+                {account.feedSource === 'file' ? (
+                  <span className="text-text-muted">File upload</span>
+                ) : (
+                  // A live-fed account is visibly distinct from a file account (OB-227); the
+                  // feed is managed on the Bank feeds screen, not here.
+                  <span className="font-medium text-accent">
+                    {FEED_SOURCE_LABEL[account.feedSource]}
+                  </span>
+                )}
               </td>
               <td className={`${CELL} text-text-muted`}>{account.institutionName ?? '—'}</td>
               <td className={`${CELL} font-mono text-text-muted`}>

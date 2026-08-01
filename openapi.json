@@ -2900,9 +2900,11 @@
             "description": "What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment."
           },
           "feedSource": {
-            "description": "How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.",
+            "description": "How lines reach this account. `file` — the user uploads a statement — is the default. `stripe_financial_connections` is a live feed (OB-227); `fake` is the deterministic feed the gate exercises in place of a network call (D-102). A live source is set when a bank feed is connected and reverts to `file` on disconnect.",
             "enum": [
-              "file"
+              "file",
+              "stripe_financial_connections",
+              "fake"
             ],
             "type": "string"
           },
@@ -2981,9 +2983,11 @@
             "description": "What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment."
           },
           "feedSource": {
-            "description": "How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.",
+            "description": "How lines reach this account. `file` — the user uploads a statement — is the default. `stripe_financial_connections` is a live feed (OB-227); `fake` is the deterministic feed the gate exercises in place of a network call (D-102). A live source is set when a bank feed is connected and reverts to `file` on disconnect.",
             "enum": [
-              "file"
+              "file",
+              "stripe_financial_connections",
+              "fake"
             ],
             "type": "string"
           },
@@ -3086,6 +3090,468 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "BankFeedConnection": {
+        "additionalProperties": false,
+        "description": "A live-feed connection as the API returns it — never carrying `restrictedKey` (D-83).",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "credentialSource": {
+            "description": "How the credential was supplied. `bring_your_own` — the org’s own Stripe restricted key, billed to the org — is the only value in v1 (D-131). `managed` is reserved for the deferred model where OpenBooks supplies the key and re-meters the cost.",
+            "enum": [
+              "bring_your_own",
+              "managed"
+            ],
+            "type": "string"
+          },
+          "externalAccountId": {
+            "type": "string"
+          },
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isActive": {
+            "description": "An inactive connection stops the daily sync from pulling and keeps every line it already imported. Disconnecting is deactivation, not deletion, and reverts the bank account to `file`.",
+            "type": "boolean"
+          },
+          "lastSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last sync failure, if the most recent run did not complete; advisory."
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the daily sync last committed against this connection."
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "bankAccountId",
+          "feedSource",
+          "credentialSource",
+          "externalAccountId",
+          "institution",
+          "isActive",
+          "lastSyncedAt",
+          "lastSyncError",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BankFeedConnectionInput": {
+        "additionalProperties": false,
+        "description": "A live-feed connection as the API returns it — never carrying `restrictedKey` (D-83).",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "credentialSource": {
+            "description": "How the credential was supplied. `bring_your_own` — the org’s own Stripe restricted key, billed to the org — is the only value in v1 (D-131). `managed` is reserved for the deferred model where OpenBooks supplies the key and re-meters the cost.",
+            "enum": [
+              "bring_your_own",
+              "managed"
+            ],
+            "type": "string"
+          },
+          "externalAccountId": {
+            "type": "string"
+          },
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isActive": {
+            "description": "An inactive connection stops the daily sync from pulling and keeps every line it already imported. Disconnecting is deactivation, not deletion, and reverts the bank account to `file`.",
+            "type": "boolean"
+          },
+          "lastSyncError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last sync failure, if the most recent run did not complete; advisory."
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the daily sync last committed against this connection."
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "bankAccountId",
+          "feedSource",
+          "credentialSource",
+          "externalAccountId",
+          "institution",
+          "isActive",
+          "lastSyncedAt",
+          "lastSyncError",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BankFeedConnectionPage": {
+        "additionalProperties": false,
+        "description": "One page of live-feed connections, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BankFeedConnection"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursor"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "BankFeedConnectionPageInput": {
+        "additionalProperties": false,
+        "description": "One page of live-feed connections, oldest first by creation.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BankFeedConnectionInput"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCursorInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer."
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
+      "BankFeedLinkSession": {
+        "additionalProperties": false,
+        "description": "A provider link session: the secret the browser runs the linking flow against and the accounts the credential can already pull.",
+        "properties": {
+          "clientSecret": {
+            "description": "The provider session secret the browser runs its linking flow against. Deterministic for the `fake` feed; the Stripe FC session secret otherwise.",
+            "type": "string"
+          },
+          "linkedAccounts": {
+            "description": "Accounts the credential can already pull — the connect step’s picker.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The provider’s own classification — Stripe FC reports `cash` for a bank account, `credit` for a card. Advisory in v1, which feeds asset accounts only (D-130)."
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "externalAccountId": {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "institution": {
+                  "anyOf": [
+                    {
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "externalAccountId",
+                "institution",
+                "displayName",
+                "category"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientSecret",
+          "linkedAccounts"
+        ],
+        "type": "object"
+      },
+      "BankFeedLinkSessionInput": {
+        "additionalProperties": false,
+        "description": "A provider link session: the secret the browser runs the linking flow against and the accounts the credential can already pull.",
+        "properties": {
+          "clientSecret": {
+            "description": "The provider session secret the browser runs its linking flow against. Deterministic for the `fake` feed; the Stripe FC session secret otherwise.",
+            "type": "string"
+          },
+          "linkedAccounts": {
+            "description": "Accounts the credential can already pull — the connect step’s picker.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The provider’s own classification — Stripe FC reports `cash` for a bank account, `credit` for a card. Advisory in v1, which feeds asset accounts only (D-130)."
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "externalAccountId": {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "institution": {
+                  "anyOf": [
+                    {
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "externalAccountId",
+                "institution",
+                "displayName",
+                "category"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "clientSecret",
+          "linkedAccounts"
+        ],
+        "type": "object"
+      },
+      "BankFeedSyncResult": {
+        "additionalProperties": false,
+        "description": "The outcome of one sync run. `linesDuplicate` is a re-synced overlap collapsed by the fingerprint dedup (D-127), never a double-post.",
+        "properties": {
+          "connectionId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linesDuplicate": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "linesImported": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "syncedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "linesImported",
+          "linesDuplicate",
+          "cursor",
+          "syncedAt"
+        ],
+        "type": "object"
+      },
+      "BankFeedSyncResultInput": {
+        "additionalProperties": false,
+        "description": "The outcome of one sync run. `linesDuplicate` is a re-synced overlap collapsed by the fingerprint dedup (D-127), never a double-post.",
+        "properties": {
+          "connectionId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linesDuplicate": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "linesImported": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "syncedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "linesImported",
+          "linesDuplicate",
+          "cursor",
+          "syncedAt"
         ],
         "type": "object"
       },
@@ -8797,6 +9263,102 @@
         },
         "type": "object"
       },
+      "ConnectBankFeedRequest": {
+        "additionalProperties": false,
+        "description": "Connects a live feed to an existing bank account (D-126). `restrictedKey` is inbound-only and never appears in any response (D-83); connecting flips the bank account to this feed source, and there is one live feed per bank account.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "externalAccountId": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restrictedKey": {
+            "description": "The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83).",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "bankAccountId",
+          "feedSource",
+          "restrictedKey",
+          "externalAccountId"
+        ],
+        "type": "object"
+      },
+      "ConnectBankFeedRequestInput": {
+        "additionalProperties": false,
+        "description": "Connects a live feed to an existing bank account (D-126). `restrictedKey` is inbound-only and never appears in any response (D-83); connecting flips the bank account to this feed source, and there is one live feed per bank account.",
+        "properties": {
+          "bankAccountId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "externalAccountId": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restrictedKey": {
+            "description": "The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83).",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "bankAccountId",
+          "feedSource",
+          "restrictedKey",
+          "externalAccountId"
+        ],
+        "type": "object"
+      },
       "ConnectedApp": {
         "additionalProperties": false,
         "description": "A client the caller has authorized, as they see it under `integrations.read`.",
@@ -9833,6 +10395,54 @@
         "required": [
           "accountId",
           "name"
+        ],
+        "type": "object"
+      },
+      "CreateBankFeedLinkSessionRequest": {
+        "additionalProperties": false,
+        "description": "Opens a provider link session and returns the accounts the credential can already pull. `restrictedKey` is inbound-only (D-83).",
+        "properties": {
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "restrictedKey": {
+            "description": "The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83).",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "feedSource",
+          "restrictedKey"
+        ],
+        "type": "object"
+      },
+      "CreateBankFeedLinkSessionRequestInput": {
+        "additionalProperties": false,
+        "description": "Opens a provider link session and returns the accounts the credential can already pull. `restrictedKey` is inbound-only (D-83).",
+        "properties": {
+          "feedSource": {
+            "description": "Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.",
+            "enum": [
+              "stripe_financial_connections",
+              "fake"
+            ],
+            "type": "string"
+          },
+          "restrictedKey": {
+            "description": "The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83).",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "feedSource",
+          "restrictedKey"
         ],
         "type": "object"
       },
@@ -34555,6 +35165,326 @@
         "summary": "Reactivate a bank account",
         "tags": [
           "bank-accounts"
+        ]
+      }
+    },
+    "/v1/bank-feeds": {
+      "get": {
+        "description": "One page, oldest first by creation (D-21).",
+        "operationId": "listBankFeeds",
+        "parameters": [
+          {
+            "description": "Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and inactive connections alike.",
+            "in": "query",
+            "name": "isActive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "How many bank-feed connections to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PageCursorInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedConnectionPage"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List live bank feeds",
+        "tags": [
+          "bank-feeds"
+        ]
+      },
+      "post": {
+        "description": "Wires a live feed to an existing bank account (D-126). `bankAccountId` names a bank account the org already has — a `404` if it does not — and `externalAccountId` is the linked account chosen from a link session. `restrictedKey` is inbound-only: it is stored through the secrets provider (D-101) and never appears in this response or any later read (D-83). Connecting flips the bank account to this feed source, and there is one live feed per bank account.",
+        "operationId": "connectBankFeed",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBankFeedRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedConnection"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Connect a live bank feed",
+        "tags": [
+          "bank-feeds"
+        ]
+      }
+    },
+    "/v1/bank-feeds/link-sessions": {
+      "post": {
+        "description": "Opens a provider link session so the browser can run the credential’s own account-linking flow, and returns the accounts it can already pull — the connect step’s picker (D-131). `restrictedKey` is inbound-only (D-83). For the `fake` feed both the session secret and the accounts are deterministic (D-102).",
+        "operationId": "createBankFeedLinkSession",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankFeedLinkSessionRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedLinkSession"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Open a provider link session",
+        "tags": [
+          "bank-feeds"
+        ]
+      }
+    },
+    "/v1/bank-feeds/{bankFeedId}": {
+      "get": {
+        "operationId": "getBankFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankFeedId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedConnection"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "One live bank feed",
+        "tags": [
+          "bank-feeds"
+        ]
+      }
+    },
+    "/v1/bank-feeds/{bankFeedId}/deactivate": {
+      "post": {
+        "description": "Stops the daily sync from pulling and reverts the bank account to `file`; every line already imported stays exactly as posted. Disconnecting is deactivation, not deletion (D-129). Idempotent: an already-inactive connection is returned unchanged rather than refused.",
+        "operationId": "deactivateBankFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankFeedId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedConnection"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Disconnect a live bank feed",
+        "tags": [
+          "bank-feeds"
+        ]
+      }
+    },
+    "/v1/bank-feeds/{bankFeedId}/sync": {
+      "post": {
+        "description": "Runs a sync now rather than waiting for the daily job (D-128): it pulls from the connection’s cursor and folds the result into the same fingerprint dedup the CSV path uses (D-127), so a re-synced overlap is `linesDuplicate`, never a double-post. Returns the run’s outcome, not the connection; a retried call with the same key replays that one run rather than pulling again.",
+        "operationId": "syncBankFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bankFeedId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankFeedSyncResult"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Pull the latest transactions from a live bank feed",
+        "tags": [
+          "bank-feeds"
         ]
       }
     },

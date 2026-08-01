@@ -194,12 +194,30 @@ export interface BankAccounts {
   account_id: Buffer;
   created_at: Generated<Date>;
   external_account_id: string | null;
-  feed_source: Generated<"file">;
+  feed_source: Generated<"fake" | "file" | "stripe_financial_connections">;
   id: Buffer;
   institution_name: string | null;
   is_active: Generated<number>;
   name: string;
   org_id: Buffer;
+  updated_at: Generated<Date>;
+}
+
+export interface BankFeedConnections {
+  bank_account_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  credential_source: Generated<"bring_your_own" | "managed">;
+  external_account_id: string;
+  feed_source: "fake" | "stripe_financial_connections";
+  id: Buffer;
+  institution: string | null;
+  is_active: Generated<number>;
+  last_sync_error: string | null;
+  last_synced_at: Date | null;
+  org_id: Buffer;
+  secret_ref: string;
+  sync_cursor: string | null;
   updated_at: Generated<Date>;
 }
 
@@ -1203,6 +1221,7 @@ export interface DB {
   automation_annotations: AutomationAnnotations;
   automations: Automations;
   bank_accounts: BankAccounts;
+  bank_feed_connections: BankFeedConnections;
   bank_import_mappings: BankImportMappings;
   bank_line_clearing_entries: BankLineClearingEntries;
   bank_line_clearings: BankLineClearings;

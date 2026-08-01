@@ -29,12 +29,13 @@ import { contextFor, useServiceDatabase } from './support';
  * the seeds changed and the change needs a reason — not a new number here.
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
-  // The entire catalog (72 since CAT added catalog.read/write).
-  ['owner', 72],
+  // The entire catalog (73 since OB-227 added banking.connect).
+  ['owner', 73],
   // Everything except organization administration: orgs.write, members.write,
-  // api_keys.*, integrations.write, processing.write, workflows.activate, and now
-  // disbursements.issue (D-109 — the Pay Bills release key is owner-only) — eight
-  // exclusions. Gains branding.read, branding.write and invoices.send (INV),
+  // api_keys.*, integrations.write, processing.write, workflows.activate,
+  // disbursements.issue (D-109 — the Pay Bills release key is owner-only), and now
+  // banking.connect (OB-227 — connecting a live feed stores a credential) — nine
+  // exclusions, so the count holds at 64 even as the catalog grew to 73. Gains branding.read, branding.write and invoices.send (INV),
   // processing.read (PAY), pending_payments.read/write (PB — the queue keys),
   // recurring_journals.read/write + fixed_assets.read/write (L — no SoD, D-117), and
   // procure-to-pay's purchase_orders.read/write, estimates.read/write and

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { runInContext, type RequestContext } from '../../src/context';
 import { uuidToBuffer } from '../../src/db';
+import { connectBankFeed } from '../../src/modules/bank-feeds';
 import {
   clearBankStatementLine,
   createBankAccount,
@@ -3491,6 +3492,31 @@ const REFERENCES: readonly Reference[] = [
   },
 
   // ---------------------------------------------------------------------------
+  // Live bank feeds (OB-227). `connectBankFeed` names an existing bank account
+  // (D-46); `assertFound` on it 404s for a stranger's before the feed is touched, the
+  // `createBankAccount`/`connectProcessor` shape above. The `fake` feed accepts any
+  // `externalAccountId` (a pure function of it), so the own pass connects cleanly.
+  // `externalAccountId` is a free-text feed identifier, not a tenant row — `EXEMPT`
+  // below, `connectProcessor.externalAccountId`'s reason one subsystem over.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'connectBankFeed',
+    field: 'bankAccountId',
+    subject: (o) => o.bankAccountId,
+    reach: (id, s) =>
+      connectBankFeed(
+        {
+          bankAccountId: id,
+          feedSource: 'fake',
+          restrictedKey: 'rk_test_b11',
+          externalAccountId: 'acct_b11',
+        },
+        s.caller.ctx,
+      ),
+  },
+
+  // ---------------------------------------------------------------------------
   // Pay Bills (PB). `buildPendingPayment` and `payBills` share one code path —
   // `payBills` calls `buildPendingPayment` once per vendor and does not catch what
   // it throws (`queue.service.ts`'s own header) — so each pair of rows below is the
@@ -3895,6 +3921,14 @@ const EXEMPT: Readonly<Record<string, string>> = {
    * of a bank feed. It names no OpenBooks row, so there is no cross-org read to make.
    */
   'connectProcessor.externalAccountId': 'a free-text processor identifier, not a tenant row',
+  /**
+   * Live bank feeds (OB-227). `externalAccountId` is the provider's own id for the
+   * linked account (Stripe FC's account id), a free string held so a sync can be
+   * checked against the account it pulls — `connectProcessor.externalAccountId`'s
+   * reason exactly, one subsystem over. It names no OpenBooks row, so there is no
+   * cross-org read to make of it.
+   */
+  'connectBankFeed.externalAccountId': 'a free-text feed identifier, not a tenant row',
   /**
    * Pay Bills (PB). `resolveIntents` (`queue.service.ts`) never looks `contactId` up
    * on its own — it is checked only relationally, against the contact already on the

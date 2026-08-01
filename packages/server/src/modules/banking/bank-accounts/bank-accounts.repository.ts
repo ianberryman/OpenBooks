@@ -1,5 +1,5 @@
 import { BANKING_RESOURCES } from '@openbooks/shared-types';
-import type { BankAccount, ListBankAccountsQuery } from '@openbooks/shared-types';
+import type { BankAccount, BankFeedSource, ListBankAccountsQuery } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../../context';
 import type { KeysetOrdering, KeysetPage, TenantDatabase } from '../../../db';
@@ -54,7 +54,9 @@ interface BankAccountRow {
   readonly name: string;
   readonly institution_name: string | null;
   readonly external_account_id: string | null;
-  readonly feed_source: 'file';
+  // Widened by OB-227: an account reads 'file' until a live feed is connected, which
+  // flips it to the connection's source ('stripe_financial_connections' | 'fake').
+  readonly feed_source: BankFeedSource;
   readonly is_active: number;
   readonly created_at: Date;
   readonly updated_at: Date;

@@ -239,6 +239,14 @@ import {
   updatePaymentTerm,
 } from '../../src/modules/payment-terms';
 import {
+  connectBankFeed,
+  createBankFeedLinkSession,
+  deactivateBankFeed,
+  getBankFeed,
+  listBankFeeds,
+  syncBankFeed,
+} from '../../src/modules/bank-feeds';
+import {
   connectProcessor,
   deactivateProcessorConnection,
   getProcessorConnection,
@@ -513,6 +521,13 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // finalised one (OB-082) — the E6 power to withdraw an assertion, held apart from
   // making one. All five writes are Owner and Bookkeeper; read alone reaches the two
   // read-only roles. No banking code is latent any longer.
+  //
+  // OB-227 adds `banking.connect` — connecting/disconnecting a live bank feed. It is
+  // owner-only (there is no `admin` role) and excluded from the bookkeeper catch-all
+  // exactly as `processing.write` is: connecting a feed stores a live credential and
+  // stands up a standing automated job, an org-administration act. The daily sync runs
+  // on `banking.import` and the reads on `banking.read`, so those need no new holder.
+  'banking.connect': ['owner'],
   'banking.import': ['owner', 'bookkeeper'],
   'banking.match': ['owner', 'bookkeeper'],
   'banking.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
@@ -887,6 +902,16 @@ interface Scene {
    * cannot connect a processor still has one to be refused against.
    */
   readonly processorConnectionId: string;
+  /**
+   * A `fake` live-feed connection on `bankAccountId`, for `getBankFeed`,
+   * `syncBankFeed`, and `deactivateBankFeed` (OB-227). Connected by Owner (`setup`)
+   * the way `processorConnectionId` is, so a role that cannot connect a feed still
+   * has one to be refused against. It also puts `bankAccountId` into a connected
+   * state, so the `connectBankFeed` OPERATIONS row reaches `bank_feed_already_connected`
+   * (a business refusal downstream of the gate) rather than a second row — the same
+   * fixture-collision trade-off the `connectProcessor` row makes, still reading `allowed`.
+   */
+  readonly bankFeedConnectionId: string;
   readonly taxAccountId: string;
   readonly taxRateId: string;
   readonly deletableTaxRateId: string;
@@ -2665,6 +2690,63 @@ const OPERATIONS: readonly Operation[] = [
   },
 
   // ---------------------------------------------------------------------------
+  // Live bank feeds (OB-227) — the six `bank-feeds` module operations, the
+  // connect/list/get/deactivate shape of `bank-accounts.service.ts` plus the sync
+  // trigger and the link session. `banking.connect` (owner-only) gates connecting,
+  // disconnecting and opening a link session; `banking.import` gates the sync; the
+  // two reads are `banking.read`. `connectBankFeed` collides with the scene fixture
+  // (see `bankFeedConnectionId`) so a permitted caller reaches `bank_feed_already_connected`
+  // — a refusal downstream of the gate, which still reads `allowed`. `deactivateBankFeed`
+  // is ordered last so the get and sync above it act on a still-active connection.
+  // ---------------------------------------------------------------------------
+  {
+    name: 'connectBankFeed',
+    operationId: 'connectBankFeed',
+    permission: 'banking.connect',
+    call: (s) =>
+      connectBankFeed(
+        {
+          bankAccountId: s.bankAccountId,
+          feedSource: 'fake',
+          restrictedKey: 'rk_test_row',
+          externalAccountId: 'acct_row',
+        },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'createBankFeedLinkSession',
+    operationId: 'createBankFeedLinkSession',
+    permission: 'banking.connect',
+    call: (s) =>
+      createBankFeedLinkSession({ feedSource: 'fake', restrictedKey: 'rk_test_row' }, s.ctx),
+  },
+  {
+    name: 'listBankFeeds',
+    operationId: 'listBankFeeds',
+    permission: 'banking.read',
+    call: (s) => listBankFeeds({}, s.ctx),
+  },
+  {
+    name: 'getBankFeed',
+    operationId: 'getBankFeed',
+    permission: 'banking.read',
+    call: (s) => getBankFeed(s.bankFeedConnectionId, s.ctx),
+  },
+  {
+    name: 'syncBankFeed',
+    operationId: 'syncBankFeed',
+    permission: 'banking.import',
+    call: (s) => syncBankFeed(s.bankFeedConnectionId, s.ctx),
+  },
+  {
+    name: 'deactivateBankFeed',
+    operationId: 'deactivateBankFeed',
+    permission: 'banking.connect',
+    call: (s) => deactivateBankFeed(s.bankFeedConnectionId, s.ctx),
+  },
+
+  // ---------------------------------------------------------------------------
   // Cash application (OB-139) — payment terms, the discount-suggestion preview,
   // and the discount-account nominations beside `updateControlAccounts`. No new
   // catalog key: every operation below reuses `orgs.read`/`orgs.write`
@@ -3754,6 +3836,24 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     setup,
   );
 
+  // --- OB-227 live-bank-feed fixture ---
+  //
+  // A `fake` feed connected to `bankAccountId` by Owner (`setup`), the mirror of the
+  // processor fixture above. `uq_bank_feed_connections_account` allows one feed per
+  // bank account, which this is; the `connectBankFeed` OPERATIONS row nominates the
+  // same account, so a permitted caller's attempt reaches `bank_feed_already_connected`
+  // rather than a second row — a business-rule refusal downstream of the gate, still
+  // reading `allowed`. The `fake` provider is deterministic and makes no network call.
+  const bankFeedConnection = await connectBankFeed(
+    {
+      bankAccountId: bankAccountUuid,
+      feedSource: 'fake',
+      restrictedKey: 'rk_test_fixture',
+      externalAccountId: 'acct_fixture',
+    },
+    setup,
+  );
+
   return {
     ...subledger,
     openReconciliationSessionId: openSessionUuid,
@@ -3764,6 +3864,7 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     clearedStatementLineId: clearedLineUuid,
     registrableBankLedgerAccountId: registrable.uuid,
     processorConnectionId: processorConnection.id,
+    bankFeedConnectionId: bankFeedConnection.id,
     receivableId: receivable.uuid,
     payableId: payable.uuid,
     expenseId: expense.uuid,

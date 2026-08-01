@@ -192,6 +192,15 @@ interface Scene {
   readonly processorConnectionId: string;
 
   /**
+   * Live bank feeds (OB-227): a `fake` feed connection on its own bank account, for
+   * `getBankFeed`/`syncBankFeed`/`deactivateBankFeed` to answer about across orgs. A
+   * dedicated ledger and bank account rather than a shared one, because connecting a
+   * feed flips the bank account's `feedSource` and there is one feed per account —
+   * reusing `banking.bankAccountId` would entangle this with the M4 bank-account rows.
+   */
+  readonly bankFeedConnectionId: string;
+
+  /**
    * Pay Bills (PB, OB-154…): a single `open` pending payment, for
    * `getPendingPayment`/`updatePendingPayment`/`cancelPendingPayment`/
    * `issuePendingPayment` to answer about across orgs. One row rather than one per
@@ -469,6 +478,30 @@ async function scene(app: App): Promise<Scene> {
     },
   );
 
+  // Live bank feeds (OB-227): a `fake` feed connection on its own bank account. A
+  // dedicated ledger and bank account, `bankFeedConnectionId`'s reason above —
+  // connecting flips the account's `feedSource` and there is one feed per account, so
+  // a shared account would entangle this with the M4 bank-account rows. The `fake`
+  // feed accepts any `externalAccountId` (it is a pure function of it), so the value
+  // is arbitrary.
+  const feedLedgerId = await createAccount(app, owner, {
+    code: '1060',
+    name: 'Feed bank',
+    type: 'asset',
+    normalBalance: 'debit',
+  });
+  const feedBankAccountId = await created('feed-bank-account', '/v1/bank-accounts', {
+    accountId: feedLedgerId,
+    name: 'Feed account',
+  });
+  const bankFeedConnectionId = await created('bank-feed', '/v1/bank-feeds', {
+    bankAccountId: feedBankAccountId,
+    feedSource: 'fake',
+    restrictedKey: 'rk_test_a7_fixture',
+    externalAccountId: 'acct_a7_fixture',
+    institution: 'A7 Bank',
+  });
+
   // Pay Bills (PB): an `open` pending payment against the owner's own vendor and
   // approved bill, nominating `subledger`/`banking`'s fixtures rather than dedicated
   // ones — `connectProcessor`'s reason above, there is nothing a fresh party, account
@@ -534,6 +567,7 @@ async function scene(app: App): Promise<Scene> {
     approvableProposalId,
     rejectableProposalId,
     processorConnectionId,
+    bankFeedConnectionId,
     pendingPaymentId,
     purchaseOrderId,
     estimateId,
@@ -2135,6 +2169,35 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/processing/connections/%s/reactivate',
     id: (s) => s.processorConnectionId,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Live bank feeds (OB-227): the three operations whose id travels in the path.
+  // `connectBankFeed`/`listBankFeeds`/`createBankFeedLinkSession` carry no resource
+  // id and are not surfaces here, the same reason `connectProcessor` above is not.
+  // Get, then sync, then deactivate: deactivate last because the owner control pass
+  // deactivates the connection, and a later read of the same id would then answer the
+  // owner a `404` (`disposeFixedAsset`-is-last, one subsystem over) — sync in the
+  // middle still answers non-404 for the owner (a `fake` sync succeeds).
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getBankFeed',
+    method: 'GET',
+    path: '/v1/bank-feeds/%s',
+    id: (s) => s.bankFeedConnectionId,
+  },
+  {
+    operationId: 'syncBankFeed',
+    method: 'POST',
+    path: '/v1/bank-feeds/%s/sync',
+    id: (s) => s.bankFeedConnectionId,
+  },
+  {
+    operationId: 'deactivateBankFeed',
+    method: 'POST',
+    path: '/v1/bank-feeds/%s/deactivate',
+    id: (s) => s.bankFeedConnectionId,
   },
 
   // ---------------------------------------------------------------------------

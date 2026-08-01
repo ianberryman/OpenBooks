@@ -65,24 +65,25 @@ export const BANK_INSTITUTION_NAME_MAX_LENGTH = 255;
 export const BANK_EXTERNAL_ACCOUNT_ID_MAX_LENGTH = 64;
 
 /**
- * Where a bank account's lines come from (D-41).
+ * Where a bank account's lines come from (D-41; extended by OB-227, D-126).
  *
- * One member today, and the enum exists anyway. D-41 ships `BankFeedProvider` with
- * a real file-based implementation and **no hosted adapter**, so the extension
- * point is the interface rather than a second value here; what this field buys now
- * is that a hosted feed arriving later is an added enum member on an existing
- * field, not a new column on every row. A boolean `isFileImported` would have to be
- * migrated to say the same thing.
+ * The enum existed with one member exactly so a live feed could arrive as an added
+ * value rather than a new column, and OB-227 lands that: `file` is the user
+ * uploading a statement, `stripe_financial_connections` is a live Stripe Financial
+ * Connections feed, and `fake` is the deterministic feed the gate exercises in place
+ * of a network call (D-102). An account reads `file` until a `bank_feed_connections`
+ * row is created for it, which flips it to the connection's source.
  */
-export const BANK_FEED_SOURCES = ['file'] as const;
+export const BANK_FEED_SOURCES = ['file', 'stripe_financial_connections', 'fake'] as const;
 
 export type BankFeedSource = (typeof BANK_FEED_SOURCES)[number];
 
 export const bankFeedSourceSchema = z.enum(BANK_FEED_SOURCES).meta({
   description:
-    'How lines reach this account. `file` — the user uploads a statement — is the only value in ' +
-    'v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second ' +
-    'member here rather than as a second kind of bank account.',
+    'How lines reach this account. `file` — the user uploads a statement — is the default. ' +
+    '`stripe_financial_connections` is a live feed (OB-227); `fake` is the deterministic feed the ' +
+    'gate exercises in place of a network call (D-102). A live source is set when a bank feed is ' +
+    'connected and reverts to `file` on disconnect.',
 });
 
 const bankAccountNameSchema = z

@@ -631,6 +631,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/bank-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List live bank feeds
+         * @description One page, oldest first by creation (D-21).
+         */
+        get: operations["listBankFeeds"];
+        put?: never;
+        /**
+         * Connect a live bank feed
+         * @description Wires a live feed to an existing bank account (D-126). `bankAccountId` names a bank account the org already has — a `404` if it does not — and `externalAccountId` is the linked account chosen from a link session. `restrictedKey` is inbound-only: it is stored through the secrets provider (D-101) and never appears in this response or any later read (D-83). Connecting flips the bank account to this feed source, and there is one live feed per bank account.
+         */
+        post: operations["connectBankFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-feeds/link-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a provider link session
+         * @description Opens a provider link session so the browser can run the credential’s own account-linking flow, and returns the accounts it can already pull — the connect step’s picker (D-131). `restrictedKey` is inbound-only (D-83). For the `fake` feed both the session secret and the accounts are deterministic (D-102).
+         */
+        post: operations["createBankFeedLinkSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-feeds/{bankFeedId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One live bank feed */
+        get: operations["getBankFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-feeds/{bankFeedId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disconnect a live bank feed
+         * @description Stops the daily sync from pulling and reverts the bank account to `file`; every line already imported stays exactly as posted. Disconnecting is deactivation, not deletion (D-129). Idempotent: an already-inactive connection is returned unchanged rather than refused.
+         */
+        post: operations["deactivateBankFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bank-feeds/{bankFeedId}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pull the latest transactions from a live bank feed
+         * @description Runs a sync now rather than waiting for the daily job (D-128): it pulls from the connection’s cursor and folds the result into the same fingerprint dedup the CSV path uses (D-127), so a re-synced overlap is `linesDuplicate`, never a double-post. Returns the run’s outcome, not the connection; a retried call with the same key replays that one run rather than pulling again.
+         */
+        post: operations["syncBankFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bank-match-proposals": {
         parameters: {
             query?: never;
@@ -4912,10 +5013,10 @@ export interface components {
             /** @description What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment. */
             externalAccountId: string | null;
             /**
-             * @description How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.
+             * @description How lines reach this account. `file` — the user uploads a statement — is the default. `stripe_financial_connections` is a live feed (OB-227); `fake` is the deterministic feed the gate exercises in place of a network call (D-102). A live source is set when a bank feed is connected and reverts to `file` on disconnect.
              * @enum {string}
              */
-            feedSource: "file";
+            feedSource: "file" | "stripe_financial_connections" | "fake";
             /** Format: uuid */
             id: string;
             institutionName: string | null;
@@ -4938,10 +5039,10 @@ export interface components {
             /** @description What the bank’s own file calls this account — OFX’s `ACCTID`. Held so an upload can be checked against the account it is being imported into; not a full account number, because nothing in v1 initiates a payment. */
             externalAccountId: string | null;
             /**
-             * @description How lines reach this account. `file` — the user uploads a statement — is the only value in v1 (D-41). A hosted feed slots in behind `BankFeedProvider` and would arrive as a second member here rather than as a second kind of bank account.
+             * @description How lines reach this account. `file` — the user uploads a statement — is the default. `stripe_financial_connections` is a live feed (OB-227); `fake` is the deterministic feed the gate exercises in place of a network call (D-102). A live source is set when a bank feed is connected and reverts to `file` on disconnect.
              * @enum {string}
              */
-            feedSource: "file";
+            feedSource: "file" | "stripe_financial_connections" | "fake";
             /** Format: uuid */
             id: string;
             institutionName: string | null;
@@ -4963,6 +5064,122 @@ export interface components {
             items: components["schemas"]["BankAccountInput"][];
             /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
             nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A live-feed connection as the API returns it — never carrying `restrictedKey` (D-83). */
+        BankFeedConnection: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description How the credential was supplied. `bring_your_own` — the org’s own Stripe restricted key, billed to the org — is the only value in v1 (D-131). `managed` is reserved for the deferred model where OpenBooks supplies the key and re-meters the cost.
+             * @enum {string}
+             */
+            credentialSource: "bring_your_own" | "managed";
+            externalAccountId: string;
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            /** Format: uuid */
+            id: string;
+            institution: string | null;
+            /** @description An inactive connection stops the daily sync from pulling and keeps every line it already imported. Disconnecting is deactivation, not deletion, and reverts the bank account to `file`. */
+            isActive: boolean;
+            /** @description The last sync failure, if the most recent run did not complete; advisory. */
+            lastSyncError: string | null;
+            /** @description When the daily sync last committed against this connection. */
+            lastSyncedAt: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description A live-feed connection as the API returns it — never carrying `restrictedKey` (D-83). */
+        BankFeedConnectionInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description How the credential was supplied. `bring_your_own` — the org’s own Stripe restricted key, billed to the org — is the only value in v1 (D-131). `managed` is reserved for the deferred model where OpenBooks supplies the key and re-meters the cost.
+             * @enum {string}
+             */
+            credentialSource: "bring_your_own" | "managed";
+            externalAccountId: string;
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            /** Format: uuid */
+            id: string;
+            institution: string | null;
+            /** @description An inactive connection stops the daily sync from pulling and keeps every line it already imported. Disconnecting is deactivation, not deletion, and reverts the bank account to `file`. */
+            isActive: boolean;
+            /** @description The last sync failure, if the most recent run did not complete; advisory. */
+            lastSyncError: string | null;
+            /** @description When the daily sync last committed against this connection. */
+            lastSyncedAt: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description One page of live-feed connections, oldest first by creation. */
+        BankFeedConnectionPage: {
+            items: components["schemas"]["BankFeedConnection"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursor"] | null;
+        };
+        /** @description One page of live-feed connections, oldest first by creation. */
+        BankFeedConnectionPageInput: {
+            items: components["schemas"]["BankFeedConnectionInput"][];
+            /** @description The cursor for the next page, or `null` when this is the last one. Presence is the only signal that more exists — a full page does not imply another, and a short page never means a truncated answer. */
+            nextCursor: components["schemas"]["PageCursorInput"] | null;
+        };
+        /** @description A provider link session: the secret the browser runs the linking flow against and the accounts the credential can already pull. */
+        BankFeedLinkSession: {
+            /** @description The provider session secret the browser runs its linking flow against. Deterministic for the `fake` feed; the Stripe FC session secret otherwise. */
+            clientSecret: string;
+            /** @description Accounts the credential can already pull — the connect step’s picker. */
+            linkedAccounts: {
+                /** @description The provider’s own classification — Stripe FC reports `cash` for a bank account, `credit` for a card. Advisory in v1, which feeds asset accounts only (D-130). */
+                category: string | null;
+                displayName: string;
+                externalAccountId: string;
+                institution: string | null;
+            }[];
+        };
+        /** @description A provider link session: the secret the browser runs the linking flow against and the accounts the credential can already pull. */
+        BankFeedLinkSessionInput: {
+            /** @description The provider session secret the browser runs its linking flow against. Deterministic for the `fake` feed; the Stripe FC session secret otherwise. */
+            clientSecret: string;
+            /** @description Accounts the credential can already pull — the connect step’s picker. */
+            linkedAccounts: {
+                /** @description The provider’s own classification — Stripe FC reports `cash` for a bank account, `credit` for a card. Advisory in v1, which feeds asset accounts only (D-130). */
+                category: string | null;
+                displayName: string;
+                externalAccountId: string;
+                institution: string | null;
+            }[];
+        };
+        /** @description The outcome of one sync run. `linesDuplicate` is a re-synced overlap collapsed by the fingerprint dedup (D-127), never a double-post. */
+        BankFeedSyncResult: {
+            /** Format: uuid */
+            connectionId: string;
+            cursor: string | null;
+            linesDuplicate: number;
+            linesImported: number;
+            /** Format: date-time */
+            syncedAt: string;
+        };
+        /** @description The outcome of one sync run. `linesDuplicate` is a re-synced overlap collapsed by the fingerprint dedup (D-127), never a double-post. */
+        BankFeedSyncResultInput: {
+            /** Format: uuid */
+            connectionId: string;
+            cursor: string | null;
+            linesDuplicate: number;
+            linesImported: number;
+            /** Format: date-time */
+            syncedAt: string;
         };
         /** @description Which column holds what, by zero-based index. `amount` and the `debit`/`credit` pair are mutually exclusive, decided by the definition’s `amountConvention`. */
         BankImportColumns: {
@@ -6482,6 +6699,34 @@ export interface components {
             /** @description An optional sign-off note recorded with the close. */
             note?: string;
         };
+        /** @description Connects a live feed to an existing bank account (D-126). `restrictedKey` is inbound-only and never appears in any response (D-83); connecting flips the bank account to this feed source, and there is one live feed per bank account. */
+        ConnectBankFeedRequest: {
+            /** Format: uuid */
+            bankAccountId: string;
+            externalAccountId: string;
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            institution?: string | null;
+            /** @description The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83). */
+            restrictedKey: string;
+        };
+        /** @description Connects a live feed to an existing bank account (D-126). `restrictedKey` is inbound-only and never appears in any response (D-83); connecting flips the bank account to this feed source, and there is one live feed per bank account. */
+        ConnectBankFeedRequestInput: {
+            /** Format: uuid */
+            bankAccountId: string;
+            externalAccountId: string;
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            institution?: string | null;
+            /** @description The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83). */
+            restrictedKey: string;
+        };
         /** @description A client the caller has authorized, as they see it under `integrations.read`. */
         ConnectedApp: {
             clientId: string;
@@ -6699,6 +6944,26 @@ export interface components {
             institutionName?: string | null;
             /** @description What the user calls this account — “Barclays Current”. Distinct from the ledger account’s name on purpose: an org may reconcile two cards against one ledger account, or rename the account in its chart without renaming the thing it uploads statements for. */
             name: string;
+        };
+        /** @description Opens a provider link session and returns the accounts the credential can already pull. `restrictedKey` is inbound-only (D-83). */
+        CreateBankFeedLinkSessionRequest: {
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            /** @description The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83). */
+            restrictedKey: string;
+        };
+        /** @description Opens a provider link session and returns the accounts the credential can already pull. `restrictedKey` is inbound-only (D-83). */
+        CreateBankFeedLinkSessionRequestInput: {
+            /**
+             * @description Which live feed this connection talks to. `stripe_financial_connections` is a live Stripe Financial Connections feed; `fake` is the deterministic feed the gate exercises in place of a network call (D-102), not a placeholder value.
+             * @enum {string}
+             */
+            feedSource: "stripe_financial_connections" | "fake";
+            /** @description The provider’s restricted API key (Stripe Financial Connections scope). Inbound-only — stored through the secrets provider (D-101) and never echoed by any response (D-83). */
+            restrictedKey: string;
         };
         /** @description Saves a named column mapping against a bank account. */
         CreateBankImportMappingRequest: {
@@ -13962,6 +14227,212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BankAccount"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listBankFeeds: {
+        parameters: {
+            query?: {
+                /** @description Accepts `true`/`false` (and `1`/`0`, `yes`/`no`, `on`/`off`). Omitted matches active and inactive connections alike. */
+                isActive?: string;
+                /** @description How many bank-feed connections to return, at most. Over the maximum is refused rather than clamped, so a short page always means the list is short. */
+                limit?: number;
+                cursor?: components["schemas"]["PageCursorInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedConnectionPage"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    connectBankFeed: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectBankFeedRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedConnection"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createBankFeedLinkSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBankFeedLinkSessionRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedLinkSession"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBankFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bankFeedId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedConnection"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deactivateBankFeed: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankFeedId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedConnection"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    syncBankFeed: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                bankFeedId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankFeedSyncResult"];
                 };
             };
             /** @description Default Response */

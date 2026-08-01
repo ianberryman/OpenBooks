@@ -33,6 +33,7 @@ import { destroyDatabase, initializeDatabase, systemDb } from '../db';
 import { getLogger } from '../logging';
 import type { Logger } from '../logging';
 import { registerAutomationsJob } from '../modules/automations';
+import { registerBankFeedSyncJob } from '../modules/bank-feeds';
 import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
@@ -78,6 +79,9 @@ export async function startWorker(): Promise<void> {
   // The D-85 polling backstop (OB-148): a daily task like recurring/dunning, not
   // event-driven like the extraction job above.
   await registerProcessorPollJob(queueProvider(), { logger });
+  // Live bank feeds (OB-227): a daily task like the processor poll above — pulls each
+  // active connection's transactions into the statement-line pipeline under an automation.
+  await registerBankFeedSyncJob(queueProvider(), { logger });
   // The agent work-queue sweep (initiative Q, OB-200…210): matches `scheduled` and
   // `event` triggers and enqueues the work items their `agent_task` actions produce.
   await registerAutomationsJob(queueProvider(), { logger });
