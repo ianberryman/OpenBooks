@@ -267,3 +267,30 @@ Best practices this split has earned:
   against a **throwaway** MySQL migrated fresh with the full set, never the running stack.
   The pinned schema-set tripwires (`harness`, `tenant-scope`, `grants` tests) then need the
   new table names — updating them is part of the change, not a failure.
+- **A digit in a new table/permission name (`ten99`, `form_1099s`) breaks `[a-z_]`-only regexes,
+  and there are at least three.** OB-228 hit all three: `grants.test.ts`'s source-parser (~L85) and
+  its `SHOW GRANTS` read-back parser (~L413), and `permission-matrix.test.ts`'s literal-key scanner
+  `LITERAL_KEY` (~L4722). Each silently dropped the digit-bearing identifier and failed a coverage
+  check in a confusing way (a table present in the DB but "missing" from the grant set; a literal
+  `'ten99.write'` misread as a "computed" key). Widen each to `[a-z0-9_]`. Prefer digit-free names
+  where you can; when you can't, grep the test tree for `[a-z_]` identifier regexes first.
+- **Records-producing `/v1/{id}` GET routes need a REAL owner-accessible fixture in the cross-org
+  A7 scene** — `SEALED.ownerGetsNotFound` is `false`, so a placeholder id fails the control pass (a
+  1099 run/form meant building payment→profile→generate in `scene()`). Placeholder ids only work for
+  `permission-matrix` (its `judge()` distinguishes `permission_denied` alone). Separately, `cross-org-
+references.test.ts` (B11) flags **every `*Id`/`*Ids`-suffixed body/query field as id-shaped —
+  including a TIN field named `taxId`** — so each needs a SURFACES row or an `EXEMPT` reason.
+- **New tables use `BINARY(16)` UUID ids + composite `(org_id, id)` FKs**, never a BIGINT surrogate;
+  BIGINT is money-minor only. Closed sets are `VARCHAR + CHECK`, not `ENUM` (the `customer_statements.status`
+  precedent — no `generated.ts` literal-union ripple). `VARBINARY`→`Buffer` needs no codegen override.
+- **Web streams: type mutation bodies as `components['schemas']['…RequestInput']`, not the shared-types
+  request type** — the latter's `.optional()` gives `| undefined`, which `exactOptionalPropertyTypes`
+  refuses to pass to the client's `?: T | null` body param. (`@openbooks/shared-types` IS importable
+  from web — it resolves via workspace hoisting with no `package.json` entry, contra a stale in-repo note.)
+- **A new runtime helper that reads `getConfig()` breaks in the test harness**, which builds config
+  explicitly rather than from `process.env` (so `getConfig()` is not a reliable source). Give it a
+  settable seam (`setX`/clear in `beforeAll`/`afterAll`), the storage/email/secrets-provider idiom;
+  `providers/index.ts` is the pattern.
+- **The shell is zsh: unquoted `$VAR` does NOT word-split.** `eslint $FILES` sends the whole string as
+  one path ("No files matching the pattern …"). Pass file lists inline as separate args, or use an
+  array / `${=VAR}`.

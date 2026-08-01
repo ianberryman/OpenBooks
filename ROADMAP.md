@@ -45,7 +45,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**              | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
 | **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**              | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
 | **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**       | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
-| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Scoped — dev-ready**              | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-scoped--dev-ready)                                                                                             |
+| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Built — gate-green**              | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green)                                                                                             |
 | **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**           | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
 | **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**   | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
 | **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **Placeholder — not scoped**        | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
@@ -313,6 +313,32 @@ integration) for "link," distinct from the CSV path. The UI can still **favour c
 (default to bank accounts, surface cards secondarily) — the point is the engine must not be
 asset-only. Unscheduled; adjacent to the fixed-assets/recurring initiative (L) and the banking
 work already shipped.
+
+### Follow-up — reversal is unreachable for an already-posted entry (OB-236)
+
+The reversal **engine** is complete and tested end to end (D-02): `reverseJournal`
+(`posting.service.ts`) flips a journal's sides under `journals.reverse` with the double-reversal,
+locked-period and race guards, `POST /v1/journals/:journalId/reverse` exposes it idempotently, and
+the web app has a working **Reverse entry** button with a date/memo dialog on
+`screens/journal-entry/posted-entry.tsx`. The gap is purely **navigation**: that button lives on the
+journal-entry screen's `posted` view, which is only ever shown in the moment **right after posting a
+draft** (`onPosted`) or **right after a reversal** (`onReversed`). The screen has no list of
+already-posted journals, no search, and holds its selection in local state rather than a route
+param — and there is **no `GET /v1/journals/{id}`** read path at all (M1 deliberately shipped none).
+So once a user navigates away, a posted entry cannot be reopened, and its Reverse button becomes
+unreachable — the entry is correct and reversible over the API, but the UI offers no way back to it.
+The commonest correction ("I posted that wrong — undo it") therefore has no self-service path.
+
+Scope: (1) a `GET /v1/journals/{id}` read endpoint (and/or a posted-journals **list/register**
+endpoint) — the missing read path; (2) a **posted-journals list view** on the journal-entry screen
+(or a register report) whose rows open the existing `posted-entry` detail, where the Reverse button
+already works; (3) fix the client-side gate — `posted-entry.tsx` renders **Reverse entry**
+unconditionally, so a user without `journals.reverse` only discovers the block via a server 403;
+(4) optionally **bulk / multi-select reverse** from the list, layered on the existing single-entry
+`reverseJournal` service, for undoing many mis-keyed entries at once. The correction primitive is
+done; this is the read-and-navigate surface that makes it usable. Note the honest caveat carried
+from the engine: a reversal's date defaults to today (it must land in an open period — the original's
+period is usually closed), and dimension tags are intentionally **not** copied to the reversal (D-32).
 
 ### Product follow-up — an optional product/service catalog (future)
 
@@ -615,9 +641,21 @@ aging, cash-flow, budget-vs-actual; a web Export control sits in the Reports she
 all-rows-per-filter paging mechanism, not a report service) and export of `cash-flow-projection` /
 `audit` (bucket-grid / `audit.read`-gated). Report export is the substantive part-2 deliverable.
 
-**(1099 tracking & e-file was split out into its own milestone — see [1099 reporting](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-scoped--dev-ready).)**
+**(1099 tracking & e-file was split out into its own milestone — see [1099 reporting](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green).)**
 
-### Milestone 1099 — contractor tax reporting (1099-NEC/MISC) (OB-228, scoped — dev-ready)
+### Milestone 1099 — contractor tax reporting (1099-NEC/MISC) (OB-228, BUILT — gate-green)
+
+**BUILT — `yarn`-suite green (2,957 tests), committed on `develop` (`a509eb3` Wave 0, `98ae3b2`
+Waves 1-2, `3967f3e` the property suite).** Delivered by the orchestrated fan-out below exactly as
+scoped: Wave-0 trunk (schema/codegen/contracts/`crypto/field-encryption`/permission keys), four
+parallel Sonnet worktree streams (efile adapters · `modules/ten99` · routes · web 1099 Center), then
+orchestrator integration + all tripwires (permission-matrix, routes, cross-org A7 with a real
+profile/run/form fixture, B11, catalog/grants/tenant/harness/resolution) + a rollup property suite
+(threshold boundary, cash-basis year, void exclusion, generate-snapshots-the-worksheet, TIN masked to
+last4). **Two flagged follow-ups:** the `accounts.excluded_from_1099` card-exclusion flag is respected
+by the rollup but not yet settable via the accounts API/editor (the human-reviewed worksheet +
+`contactIds` filter cover it meanwhile); and the `ten99.spec.ts` browser E2E is owed (authored-not-run,
+the PB/Q precedent). The original scope write-up follows.
 
 Split out of OB-220 into its own milestone because, while it posts **no journals** (a reporting/
 compliance overlay, not a ledger change — low-risk, like budgets and the audit report), it carries
