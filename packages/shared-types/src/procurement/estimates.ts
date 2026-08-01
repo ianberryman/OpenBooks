@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 import {
   DOCUMENT_MAX_LINES,
@@ -180,3 +180,63 @@ export const estimatePageSchema = pageSchema(estimateSummarySchema, {
 });
 
 export type EstimatePage = z.infer<typeof estimatePageSchema>;
+
+/**
+ * The estimates-list headline figures, as at a date — `invoicesSummaryQuerySchema`'s
+ * reason applies unchanged: this is a live snapshot, not a reproducible report, so
+ * `asOf` is optional and defaults to today.
+ */
+export const estimatesSummaryQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today: this is a live snapshot, not ' +
+      'a reproducible report.',
+  }),
+});
+
+export type EstimatesSummaryQuery = z.input<typeof estimatesSummaryQuerySchema>;
+
+/**
+ * The three headline figures the estimates list shows: what is still open (draft +
+ * approved), what of the open amount has lapsed, and what has converted to an
+ * invoice in the last 30 days. An estimate posts no journal (D-M3), so unlike
+ * `InvoicesSummary`/`BillsSummary` these figures are stored-column predicates over
+ * `estimates`, not a read against the aging repository.
+ */
+export const estimatesSummarySchema = z
+  .strictObject({
+    asOf: calendarDateSchema.meta({
+      description:
+        'The date the figures were computed as at — echoed so a client knows what it got.',
+    }),
+    openValue: minorUnitsSchema.meta({
+      description: 'The gross value of every estimate not yet converted (draft + approved).',
+    }),
+    openCount: z.int().nonnegative().meta({
+      description: 'How many estimates are still open.',
+    }),
+    expiredValue: minorUnitsSchema.meta({
+      description:
+        'The part of `openValue` that has lapsed: approved, unconverted, and `expiryDate` before ' +
+        '`asOf`.',
+    }),
+    expiredCount: z.int().nonnegative().meta({
+      description: 'How many open estimates have expired.',
+    }),
+    convertedValue: minorUnitsSchema.meta({
+      description:
+        'The gross value of estimates converted to an invoice within the 30 days ending on ' +
+        '`asOf`.',
+    }),
+    convertedCount: z.int().nonnegative().meta({
+      description: 'How many estimates converted within that window.',
+    }),
+  })
+  .meta({
+    id: 'EstimatesSummary',
+    description:
+      'The headline figures the estimates list shows: open value, expired value, and value ' +
+      'converted in the last 30 days, as at a date (defaulting to today).',
+  });
+
+export type EstimatesSummary = z.infer<typeof estimatesSummarySchema>;

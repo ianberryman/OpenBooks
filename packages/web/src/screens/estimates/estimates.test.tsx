@@ -105,10 +105,48 @@ function listRoute(estimates: readonly Record<string, unknown>[]): StubRoute {
   };
 }
 
+/** The headline figures the list's summary cards read (`GET /v1/estimates/summary`). Zeros are
+ * enough for tests that do not assert the figures; `asOf` still has to be a real date, since it
+ * is what the list's own "Expired" pills are measured against. Ordered ahead of the
+ * `:estimateId` route by callers, since `/v1/estimates/summary` matches that pattern too. */
+function summaryRoute(): StubRoute {
+  return {
+    method: 'GET',
+    path: '/v1/estimates/summary',
+    reply: () => ({
+      status: 200,
+      body: {
+        asOf: '2026-07-01',
+        openValue: '0',
+        openCount: 0,
+        expiredValue: '0',
+        expiredCount: 0,
+        convertedValue: '0',
+        convertedCount: 0,
+      },
+    }),
+  };
+}
+
+/** The full estimate (lines included) the routed detail/editor loads by id — the list holds
+ * only the lineless summary. */
+function fullEstimate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { ...estimateSummary(overrides), lines: [] };
+}
+
+function detailRoute(estimate: Record<string, unknown>): StubRoute {
+  return {
+    method: 'GET',
+    path: '/v1/estimates/:estimateId',
+    reply: () => ({ status: 200, body: estimate }),
+  };
+}
+
 describe('EstimatesScreen', () => {
   it('reads document number, customer, status and total off the estimate rather than deriving them', async () => {
     installApiStub([
       ...referenceRoutes(),
+      summaryRoute(),
       listRoute([
         estimateSummary({ documentNumber: '1007', status: 'approved', totals: totals('250000') }),
       ]),
@@ -121,102 +159,69 @@ describe('EstimatesScreen', () => {
     expect(screen.getByText('$2,500.00')).toBeInTheDocument();
   });
 
-  it(
-    'creates an estimate with one idempotency key, the fixed exclusive tax mode, and no ' +
-      'dimension tags on its line',
-    async () => {
-      const stub = installApiStub([
-        ...referenceRoutes(),
-        listRoute([]),
-        {
-          method: 'POST',
-          path: '/v1/estimates',
-          reply: ({ body }) => ({
-            status: 201,
-            body: {
-              ...(body as object),
-              id: ESTIMATE_ID,
-              documentNumber: null,
-              status: 'draft',
-              totals: totals('50000'),
-              convertedInvoiceId: null,
-              approvedAt: null,
-              ...TIMESTAMPS,
-            },
-          }),
-        },
-      ]);
-      const user = userEvent.setup();
-      renderWithQueryClient(<EstimatesScreen />);
-
-      const newButton = await screen.findByRole('button', { name: 'New estimate' });
-      await waitFor(() => {
-        expect(newButton).toBeEnabled();
-      });
-      await user.click(newButton);
-
-      const dialog = await screen.findByRole('dialog', { name: 'New estimate' });
-
-      await user.click(within(dialog).getByRole('combobox', { name: 'Customer' }));
-      await user.click(await screen.findByText('Jordan Ellis'));
-
-      const lines = within(dialog).getAllByLabelText(/Description, line/);
-      await user.type(lines[0] as HTMLElement, 'Consulting');
-
-      await user.clear(within(dialog).getByLabelText('Quantity, line 1'));
-      await user.type(within(dialog).getByLabelText('Quantity, line 1'), '2');
-
-      await user.type(within(dialog).getByLabelText('Unit price, line 1'), '500');
-
-      await user.click(within(dialog).getByRole('combobox', { name: 'Income account, line 1' }));
-      await user.click(await screen.findByText('Consulting revenue'));
-
-      await user.click(within(dialog).getByRole('button', { name: 'Create' }));
-
-      await waitFor(() => {
-        expect(stub.keysFor('POST', '/v1/estimates')).toHaveLength(1);
-      });
-      const created = stub.calls.find((call) => call.method === 'POST');
-      expect(created?.body).toEqual({
-        contactId: CUSTOMER_ID,
-        issueDate: expect.any(String) as string,
-        expiryDate: null,
-        reference: null,
-        memo: null,
-        taxMode: 'exclusive',
-        lines: [
-          {
-            description: 'Consulting',
-            quantity: '2',
-            unitAmount: '50000',
-            accountId: ACCOUNT_ID,
-            // Provenance for the item a line was seeded from — `null` for this hand-typed one
-            // (initiative Catalog, D-CAT-2).
-            catalogItemId: null,
-          },
-        ],
-      });
-      expect(created?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
-    },
-  );
-
-  it('approves a draft with a single POST and no body', async () => {
+  /**
+   * "New estimate" pre-creates a draft (its lines are optional — the server produces an empty
+   * one) and opens it at its own URL, so the create body is exactly a customer, today's issue
+   * date and the fixed `taxMode: 'exclusive'` this screen never exposes a control for — no
+   * lines, and so no `dimensionValueIds` (D-M7) — carried on one idempotency key.
+   */
+  it('creates a draft on the New button with one key and the fixed exclusive tax mode, then opens its editor', async () => {
     const stub = installApiStub([
       ...referenceRoutes(),
-      listRoute([estimateSummary({ status: 'draft' })]),
+      summaryRoute(),
+      listRoute([]),
+      {
+        method: 'POST',
+        path: '/v1/estimates',
+        reply: ({ body }) => ({
+          status: 201,
+          body: { ...fullEstimate(), ...(body as object), id: ESTIMATE_ID },
+        }),
+      },
+      detailRoute(fullEstimate()),
+    ]);
+    const user = userEvent.setup();
+    renderWithQueryClient(<EstimatesScreen />);
+
+    const newButton = await screen.findByRole('button', { name: 'New estimate' });
+    await waitFor(() => {
+      expect(newButton).toBeEnabled();
+    });
+    await user.click(newButton);
+
+    // A draft with no number yet, so it opens on the editor page (which owns the Notes field).
+    expect(await screen.findByLabelText('Notes / Terms')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(stub.keysFor('POST', '/v1/estimates')).toHaveLength(1);
+    });
+    const created = stub.calls.find((call) => call.method === 'POST');
+    expect(created?.body).toEqual({
+      contactId: CUSTOMER_ID,
+      issueDate: expect.any(String) as string,
+      taxMode: 'exclusive',
+    });
+    expect(created?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('approves a draft from its editor with a single POST and no body', async () => {
+    const stub = installApiStub([
+      ...referenceRoutes(),
+      detailRoute(fullEstimate({ status: 'draft' })),
       {
         method: 'POST',
         path: '/v1/estimates/:estimateId/approve',
         reply: () => ({
           status: 200,
-          body: estimateSummary({ documentNumber: '1008', status: 'approved' }),
+          body: fullEstimate({ documentNumber: '1008', status: 'approved' }),
         }),
       },
     ]);
     const user = userEvent.setup();
-    renderWithQueryClient(<EstimatesScreen />);
+    // Cold-load the draft's own URL — the routing exists so a link lands on the right component.
+    renderWithQueryClient(<EstimatesScreen />, `/estimates/${ESTIMATE_ID}`);
 
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve & Send' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Approve this estimate?' });
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
@@ -229,10 +234,10 @@ describe('EstimatesScreen', () => {
     expect(approved?.path).toBe(`/v1/estimates/${ESTIMATE_ID}/approve`);
   });
 
-  it('converts an approved estimate and reports the invoice it produced, not a second estimate', async () => {
+  it('converts an approved estimate and navigates to the invoice it produced, not a second estimate', async () => {
     installApiStub([
       ...referenceRoutes(),
-      listRoute([estimateSummary({ documentNumber: '1009', status: 'approved' })]),
+      detailRoute(fullEstimate({ documentNumber: '1009', status: 'approved' })),
       {
         method: 'POST',
         path: '/v1/estimates/:estimateId/convert',
@@ -260,7 +265,7 @@ describe('EstimatesScreen', () => {
       },
     ]);
     const user = userEvent.setup();
-    renderWithQueryClient(<EstimatesScreen />);
+    renderWithQueryClient(<EstimatesScreen />, `/estimates/${ESTIMATE_ID}`);
 
     await user.click(await screen.findByRole('button', { name: 'Convert to invoice' }));
 
@@ -269,6 +274,8 @@ describe('EstimatesScreen', () => {
     });
     await user.click(within(dialog).getByRole('button', { name: 'Convert' }));
 
-    expect(await screen.findByText(/Invoice 2001 was created/)).toBeInTheDocument();
+    // Converting hands back the produced Invoice; the detail reports it by navigating to it —
+    // the `/sales/*` marker route stands in for the invoice screen.
+    expect(await screen.findByText('Sales invoice page')).toBeInTheDocument();
   });
 });

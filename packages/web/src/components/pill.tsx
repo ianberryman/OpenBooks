@@ -2,14 +2,16 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { cx } from '../lib/cx';
 
-/** An `open`/`closed`, `active`/`archived`, `pending`/`accepted` marker. */
-export type PillTone = 'neutral' | 'positive' | 'muted' | 'negative';
+/** An `open`/`closed`, `active`/`archived`, `pending`/`accepted` marker. `accent` is the
+ * soft-blue "in progress" reading the sales list uses for an unpaid-but-not-overdue invoice. */
+export type PillTone = 'neutral' | 'positive' | 'muted' | 'negative' | 'accent';
 
 const PILL_CLASSES: Readonly<Record<PillTone, string>> = {
   neutral: 'border-border bg-surface-sunken text-text-muted',
   positive: 'border-success-border bg-success-soft text-success-text',
   muted: 'border-border bg-surface-sunken text-text-subtle',
   negative: 'border-danger-border bg-danger-soft text-danger-text',
+  accent: 'border-accent-soft bg-accent-soft text-text',
 };
 
 export function Pill({

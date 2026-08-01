@@ -1,158 +1,210 @@
 import type { ReactElement } from 'react';
 
-import { Button, Pill, ResponsiveTable, formatMoney } from '../../components';
+import { Pill, ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
-import { EmptyRow, TABLE_CLASSES, TD_CLASSES, TH_CLASSES } from '../settings/section';
+import { useIsCompact } from '../../lib/use-viewport';
+import { isExpired, statusPresentation } from './estimate-presentation';
 import type { EstimateReferenceData, EstimateSummary } from './queries';
-import { STATUS_LABELS, STATUS_PILL_TONE } from './vocabulary';
+import { PLURAL } from './vocabulary';
 
 /**
- * One page of estimates — `fixed-assets/list.tsx`'s shape. `status` is read off the
- * response, never derived (D-M6): approving and converting are the only two writes that
- * ever move it, and both are this screen's own actions, so the table simply shows what the
- * server last said.
+ * A page of estimates (estimates redesign, AGENT E-EDITOR) — the AR-quote mirror of
+ * `sales/document-list.tsx`, adapted to a non-posting document.
+ *
+ * ## No settlement column, because nothing here is ever settled
+ *
+ * An invoice's list carries a still-owed figure because payments apply against it; an
+ * estimate posts no journal and takes no payment (D-M3), so there is nothing analogous to
+ * show. The desktop table's last column is simply the total, and the compact card's
+ * two-up footer is Expiry/Total rather than Due/Outstanding.
+ *
+ * ## Expiry, not a due date, is the date that turns red
+ *
+ * `expiryDate` is informational only — nothing enforces it — so the column reddens only
+ * when `isExpired` says the estimate has actually lapsed (approved, unconverted, past its
+ * date). A draft's expiry date never reddens, because `isExpired` itself refuses anything
+ * but `approved` — the same one-definition-of-red split `sales/invoice-list.ts`'s
+ * `isOverdue` makes for invoices.
+ *
+ * ## Actions moved off this row
+ *
+ * The dialog-based shape this replaced (`EstimateFormDialog`, opened from a row) carried
+ * five callbacks per row — edit, approve, convert, send, discard. Now a row does exactly
+ * one thing, `onOpen`, and every action lives on the page it routes to (the editor for a
+ * draft, the detail view otherwise) — the same split `sales/document-list.tsx` made when
+ * its own per-row dialog became a page.
  */
 export interface EstimateListProps {
   readonly estimates: readonly EstimateSummary[];
   readonly reference: EstimateReferenceData;
-  readonly loading: boolean;
-  readonly emptyMessage: string;
-  readonly onEdit: (estimate: EstimateSummary) => void;
-  readonly onApprove: (estimate: EstimateSummary) => void;
-  readonly onConvert: (estimate: EstimateSummary) => void;
-  readonly onSend: (estimate: EstimateSummary) => void;
-  readonly onDiscard: (estimate: EstimateSummary) => void;
+  /** The date `isExpired`/`statusPresentation` measure against — today, echoed from the summary. */
+  readonly asOf: string;
+  readonly truncated: boolean;
+  readonly onOpen: (estimateId: string) => void;
 }
 
 export function EstimateList({
   estimates,
   reference,
-  loading,
-  emptyMessage,
-  onEdit,
-  onApprove,
-  onConvert,
-  onSend,
-  onDiscard,
+  asOf,
+  truncated,
+  onOpen,
 }: EstimateListProps): ReactElement {
-  return (
-    <ResponsiveTable>
-      <table className={TABLE_CLASSES}>
-        <caption className="sr-only">Estimates</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={TH_CLASSES}>
-              Number
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Customer
-            </th>
-            <th scope="col" className={TH_CLASSES}>
-              Status
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              Total
-            </th>
-            <th scope="col" className={cx(TH_CLASSES, 'text-right')}>
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {estimates.length === 0 && (
-            <EmptyRow columns={5}>{loading ? 'Loading…' : emptyMessage}</EmptyRow>
-          )}
-          {estimates.map((estimate) => {
-            const canEdit = estimate.status === 'draft';
-            const canApprove = estimate.status === 'draft';
-            const canConvert =
-              estimate.status === 'approved' && estimate.convertedInvoiceId === null;
-            // Sending is refused only while a draft holds no number to send (`sendEstimate`'s
-            // own `${kind}_not_approved`) — it stays offered after conversion, because the
-            // estimate itself still exists and can still be emailed.
-            const canSend = estimate.status !== 'draft';
-            const canDiscard = estimate.status === 'draft';
-            const customerName =
-              reference.contactsById.get(estimate.contactId)?.displayName ?? 'Unknown customer';
+  const isCompact = useIsCompact();
 
-            return (
-              <tr key={estimate.id}>
-                <td className={TD_CLASSES}>
-                  <span className="font-mono">{estimate.documentNumber ?? '—'}</span>
-                  {estimate.reference !== null && estimate.reference !== '' && (
-                    <span className="block text-xs text-text-subtle">{estimate.reference}</span>
-                  )}
-                </td>
-                <td className={TD_CLASSES}>{customerName}</td>
-                <td className={TD_CLASSES}>
-                  <Pill tone={STATUS_PILL_TONE[estimate.status]}>
-                    {STATUS_LABELS[estimate.status]}
-                  </Pill>
-                </td>
-                <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>
-                  {formatMoney(estimate.totals.gross)}
-                </td>
-                <td className={cx(TD_CLASSES, 'text-right')}>
-                  <div className="flex justify-end gap-1">
-                    {canEdit && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onEdit(estimate);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                    {canApprove && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onApprove(estimate);
-                        }}
-                      >
-                        Approve
-                      </Button>
-                    )}
-                    {canConvert && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onConvert(estimate);
-                        }}
-                      >
-                        Convert to invoice
-                      </Button>
-                    )}
-                    {canSend && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          onSend(estimate);
-                        }}
-                      >
-                        Send
-                      </Button>
-                    )}
-                    {canDiscard && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        aria-label={`Discard estimate for ${customerName}`}
-                        onClick={() => {
-                          onDiscard(estimate);
-                        }}
-                      >
-                        Discard
-                      </Button>
-                    )}
-                  </div>
-                </td>
+  if (estimates.length === 0) {
+    return (
+      <p className="text-text-muted">
+        No estimates yet. "New estimate" starts a draft — nothing is sent or converted until you say
+        so.
+      </p>
+    );
+  }
+
+  function customerName(estimate: EstimateSummary): string {
+    return reference.contactsById.get(estimate.contactId)?.displayName ?? 'Unknown contact';
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {isCompact ? (
+        <ul className="flex flex-col gap-3" aria-label={PLURAL}>
+          {estimates.map((estimate) => (
+            <EstimateCard
+              key={estimate.id}
+              estimate={estimate}
+              customerName={customerName(estimate)}
+              asOf={asOf}
+              onOpen={onOpen}
+            />
+          ))}
+        </ul>
+      ) : (
+        <ResponsiveTable>
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">{PLURAL}</caption>
+            <thead>
+              <tr className="text-left text-xs text-text-subtle">
+                <th scope="col" className="p-2 font-medium">
+                  #
+                </th>
+                <th scope="col" className="p-2 font-medium">
+                  Number
+                </th>
+                <th scope="col" className="p-2 font-medium">
+                  Customer
+                </th>
+                <th scope="col" className="p-2 font-medium">
+                  Expiry
+                </th>
+                <th scope="col" className="p-2 font-medium">
+                  Status
+                </th>
+                <th scope="col" className="p-2 text-right font-medium">
+                  Total
+                </th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </ResponsiveTable>
+            </thead>
+            <tbody>
+              {estimates.map((estimate, index) => {
+                const status = statusPresentation(estimate, asOf);
+                const expired = isExpired(estimate, asOf);
+                return (
+                  <tr key={estimate.id} className="border-t border-border hover:bg-surface-hover">
+                    <td className="p-2 font-mono text-text-muted">{index + 1}</td>
+                    <td className="p-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpen(estimate.id);
+                        }}
+                        className="rounded-sm font-mono text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                      >
+                        {estimate.documentNumber ?? 'Draft'}
+                      </button>
+                    </td>
+                    <td className="p-2 text-text">{customerName(estimate)}</td>
+                    <td
+                      className={cx('p-2 font-mono text-text-muted', expired && 'text-danger-text')}
+                    >
+                      {estimate.expiryDate ?? '—'}
+                    </td>
+                    <td className="p-2">
+                      <Pill tone={status.tone}>{status.label}</Pill>
+                    </td>
+                    <td className="p-2 text-right font-mono tabular-nums text-text">
+                      {formatMoney(estimate.totals.gross)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ResponsiveTable>
+      )}
+
+      {truncated && (
+        <p className="text-xs text-text-subtle">
+          Showing the first page. Narrow the filter — by customer, by status, or by number — to
+          reach the rest.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One estimate as a card, for the compact tier — mirrors `sales/document-list.tsx`'s
+ * `DocumentCard`, minus the settled/owing switch its footer makes: an estimate settles
+ * nothing, so the footer here is always Expiry on the left and Total on the right.
+ */
+function EstimateCard({
+  estimate,
+  customerName,
+  asOf,
+  onOpen,
+}: {
+  readonly estimate: EstimateSummary;
+  readonly customerName: string;
+  readonly asOf: string;
+  readonly onOpen: (estimateId: string) => void;
+}): ReactElement {
+  const status = statusPresentation(estimate, asOf);
+  const expired = isExpired(estimate, asOf);
+  const subline = estimate.documentNumber === null ? 'Draft' : `#${estimate.documentNumber}`;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(estimate.id)}
+        className="flex w-full flex-col gap-3 rounded-lg border border-border bg-surface p-4 text-left hover:bg-surface-hover"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-lg font-semibold text-text">{customerName}</p>
+            <p className="truncate font-mono text-sm text-text-subtle">{subline}</p>
+          </div>
+          <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+            <Pill tone={status.tone}>{status.label}</Pill>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-3 border-t border-border pt-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-subtle">Expiry</p>
+            <p className={cx('mt-0.5 font-mono text-sm text-text', expired && 'text-danger-text')}>
+              {estimate.expiryDate ?? '—'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-medium uppercase tracking-wide text-text-subtle">Total</p>
+            <p className="mt-0.5 font-mono text-base font-semibold tabular-nums text-text">
+              {formatMoney(estimate.totals.gross)}
+            </p>
+          </div>
+        </div>
+      </button>
+    </li>
   );
 }

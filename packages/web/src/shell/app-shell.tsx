@@ -121,7 +121,13 @@ export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): R
   const hasNav = nav.length > 0;
 
   return (
-    <div className="flex h-screen flex-col bg-canvas text-text">
+    // `h-dvh`, not `h-screen` (`100vh`): on a mobile browser `100vh` is the *address-bar-
+    // hidden* height, so a `100vh` shell is taller than the visible viewport and the
+    // document itself scrolls — dragging this header (a sibling above `#main`, not inside
+    // its scroll region) out of view once `#main` bottoms out. `100dvh` tracks the dynamic
+    // viewport, so the shell never exceeds what is visible and there is no document scroll
+    // to move the header. `#main` below owns the only scroll.
+    <div className="flex h-dvh flex-col bg-canvas text-text">
       {/* Skip link: the sidebar holds every primary destination, so a keyboard user reaches
           the content past all of it on every navigation. */}
       <a
@@ -201,7 +207,12 @@ export function AppShell({ nav = [], orgIndicator, children }: AppShellProps): R
           </nav>
         )}
 
-        <main id="main" className="min-w-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
+        {/* `overscroll-contain` keeps a rubber-band at the top or bottom of this region from
+            chaining out to the document — the other half of keeping the header put on touch. */}
+        <main
+          id="main"
+          className="min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6 md:py-6"
+        >
           {children}
         </main>
       </div>

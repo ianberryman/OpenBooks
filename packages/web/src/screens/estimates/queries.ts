@@ -44,6 +44,7 @@ export type PredocumentLineRequest = components['schemas']['PredocumentLineReque
 export type PredocumentDelivery = components['schemas']['PredocumentDelivery'];
 export type SendEstimateRequest = components['schemas']['SendPredocumentRequestInput'];
 export type Invoice = components['schemas']['Invoice'];
+export type EstimatesSummary = components['schemas']['EstimatesSummary'];
 
 export type Contact = components['schemas']['Contact'];
 export type Account = components['schemas']['Account'];
@@ -65,6 +66,7 @@ function estimateDetailQueryKey(estimateId: string): readonly unknown[] {
 
 export const CONTACTS_QUERY_KEY = ['estimates', 'contacts'] as const;
 const ACCOUNTS_QUERY_KEY = ['estimates', 'accounts'] as const;
+const ESTIMATES_SUMMARY_QUERY_KEY = ['estimates', 'summary'] as const;
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */
 const PAGE_LIMIT = 200;
@@ -217,6 +219,82 @@ export function useEstimate(estimateId: string | null): UseQueryResult<Estimate,
       ),
     enabled: estimateId !== null,
   });
+}
+
+/** The server-side narrowings the redesigned list offers — the same two `/v1/estimates`
+ * accepts. `open`/`expired`/`converted` card narrowing and any text search stay client-side
+ * (`estimate-presentation.ts`), for `sales.tsx`'s reason: they are not filters the API has. */
+export interface EstimateListFilters {
+  readonly contactId?: string;
+  readonly status?: EstimateStatus;
+}
+
+/**
+ * One capped page of estimates for the redesigned list — flattened and filterable, unlike
+ * the infinite `useEstimateList` the old screen paged with. `truncated` is the presence of a
+ * next cursor, echoed the way `sales/queries.ts`' `useDocumentList` does it, so the list can
+ * say "narrow the filter to reach the rest" rather than fake a second page.
+ */
+export function useEstimateListItems(filters: EstimateListFilters = {}): {
+  readonly items: readonly EstimateSummary[];
+  readonly isPending: boolean;
+  readonly error: unknown;
+  readonly truncated: boolean;
+  readonly refetch: () => void;
+} {
+  const query = useQuery({
+    queryKey: [...ESTIMATES_SCOPE, 'list-page', filters.contactId ?? null, filters.status ?? null],
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/v1/estimates', {
+          params: {
+            query: {
+              limit: PAGE_LIMIT,
+              ...(filters.contactId === undefined ? {} : { contactId: filters.contactId }),
+              ...(filters.status === undefined ? {} : { status: filters.status }),
+            },
+          },
+        }),
+      ),
+  });
+
+  return {
+    items: query.data?.items ?? [],
+    isPending: query.isPending,
+    error: query.error,
+    truncated: query.data?.nextCursor != null,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
+}
+
+export interface EstimatesSummaryResult {
+  readonly data: EstimatesSummary | null;
+  readonly error: unknown;
+  readonly refetch: () => void;
+}
+
+/**
+ * The three headline figures above the estimates list — open pipeline value, what has
+ * expired, and what converted in the last 30 days. Server-computed (`GET /v1/estimates/summary`)
+ * rather than summed from the page for `sales/summary-cards.tsx`'s reason: the list is one
+ * capped page, and only the server sees every estimate. The "converted last 30 days" figure in
+ * particular needs `converted_at`, which is not on the summary rows the list holds.
+ */
+export function useEstimatesSummary(): EstimatesSummaryResult {
+  const query = useQuery({
+    queryKey: ESTIMATES_SUMMARY_QUERY_KEY,
+    queryFn: async () => unwrap(await api.GET('/v1/estimates/summary', { params: { query: {} } })),
+  });
+
+  return {
+    data: query.data ?? null,
+    error: query.error,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
 }
 
 /**

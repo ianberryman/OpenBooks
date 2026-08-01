@@ -29,11 +29,13 @@ export type Invoice = components['schemas']['Invoice'];
 export type CreditNote = components['schemas']['CreditNote'];
 export type InvoiceSummary = components['schemas']['InvoiceSummary'];
 export type CreditNoteSummary = components['schemas']['CreditNoteSummary'];
+export type InvoicesSummary = components['schemas']['InvoicesSummary'];
 export type DocumentLine = components['schemas']['DocumentLine'];
 export type DocumentLineRequest = components['schemas']['DocumentLineRequestInput'];
 export type DocumentStatus = components['schemas']['Invoice']['status'];
 export type TaxMode = components['schemas']['Invoice']['taxMode'];
 export type Allocation = components['schemas']['Allocation'];
+export type DocumentSettlement = components['schemas']['DocumentSettlement'];
 export type VoidDocumentRequest = components['schemas']['VoidDocumentRequestInput'];
 export type CreateAllocationsRequest = components['schemas']['CreateAllocationsRequestInput'];
 export type Account = components['schemas']['Account'];
@@ -368,6 +370,7 @@ export const salesKeys = {
     ['sales', 'document', kind, documentId] as const,
   /** The customer's open invoices, read by the "apply this credit" picker. */
   openInvoices: (contactId: string) => ['sales', 'open-invoices', contactId] as const,
+  invoicesSummary: ['sales', 'invoices-summary'] as const,
 };
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */
@@ -486,21 +489,62 @@ export function useSalesReferenceData(): {
   };
 }
 
-export function useDocumentList(kind: SalesDocumentKind): {
+export interface InvoicesSummaryResult {
+  readonly data: InvoicesSummary | null;
+  readonly error: unknown;
+  readonly refetch: () => void;
+}
+
+/**
+ * The invoices-list headline figures — total unpaid, total overdue, paid in the last 30
+ * days.
+ *
+ * `asOf` is left off so the server answers as at today: this is the live snapshot the
+ * cards show, not a reproducible report (the endpoint defaults the date for exactly that
+ * reason). The figures are the server's — outstanding is total minus allocations, computed
+ * on read (D-34) — so nothing here sums the invoice page, which is capped and would be
+ * wrong past the first page anyway.
+ */
+export function useInvoicesSummary(): InvoicesSummaryResult {
+  const query = useQuery({
+    queryKey: salesKeys.invoicesSummary,
+    queryFn: async () => unwrap(await api.GET('/v1/invoices/summary', { params: { query: {} } })),
+  });
+
+  return {
+    data: query.data ?? null,
+    error: query.error,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
+}
+
+export function useDocumentList(
+  kind: SalesDocumentKind,
+  filters: { readonly contactId?: string; readonly status?: DocumentStatus } = {},
+): {
   readonly items: readonly SalesDocumentSummary[];
   readonly isPending: boolean;
   readonly error: unknown;
+  readonly truncated: boolean;
   readonly refetch: () => void;
 } {
   const query = useQuery({
-    queryKey: salesKeys.list(kind),
-    queryFn: async () => apiFor(kind).list({ limit: PAGE_LIMIT }),
+    queryKey: [...salesKeys.list(kind), filters.contactId ?? null, filters.status ?? null],
+    queryFn: async () =>
+      apiFor(kind).list({
+        limit: PAGE_LIMIT,
+        ...(filters.contactId === undefined ? {} : { contactId: filters.contactId }),
+        ...(filters.status === undefined ? {} : { status: filters.status }),
+      }),
   });
 
   return {
     items: query.data?.items ?? [],
     isPending: query.isPending,
     error: query.error,
+    truncated: query.data?.nextCursor != null,
     refetch: () => {
       void query.refetch();
     },

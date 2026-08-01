@@ -128,6 +128,7 @@ import {
   discardInvoice,
   getCreditNote,
   getInvoice,
+  invoicesSummary,
   listCreditNotes,
   listInvoices,
   updateCreditNote,
@@ -289,6 +290,7 @@ import {
   convertEstimateToInvoice,
   createEstimate,
   discardEstimate,
+  estimatesSummary,
   getEstimate,
   listEstimates,
   updateEstimate,
@@ -1480,6 +1482,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listInvoices',
     permission: 'invoices.read',
     call: (s) => listInvoices({}, s.ctx),
+  },
+  {
+    name: 'invoicesSummary',
+    operationId: 'invoicesSummary',
+    permission: 'invoices.read',
+    call: (s) => invoicesSummary({}, s.ctx),
   },
   {
     name: 'updateInvoice',
@@ -3043,6 +3051,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listEstimates',
     permission: 'estimates.read',
     call: (s) => listEstimates({}, s.ctx),
+  },
+  {
+    name: 'estimatesSummary',
+    operationId: 'estimatesSummary',
+    permission: 'estimates.read',
+    call: (s) => estimatesSummary({}, s.ctx),
   },
   {
     name: 'getEstimate',

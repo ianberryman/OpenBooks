@@ -129,3 +129,5 @@ export {
   updateCreditNote,
   voidCreditNote,
 } from './credit-notes.service';
+
+export { invoicesSummary } from './summary.service';

@@ -29,6 +29,8 @@ export {
   estimatePageSchema,
   estimateSchema,
   estimateSummarySchema,
+  estimatesSummaryQuerySchema,
+  estimatesSummarySchema,
   listEstimatesQuerySchema,
   updateEstimateRequestSchema,
 } from './estimates';
@@ -38,6 +40,8 @@ export type {
   EstimatePage,
   EstimateStatus,
   EstimateSummary,
+  EstimatesSummary,
+  EstimatesSummaryQuery,
   ListEstimatesQuery,
   UpdateEstimateRequest,
 } from './estimates';

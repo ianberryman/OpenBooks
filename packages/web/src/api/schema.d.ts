@@ -1812,6 +1812,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/estimates/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The estimates-list headline figures
+         * @description What is still open (draft + approved), what of it has lapsed, and what has converted to an invoice in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today. An estimate posts no journal (D-M3), so these are stored-column predicates over `estimates`, not a read against the receivable aging.
+         */
+        get: operations["estimatesSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/estimates/{estimateId}": {
         parameters: {
             query?: never;
@@ -2355,6 +2375,26 @@ export interface paths {
          * @description Creates a draft. Nothing is posted and no number is allocated — a number reserved by a draft that was then discarded would leave a gap, and a gap in a document series is indistinguishable from a deletion (D-36). `dueDate` defaults to `issueDate`.
          */
         post: operations["createInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The invoices-list headline figures
+         * @description Total still owed, total overdue, and paid in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today, unlike the aging report which requires it (D-40). The figures tie to the receivable aging by construction — the same per-document outstanding (D-34).
+         */
+        get: operations["invoicesSummary"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8368,6 +8408,40 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @description The headline figures the estimates list shows: open value, expired value, and value converted in the last 30 days, as at a date (defaulting to today). */
+        EstimatesSummary: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDate"];
+            /** @description How many estimates converted within that window. */
+            convertedCount: number;
+            /** @description The gross value of estimates converted to an invoice within the 30 days ending on `asOf`. */
+            convertedValue: components["schemas"]["MinorUnits"];
+            /** @description How many open estimates have expired. */
+            expiredCount: number;
+            /** @description The part of `openValue` that has lapsed: approved, unconverted, and `expiryDate` before `asOf`. */
+            expiredValue: components["schemas"]["MinorUnits"];
+            /** @description How many estimates are still open. */
+            openCount: number;
+            /** @description The gross value of every estimate not yet converted (draft + approved). */
+            openValue: components["schemas"]["MinorUnits"];
+        };
+        /** @description The headline figures the estimates list shows: open value, expired value, and value converted in the last 30 days, as at a date (defaulting to today). */
+        EstimatesSummaryInput: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @description How many estimates converted within that window. */
+            convertedCount: number;
+            /** @description The gross value of estimates converted to an invoice within the 30 days ending on `asOf`. */
+            convertedValue: components["schemas"]["MinorUnitsInput"];
+            /** @description How many open estimates have expired. */
+            expiredCount: number;
+            /** @description The part of `openValue` that has lapsed: approved, unconverted, and `expiryDate` before `asOf`. */
+            expiredValue: components["schemas"]["MinorUnitsInput"];
+            /** @description How many estimates are still open. */
+            openCount: number;
+            /** @description The gross value of every estimate not yet converted (draft + approved). */
+            openValue: components["schemas"]["MinorUnitsInput"];
+        };
         /** @description A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58). */
         ExternalRef: {
             /** Format: date-time */
@@ -8975,6 +9049,36 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description The headline figures the invoices list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today). */
+        InvoicesSummary: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDate"];
+            /** @description How many invoices still have something owed on them. */
+            openCount: number;
+            /** @description How many of the open invoices are overdue. */
+            overdueCount: number;
+            /** @description Payments received from customers dated within the 30 days ending on `asOf` — money in, whatever it was applied to. */
+            paidLast30Days: components["schemas"]["MinorUnits"];
+            /** @description The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket. */
+            totalOverdue: components["schemas"]["MinorUnits"];
+            /** @description What is still owed across all open invoices (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance. */
+            totalUnpaid: components["schemas"]["MinorUnits"];
+        };
+        /** @description The headline figures the invoices list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today). */
+        InvoicesSummaryInput: {
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @description How many invoices still have something owed on them. */
+            openCount: number;
+            /** @description How many of the open invoices are overdue. */
+            overdueCount: number;
+            /** @description Payments received from customers dated within the 30 days ending on `asOf` — money in, whatever it was applied to. */
+            paidLast30Days: components["schemas"]["MinorUnitsInput"];
+            /** @description The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket. */
+            totalOverdue: components["schemas"]["MinorUnitsInput"];
+            /** @description What is still owed across all open invoices (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance. */
+            totalUnpaid: components["schemas"]["MinorUnitsInput"];
         };
         /** @description One pending payment’s issue outcome — success carries the Payment it became. */
         IssueOutcome: {
@@ -16734,6 +16838,37 @@ export interface operations {
             };
         };
     };
+    estimatesSummary: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstimatesSummary"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getEstimate: {
         parameters: {
             query?: never;
@@ -18009,6 +18144,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    invoicesSummary: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicesSummary"];
                 };
             };
             /** @description Default Response */

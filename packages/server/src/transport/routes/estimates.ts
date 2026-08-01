@@ -1,13 +1,15 @@
 import {
+  calendarDateSchema,
   createEstimateRequestSchema,
   ESTIMATE_STATUSES,
   estimatePageSchema,
   estimateSchema,
+  estimatesSummarySchema,
   invoiceSchema,
   pageCursorSchema,
   updateEstimateRequestSchema,
 } from '@openbooks/shared-types';
-import type { Estimate, EstimatePage, Invoice } from '@openbooks/shared-types';
+import type { Estimate, EstimatePage, EstimatesSummary, Invoice } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
@@ -16,6 +18,7 @@ import {
   convertEstimateToInvoice,
   createEstimate,
   discardEstimate,
+  estimatesSummary,
   getEstimate,
   listEstimates,
   updateEstimate,
@@ -67,6 +70,15 @@ const listEstimatesWireQuerySchema = z.strictObject({
   status: z.enum(ESTIMATE_STATUSES).optional(),
   limit: pageLimitQuery('estimates'),
   cursor: pageCursorSchema.optional(),
+});
+
+/** Local, `invoicesSummaryWireQuerySchema`'s reason restated: no `id` to reference. */
+const estimatesSummaryWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today — this is a live snapshot, not ' +
+      'a report.',
+  }),
 });
 
 export function registerEstimateRoutes(app: App): void {
@@ -130,6 +142,31 @@ export function registerEstimateRoutes(app: App): void {
         },
         getContext(),
       );
+    },
+  );
+
+  app.get(
+    '/v1/estimates/summary',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'estimatesSummary',
+        summary: 'The estimates-list headline figures',
+        description:
+          'What is still open (draft + approved), what of it has lapsed, and what has converted ' +
+          'to an invoice in the last 30 days, as at a date. A live snapshot rather than a report: ' +
+          '`asOf` defaults to today. An estimate posts no journal (D-M3), so these are stored-' +
+          'column predicates over `estimates`, not a read against the receivable aging.',
+        tags: [ESTIMATE_TAG],
+        querystring: estimatesSummaryWireQuerySchema,
+        response: { 200: estimatesSummarySchema, ...ERROR_RESPONSES },
+      },
+    },
+    // A static segment, so `find-my-way` matches it ahead of `/v1/estimates/:estimateId`
+    // whatever the registration order; it is placed here so a reader sees why.
+    async (request): Promise<EstimatesSummary> => {
+      const { asOf } = request.query;
+      return estimatesSummary(asOf === undefined ? {} : { asOf }, getContext());
     },
   );
 

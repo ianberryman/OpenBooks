@@ -15,13 +15,15 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
+import { useIsCompact } from '../../lib/use-viewport';
 import { ContactFormDialog } from '../contacts/contact-form';
 import { CatalogItemDialog } from '../settings/catalog-item-dialog';
 import { useCatalogItemChoices } from '../settings/catalog-queries';
+import { DocumentHeader } from './document-header';
 import { blankLine, patchFromState, stateFromDocument } from './document-state';
 import type { EditorLine, EditorState } from './document-state';
 import { APPROVE_DOCUMENT, idempotencyKeyFor, releaseIdempotencyKey } from './intent-keys';
-import { LineRow, NO_TAX_RATE, applyCatalogItem } from './line-row';
+import { LineCard, LineRow, NO_TAX_RATE, applyCatalogItem } from './line-row';
 import { apiFor, salesKeys } from './queries';
 import type {
   SalesDocument,
@@ -69,13 +71,23 @@ import {
  * document rather than converting the prices already typed — confirmed rather than done
  * silently, because the totals move and nothing the user typed changed. The repricing is
  * the server's, on save; this file sends inputs and reads figures back.
+ *
+ * ## Presentation
+ *
+ * One `actions` node (Discard / Save / Approve) is built once and handed to the shared
+ * `DocumentHeader`, so a control is never rendered — and never wired — twice. Below the
+ * `md` breakpoint (D-120/D-123) the form and the lines render as stacked fields and
+ * `LineCard`s instead of a card-plus-table, and a second, reduced action pair repeats in a
+ * sticky footer for reach; neither swap touches a mutation, a dialog or a key.
  */
 export interface DocumentEditorProps {
   readonly document: SalesDocument;
   readonly kind: SalesDocumentKind;
   readonly reference: SalesReferenceData;
-  readonly onApproved: (document: SalesDocument) => void;
+  readonly onApproved: (document: SalesDocument, opts?: { readonly openSend?: boolean }) => void;
   readonly onDiscarded: () => void;
+  /** Back to the list — the breadcrumb in `DocumentHeader` calls it. */
+  readonly onBack: () => void;
 }
 
 const TAX_MODE_OPTIONS: readonly SelectOption[] = [
@@ -93,10 +105,13 @@ export function DocumentEditor({
   reference,
   onApproved,
   onDiscarded,
+  onBack,
 }: DocumentEditorProps): ReactElement {
   const queryClient = useQueryClient();
   const documentApi = apiFor(kind);
   const words = vocabularyFor(kind);
+  const isCompact = useIsCompact();
+  const asOf = new Date().toISOString().slice(0, 10);
 
   const [state, setState] = useState<EditorState>(() => stateFromDocument(document));
   const [saved, setSaved] = useState<SalesDocument>(document);
@@ -197,6 +212,22 @@ export function DocumentEditor({
     });
   }
 
+  /**
+   * Confirmed rather than applied, whenever there is anything to reprice. The flag decides
+   * what every `unitAmount` already entered *means*, so switching it does not convert the
+   * prices — it reads the same numbers the other way, and the totals move without anything
+   * the user typed having changed (D-35). Shared by the desktop `Select` and the compact
+   * toggle, so the two controls cannot answer the question differently.
+   */
+  function requestTaxMode(next: TaxMode): void {
+    if (next === state.taxMode) return;
+    if (state.lines.some((line) => line.unitAmount !== null)) {
+      setRepricing(next);
+      return;
+    }
+    edit({ ...state, taxMode: next });
+  }
+
   async function persist(): Promise<SalesDocument> {
     const result = await save.mutateAsync({
       patch: patchFromState(state, kind),
@@ -237,7 +268,9 @@ export function DocumentEditor({
       releaseIdempotencyKey(APPROVE_DOCUMENT, document.id);
       queryClient.setQueryData(salesKeys.document(kind, document.id), approved);
       void queryClient.invalidateQueries({ queryKey: salesKeys.list(kind) });
-      onApproved(approved);
+      // A fresh invoice opens straight into Send, because raising one that is never sent
+      // is the common slip this button exists to prevent; a credit note has no send step.
+      onApproved(approved, { openSend: kind === 'invoice' });
     } catch (error) {
       // The document is untouched: a refused approval rolls back the whole transaction,
       // so it is still a draft, still holds no number, and Approve is still the next
@@ -260,9 +293,66 @@ export function DocumentEditor({
     }
   }
 
+  const saveLabel = isCompact ? 'Save as draft' : 'Save draft';
+  /** Credit notes have no send step (D-39: nothing about one is delivered like an invoice). */
+  const primaryLabel =
+    kind === 'credit_note' ? 'Approve' : isCompact ? 'Save and send' : 'Approve & Send';
+
+  /**
+   * Built once and handed to `DocumentHeader`, so the header's actions and the compact
+   * footer's cannot drift on a handler even though the footer shows a smaller subset.
+   */
+  const actions = (
+    <>
+      <Button variant="danger" disabled={busy} onClick={() => setConfirming('discard')}>
+        Discard
+      </Button>
+      <Button
+        disabled={busy || !dirty}
+        onClick={() => {
+          void handleSave();
+        }}
+      >
+        {save.isPending ? 'Saving…' : saveLabel}
+      </Button>
+      {/**
+       * Disabled while any write is in flight, and carrying one key per document
+       * besides (`intent-keys.ts`), so neither a double click nor a retry after a
+       * refusal can allocate two numbers or post two journals.
+       */}
+      <Button variant="primary" disabled={busy} onClick={() => setConfirming('approve')}>
+        {approve.isPending ? 'Approving…' : primaryLabel}
+      </Button>
+    </>
+  );
+
+  const memoField = (
+    <Field className="w-full" error={fieldErrors['memo']}>
+      <FieldLabel>Notes / Terms</FieldLabel>
+      <textarea
+        className="min-h-24 w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-base text-text placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent"
+        aria-label="Notes / Terms"
+        value={state.memo}
+        disabled={busy}
+        onChange={(event) => {
+          edit({ ...state, memo: event.target.value });
+        }}
+      />
+    </Field>
+  );
+
   return (
-    <section className="flex flex-col gap-4" aria-label={`${words.singular} draft`}>
+    <section className="flex flex-col gap-4 pb-24 md:pb-6" aria-label={`${words.singular} draft`}>
+      <DocumentHeader
+        kind={kind}
+        document={saved}
+        asOf={asOf}
+        actions={actions}
+        onNavigateList={onBack}
+      />
+
       <p className="text-sm text-text-muted">
+        {dirty ? 'Unsaved changes' : 'All changes saved'} —{' '}
         {lifecycleSummary('draft', kind, words.outstandingLabel)}
       </p>
 
@@ -285,144 +375,94 @@ export function DocumentEditor({
         </Refusal>
       )}
 
-      <div className="flex flex-wrap gap-4">
-        <Field className="min-w-64 flex-1" error={fieldErrors['contactId']}>
-          <FieldLabel>Customer</FieldLabel>
-          <Combobox
-            options={contactOptions}
-            value={state.contactId}
-            disabled={busy}
-            placeholder="Search contacts…"
-            onValueChange={(value) => {
-              edit({ ...state, contactId: value });
-            }}
-            onCreate={{
-              label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
-              onSelect: (q) => {
-                setNewCustomerName(q.trim());
-              },
-            }}
-          />
-        </Field>
+      {isCompact ? (
+        <>
+          <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+            <Field error={fieldErrors['contactId']}>
+              <FieldLabel>Customer</FieldLabel>
+              <Combobox
+                options={contactOptions}
+                value={state.contactId}
+                disabled={busy}
+                placeholder="Search contacts…"
+                onValueChange={(value) => {
+                  edit({ ...state, contactId: value });
+                }}
+                onCreate={{
+                  label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
+                  onSelect: (q) => {
+                    setNewCustomerName(q.trim());
+                  },
+                }}
+              />
+            </Field>
 
-        <Field className="w-44" error={fieldErrors['issueDate']}>
-          <FieldLabel>Issue date</FieldLabel>
-          <TextInput
-            type="date"
-            value={state.issueDate}
-            disabled={busy}
-            onChange={(event) => {
-              edit({ ...state, issueDate: event.target.value });
-            }}
-          />
-        </Field>
+            <div className="flex gap-3">
+              <Field className="flex-1" error={fieldErrors['issueDate']}>
+                <FieldLabel>Issue date</FieldLabel>
+                <TextInput
+                  type="date"
+                  value={state.issueDate}
+                  disabled={busy}
+                  onChange={(event) => {
+                    edit({ ...state, issueDate: event.target.value });
+                  }}
+                />
+              </Field>
 
-        {/* Credit notes carry no due date: nothing about one falls due, and aging never
-            ages one (D-39). The field is absent rather than disabled, because a greyed
-            box invites the question of what would go in it. */}
-        {kind === 'invoice' && (
-          <Field
-            className="w-44"
-            error={fieldErrors['dueDate']}
-            hint="Aging measures from here, not from the issue date."
-          >
-            <FieldLabel>Due date</FieldLabel>
-            <TextInput
-              type="date"
-              value={state.dueDate}
-              disabled={busy}
-              onChange={(event) => {
-                edit({ ...state, dueDate: event.target.value });
-              }}
-            />
-          </Field>
-        )}
+              {kind === 'invoice' && (
+                <Field
+                  className="flex-1"
+                  error={fieldErrors['dueDate']}
+                  hint="Aging measures from here, not from the issue date."
+                >
+                  <FieldLabel>Due date</FieldLabel>
+                  <TextInput
+                    type="date"
+                    value={state.dueDate}
+                    disabled={busy}
+                    onChange={(event) => {
+                      edit({ ...state, dueDate: event.target.value });
+                    }}
+                  />
+                </Field>
+              )}
+            </div>
 
-        <Field className="w-56" error={fieldErrors['reference']} hint={words.referenceHint}>
-          <FieldLabel>Reference</FieldLabel>
-          <TextInput
-            value={state.reference}
-            disabled={busy}
-            onChange={(event) => {
-              edit({ ...state, reference: event.target.value });
-            }}
-          />
-        </Field>
-      </div>
+            <p className="text-sm text-text-subtle">
+              {words.numberLabel}: {saved.documentNumber ?? 'Draft'}
+            </p>
 
-      <Field className="max-w-md" hint={TAX_MODE_EXPLANATIONS[state.taxMode]}>
-        <FieldLabel>Tax on prices</FieldLabel>
-        <Select
-          options={TAX_MODE_OPTIONS}
-          value={state.taxMode}
-          disabled={busy}
-          onValueChange={(value) => {
-            if (!isTaxMode(value) || value === state.taxMode) return;
-            /**
-             * Confirmed rather than applied, whenever there is anything to reprice. The
-             * flag decides what every `unitAmount` already entered *means*, so switching
-             * it does not convert the prices — it reads the same numbers the other way,
-             * and the totals move without anything the user typed having changed (D-35).
-             */
-            if (state.lines.some((line) => line.unitAmount !== null)) {
-              setRepricing(value);
-              return;
-            }
-            edit({ ...state, taxMode: value });
-          }}
-        />
-      </Field>
+            <Field hint={TAX_MODE_EXPLANATIONS[state.taxMode]}>
+              <FieldLabel>Tax settings</FieldLabel>
+              <label className="flex items-center gap-2 text-sm text-text">
+                <input
+                  type="checkbox"
+                  checked={state.taxMode === 'inclusive'}
+                  disabled={busy}
+                  onChange={(event) => {
+                    requestTaxMode(event.target.checked ? 'inclusive' : 'exclusive');
+                  }}
+                />
+                Prices include tax
+              </label>
+            </Field>
 
-      <Field className="max-w-2xl" error={fieldErrors['memo']}>
-        <FieldLabel>Memo</FieldLabel>
-        <TextInput
-          value={state.memo}
-          disabled={busy}
-          onChange={(event) => {
-            edit({ ...state, memo: event.target.value });
-          }}
-        />
-      </Field>
+            <Field error={fieldErrors['reference']} hint={words.referenceHint}>
+              <FieldLabel>Reference</FieldLabel>
+              <TextInput
+                value={state.reference}
+                disabled={busy}
+                onChange={(event) => {
+                  edit({ ...state, reference: event.target.value });
+                }}
+              />
+            </Field>
+          </div>
 
-      <ResponsiveTable>
-        <table className="w-full border-collapse">
-          <caption className="sr-only">{words.singular} lines</caption>
-          <thead>
-            <tr className="text-left text-xs text-text-subtle">
-              <th scope="col" className="p-1 font-medium">
-                Description
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Qty
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                {state.taxMode === 'inclusive'
-                  ? 'Unit price (incl. tax)'
-                  : 'Unit price (excl. tax)'}
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                Account
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                Tax rate
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Net
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Tax
-              </th>
-              <th scope="col" className="p-1 text-right font-medium">
-                Total
-              </th>
-              <th scope="col" className="p-1 font-medium">
-                <span className="sr-only">Remove</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+          <ul aria-label={`${words.singular} lines`} className="flex flex-col gap-3">
             {state.lines.map((line, index) => (
-              <LineRow
+              <LineCard
                 key={line.key}
                 line={line}
                 index={index}
@@ -441,59 +481,207 @@ export function DocumentEditor({
                 }}
               />
             ))}
-          </tbody>
-        </table>
-      </ResponsiveTable>
+          </ul>
 
-      <div>
-        <Button
-          disabled={busy}
-          onClick={() => {
-            edit({ ...state, lines: [...state.lines, blankLine()] });
-          }}
-        >
-          Add line
-        </Button>
-      </div>
+          <div>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                edit({ ...state, lines: [...state.lines, blankLine()] });
+              }}
+            >
+              Add line
+            </Button>
+          </div>
 
-      <div className="flex justify-end">
-        <TotalsPanel
-          document={saved}
-          reference={reference}
-          outstandingLabel={words.outstandingLabel}
-          stale={dirty}
-        />
-      </div>
+          {memoField}
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <span className="text-sm text-text-subtle">
-          {dirty ? 'Unsaved changes' : 'All changes saved'}
-        </span>
+          <TotalsPanel
+            document={saved}
+            reference={reference}
+            outstandingLabel={words.outstandingLabel}
+            stale={dirty}
+          />
 
-        <div className="flex-1" />
+          {/**
+           * The header's actions repeat here, reduced to the pair a thumb needs at the
+           * bottom of a phone (D-120 compact tier) — the same handlers and labels as
+           * `actions`, not a second implementation of either.
+           */}
+          <div className="no-print fixed inset-x-0 bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border bg-surface p-3">
+            <Button
+              disabled={busy || !dirty}
+              onClick={() => {
+                void handleSave();
+              }}
+            >
+              {save.isPending ? 'Saving…' : saveLabel}
+            </Button>
+            <Button variant="primary" disabled={busy} onClick={() => setConfirming('approve')}>
+              {approve.isPending ? 'Approving…' : primaryLabel}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-4 rounded-lg border border-border bg-surface p-4">
+            <Field className="min-w-64 flex-1" error={fieldErrors['contactId']}>
+              <FieldLabel>Customer</FieldLabel>
+              <Combobox
+                options={contactOptions}
+                value={state.contactId}
+                disabled={busy}
+                placeholder="Search contacts…"
+                onValueChange={(value) => {
+                  edit({ ...state, contactId: value });
+                }}
+                onCreate={{
+                  label: (q) => (q.trim() === '' ? 'New customer' : `Create "${q.trim()}"`),
+                  onSelect: (q) => {
+                    setNewCustomerName(q.trim());
+                  },
+                }}
+              />
+            </Field>
 
-        <Button variant="danger" disabled={busy} onClick={() => setConfirming('discard')}>
-          Discard
-        </Button>
+            <Field className="w-44" error={fieldErrors['issueDate']}>
+              <FieldLabel>Issue date</FieldLabel>
+              <TextInput
+                type="date"
+                value={state.issueDate}
+                disabled={busy}
+                onChange={(event) => {
+                  edit({ ...state, issueDate: event.target.value });
+                }}
+              />
+            </Field>
 
-        <Button
-          disabled={busy || !dirty}
-          onClick={() => {
-            void handleSave();
-          }}
-        >
-          Save draft
-        </Button>
+            {/* Credit notes carry no due date: nothing about one falls due, and aging never
+                ages one (D-39). The field is absent rather than disabled, because a greyed
+                box invites the question of what would go in it. */}
+            {kind === 'invoice' && (
+              <Field
+                className="w-44"
+                error={fieldErrors['dueDate']}
+                hint="Aging measures from here, not from the issue date."
+              >
+                <FieldLabel>Due date</FieldLabel>
+                <TextInput
+                  type="date"
+                  value={state.dueDate}
+                  disabled={busy}
+                  onChange={(event) => {
+                    edit({ ...state, dueDate: event.target.value });
+                  }}
+                />
+              </Field>
+            )}
 
-        {/**
-         * Disabled while any write is in flight, and carrying one key per document
-         * besides (`intent-keys.ts`), so neither a double click nor a retry after a
-         * refusal can allocate two numbers or post two journals.
-         */}
-        <Button variant="primary" disabled={busy} onClick={() => setConfirming('approve')}>
-          {approve.isPending ? 'Approving…' : 'Approve'}
-        </Button>
-      </div>
+            <Field className="w-56" error={fieldErrors['reference']} hint={words.referenceHint}>
+              <FieldLabel>Reference</FieldLabel>
+              <TextInput
+                value={state.reference}
+                disabled={busy}
+                onChange={(event) => {
+                  edit({ ...state, reference: event.target.value });
+                }}
+              />
+            </Field>
+          </div>
+
+          <Field className="max-w-md" hint={TAX_MODE_EXPLANATIONS[state.taxMode]}>
+            <FieldLabel>Tax on prices</FieldLabel>
+            <Select
+              options={TAX_MODE_OPTIONS}
+              value={state.taxMode}
+              disabled={busy}
+              onValueChange={(value) => {
+                if (isTaxMode(value)) requestTaxMode(value);
+              }}
+            />
+          </Field>
+
+          <ResponsiveTable>
+            <table className="w-full border-collapse">
+              <caption className="sr-only">{words.singular} lines</caption>
+              <thead>
+                <tr className="text-left text-xs text-text-subtle">
+                  <th scope="col" className="p-1 font-medium">
+                    Description
+                  </th>
+                  <th scope="col" className="p-1 text-right font-medium">
+                    Qty
+                  </th>
+                  <th scope="col" className="p-1 text-right font-medium">
+                    {state.taxMode === 'inclusive'
+                      ? 'Unit price (incl. tax)'
+                      : 'Unit price (excl. tax)'}
+                  </th>
+                  <th scope="col" className="p-1 font-medium">
+                    Account
+                  </th>
+                  <th scope="col" className="p-1 font-medium">
+                    Tax rate
+                  </th>
+                  <th scope="col" className="p-1 text-right font-medium">
+                    Net
+                  </th>
+                  <th scope="col" className="p-1 text-right font-medium">
+                    Total
+                  </th>
+                  <th scope="col" className="p-1 font-medium">
+                    <span className="sr-only">Remove</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.lines.map((line, index) => (
+                  <LineRow
+                    key={line.key}
+                    line={line}
+                    index={index}
+                    accountOptions={accountOptions}
+                    taxRateOptions={taxRateOptions}
+                    catalogItems={catalogItems.data ?? []}
+                    fieldErrors={fieldErrors}
+                    stale={dirty}
+                    disabled={busy}
+                    onChange={editLine}
+                    onCreateItem={(typed) => {
+                      setCreatingItemFor({ key: line.key, typed });
+                    }}
+                    onRemove={() => {
+                      edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
+                    }}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
+
+          <div>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                edit({ ...state, lines: [...state.lines, blankLine()] });
+              }}
+            >
+              Add another line
+            </Button>
+          </div>
+
+          {memoField}
+
+          <div className="flex justify-end">
+            <TotalsPanel
+              document={saved}
+              reference={reference}
+              outstandingLabel={words.outstandingLabel}
+              stale={dirty}
+            />
+          </div>
+        </>
+      )}
 
       <Dialog
         open={confirming === 'approve'}

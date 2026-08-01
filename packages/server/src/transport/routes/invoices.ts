@@ -8,6 +8,7 @@ import {
   invoiceDeliverySchema,
   invoicePageSchema,
   invoiceSchema,
+  invoicesSummarySchema,
   pageCursorSchema,
   sendInvoiceRequestSchema,
   updateCreditNoteRequestSchema,
@@ -20,6 +21,7 @@ import type {
   Invoice,
   InvoiceDelivery,
   InvoicePage,
+  InvoicesSummary,
 } from '@openbooks/shared-types';
 import { z } from 'zod';
 
@@ -35,6 +37,7 @@ import {
   discardInvoice,
   getCreditNote,
   getInvoice,
+  invoicesSummary,
   listCreditNotes,
   listInvoices,
   updateCreditNote,
@@ -164,6 +167,15 @@ const listInvoicesWireQuerySchema = z.strictObject({
   cursor: pageCursorSchema.optional(),
 });
 
+/** Local and carrying no `id`: a querystring is emitted as individual `parameters`. */
+const invoicesSummaryWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today — this is a live snapshot, not a ' +
+      'reproducible report, so the date is optional here where the aging report requires it.',
+  }),
+});
+
 const listCreditNotesWireQuerySchema = z.strictObject({
   contactId: z.uuid().optional(),
   status: documentStatusSchema.optional(),
@@ -246,6 +258,31 @@ export function registerInvoiceRoutes(app: App): void {
         },
         getContext(),
       );
+    },
+  );
+
+  app.get(
+    '/v1/invoices/summary',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'invoicesSummary',
+        summary: 'The invoices-list headline figures',
+        description:
+          'Total still owed, total overdue, and paid in the last 30 days, as at a date. A live ' +
+          'snapshot rather than a report: `asOf` defaults to today, unlike the aging report which ' +
+          'requires it (D-40). The figures tie to the receivable aging by construction — the same ' +
+          'per-document outstanding (D-34).',
+        tags: [INVOICE_TAG],
+        querystring: invoicesSummaryWireQuerySchema,
+        response: { 200: invoicesSummarySchema, ...ERROR_RESPONSES },
+      },
+    },
+    // A static segment, so `find-my-way` matches it ahead of `/v1/invoices/:invoiceId`
+    // whatever the registration order; it is placed here so a reader sees why.
+    async (request): Promise<InvoicesSummary> => {
+      const { asOf } = request.query;
+      return invoicesSummary(asOf === undefined ? {} : { asOf }, getContext());
     },
   );
 

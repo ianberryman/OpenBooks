@@ -16329,6 +16329,106 @@
         ],
         "type": "object"
       },
+      "EstimatesSummary": {
+        "additionalProperties": false,
+        "description": "The headline figures the estimates list shows: open value, expired value, and value converted in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "convertedCount": {
+            "description": "How many estimates converted within that window.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "convertedValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The gross value of estimates converted to an invoice within the 30 days ending on `asOf`."
+          },
+          "expiredCount": {
+            "description": "How many open estimates have expired.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiredValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The part of `openValue` that has lapsed: approved, unconverted, and `expiryDate` before `asOf`."
+          },
+          "openCount": {
+            "description": "How many estimates are still open.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The gross value of every estimate not yet converted (draft + approved)."
+          }
+        },
+        "required": [
+          "asOf",
+          "openValue",
+          "openCount",
+          "expiredValue",
+          "expiredCount",
+          "convertedValue",
+          "convertedCount"
+        ],
+        "type": "object"
+      },
+      "EstimatesSummaryInput": {
+        "additionalProperties": false,
+        "description": "The headline figures the estimates list shows: open value, expired value, and value converted in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "convertedCount": {
+            "description": "How many estimates converted within that window.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "convertedValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The gross value of estimates converted to an invoice within the 30 days ending on `asOf`."
+          },
+          "expiredCount": {
+            "description": "How many open estimates have expired.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiredValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The part of `openValue` that has lapsed: approved, unconverted, and `expiryDate` before `asOf`."
+          },
+          "openCount": {
+            "description": "How many estimates are still open.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "openValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The gross value of every estimate not yet converted (draft + approved)."
+          }
+        },
+        "required": [
+          "asOf",
+          "openValue",
+          "openCount",
+          "expiredValue",
+          "expiredCount",
+          "convertedValue",
+          "convertedCount"
+        ],
+        "type": "object"
+      },
       "ExternalRef": {
         "additionalProperties": false,
         "description": "A correlation between an integrator’s own id and an OpenBooks entity, unique both ways (D-58).",
@@ -18748,6 +18848,92 @@
           "settlement",
           "createdAt",
           "updatedAt"
+        ],
+        "type": "object"
+      },
+      "InvoicesSummary": {
+        "additionalProperties": false,
+        "description": "The headline figures the invoices list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "openCount": {
+            "description": "How many invoices still have something owed on them.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "overdueCount": {
+            "description": "How many of the open invoices are overdue.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Payments received from customers dated within the 30 days ending on `asOf` — money in, whatever it was applied to."
+          },
+          "totalOverdue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket."
+          },
+          "totalUnpaid": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "What is still owed across all open invoices (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance."
+          }
+        },
+        "required": [
+          "asOf",
+          "totalUnpaid",
+          "openCount",
+          "totalOverdue",
+          "overdueCount",
+          "paidLast30Days"
+        ],
+        "type": "object"
+      },
+      "InvoicesSummaryInput": {
+        "additionalProperties": false,
+        "description": "The headline figures the invoices list shows: total still owed, total overdue, and paid in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "openCount": {
+            "description": "How many invoices still have something owed on them.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "overdueCount": {
+            "description": "How many of the open invoices are overdue.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Payments received from customers dated within the 30 days ending on `asOf` — money in, whatever it was applied to."
+          },
+          "totalOverdue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet overdue, matching the aging report’s `current` bucket."
+          },
+          "totalUnpaid": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "What is still owed across all open invoices (approved and part-paid), as at `asOf`. Outstanding is total minus allocations, computed on read (D-34) — never a stored balance."
+          }
+        },
+        "required": [
+          "asOf",
+          "totalUnpaid",
+          "openCount",
+          "totalOverdue",
+          "overdueCount",
+          "paidLast30Days"
         ],
         "type": "object"
       },
@@ -39610,6 +39796,48 @@
         ]
       }
     },
+    "/v1/estimates/summary": {
+      "get": {
+        "description": "What is still open (draft + approved), what of it has lapsed, and what has converted to an invoice in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today. An estimate posts no journal (D-M3), so these are stored-column predicates over `estimates`, not a read against the receivable aging.",
+        "operationId": "estimatesSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstimatesSummary"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The estimates-list headline figures",
+        "tags": [
+          "estimates"
+        ]
+      }
+    },
     "/v1/estimates/{estimateId}": {
       "delete": {
         "description": "Deletes a draft and its lines. An approved or converted estimate is refused with `estimate_approved`.",
@@ -41713,6 +41941,48 @@
           }
         },
         "summary": "Create a draft invoice",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/v1/invoices/summary": {
+      "get": {
+        "description": "Total still owed, total overdue, and paid in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today, unlike the aging report which requires it (D-40). The figures tie to the receivable aging by construction — the same per-document outstanding (D-34).",
+        "operationId": "invoicesSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicesSummary"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The invoices-list headline figures",
         "tags": [
           "invoices"
         ]

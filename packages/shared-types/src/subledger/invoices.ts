@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 import { allocationSchema } from './allocations';
 import {
@@ -291,6 +291,69 @@ export const invoicePageSchema = pageSchema(invoiceSummarySchema, {
 });
 
 export type InvoicePage = z.infer<typeof invoicePageSchema>;
+
+/**
+ * The invoices-list headline figures, as at a date (OB-069 UI) — the AR mirror of
+ * `BillsSummary`.
+ *
+ * A **live snapshot**, not a report, which is the whole reason `asOf` is optional
+ * here and required on the aging report: D-40 makes an aging report reproducible, so
+ * it refuses to default to a moving target. These three numbers are what the sales
+ * screen shows *right now*, so "today" is the only sensible default and a caller
+ * that omits the date gets it.
+ *
+ * The figures tie to the aging report by construction — they are computed from the
+ * same per-document outstanding (total minus allocations as at the date, D-34) the
+ * receivable aging sums, so `totalUnpaid` equals the receivable aging's invoice
+ * total and `totalOverdue` its non-`current` buckets. Nothing here is a stored
+ * balance.
+ */
+export const invoicesSummaryQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today: this is a live snapshot, not ' +
+      'a reproducible report, so unlike the aging report it does not require the date.',
+  }),
+});
+
+export type InvoicesSummaryQuery = z.input<typeof invoicesSummaryQuerySchema>;
+
+export const invoicesSummarySchema = z
+  .strictObject({
+    asOf: calendarDateSchema.meta({
+      description:
+        'The date the figures were computed as at — echoed so a client knows what it got.',
+    }),
+    totalUnpaid: minorUnitsSchema.meta({
+      description:
+        'What is still owed across all open invoices (approved and part-paid), as at `asOf`. ' +
+        'Outstanding is total minus allocations, computed on read (D-34) — never a stored balance.',
+    }),
+    openCount: z.int().nonnegative().meta({
+      description: 'How many invoices still have something owed on them.',
+    }),
+    totalOverdue: minorUnitsSchema.meta({
+      description:
+        'The part of `totalUnpaid` whose due date falls before `asOf`. Due today is not yet ' +
+        'overdue, matching the aging report’s `current` bucket.',
+    }),
+    overdueCount: z.int().nonnegative().meta({
+      description: 'How many of the open invoices are overdue.',
+    }),
+    paidLast30Days: minorUnitsSchema.meta({
+      description:
+        'Payments received from customers dated within the 30 days ending on `asOf` — money in, ' +
+        'whatever it was applied to.',
+    }),
+  })
+  .meta({
+    id: 'InvoicesSummary',
+    description:
+      'The headline figures the invoices list shows: total still owed, total overdue, and paid ' +
+      'in the last 30 days, as at a date (defaulting to today).',
+  });
+
+export type InvoicesSummary = z.infer<typeof invoicesSummarySchema>;
 
 /**
  * A credit note: a document, not a negative invoice (D-39).

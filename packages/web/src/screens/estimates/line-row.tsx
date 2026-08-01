@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import type { components } from '../../api';
 import { Button, Combobox, Field, LineItemCombobox, MoneyInput, TextInput } from '../../components';
@@ -135,5 +135,121 @@ export function LineRow({
         </Button>
       </td>
     </tr>
+  );
+}
+
+/** One field of the compact card: a visible label above the control the table left to a `th`. */
+function CardField({ label, children }: { label: string; children: ReactNode }): ReactElement {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-text-subtle">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The compact (`< md`) presentation of one line: a stacked card, so the four-column entry
+ * row `LineRow` renders becomes full-width fields instead (mirrors `sales/line-row.tsx`'s
+ * `LineCard`, minus the tax-rate field and the computed net/tax/gross line that estimate
+ * lines have neither of — see this file's header). It takes the identical `LineRowProps`
+ * `LineRow` does, so the two presentations cannot drift on a handler or an `aria-label`.
+ */
+export function LineCard({
+  line,
+  index,
+  accountOptions,
+  catalogItems,
+  fieldErrors,
+  disabled,
+  onChange,
+  onCreateItem,
+  onRemove,
+}: LineRowProps): ReactElement {
+  const path = `lines.${String(index)}`;
+  const number = String(index + 1);
+
+  return (
+    <li className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-text-subtle">Line {number}</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Remove line ${number}`}
+          disabled={disabled}
+          onClick={onRemove}
+        >
+          ×
+        </Button>
+      </div>
+
+      <CardField label="Description">
+        <Field error={fieldErrors[`${path}.description`]}>
+          <LineItemCombobox
+            aria-label={`Description, line ${number}`}
+            value={line.description}
+            items={catalogItems}
+            disabled={disabled}
+            onValueChange={(text) => {
+              onChange({ ...line, description: text });
+            }}
+            onItemSelect={(item) => {
+              onChange(applyCatalogItem(line, item));
+            }}
+            onCreate={onCreateItem}
+          />
+        </Field>
+      </CardField>
+
+      <div className="flex gap-2">
+        <div className="w-24">
+          <CardField label="Qty">
+            <Field error={fieldErrors[`${path}.quantity`]}>
+              <TextInput
+                aria-label={`Quantity, line ${number}`}
+                inputMode="decimal"
+                autoComplete="off"
+                value={line.quantity}
+                disabled={disabled}
+                className="text-right font-mono tabular-nums"
+                onChange={(event) => {
+                  onChange({ ...line, quantity: event.target.value });
+                }}
+              />
+            </Field>
+          </CardField>
+        </div>
+        <div className="flex-1">
+          <CardField label="Unit price">
+            <Field error={fieldErrors[`${path}.unitAmount`]}>
+              <MoneyInput
+                aria-label={`Unit price, line ${number}`}
+                value={line.unitAmountMinor}
+                disabled={disabled}
+                onValueChange={(value) => {
+                  onChange({ ...line, unitAmountMinor: value });
+                }}
+              />
+            </Field>
+          </CardField>
+        </div>
+      </div>
+
+      <CardField label="Account">
+        <Field error={fieldErrors[`${path}.accountId`]}>
+          <Combobox
+            aria-label={`Income account, line ${number}`}
+            options={accountOptions}
+            value={line.accountId}
+            disabled={disabled}
+            placeholder="Search income accounts…"
+            onValueChange={(value) => {
+              onChange({ ...line, accountId: value });
+            }}
+          />
+        </Field>
+      </CardField>
+    </li>
   );
 }

@@ -7,6 +7,15 @@ import type { EstimateStatus } from './queries';
  * through in order: `draft` → `approved` → `converted`.
  */
 
+/**
+ * Unlike `sales/vocabulary.tsx`'s `vocabularyFor`, there is only one document kind here —
+ * an estimate is never an invoice or a credit note wearing a different label — so this is
+ * a pair of constants rather than a lookup keyed by kind. `estimate-header.tsx` reads these
+ * rather than hardcoding "Estimate"/"Estimates" at each call site.
+ */
+export const SINGULAR = 'Estimate';
+export const PLURAL = 'Estimates';
+
 export const STATUS_LABELS: Readonly<Record<EstimateStatus, string>> = {
   draft: 'Draft',
   approved: 'Approved',

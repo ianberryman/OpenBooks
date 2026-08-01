@@ -73,6 +73,7 @@ const PUBLISHED_COMPONENT_IDS = [
   'Invoice',
   'InvoicePage',
   'InvoiceSummary',
+  'InvoicesSummary',
   'Payment',
   'PaymentPage',
   'PaymentSummary',

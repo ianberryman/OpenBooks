@@ -199,8 +199,8 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/accounts" element={<AccountsScreen />} />
         <Route path="/journal-entry" element={<JournalEntryScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
-        <Route path="/sales" element={<SalesScreen />} />
-        <Route path="/estimates" element={<EstimatesScreen />} />
+        <Route path="/sales/*" element={<SalesScreen />} />
+        <Route path="/estimates/*" element={<EstimatesScreen />} />
         <Route path="/recurring-invoices" element={<RecurringInvoicesScreen />} />
         <Route path="/dunning" element={<DunningScreen />} />
         <Route path="/recurring-journals" element={<RecurringJournalsScreen />} />

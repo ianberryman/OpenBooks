@@ -12,6 +12,7 @@
  * | `discardEstimate(id, ctx)`                | `estimates.write`                    |
  * | `approveEstimate(id, ctx)`                | `estimates.write`                    |
  * | `convertEstimateToInvoice(id, ctx)`       | `estimates.write` + `invoices.write` |
+ * | `estimatesSummary(query, ctx)`            | `estimates.read`                     |
  *
  * The compound entry is not this module checking two permissions: converting
  * calls the ordinary `createInvoice`, which checks `invoices.write` on its own —
@@ -64,3 +65,4 @@ export {
   listEstimates,
   updateEstimate,
 } from './estimates.service';
+export { estimatesSummary } from './summary.service';

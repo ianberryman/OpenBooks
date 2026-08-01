@@ -117,6 +117,7 @@ function renderView(document: Invoice): void {
         document={document}
         kind="invoice"
         reference={reference()}
+        onBack={() => {}}
         onChanged={() => {}}
       />
     </QueryClientProvider>,

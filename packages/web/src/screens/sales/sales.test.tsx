@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route as RouterRoute, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -67,6 +68,7 @@ const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
 const TAX_RATE_ID = '33333333-3333-4333-8333-333333333333';
 const INVOICE_ID = '44444444-4444-4444-8444-444444444444';
 const ALLOCATION_ID = '55555555-5555-4555-8555-555555555555';
+const NEW_INVOICE_ID = '99999999-9999-4999-8999-999999999999';
 
 const CUSTOMER: Contact = {
   id: CUSTOMER_ID,
@@ -181,17 +183,49 @@ function summaryOf(source: Invoice): Record<string, unknown> {
   return rest;
 }
 
+/**
+ * The invoices-list headline figures, read by the summary cards the list now renders above
+ * the filter bar. Every test opens on the invoice tab, so `useInvoicesSummary` always fires
+ * — the zeros below are enough for the tests that do not care about the figures themselves;
+ * `asOf` still has to be a real date, since it is also what the list's own overdue pills are
+ * measured against.
+ */
+function stubInvoicesSummary(): void {
+  stub('GET', '/v1/invoices/summary', () =>
+    json(200, {
+      asOf: '2026-07-01',
+      totalUnpaid: '0',
+      openCount: 0,
+      totalOverdue: '0',
+      overdueCount: 0,
+      paidLast30Days: '0',
+    }),
+  );
+}
+
 function stubReferenceData(): void {
   stub('GET', '/v1/contacts', () => json(200, { items: [CUSTOMER], nextCursor: null }));
   stub('GET', '/v1/accounts', () => json(200, { items: [ACCOUNT], nextCursor: null }));
   stub('GET', '/v1/tax-rates', () => json(200, { items: [TAX_RATE], nextCursor: null }));
   stub('GET', '/v1/credit-notes', () => json(200, { items: [], nextCursor: null }));
+  stubInvoicesSummary();
 }
 
+/**
+ * The screen is routed now (`/sales` list, `/sales/invoices/:id` document), so the test
+ * mounts it under a `MemoryRouter` nested exactly as `App.tsx` does — a `path="/sales/*"`
+ * route — so the screen's own relative `<Routes>` resolve under `/sales`. Opening a
+ * document is a real navigation, and the browser Back the routing exists for is what
+ * `onBack` triggers.
+ */
 function renderScreen(): void {
   render(
     <QueryClientProvider client={createQueryClient()}>
-      <SalesScreen />
+      <MemoryRouter initialEntries={['/sales']}>
+        <Routes>
+          <RouterRoute path="/sales/*" element={<SalesScreen />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -268,11 +302,11 @@ describe('SalesScreen', () => {
 
     await openTheInvoice(user);
 
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve & Send' }));
     await confirmDialog(user, 'Approve');
     await screen.findByRole('alert');
 
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve & Send' }));
     await confirmDialog(user, 'Approve');
     await screen.findByText('INV-0001');
 
@@ -310,13 +344,13 @@ describe('SalesScreen', () => {
 
     await openTheInvoice(user);
 
-    await user.type(await screen.findByLabelText('Memo'), 'Q1 retainer');
+    await user.type(await screen.findByLabelText('Notes / Terms'), 'Q1 retainer');
     await user.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => {
       expect(requestsTo('PATCH', `/v1/invoices/${INVOICE_ID}`)).toHaveLength(1);
     });
 
-    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await user.click(screen.getByRole('button', { name: 'Approve & Send' }));
     await confirmDialog(user, 'Approve');
     await screen.findByText('INV-0001');
 
@@ -385,6 +419,37 @@ describe('SalesScreen', () => {
 
     // And the recovery is reachable, not merely described.
     expect(screen.getByRole('button', { name: 'Un-apply' })).toBeEnabled();
+  });
+
+  /**
+   * The "New invoice" button is the one write this screen makes with no document open yet
+   * (D-17, D-19, D-38): a customer, today's issue date and a tax mode are all the create
+   * request needs, and the draft it returns opens straight into the editor rather than
+   * leaving the user back on the list to find it.
+   */
+  it('creates a new invoice from the New button and opens its editor', async () => {
+    const user = userEvent.setup();
+    const created = invoice({ id: NEW_INVOICE_ID, documentNumber: null });
+
+    stubReferenceData();
+    stub('GET', '/v1/invoices', () => json(200, { items: [], nextCursor: null }));
+    stub('GET', `/v1/invoices/${NEW_INVOICE_ID}`, () => json(200, created));
+    stub('POST', '/v1/invoices', async (request) => {
+      const body = (await bodyOf(request)) as Record<string, unknown>;
+      // Pre-filled and required, not asked for up front: the tax mode decides what
+      // `unitAmount` means and cannot be filled in later without repricing every line.
+      expect(body).toMatchObject({ contactId: CUSTOMER_ID, taxMode: 'exclusive' });
+      expect(request.headers.get('idempotency-key')).toBeTruthy();
+      return json(201, created);
+    });
+
+    renderScreen();
+
+    await user.click(await screen.findByRole('button', { name: 'New invoice' }));
+
+    // A draft with no number yet, so it opens in the editor rather than the read-only view.
+    expect(await screen.findByLabelText('Notes / Terms')).toBeInTheDocument();
+    expect(requestsTo('POST', '/v1/invoices')).toHaveLength(1);
   });
 
   /**

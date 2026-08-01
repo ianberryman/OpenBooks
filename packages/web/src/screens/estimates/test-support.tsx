@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 /**
  * The harness this screen's tests share — `recurring-invoices/test-support.tsx`, copied
@@ -165,7 +166,7 @@ export function installApiStub(routes: readonly StubRoute[]): ApiStub {
  * multi-second wait, and a shared cache would let one test's list satisfy the next test's
  * query before its own stub was ever consulted.
  */
-export function renderWithQueryClient(ui: ReactElement): void {
+export function renderWithQueryClient(ui: ReactElement, initialPath = '/estimates'): void {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: 0, staleTime: 0 },
@@ -173,5 +174,17 @@ export function renderWithQueryClient(ui: ReactElement): void {
     },
   });
 
-  render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // The screen is routed (`/estimates` list, `/estimates/:id` document), so it mounts under a
+  // `MemoryRouter` nested as `App.tsx` nests it — a `path="/estimates/*"` route — and a
+  // `/sales/*` marker stands in for the invoice screen that converting an estimate navigates to.
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/estimates/*" element={ui} />
+          <Route path="/sales/*" element={<div>Sales invoice page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
