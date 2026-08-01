@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 
 import { api, idempotencyHeader, presentApiError, unwrap } from '../../api';
+import { permissionSet, useIdentity } from '../../auth/identity';
 import {
   Button,
   Dialog,
@@ -36,6 +37,14 @@ import type { PostedJournal, ReferenceData } from './queries';
  * inverted and `reversesJournalId` set, after which both entries exist. That is why the
  * control below says Reverse and not Delete, and why it asks for a date — a reversal
  * has its own, and it must itself fall in an open period.
+ *
+ * ## The Reverse control is gated on `journals.reverse`, advisory only (D-25)
+ *
+ * A caller without the permission never sees the button — `posting.service.ts` requires
+ * it regardless, so hiding it here is purely so a click does not always end in a
+ * refusal. This component is mounted from both the journal-entry screen (OB-051) and the
+ * journals list's detail route (OB-236), so the gate lives here once rather than being
+ * duplicated at each call site.
  */
 export interface PostedEntryProps {
   readonly journal: PostedJournal;
@@ -72,6 +81,8 @@ export function PostedEntry({
   onBackToDrafts,
 }: PostedEntryProps): ReactElement {
   const queryClient = useQueryClient();
+  const identity = useIdentity();
+  const canReverse = permissionSet(identity.data ?? null).has('journals.reverse');
 
   const [confirmingReversal, setConfirmingReversal] = useState(false);
   const [reversalDate, setReversalDate] = useState(() => todayIsoDate());
@@ -237,13 +248,15 @@ export function PostedEntry({
 
         <div className="flex-1" />
 
-        <Button
-          variant="danger"
-          disabled={reverse.isPending}
-          onClick={() => setConfirmingReversal(true)}
-        >
-          Reverse entry
-        </Button>
+        {canReverse && (
+          <Button
+            variant="danger"
+            disabled={reverse.isPending}
+            onClick={() => setConfirmingReversal(true)}
+          >
+            Reverse entry
+          </Button>
+        )}
       </div>
 
       <Dialog open={confirmingReversal} onOpenChange={setConfirmingReversal}>
