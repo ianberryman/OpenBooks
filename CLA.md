@@ -30,7 +30,8 @@ copyright, and you keep the right to use your own contribution for anything else
 ## How to sign
 
 1. Read this document in full.
-2. Email a statement of agreement to **ian@ach-pro.com** with the subject
+2. Email a statement of agreement to the project's CLA contact address (**to be published** — a
+   dedicated address is being set up) with the subject
    `OpenBooks CLA — <your name>`, including every starred field from the signature block below and
    the sentence: _"I have read the OpenBooks Contributor License Agreement version 1.0 and I agree
    to it."_ Attaching a signed PDF or image of the completed signature block is welcome but not

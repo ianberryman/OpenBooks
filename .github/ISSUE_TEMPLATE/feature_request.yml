@@ -1,0 +1,38 @@
+name: ✨ Feature request
+description: Propose a capability or improvement.
+labels: ["type:feature", "status:triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For **substantial** features, open this before writing code. Check the
+        [roadmap board](https://github.com/OpenBooksAccounting/OpenBooks/projects) first — your idea may be
+        planned, deliberately deferred, or already discussed.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today? Who is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the roadmap board and existing issues for this.
+          required: true
+        - label: >
+            This does not require weakening a documented invariant (append-only journals, tenant
+            isolation, cents-only money) — or if it does, I've explained why below.
+          required: true

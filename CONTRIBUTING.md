@@ -60,7 +60,7 @@ In practice:
 ## Getting started
 
 ```sh
-git clone https://github.com/ianberryman/OpenBooks.git
+git clone https://github.com/OpenBooksAccounting/OpenBooks.git
 cd OpenBooks
 nvm use          # or otherwise get onto Node 22
 yarn install
@@ -268,5 +268,5 @@ five minutes to check whether your idea is scheduled, out of scope on purpose, o
 
 ## Security
 
-Do not open a public issue for a security vulnerability. Email **ian@ach-pro.com** with the details
-and expect an acknowledgement before you disclose publicly.
+Do not open a public issue for a security vulnerability. See [SECURITY.md](SECURITY.md) for how to
+report one privately, and expect an acknowledgement before you disclose publicly.

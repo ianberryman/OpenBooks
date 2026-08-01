@@ -1,0 +1,18 @@
+# Enables the "Sponsor" button on the repository (shown only from the default branch).
+#
+# Every line below is intentionally commented out so NO live Sponsor button appears until
+# the accounts actually exist — an unresolved handle renders as a broken link. Uncomment a
+# line and fill in a real handle once the account is set up, then remove the ones you don't use.
+
+# Open Collective — recommended primary: a transparent, itemized budget so donors see exactly
+# which infrastructure costs their money covers. Slug is the part after opencollective.com/.
+# open_collective: openbooksaccounting
+
+# GitHub Sponsors — the one-click button. The org must be enrolled in GitHub Sponsors first
+# (application + payout/tax setup); until approved, a handle here renders a broken button.
+# github: ["OpenBooksAccounting"]
+
+# Other options, if ever used:
+# ko_fi: <username>
+# liberapay: <username>
+# custom: ["https://opencollective.com/openbooksaccounting"]

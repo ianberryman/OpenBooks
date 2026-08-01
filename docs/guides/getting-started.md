@@ -15,7 +15,7 @@ prerequisites they share.
 | **Yarn**   | **do not install**       | Yarn 4.17.1 is committed at `.yarn/releases/` and pinned by `packageManager`. Do **not** `corepack enable` or install Yarn globally. |
 
 ```bash
-git clone https://github.com/ianberryman/OpenBooks.git
+git clone https://github.com/OpenBooksAccounting/OpenBooks.git
 cd OpenBooks
 nvm use
 yarn install

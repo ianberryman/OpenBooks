@@ -95,7 +95,7 @@ books.
 Requires Docker with Compose v2. Nothing else.
 
 ```sh
-git clone https://github.com/ianberryman/OpenBooks.git
+git clone https://github.com/OpenBooksAccounting/OpenBooks.git
 cd OpenBooks
 cp .env.example .env
 ```

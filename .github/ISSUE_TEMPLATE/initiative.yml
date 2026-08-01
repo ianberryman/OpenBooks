@@ -1,0 +1,63 @@
+name: 🧭 Initiative / roadmap item
+description: A scoped, plannable unit of work for the roadmap board — the successor to the old OB-NNN tickets.
+title: "[Initiative] "
+labels: ["type:initiative", "status:triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for a scoped, plannable piece of work. Small bugs use the bug template;
+        open-ended ideas belong in [Discussions](https://github.com/OpenBooksAccounting/OpenBooks/discussions).
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: One or two sentences — what is true when this is done.
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Priority tier
+      options:
+        - "T1 — table stakes"
+        - "T2 — mid-market breadth"
+        - "T3 — longer horizon / strategic"
+        - "Readiness / hardening"
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      placeholder: "ledger / ar / ap / banking / reporting / platform / self-host / docs …"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: >
+        What must be true. Include the pinned tripwire tests a schema/route/permission change must
+        move (permission-matrix, route-table, cross-org), if any.
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design notes & seams
+      description: The interface/contract to build against, the provider seam if any, and the existing code to model on.
+  - type: input
+    id: decisions
+    attributes:
+      label: Related decisions (ADRs)
+      description: Link any docs/decisions/ ADRs this depends on or establishes.
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Invariant check
+      options:
+        - label: >
+            I have considered append-only journals, tenant isolation, and cents-only money, and noted
+            any interaction above.
+          required: true

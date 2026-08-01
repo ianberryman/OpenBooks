@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔐 Report a security vulnerability
+    url: https://github.com/OpenBooksAccounting/OpenBooks/security/advisories/new
+    about: Never file security issues publicly. Report privately here — see SECURITY.md.
+  - name: 💬 Questions & ideas (Discussions)
+    url: https://github.com/OpenBooksAccounting/OpenBooks/discussions
+    about: Open-ended questions, design discussion, and half-formed ideas before they become issues.
+  - name: 🗺️ Roadmap board
+    url: https://github.com/OpenBooksAccounting/OpenBooks/projects
+    about: What's planned and in progress. Check here before proposing large new work.
