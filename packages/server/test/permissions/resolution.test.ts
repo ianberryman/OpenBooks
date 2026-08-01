@@ -29,13 +29,14 @@ import { contextFor, useServiceDatabase } from './support';
  * the seeds changed and the change needs a reason — not a new number here.
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
-  // The entire catalog (73 since OB-227 added banking.connect).
-  ['owner', 73],
+  // The entire catalog (75 since OB-228 added ten99.read/ten99.write).
+  ['owner', 75],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate,
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only), and now
   // banking.connect (OB-227 — connecting a live feed stores a credential) — nine
-  // exclusions, so the count holds at 64 even as the catalog grew to 73. Gains branding.read, branding.write and invoices.send (INV),
+  // exclusions, so the count holds at 66 even as the catalog grew to 75 (OB-228's
+  // ten99.read/write are not administration exclusions, so both are granted). Gains branding.read, branding.write and invoices.send (INV),
   // processing.read (PAY), pending_payments.read/write (PB — the queue keys),
   // recurring_journals.read/write + fixed_assets.read/write (L — no SoD, D-117), and
   // procure-to-pay's purchase_orders.read/write, estimates.read/write and
@@ -43,25 +44,27 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // budgets.read/write (both — the catch-all grants them, no SoD gate to withhold),
   // and P's audit.read (the catch-all grants it — not an administration exclusion), and
   // CAT's catalog.read/write (both — neither is an administration exclusion).
-  ['bookkeeper', 64],
+  ['bookkeeper', 66],
   // Every `.read` except api_keys.read (28, now including branding.read,
   // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,
   // M's purchase_orders.read/estimates.read/expenses.read, and N's budgets.read via
   // `%.read`), plus agents.review, journals.post, and expenses.approve (M — the approver
   // is the expense-approval gate, the disbursements.issue split applied to expenses),
   // and P's audit.read via `%.read`, and CAT's catalog.read via `%.read` (not
-  // catalog.write — the approver reads the catalog but does not maintain it).
-  ['approver', 33],
+  // catalog.write — the approver reads the catalog but does not maintain it), and OB-228's
+  // ten99.read via `%.read` (not ten99.write — the approver reads but does not file).
+  ['approver', 34],
   // Every `.read` except api_keys.read (now including branding.read, processing.read,
   // pending_payments.read, recurring_journals.read, fixed_assets.read, M's
   // purchase_orders.read/estimates.read/expenses.read, N's budgets.read, P's
-  // audit.read, and CAT's catalog.read).
-  ['readOnly', 30],
-  // Accountant (P, D-96): readOnly's read bundle (30, `%.read` minus api_keys.read,
-  // audit.read and catalog.read included) plus journals.post/journals.reverse and
-  // periods.close/periods.reopen — the four capabilities that make it an accountant
-  // rather than a reader (reports.read is already in the read bundle).
-  ['accountant', 34],
+  // audit.read, CAT's catalog.read, and OB-228's ten99.read).
+  ['readOnly', 31],
+  // Accountant (P, D-96): readOnly's read bundle (31, `%.read` minus api_keys.read,
+  // audit.read, catalog.read and ten99.read included) plus journals.post/journals.reverse,
+  // periods.close/periods.reopen, and OB-228's ten99.write (D-228-6 — 1099 filing is an
+  // accountant's job) — the capabilities that make it an accountant rather than a reader
+  // (reports.read is already in the read bundle).
+  ['accountant', 36],
   // 15 document/read codes plus journals.post and journals.reverse (OB-093), the Pay
   // Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the queue
   // but cannot issue), and M's purchase_orders.read/write + expenses.read/write (raise
@@ -269,11 +272,11 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 33 since CAT: the `%.read` bundle now also picks up `catalog.read` (was 32 after P
-    // added `audit.read`, itself after N added `budgets.read` and M added
-    // `purchase_orders.read`/`estimates.read`/`expenses.read` and the approver's
+    // 34 since OB-228: the `%.read` bundle now also picks up `ten99.read` (was 33 after
+    // CAT added `catalog.read`, itself after P added `audit.read`, N `budgets.read`, and M
+    // `purchase_orders.read`/`estimates.read`/`expenses.read` plus the approver's
     // `expenses.approve`).
-    expect(resolution.permissions.size).toBe(33);
+    expect(resolution.permissions.size).toBe(34);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

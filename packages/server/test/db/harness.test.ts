@@ -52,6 +52,7 @@ describe('test database harness', () => {
         '0020_contact_address',
         '0021_bank_feeds',
         '0022_account_statements',
+        '0023_ten99',
         '0999_app_grants',
       ]);
     });
@@ -107,7 +108,7 @@ describe('test database harness', () => {
       // 70 since P (accountant access & period close) added audit.read.
       // 72 since CAT (the item catalog) added catalog.read/write.
       // 73 since OB-227 (live bank feeds) added banking.connect.
-      expect(Number(row.count)).toBe(73);
+      expect(Number(row.count)).toBe(75);
     });
 
     it('has the seven system roles at their reserved ids', async () => {

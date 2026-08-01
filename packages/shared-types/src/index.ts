@@ -40,4 +40,5 @@ export * from './recurring-journals';
 export * from './reports';
 export * from './subledger';
 export * from './tax';
+export * from './ten99';
 export * from './wire';

@@ -357,6 +357,18 @@ const OVERRIDES = {
     // columns are DATETIME(3) (`created_at`, kept `Date`) and BINARY (mapped to
     // `Buffer`), with no money or BIGINT counter, so this is the only override.
     'customer_statements.as_of': 'string',
+
+    // ── 1099 reporting (0023_ten99) ────────────────────────────────────────────
+    //
+    // `threshold_minor` (the run's reporting threshold) and `amount_minor` (the filed
+    // amount) are money BIGINTs, so `number` becomes `bigint` — the `payments.amount_minor`
+    // correction. `w9_received_on` is a calendar DATE → `string | null` (nullability spelled
+    // out, since an override replaces the whole mapped type). The `tax_id_ciphertext`
+    // VARBINARY maps to `Buffer` on its own (the `secrets.ciphertext` precedent), and
+    // `tax_year` SMALLINT is a plain `number`, so neither needs an entry.
+    'ten99_form_runs.threshold_minor': 'bigint',
+    'ten99_forms.amount_minor': 'bigint',
+    'vendor_tax_profiles.w9_received_on': 'string | null',
   },
 };
 

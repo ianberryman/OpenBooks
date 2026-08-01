@@ -82,7 +82,10 @@ function grantList(source: string, name: string): readonly string[] {
     );
   }
 
-  const tables = [...block[1].replaceAll(/\/\/[^\n]*/gu, '').matchAll(/'([a-z_]+)'/gu)].map(
+  // `[a-z0-9_]` and not `[a-z_]`: a table name may carry a digit (`ten99_forms`,
+  // `ten99_form_runs`, OB-228), and the digit-free class silently skipped those, dropping
+  // them from the parsed grant lists and failing the schema-partition check below.
+  const tables = [...block[1].replaceAll(/\/\/[^\n]*/gu, '').matchAll(/'([a-z0-9_]+)'/gu)].map(
     (match) => match[1] as string,
   );
   if (tables.length === 0) {
@@ -358,6 +361,7 @@ describe('the grant lists and the live server agree', () => {
       'statement_packages',
       'customer_statements',
       'automation_annotations',
+      'ten99_forms',
     ]);
     expect(MUTABLE_TABLES).toContain('bank_statement_imports');
     expect(MUTABLE_TABLES).not.toContain('bank_statement_lines');
@@ -406,7 +410,9 @@ describe('the grant lists and the live server agree', () => {
       const granted = (privilege: string): readonly string[] =>
         grants
           .flatMap((grant) => {
-            const match = /^GRANT ([A-Z, ]+) ON `openbooks`\.`([a-z_]+)`/u.exec(grant);
+            // `[a-z0-9_]` not `[a-z_]`: a table name may carry a digit (`ten99_form_runs`,
+            // OB-228); the digit-free class silently dropped it from the granted set.
+            const match = /^GRANT ([A-Z, ]+) ON `openbooks`\.`([a-z0-9_]+)`/u.exec(grant);
             if (match === null) return [];
             const [, privileges, table] = match;
             return privileges?.split(', ').includes(privilege) ? [table as string] : [];

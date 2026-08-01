@@ -239,6 +239,9 @@ describe('the tenant table set is derived from the schema', () => {
       'security_events',
       'statement_packages',
       'tax_rates',
+      'ten99_form_runs',
+      'ten99_forms',
+      'vendor_tax_profiles',
       'work_items',
     ]);
   });

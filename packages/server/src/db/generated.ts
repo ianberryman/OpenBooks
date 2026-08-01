@@ -26,6 +26,7 @@ export interface Accounts {
   code: string;
   created_at: Generated<Date>;
   description: string | null;
+  excluded_from_1099: Generated<number>;
   id: Buffer;
   is_active: Generated<number>;
   name: string;
@@ -1186,6 +1187,36 @@ export interface TaxRates {
   updated_at: Generated<Date>;
 }
 
+export interface Ten99FormRuns {
+  created_at: Generated<Date>;
+  efile_provider: string | null;
+  efile_ref: string | null;
+  generated_by_user_id: Buffer;
+  id: Buffer;
+  org_id: Buffer;
+  status: Generated<string>;
+  tax_year: number;
+  threshold_minor: bigint;
+  updated_at: Generated<Date>;
+}
+
+export interface Ten99Forms {
+  amount_minor: bigint;
+  box_code: string;
+  contact_id: Buffer;
+  corrects_form_id: Buffer | null;
+  created_at: Generated<Date>;
+  form_type: string;
+  id: Buffer;
+  org_id: Buffer;
+  pdf_storage_key: string | null;
+  recipient_address_snapshot: string | null;
+  recipient_legal_name: string;
+  recipient_tin_last4: string | null;
+  run_id: Buffer;
+  tax_year: number;
+}
+
 export interface Users {
   created_at: Generated<Date>;
   display_name: string;
@@ -1195,6 +1226,24 @@ export interface Users {
   last_login_at: Date | null;
   password_hash: string;
   updated_at: Generated<Date>;
+}
+
+export interface VendorTaxProfiles {
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  default_box: Generated<string>;
+  default_form: Generated<string>;
+  id: Buffer;
+  is_1099_eligible: Generated<number>;
+  legal_name_override: string | null;
+  org_id: Buffer;
+  tax_classification: string | null;
+  tax_id_ciphertext: Buffer | null;
+  tax_id_last4: string | null;
+  tax_id_type: string | null;
+  updated_at: Generated<Date>;
+  w9_received_on: string | null;
 }
 
 export interface WorkItems {
@@ -1309,6 +1358,9 @@ export interface DB {
   sessions: Sessions;
   statement_packages: StatementPackages;
   tax_rates: TaxRates;
+  ten99_form_runs: Ten99FormRuns;
+  ten99_forms: Ten99Forms;
   users: Users;
+  vendor_tax_profiles: VendorTaxProfiles;
   work_items: WorkItems;
 }

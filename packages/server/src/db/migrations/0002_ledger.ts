@@ -93,6 +93,11 @@ export async function up(db: MigrationDb): Promise<void> {
       -- setup nudge (K3/K4). A hint the user sets, not derived from the account type, since
       -- the same type covers both (a bank is an asset, so is a prepaid).
       cash_basis_role   ENUM('cash','accrual') NULL,
+      -- Payments funded from this account are excluded from 1099-NEC vendor totals
+      -- (OB-228, D-228-3): a credit-card / third-party-network payment is reported by the
+      -- processor on 1099-K, and double-reporting is the classic 1099 bug. The owner flags
+      -- card / PayPal clearing accounts; edited in place per D-15 (the feed_source precedent).
+      excluded_from_1099 TINYINT(1)  NOT NULL DEFAULT 0,
       parent_account_id BINARY(16)   NULL,
       description       VARCHAR(512) NULL,
       is_active         TINYINT(1)   NOT NULL DEFAULT 1,

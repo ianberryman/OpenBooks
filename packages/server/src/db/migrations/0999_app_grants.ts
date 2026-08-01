@@ -178,6 +178,11 @@ const APPEND_ONLY_TABLES = [
   // and the draft a firing produces are where the state that matters lives. Its
   // mutable siblings (`automations`, `work_items`) are below.
   'automation_annotations',
+  // `ten99_forms` is a snapshot of what was filed (OB-228): a correction is a new row
+  // carrying `corrects_form_id` (D-02), never a mutation — `statement_packages`' reason
+  // to be append-only. Its mutable siblings (`vendor_tax_profiles`, `ten99_form_runs`)
+  // are below.
+  'ten99_forms',
 ] as const;
 
 /**
@@ -489,6 +494,15 @@ const MUTABLE_TABLES = [
   // holds no financial fact: the item only seeds a line's defaults and never binds
   // it (D-CAT-2), so editing one restates nothing a trial balance depends on.
   'catalog_items',
+  // ── 1099 reporting (0023_ten99) ─────────────────────────────────────────────
+  //
+  // `vendor_tax_profiles` is settings — a vendor's W-9 data, edited as it arrives or
+  // corrects (the `contacts` reason). `ten99_form_runs` is working state whose status
+  // moves `draft→generated→submitted→accepted|rejected` as e-file progresses (a
+  // reconciliation-session reason). The immutable filed snapshot is `ten99_forms`, in
+  // APPEND_ONLY_TABLES above (OB-228, D-228-5).
+  'vendor_tax_profiles',
+  'ten99_form_runs',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

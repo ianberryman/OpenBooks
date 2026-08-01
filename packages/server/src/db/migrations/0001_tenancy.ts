@@ -346,7 +346,9 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('budgets.write',            'Enter and import budget figures (N)'),
       ('audit.read',               'View the audit trail — who changed what, and period close history (P)'),
       ('catalog.read',             'View the item catalog (CAT)'),
-      ('catalog.write',            'Create, modify, and deactivate catalog items (CAT)')
+      ('catalog.write',            'Create, modify, and deactivate catalog items (CAT)'),
+      ('ten99.read',               'View the 1099 worksheet and filed forms (OB-228)'),
+      ('ten99.write',              'Manage vendor W-9/TIN data, generate and e-file 1099s (OB-228)')
   `.execute(db);
 }
 
@@ -526,7 +528,10 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
         OR p.code IN (
           'reports.read',
           'journals.post', 'journals.reverse',
-          'periods.close', 'periods.reopen'
+          'periods.close', 'periods.reopen',
+          -- 1099 filing is an accountant's job (OB-228, D-228-6). ten99.read already
+          -- arrives through the percent-read pattern; ten99.write is the filing/e-file gate.
+          'ten99.write'
         )
       )
   `.execute(db);

@@ -121,6 +121,76 @@ export interface BankFeedProvider {
 }
 
 /**
+ * Which e-file backend a `ten99_form_runs` row and a `Form1099Provider` both name
+ * (OB-228, D-228-7). `manual` is the real, deterministic default the gate exercises: it
+ * emits the IRS IRIS-format transmission the org files itself and transmits nothing — no
+ * network call, no credential (the D-102 `fake` pattern, applied to a compliance export).
+ * `iris` is the deferred real transmitter (IRS IRIS A2A / a vendor like Tax1099), proven
+ * only in a manual sandbox.
+ */
+export type Form1099ProviderKind = 'manual' | 'iris';
+
+/**
+ * One recipient's form as the transmitter needs it (OB-228). `amountMinor` is a cents
+ * string (D-13) — never a decimal or a float — and `taxIdLast4` is all the TIN the
+ * transmission layer sees from this side; the full TIN lives encrypted in
+ * `vendor_tax_profiles.tax_id_ciphertext` and is decrypted only at the boundary that
+ * hands it to a real e-file vendor, never surfaced to a module or the wire (D-228-2).
+ */
+export interface Ten99FormData {
+  readonly formType: '1099_nec' | '1099_misc';
+  readonly boxCode: string;
+  readonly amountMinor: string;
+  readonly recipientLegalName: string;
+  readonly recipientTin: string | null;
+  readonly recipientAddress: string | null;
+}
+
+/** A built, not-yet-submitted transmission — the IRS-format bytes plus its form count. */
+export interface Ten99Transmission {
+  readonly taxYear: number;
+  readonly formCount: number;
+  readonly artifact: Uint8Array;
+}
+
+/** The outcome of a submit — a provider ref to poll on and the status it reports. */
+export interface Ten99SubmitResult {
+  readonly providerRef: string;
+  readonly status: Ten99FilingStatus;
+}
+
+/** Where a submitted run stands with the transmitter; `ready_to_file` is `manual`'s terminal state. */
+export type Ten99FilingStatus = 'ready_to_file' | 'submitted' | 'accepted' | 'rejected';
+
+/** Already-decrypted per-connection settings the caller hands in, never read from a row here. */
+export interface Form1099AdapterDeps {
+  readonly apiKey: string | null;
+  readonly environment: 'sandbox' | 'production';
+  readonly appBaseUrl?: string;
+}
+
+/**
+ * The 1099 e-file seam (OB-228, D-228-7) — the same per-selection adapter idiom as
+ * `PaymentProcessorProvider` / `BankFeedProvider`, so `form1099ProviderFor(kind, deps)`
+ * picks the backend and a new vendor id does not compile until it has an adapter. The
+ * `manual` adapter drives the gate and transmits nothing; a real one calls its vendor over
+ * global `fetch`, never an SDK.
+ */
+export interface Form1099Provider {
+  /** Identifies the backing transmitter in logs and stored run records. */
+  readonly name: string;
+  /** Serialise the year's forms into the transmitter's upload format (IRIS for `manual`). */
+  buildTransmission(input: {
+    readonly taxYear: number;
+    readonly forms: readonly Ten99FormData[];
+  }): Promise<Ten99Transmission>;
+  /** Submit a built transmission. `manual` is a no-op returning `ready_to_file` + the artifact. */
+  submit(transmission: Ten99Transmission): Promise<Ten99SubmitResult>;
+  /** Poll a prior submission by its provider ref. */
+  getStatus(providerRef: string): Promise<Ten99FilingStatus>;
+}
+
+/**
  * OCR bill capture (initiative O, OB-185…191). One line of a document extraction —
  * everything the deterministic parser or a real OCR/LLM call can read off an item
  * row, and nothing it has to compute. `unitAmountMinor` is a string of minor units

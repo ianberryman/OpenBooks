@@ -818,16 +818,20 @@ const LATENT_GRANTS: Readonly<Record<SystemRoleName, readonly string[]>> = {
   // enforcement point — nothing is latent. The rows stay (as empty arrays) so the
   // per-role assertion below keeps naming each role, and so the next catalog-only
   // code has an obvious home.
-  owner: [],
-  bookkeeper: [],
+  // `ten99.read`/`ten99.write` are catalog-before-enforcement (OB-228): seeded in this
+  // trunk (Wave 0) but not yet checked by any service until the `modules/ten99` routes
+  // land (Wave 1/2), the exact `agents.review`/`workflows.*` pattern. They move into
+  // `GRANTED_TO` and these rows return to empty once the routes enforce them.
+  owner: ['ten99.read', 'ten99.write'],
+  bookkeeper: ['ten99.read', 'ten99.write'],
   // Empty since M3. Every code `0001_tenancy` grants an AP/AR clerk now has an
   // enforcement point — procure-to-pay's purchase_orders.*/expenses.*/estimates.*
   // gate the moment they are seeded (M), so neither clerk holds anything latent.
   apOnly: [],
   arOnly: [],
-  readOnly: [],
-  approver: [],
-  accountant: [],
+  readOnly: ['ten99.read'],
+  approver: ['ten99.read'],
+  accountant: ['ten99.read', 'ten99.write'],
 };
 
 /** Everything a matrix row needs in the org it is being run against. */
@@ -4382,9 +4386,10 @@ describe('gap 6 — the grants that nothing checks yet', () => {
     // Procure-to-pay (M) added seven codes and enforced them in the same milestone,
     // so they never lingered here past their one schema-only wave. Q (M6) then wired
     // the last family — `workflows.read`/`write`/`activate` — in the automations
-    // module (OB-200…210), so nothing is latent any more: every catalog code has an
-    // enforcement point. This number moves once per wave that wires a code.
-    expect(latent).toHaveLength(0);
+    // module (OB-200…210). OB-228 re-opens the latent set with `ten99.read`/`ten99.write`:
+    // seeded in the Wave-0 trunk, enforced once the `modules/ten99` routes land — at which
+    // point this returns to 0. This number moves once per wave that wires a code.
+    expect(latent).toHaveLength(2);
   });
 
   /**

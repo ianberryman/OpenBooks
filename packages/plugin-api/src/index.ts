@@ -82,6 +82,9 @@ export type {
   EmailProvider,
   ExtractedBill,
   ExtractedBillLine,
+  Form1099AdapterDeps,
+  Form1099Provider,
+  Form1099ProviderKind,
   InboundEmailAttachment,
   InboundEmailMessage,
   InboundMailProvider,
@@ -93,6 +96,10 @@ export type {
   QueueProvider,
   SecretsProvider,
   StorageProvider,
+  Ten99FilingStatus,
+  Ten99FormData,
+  Ten99SubmitResult,
+  Ten99Transmission,
 } from './providers';
 
 export type { EventSubscription, ModuleDefinition, ModuleHost } from './module';

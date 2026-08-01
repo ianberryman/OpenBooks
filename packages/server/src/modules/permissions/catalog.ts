@@ -151,6 +151,14 @@ export const PERMISSION_KEYS = [
   // "add item" works while entering an invoice or a bill.
   'catalog.read',
   'catalog.write',
+  // 1099 contractor tax reporting (initiative 1099, OB-228). A read/write pair.
+  // `ten99.read` gates the worksheet and filed forms (masked TIN only) and auto-grants
+  // to every `%.read` holder. `ten99.write` gates managing a vendor's W-9 / TIN, generating
+  // a filing run, and e-filing — held by owner, accountant and bookkeeper (1099 prep is
+  // clerk work, so it is NOT on the bookkeeper administration-exclusion list). No dedicated
+  // transmit SoD key in v1 (D-228-6); an owner-only `ten99.file` is the offered alternative.
+  'ten99.read',
+  'ten99.write',
 ] as const;
 
 /**
@@ -180,12 +188,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 73 codes and the seven system roles are set operations
+ * Migration `0001` seeds 75 codes and the seven system roles are set operations
  * over that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 73> = true;
+type AssertCatalogSize<_N extends 75> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);
