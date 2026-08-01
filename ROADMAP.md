@@ -36,6 +36,28 @@ OB-192…199), and **M6 Automations** — the polled agent work queue, MCP-only 
 [D-87](#d-87)…[D-100](#d-100). **Payment terms** ([D-79](#d-79)) generalise the discount primitive
 ([D-66](#d-66)) across AP and AR; cash basis ([D-87](#d-87)) supersedes accrual-only ([D-22](#d-22)).
 
+### Candidate milestones — competitive-gap placeholders (not scoped)
+
+One placeholder per item on the [competitive gap analysis](#competitive-gap-analysis--candidate-initiatives-vs-quickbooks--xero-future) below. These are **not scoped or owner-sequenced** — the codes are provisional handles, not a commitment to build order (two, `TAX` and `PAYROLL`, are explicit _partner-not-build_ calls). Each links to its detail section; the tier is from the gap sweep.
+
+| Code          | Tier | Candidate                                        | Ticket(s)   | Status                              | Detail                                                                                                                                                                                        |
+| ------------- | ---- | ------------------------------------------------ | ----------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**              | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
+| **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**              | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
+| **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**       | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
+| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Placeholder — not scoped**        | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-future)                                                                                                        |
+| **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**           | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
+| **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**   | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
+| **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **Placeholder — not scoped**        | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
+| **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**        | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                       |
+| **ROLES**     | T2   | Custom role builder                              | OB-226      | **Placeholder — not scoped**        | [custom role builder](#follow-up--custom-role-builder-ob-226-future)                                                                                                                          |
+| **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**        | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                           |
+| **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**        | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                            |
+| **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE** | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
+| **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**      | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
+
+Two operational placeholders sit outside the competitive sweep: the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items (OB-229…231) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235).
+
 ---
 
 ## Release plan — post-M4 sequencing
@@ -814,6 +836,41 @@ already the single service-layer gate; the harder, optional extension is **data-
 (restrict a role to specific dimensions/customers), which QBD has and would be net-new. Recommend the
 key-assembly builder first (small, reuses everything), data-scoping as a separate later question.
 
+### Milestone MOBILE — native app shell via Capacitor (OB-232, future)
+
+**Placeholder — not scoped.** Responsive web (Initiative R) is built and its `mobile-smoke` narrative
+passes at 390px, which was the stated prerequisite: the wrapped views already work at phone width. The
+candidate wraps the existing `packages/web` SPA in a **Capacitor** native shell (iOS/Android) rather
+than a separate codebase, reusing the React app and the same `/v1` client, and adds native capabilities
+behind a thin plugin layer — **camera** (feeds the O bill-capture pipeline directly), **push
+notifications**, **biometric unlock**. The fork left open at scoping time and still open: **Capacitor
+wrap vs. a fuller React-Native rewrite** — the wrap is far cheaper and reuses everything, the rewrite
+buys deeper native UX; recommend the Capacitor wrap as the v1 unless a concrete native-UX requirement
+forces otherwise. No ledger or API change; the work is packaging, the plugin layer, and store
+submission. [Mileage tracking](#follow-up--mileage-tracking-ob-234-future) folds in here.
+
+### Follow-up — multi-entity consolidation (OB-233, future)
+
+**Placeholder — not scoped; low urgency (T3).** ABSENT today — every org is a standalone tenant. Only
+the top-of-line competitor plans ship this (QBO Advanced "Intercompany"/IES, Xero AU "Ultra"), so it is
+an up-market/agency play, not table stakes. The shape: a **parent/consolidation entity** that rolls up
+several `org_id` tenants into combined statements, with **intercompany elimination** entries and a
+shared or mapped chart of accounts across the set. This is the most **tenancy-invasive** candidate on
+the list — consolidated reads cross the `tenantDb(orgId)` boundary that the whole architecture is built
+to prevent (see the tenancy non-negotiables in `CLAUDE.md`), so the real design question is whether
+consolidation is a **read-only reporting overlay** over multiple tenant scopes (preferred — no new write
+path, no cross-tenant journals) or a first-class consolidation entity with its own ledger. Defer the
+decision to scoping; flagged here so the tenancy implications are visible before anyone starts.
+
+### Follow-up — mileage tracking (OB-234, future)
+
+**Placeholder — folds into [MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future).**
+ABSENT today. A low-priority solopreneur/field feature (QBO Solopreneur+, Xero Me) that is primarily a
+**native-app** capability — GPS trip capture — so it is gated on the Capacitor shell and should be
+scoped as part of it, not standalone. The accounting side is thin: a mileage log with a per-mile rate
+produces an expense/reimbursable amount that reuses the existing expense-claim path (O / M procure-to-pay
+reimbursement surface); no ledger change. Placeholder only, to keep the gap list complete.
+
 ### Open-source & self-host readiness (OB-229…OB-231)
 
 From an OSS-readiness review (2026-08-01). These are not competitive-feature gaps — they are what
@@ -853,6 +910,33 @@ taxonomy** (`type:*`, `tier:*`, `area:*`, `status:*`, `good first issue`, `help 
 Projects board, port open `OB-NNN` items to issues, and **update `README.md`/`CONTRIBUTING.md`**
 (which point at `ROADMAP.md`) to point at the board and `docs/decisions/`. The provider-seam stubs
 (`smtp` above, `anthropic` OCR, `aws-secrets-manager`) make natural **good-first-issue** entries.
+
+### Operations — evaluate AWS deployment architecture (OB-235, future)
+
+**Placeholder — evaluation, not a build.** `infra/terraform` already describes a **hosted AWS topology
+that is plan-clean but has never been applied** ("hosted topology, plan-clean, never applied" —
+`CLAUDE.md`), and the provider seams were built with a hosted future in mind (`ses` email,
+`aws-secrets-manager`, `s3` storage, `sqs` queue are all stubbed adapter slots). This todo is the
+decision pass that must happen **before** a managed/hosted offering — or a production self-host on
+AWS — is stood up. Open questions to settle:
+
+- **Compute** — ECS Fargate vs. EKS vs. plain EC2/ASG for the single three-role image (`api`, `worker`,
+  `migrate` — `OPENBOOKS_ROLE`); how the append-only two-user DB split (`openbooks_migrator` /
+  `openbooks_app`, `0999_app_grants`) maps onto **RDS MySQL 8.4** (the `infra/scripts/check-db-bootstrap-parity.sh`
+  parity contract must hold against RDS, not just Compose/testcontainers).
+- **Provider adapters to make real** — the hosted path needs the currently-stubbed `ses` (or the new
+  `smtp`, OB-229), `aws-secrets-manager` (deferred at PAY), `s3` storage, and a durable queue to replace
+  `in-process` (`sqs` or equivalent) so the `worker` role survives a restart (the known-gap-7 restart
+  caveat).
+- **Migrations** — where `yarn migrate` runs in a managed deploy (one-shot task vs. init container) and
+  how it holds the "migrator has DDL, app never does" split under RDS-managed users.
+- **Networking / secrets / cost** — VPC + private RDS, ALB/TLS termination, secret delivery to tasks,
+  and a first-order cost model (Fargate vs. EC2, RDS sizing) for a small-tenant baseline.
+
+Deliverable is a written recommendation (a decision `D-NN` + an ADR under `docs/decisions/`), not code;
+it unblocks whether a managed offering is worth building and what the reference self-host-on-AWS looks
+like. Related: the [managed bank-feed model](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green)
+and managed PAY both presuppose an OpenBooks-run hosted plane this evaluation would define.
 
 ### Environment notes that cost time to rediscover
 
