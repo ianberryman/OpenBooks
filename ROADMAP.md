@@ -340,6 +340,65 @@ done; this is the read-and-navigate surface that makes it usable. Note the hones
 from the engine: a reversal's date defaults to today (it must land in an open period — the original's
 period is usually closed), and dimension tags are intentionally **not** copied to the reversal (D-32).
 
+### Follow-up — automatic Stripe payout sync → summary-sales journals (OB-237)
+
+For an org whose **sales and invoicing live entirely in Stripe** (OpenBooks is the GL, not the AR
+system), income should arrive on the ledger automatically. Stripe pays out net weekly; each payout
+is a batch of many charges minus fees, refunds, disputes and tax. The correct entry is **one
+grossed-up summary journal per payout** — not the net deposit booked as revenue (the commonest
+Stripe bookkeeping error, which understates sales and hides the fee). The payout deposit is a
+transfer, not the income event.
+
+**Most of the plumbing already exists (reuse, not rebuild).** PAY built the Stripe connection
+(`processor_connections` + the per-org `SecretsProvider`), the polling seam
+(`listEventsSince`/`fetchBalanceMinor`, `providers/payment/stripe.ts`), the clearing + fee posting
+model ([D-82](#d-82)/[D-104](#d-104)), refunds/chargebacks, and object-level idempotency via
+`external_refs` keyed on the Stripe object id (F9 — a re-pull can't double-post). The scheduler
+(`registerDailyTask`/`runAsAutomation`) already runs PAY's daily poll; OB-227 bank feeds + the
+reconciliation surface handle the deposit side; the draft flow + `agents.review` queue give the
+"propose, human posts" review step; and the D-85 balance backstop already compares clearing's book
+balance to Stripe's reported balance to catch drift.
+
+**The payout breakdown is a supported, well-shaped call** (verified against Stripe docs): the bare
+Payout object carries only the net `amount`, but `GET /v1/balance_transactions?payout=po_…` returns
+the underlying transactions, and the Reporting API's `payout_reconciliation.by_id.summary.1`
+pre-aggregates **gross / fee / net / count by `reporting_category`** (`charge`, `refund`, `fee`,
+`tax`, `dispute`). `reporting_category` becomes the account-mapping key, and the summary maps
+almost 1:1 to journal lines. Recommend the **balance-transactions list** (synchronous, plain
+`fetch` per the "never a vendor SDK" rule, real-time) over the Reporting API (async report-run
+lifecycle, slight lag), aggregating by category in-process.
+
+**What's genuinely new:** (1) a **payout-breakdown fetch** added to the Stripe adapter; (2) a
+per-org/connection **account-mapping config + screen** (`reporting_category` → GL account, incl. a
+Stripe clearing account); (3) a **summary-journal builder** — one payout → one balanced draft
+(bigint cents, grossed up, contra refunds/disputes), landed for review or auto-posted; (4) a
+dedicated **payout cursor column** (the interface at `plugin-api/src/providers.ts:111` already warns
+against reusing a timestamp as a cursor — PAY's poll did, and it's the fix flagged there); (5) the
+**mode fork**.
+
+**Forks to settle first (the decisions):**
+
+- **Summary-sales vs apply-payments mode**, per connection and **mutually exclusive** — PAY's
+  existing path applies each charge to an OpenBooks **invoice** (`recordPayment` against a
+  receivable); this org has no such invoice, so it needs the summary path instead. Both on one
+  account would double-count revenue. This is the headline decision.
+- **Review-first vs auto-post** default — recommend review-first (a draft in a "Stripe payouts to
+  review" list), matching the `agents.review`/propose-then-post discipline; auto-post is opt-in.
+- **Clearing account vs direct-to-bank** — clearing gives an accrual cutoff and a reconciliation
+  check against Stripe's balance (the payout deposit reconciles against the clearing balance on the
+  OB-227 bank-match screen); direct-to-bank makes the bank match 1:1 but loses the check.
+- **Sales tax** depends on whether the org uses **Stripe Tax** — only then does `tax` break out as
+  its own `reporting_category` → Sales Tax Payable; otherwise tax is baked into `charge` gross and
+  the mapping must handle that.
+
+**Steady-state user flow once built:** connect Stripe once → pick summary-sales mode → map
+categories to accounts (pre-filled from the starter chart) → thereafter each payout auto-builds a
+reviewed draft journal (`Dr Clearing / Dr Fees … Cr Revenue / Cr Sales Tax Payable`) that the user
+posts with one click; a day or two later the real deposit lands in the bank feed and reconciles
+against the clearing balance. Weekly income entry becomes glance-and-approve. Corrections use the
+Reverse path ([OB-236](#follow-up--reversal-is-unreachable-for-an-already-posted-entry-ob-236)).
+Unscheduled; folds naturally into PAY or FEEDS rather than a standalone milestone.
+
 ### Product follow-up — an optional product/service catalog (future)
 
 Invoice and bill lines are free-form today by deliberate decision (no product/item table — see
