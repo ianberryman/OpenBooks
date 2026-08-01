@@ -82,8 +82,10 @@ import {
 } from '../../src/modules/reports';
 // Not through `modules/reports`' index — OB-065 never exported it and OB-067 did
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
+import { createCustomerStatement } from '../../src/modules/account-statements';
 import { connectProcessor } from '../../src/modules/payments-processing';
 import { getAging } from '../../src/modules/reports/aging.service';
+import { exportReport } from '../../src/modules/reports/export';
 import {
   disposeFixedAsset,
   registerFixedAsset,
@@ -2708,6 +2710,42 @@ const REFERENCES: readonly Reference[] = [
     subject: (o) => o.partyId,
     reach: (id, s) => getAging({ asOf: DATE, ledger: 'receivable', contactId: id }, s.caller.ctx),
   },
+  /**
+   * OB-220 — the customer statement (part 1) and report export (part 2) inherit the
+   * aging row above, one level up. `createCustomerStatement` resolves its `contactId`
+   * through the same `assertFound` path aging does before it renders anything, so a
+   * stranger's customer is the same 404 (never a rendered empty statement that would
+   * confirm the contact exists). `exportReport` is a thin wrapper over the reports here:
+   * its `contactId`/`accountId`/`periodId` reach the underlying report's own resolve, so
+   * each is the same 404 the report gives directly — proven via the report that reads it.
+   */
+  {
+    operationId: 'createCustomerStatement',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) => createCustomerStatement({ contactId: id, asOf: DATE }, s.caller.ctx),
+  },
+  {
+    operationId: 'exportReport',
+    field: 'contactId',
+    subject: (o) => o.partyId,
+    reach: (id, s) =>
+      exportReport({ report: 'profit-and-loss', format: 'csv', contactId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'exportReport',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      exportReport({ report: 'general-ledger', format: 'csv', accountId: id }, s.caller.ctx),
+  },
+  {
+    operationId: 'exportReport',
+    field: 'periodId',
+    subject: (o) => o.periodId,
+    reach: (id, s) =>
+      exportReport({ report: 'budget-vs-actual', format: 'csv', periodId: id }, s.caller.ctx),
+  },
 
   // ---------------------------------------------------------------------------
   // M4 (OB-084). Every id banking accepts in a body, each resolved by the service
@@ -3853,6 +3891,11 @@ const EXEMPT: Readonly<Record<string, string>> = {
   // shape exactly — a tenant-scoped filter, so a cross-org or unknown id yields an empty
   // page rather than the 404 that would confirm the id names someone somewhere (A7).
   'getAuditReport.actorId': 'a filter over the caller’s own org — empty, not 404',
+  // OB-220: `listCustomerStatements` narrows the rendered-statement history by customer
+  // over the caller's own org. It is `listInvoices.contactId`'s shape exactly — a
+  // tenant-scoped filter, so a cross-org or unknown contact yields an empty list rather
+  // than the 404 that would confirm the contact names someone somewhere (A7).
+  'listCustomerStatements.contactId': 'a filter over the caller’s own org — empty, not 404',
   // Q (M6): `listWorkItems` narrows the queue by the automation that enqueued each
   // item. It is `listBudgets.periodId`'s shape exactly — a tenant-scoped filter, so a
   // cross-org or unknown automation id yields an empty page rather than the 404 that

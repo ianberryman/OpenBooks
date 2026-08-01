@@ -51,6 +51,7 @@ describe('test database harness', () => {
         '0019_catalog',
         '0020_contact_address',
         '0021_bank_feeds',
+        '0022_account_statements',
         '0999_app_grants',
       ]);
     });

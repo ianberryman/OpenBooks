@@ -187,6 +187,7 @@ describe('the tenant table set is derived from the schema', () => {
       'change_feed_cursors',
       'check_number_sequences',
       'contacts',
+      'customer_statements',
       'dimension_values',
       'dimensions',
       'document_captures',

@@ -218,6 +218,11 @@ import {
   getProfitAndLoss,
   getStatementOfCashFlows,
 } from '../../src/modules/reports';
+import {
+  createCustomerStatement,
+  listCustomerStatements,
+} from '../../src/modules/account-statements';
+import { exportReport } from '../../src/modules/reports/export';
 import { createStatementPackage, listStatementPackages } from '../../src/modules/statements';
 /**
  * Not through `modules/reports`' index, and OB-067 did not change that.
@@ -1442,6 +1447,27 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listStatementPackages',
     permission: 'reports.read',
     call: (s) => listStatementPackages(s.ctx),
+  },
+  // OB-220 — the customer statement of account and report export, both `reports.read`:
+  // a statement is the aging report scoped to one customer, and an export is a report
+  // the holder can already run, streamed as a file. Neither needs a new key (D-220).
+  {
+    name: 'createCustomerStatement',
+    operationId: 'createCustomerStatement',
+    permission: 'reports.read',
+    call: (s) => createCustomerStatement({ contactId: s.contactId, asOf: s.date }, s.ctx),
+  },
+  {
+    name: 'listCustomerStatements',
+    operationId: 'listCustomerStatements',
+    permission: 'reports.read',
+    call: (s) => listCustomerStatements(undefined, s.ctx),
+  },
+  {
+    name: 'exportReport',
+    operationId: 'exportReport',
+    permission: 'reports.read',
+    call: (s) => exportReport({ report: 'trial-balance', format: 'csv' }, s.ctx),
   },
   {
     name: 'getAuditReport',
@@ -3403,6 +3429,10 @@ const UNGATED_OPERATIONS: ReadonlySet<string> = new Set([
   // the one sanctioned unauthenticated read on the API. See `public-invoices.ts`.
   'getPublicInvoiceView',
   'getPublicInvoicePdf',
+  // The hosted customer-statement PDF (OB-220): the same capability-token-in-the-path
+  // shape as the public-invoice pair above — the token is the whole authorization, so
+  // it carries no permission and reaches no role. See `public-statements.ts`.
+  'getPublicStatementArtifact',
   // The bill-capture inbound webhook (initiative O, OB-186): the per-org token in
   // the path is the whole authorization, exactly as the public-invoice pair above —
   // an unauthenticated push endpoint a mail relay hits, reaching no session and no

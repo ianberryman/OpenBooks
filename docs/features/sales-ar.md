@@ -4,7 +4,8 @@ Everything about money owed _to_ the business: invoices and credit notes, the te
 they're due, how they're delivered to the customer, and the automations that raise and chase them.
 
 Source: `packages/server/src/modules/{invoices,invoicing,delivery,branding,payment-terms}`.
-Tables: `0005_subledger`, `0007_invoice_delivery`, `0008_recurring_dunning`, `0012_cash_application`.
+Tables: `0005_subledger`, `0007_invoice_delivery`, `0008_recurring_dunning`, `0012_cash_application`,
+`0022_account_statements`.
 
 ---
 
@@ -111,6 +112,31 @@ address, logo (stored via `StorageProvider`), brand colour, footer.
   clear.
 
 Kept as its own module so future document types can reach it without an artificial dependency edge.
+
+---
+
+## Statement of account
+
+A **customer statement of account** is a per-customer, branded PDF of the invoices still owing as at a
+date, aged — the classic collections document. It is **open-item**: the statement's data _is_ the AR
+aging report scoped to one contact (`getAging({ ledger: 'receivable', contactId, asOf, detail: true })`).
+Aging's own contract makes "what does this customer owe and since when" that call rather than a second
+definition of outstanding (decision **D-40 / D-34**), so the statement is pure assembly — no new
+subledger, no stored balance.
+
+- `createCustomerStatement` renders the PDF (the same pdfmake + `org_branding` letterhead the invoice
+  renderer uses), stores it via `StorageProvider`, and appends one `customer_statements` row. If a
+  `delivery.recipientEmail` is supplied it also emails the customer a capability-token link, exactly as
+  a sent invoice; otherwise the statement is download-only. A re-render — or a failed send — is a **new
+  row**, never an edit (`customer_statements` is append-only).
+- Gated by **`reports.read`** — it renders a report the holder can already run, so it needs no new
+  permission key (the statement-package precedent).
+- The hosted PDF is `GET /public/statements/{token}/pdf`, a token-gated unauthenticated read that
+  shares the invoice `/public/*` surface and its security posture.
+
+Files: `packages/server/src/modules/account-statements/` (`account-statement.service.ts`, `renderer/`,
+`token.ts`, `public-statement.service.ts`). Web screen: `/customer-statements`.
+Tables: `customer_statements` (append-only), reusing `org_branding`.
 
 ---
 

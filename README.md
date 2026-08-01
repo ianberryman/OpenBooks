@@ -17,11 +17,16 @@ hosted service from that same image — not a stripped-down community edition of
 > and trial balance; chart of accounts, contacts, dimensions, and fiscal periods; invoices, bills,
 > credit notes, payment application and tax; bank import, matching and reconciliation; the reporting
 > suite including cash-basis and cash flow; invoice delivery (PDF + hosted page + email), recurring
-> invoices and dunning; OCR bill capture; Stripe/Square payment processing; and the platform surface
-> (OAuth 2.1 AS, MCP tools, event feed, change feed, external refs, agent review queue).
+> invoices and dunning; OCR bill capture; Stripe/Square payment processing; cash application and
+> **Pay Bills** disbursements; budgets, fixed assets and procure-to-pay; accountant access and period
+> close; the **automations** engine (M6, an MCP-polled agent work queue); a responsive/mobile-ready
+> web shell; **customer statements of account** and **CSV/Excel report export**; and the platform
+> surface (OAuth 2.1 AS, MCP tools, event feed, change feed, external refs, agent review queue).
 >
-> Still ahead: **Pay Bills** disbursements (scaffolded, queue service not yet written), the
-> **automations** engine (M6), and launch-readiness polish (M7 — onboarding, export, published spec).
+> Still ahead: launch-readiness hardening — the external security review of the OAuth AS is owed, and
+> the schema-freeze/production pass is not done — plus unscheduled polish (a native mobile shell, the
+> onboarding launchpad, the marketing/docs site) and flagged follow-ups (document-list export, 1099
+> contractor reporting).
 >
 > The full, honest inventory is in [**ROADMAP.md**](ROADMAP.md) (the per-subsystem status and every
 > design decision, `D-01 … D-112`), and the developer/operator documentation is in

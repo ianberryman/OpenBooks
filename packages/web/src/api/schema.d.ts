@@ -104,6 +104,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/statements/{token}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The retained customer-statement PDF, unauthenticated
+         * @description Streams the exact PDF snapshot taken when this customer statement was rendered, carrying the capability token from the delivery email. An unknown, malformed or never-issued token all answer with the same `404`.
+         */
+        get: operations["getPublicStatementArtifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/accounting-settings": {
         parameters: {
             query?: never;
@@ -1597,6 +1617,30 @@ export interface paths {
          * @description A reversing journal, never a deletion. A credit note that has been applied to an invoice is refused with `document_has_allocations`.
          */
         post: operations["voidCreditNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/customer-statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List rendered customer statements
+         * @description Every customer statement this org has rendered, newest first, optionally narrowed to one contact — each with a freshly signed download URL and a closing balance recomputed as at its own `asOf` (D-40’s reproducibility makes that the same figure the statement was rendered with).
+         */
+        get: operations["listCustomerStatements"];
+        put?: never;
+        /**
+         * Render a customer statement of account to PDF
+         * @description Renders one contact’s open items — the aging report (OB-065) for that contact, as at a date — into a branded PDF, stores it behind the StorageProvider, and records it so it can be re-downloaded. An optional `delivery.recipientEmail` also emails the customer a hosted link; a rejected send is reported as `status: "failed"` rather than as an error, since the artifact was genuinely rendered and stored regardless.
+         */
+        post: operations["createCustomerStatement"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3731,6 +3775,26 @@ export interface paths {
          * @description Forecasts cash forward from `asOf`: opening cash — this org’s cash and bank account balances at the close of that date — plus outstanding invoices (money in) and bills (money out) bucketed by **due date** rather than by how overdue they are, projected across `horizon` buckets of `granularity` width. An amount already overdue lands in the earliest bucket instead of being excluded — it is money expected now, not money a stale due date should hide. `includesRecurringCommitments` is always `false`: recurring journals do not exist yet, so this forecast only knows about money already sitting in the AR/AP subledgers as an invoice or a bill. Takes `reports.read` and only that.
          */
         get: operations["getCashFlowProjection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export a report as CSV or Excel
+         * @description Runs the same report service the JSON route runs — trial balance, profit and loss, balance sheet, general ledger, aging, cash flow, or budget vs actual — flattens the result into a canonical table, and returns it as `text/csv` or a real `.xlsx` workbook. The figures can never disagree with the on-screen report: there is no second aggregation here, only a different serialisation of the same service call. `report` and `format` are required; every other field is a filter one or more of the reports read, and a report missing a filter it requires (general ledger’s `accountId`, aging’s `ledger`/`asOf`, budget vs actual’s `periodId`) gets that report’s own validation error. Dimension filters and `groupBy` are not carried by this endpoint — an export is the report’s flat rows, not a caller-chosen slice of them.
+         */
+        get: operations["exportReport"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7171,6 +7235,36 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
+        /** @description Renders a branded open-item statement of account for one customer to a PDF. */
+        CreateCustomerStatementRequest: {
+            /** @description The date the open-item balance is computed as at. Required (D-40). */
+            asOf: components["schemas"]["CalendarDate"];
+            /** Format: uuid */
+            contactId: string;
+            /** @description Present emails the statement to the customer; absent is download-only. */
+            delivery?: {
+                /**
+                 * Format: email
+                 * @description Where to email the statement. Absent renders for download only.
+                 */
+                recipientEmail: string;
+            };
+        };
+        /** @description Renders a branded open-item statement of account for one customer to a PDF. */
+        CreateCustomerStatementRequestInput: {
+            /** @description The date the open-item balance is computed as at. Required (D-40). */
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** Format: uuid */
+            contactId: string;
+            /** @description Present emails the statement to the customer; absent is download-only. */
+            delivery?: {
+                /**
+                 * Format: email
+                 * @description Where to email the statement. Absent renders for download only.
+                 */
+                recipientEmail: string;
+            };
+        };
         /** @description Creates one axis. An org may hold at most `MAX_DIMENSIONS_PER_ORG` of them, archived ones included; over that is a `precondition_failed`. */
         CreateDimensionRequest: {
             /** @description Short reference unique within the org, e.g. `DEPT`. Compared under the column's `utf8mb4_0900_ai_ci` collation, so it is case- and accent-insensitive. Immutable once created. Leading and trailing whitespace is trimmed. */
@@ -8074,6 +8168,70 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description A rendered customer statement and its artifact. */
+        CustomerStatement: {
+            asOf: components["schemas"]["CalendarDate"];
+            /** @description The customer’s total owed as at `asOf`, cents-only (D-13). Ties to the PDF total. */
+            closingBalanceMinor: string;
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the stored PDF, minted on read. */
+            downloadUrl: string;
+            /** @description The author’s display name, or null if the user no longer resolves. */
+            generatedByName: string | null;
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The customer-facing hosted-page link, present only when the statement was sent. */
+            publicUrl: string | null;
+            /** @description The address it was emailed to, or null when generated for download only. */
+            recipientEmail: string | null;
+            /**
+             * @description `generated` when rendered for download only; `sent` when emailed to the customer; `failed` when an email send threw — its own row, never an overwrite of a prior try.
+             * @enum {string}
+             */
+            status: "generated" | "sent" | "failed";
+        };
+        /** @description A rendered customer statement and its artifact. */
+        CustomerStatementInput: {
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @description The customer’s total owed as at `asOf`, cents-only (D-13). Ties to the PDF total. */
+            closingBalanceMinor: string;
+            /** Format: uuid */
+            contactId: string;
+            contactName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description A short-lived signed URL to the stored PDF, minted on read. */
+            downloadUrl: string;
+            /** @description The author’s display name, or null if the user no longer resolves. */
+            generatedByName: string | null;
+            /** Format: uuid */
+            generatedByUserId: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The customer-facing hosted-page link, present only when the statement was sent. */
+            publicUrl: string | null;
+            /** @description The address it was emailed to, or null when generated for download only. */
+            recipientEmail: string | null;
+            /**
+             * @description `generated` when rendered for download only; `sent` when emailed to the customer; `failed` when an email send threw — its own row, never an overwrite of a prior try.
+             * @enum {string}
+             */
+            status: "generated" | "sent" | "failed";
+        };
+        /** @description The org’s rendered customer statements, newest first. */
+        CustomerStatementList: {
+            statements: components["schemas"]["CustomerStatement"][];
+        };
+        /** @description The org’s rendered customer statements, newest first. */
+        CustomerStatementListInput: {
+            statements: components["schemas"]["CustomerStatementInput"][];
         };
         /** @description The org’s default depreciation accounts (D-115), consulted only when a fixed asset does not nominate its own. Either may be null — an org with no registered assets yet has nominated neither. */
         DepreciationAccounts: {
@@ -13079,6 +13237,29 @@ export interface operations {
             };
         };
     };
+    getPublicStatementArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The hosted statement page’s capability token, `{prefix}.{secret}` — the whole authorization for this request. No session, no permission, no expiry (D-74). */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getControlAccounts: {
         parameters: {
             query?: never;
@@ -16555,6 +16736,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreditNote"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCustomerStatements: {
+        parameters: {
+            query?: {
+                contactId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerStatementList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createCustomerStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomerStatementRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerStatement"];
                 };
             };
             /** @description Default Response */
@@ -21793,6 +22041,41 @@ export interface operations {
                     "application/json": components["schemas"]["CashFlowProjection"];
                 };
             };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    exportReport: {
+        parameters: {
+            query: {
+                /** @description Which report to export. The tabular-friendly set; projection and audit are deferred. */
+                report: "trial-balance" | "profit-and-loss" | "balance-sheet" | "general-ledger" | "aging" | "cash-flow" | "budget-vs-actual";
+                /** @description `csv` (RFC-4180) or `xlsx` (a real Excel workbook). */
+                format: "csv" | "xlsx";
+                asOf?: components["schemas"]["CalendarDateInput"];
+                from?: components["schemas"]["CalendarDateInput"];
+                to?: components["schemas"]["CalendarDateInput"];
+                /** @description The recognition basis: `accrual` (a document counts when raised) or `cash` (when a payment settles it, proportionally for partials). On a request it overrides the org’s default for this one run; on a response it states which basis produced the numbers. */
+                basis?: "accrual" | "cash";
+                contactId?: string;
+                accountId?: string;
+                /** @description `receivable` ages invoices against what customers owe; `payable` ages bills against what is owed to vendors. Each ties to its own control account (C8). */
+                ledger?: "receivable" | "payable";
+                periodId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
             /** @description Default Response */
             default: {
                 headers: {

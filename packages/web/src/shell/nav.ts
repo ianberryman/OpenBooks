@@ -134,6 +134,12 @@ const NAV_GROUPS: readonly NavGroup[] = [
        * permission those reports do not (`statement-packages.ts`'s own module header).
        */
       { to: '/statement-packages', label: 'Statement packages', permission: 'reports.read' },
+      /**
+       * `reports.read` (OB-220): a customer statement is the AR aging report scoped to one
+       * customer, rendered branded and optionally emailed — it needs no permission that
+       * report does not (`account-statement.service.ts`'s own module header).
+       */
+      { to: '/customer-statements', label: 'Customer statements', permission: 'reports.read' },
       { to: '/budgets', label: 'Budgets', permission: 'budgets.read' },
     ],
   },

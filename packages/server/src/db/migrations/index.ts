@@ -21,6 +21,7 @@ import * as m0018 from './0018_automations';
 import * as m0019 from './0019_catalog';
 import * as m0020 from './0020_contact_address';
 import * as m0021 from './0021_bank_feeds';
+import * as m0022 from './0022_account_statements';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -80,6 +81,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0019_catalog': m0019,
   '0020_contact_address': m0020,
   '0021_bank_feeds': m0021,
+  '0022_account_statements': m0022,
   '0999_app_grants': m0999,
 };
 

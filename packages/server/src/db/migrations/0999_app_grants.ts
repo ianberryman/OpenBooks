@@ -162,6 +162,14 @@ const APPEND_ONLY_TABLES = [
   // StorageProvider, reached by `artifact_storage_key`.
   'period_close_events',
   'statement_packages',
+  // ── Customer statement of account (0022_account_statements) ─────────────────
+  //
+  // `customer_statements` is `invoice_deliveries`' argument applied to a customer's
+  // AR statement (OB-220): a re-render is a new row and the PDF it names was frozen
+  // at render time, so the record is never edited — and a `'failed'` send, like a
+  // delivery's, is its own row rather than an overwrite of a prior try. The bytes
+  // live behind the StorageProvider, reached by `artifact_storage_key`.
+  'customer_statements',
   // ── Automations (0018_automations) ─────────────────────────────────────────
   //
   // `automation_annotations` is the `annotate` action's output (D-119): a record

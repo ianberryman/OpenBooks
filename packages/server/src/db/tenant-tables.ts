@@ -68,6 +68,7 @@ export const TENANT_TABLES = [
   'change_feed_cursors',
   'check_number_sequences',
   'contacts',
+  'customer_statements',
   'dimension_values',
   'dimensions',
   'document_captures',

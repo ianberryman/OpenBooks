@@ -39,6 +39,7 @@ import { registerOAuthFlowRoutes } from './routes/oauth-flow';
 import { registerProcessingWebhookRoutes } from './routes/processing-webhook';
 import { registerPublicInvoiceRoutes } from './routes/public-invoices';
 import { registerPublicPayLinkRoutes } from './routes/public-pay-link';
+import { registerPublicStatementRoutes } from './routes/public-statements';
 import type { App } from './types';
 
 /**
@@ -277,6 +278,10 @@ export async function buildApp(options: BuildAppOptions): Promise<App> {
   // same unauthenticated shape as the route above, registered alongside it for the
   // reason `public-pay-link.ts`'s file header gives.
   registerPublicPayLinkRoutes(app, config);
+  // The hosted customer-statement PDF (OB-220 part 1): the same unauthenticated,
+  // token-is-the-authorization shape as the two routes above, at
+  // `/public/statements/{token}/pdf` so it shares their `/public/*` proxy rule.
+  registerPublicStatementRoutes(app);
   // A third unauthenticated surface, alongside the two above (OB-148, D-85): the
   // signed, session-less inbound payment-processor webhook. See
   // `routes/processing-webhook.ts`'s file header for why it lives here, outside

@@ -10,6 +10,7 @@
  * top of `accounts/accounts.ts`.
  */
 
+export * from './account-statements';
 export * from './accountant';
 export * from './accounts';
 export * from './auth';

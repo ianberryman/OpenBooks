@@ -18,6 +18,7 @@ import { registerCatalogRoutes } from './catalog';
 import { registerChangeFeedRoutes } from './change-feed';
 import { registerChartTemplateRoutes } from './chart-templates';
 import { registerContactRoutes } from './contacts';
+import { registerCustomerStatementRoutes } from './customer-statements';
 import { registerDimensionRoutes } from './dimensions';
 import { registerDraftRoutes } from './drafts';
 import { registerDunningRoutes } from './dunning';
@@ -42,6 +43,7 @@ import { registerPurchaseOrderRoutes } from './purchase-orders';
 import { registerReconciliationRoutes } from './reconciliation';
 import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerRecurringJournalRoutes } from './recurring-journals';
+import { registerReportExportRoutes } from './report-export';
 import { registerReportRoutes } from './reports';
 import { registerSchedulingRoutes } from './scheduling';
 import { registerSettingsRoutes } from './settings';
@@ -629,6 +631,9 @@ export function registerV1Routes(app: App, config: Config): void {
   registerDraftRoutes(app);
   registerMemberRoutes(app);
   registerReportRoutes(app);
+  // Report CSV/Excel export (OB-220 part 2): one GET that runs a named report and
+  // streams it as a file. Registered by the reports it serves — it renders nothing new.
+  registerReportExportRoutes(app);
   registerSettingsRoutes(app);
   registerTaxRateRoutes(app);
   registerPayBillsRoutes(app);
@@ -671,6 +676,10 @@ export function registerV1Routes(app: App, config: Config): void {
   // period-close checklist + sign-off and the audit report are registered with the
   // periods and reports routes above, on the surfaces they extend.
   registerStatementPackageRoutes(app);
+  // Customer statement of account (OB-220 part 1): a per-customer branded open-item
+  // statement (the aging report scoped to one contact), rendered to a PDF and
+  // optionally emailed. Gated on `reports.read`, like the statement package above.
+  registerCustomerStatementRoutes(app);
   // Agent work queue (Q, OB-200…210): automations a person composes and owns, and the
   // work items their `agent_task` actions enqueue. The MCP half of Q — the queue
   // protocol the org's own agent polls — is `modules/mcp/tools.ts`, not this surface.

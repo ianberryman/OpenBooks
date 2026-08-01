@@ -9,8 +9,10 @@ import { CashFlowView } from './reports/cash-flow';
 import { CashFlowProjectionView } from './reports/cash-flow-projection';
 import type { ReportCapabilities } from './reports/controls';
 import { ReportControls, UnusedControlNotice, useDimensions } from './reports/controls';
+import { ExportControl } from './reports/export-control';
 import type { DrillTarget, ReportFilterState } from './reports/filters';
 import { initialFilterState, pinGroupFilter } from './reports/filters';
+import type { ReportView } from './reports/views';
 import { GeneralLedgerView, generalLedgerKey } from './reports/general-ledger';
 import { ProfitAndLossView } from './reports/profit-and-loss';
 import { TrialBalanceView } from './reports/trial-balance';
@@ -65,15 +67,7 @@ import { TrialBalanceView } from './reports/trial-balance';
  * belongs to the shell, so a deep link is a URL this screen cannot mint yet.
  */
 
-type ReportView =
-  | 'trial-balance'
-  | 'profit-and-loss'
-  | 'balance-sheet'
-  | 'general-ledger'
-  | 'cash-flow'
-  | 'cash-flow-projection'
-  | 'budget-vs-actual'
-  | 'audit';
+export type { ReportView };
 
 const VIEWS: readonly { readonly id: ReportView; readonly label: string }[] = [
   { id: 'trial-balance', label: 'Trial balance' },
@@ -139,25 +133,33 @@ export function ReportsScreen(): ReactElement {
        * buttons already provide — the same trade `Combobox` documents in the other
        * direction, where no native control exists.
        */}
-      <div role="group" aria-label="Report" className="flex flex-wrap gap-1">
-        {VIEWS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            aria-pressed={view === entry.id}
-            onClick={() => {
-              setView(entry.id);
-            }}
-            className={cx(
-              'rounded-md border px-3 py-1 text-base transition-colors',
-              view === entry.id
-                ? 'border-border bg-surface-selected font-medium text-text'
-                : 'border-transparent text-text-muted hover:bg-surface-hover hover:text-text',
-            )}
-          >
-            {entry.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="group" aria-label="Report" className="flex flex-wrap gap-1">
+          {VIEWS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              aria-pressed={view === entry.id}
+              onClick={() => {
+                setView(entry.id);
+              }}
+              className={cx(
+                'rounded-md border px-3 py-1 text-base transition-colors',
+                view === entry.id
+                  ? 'border-border bg-surface-selected font-medium text-text'
+                  : 'border-transparent text-text-muted hover:bg-surface-hover hover:text-text',
+              )}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
+
+        {/* OB-220: download the current report rather than only reading it on screen.
+            `ExportControl` renders nothing for the three tabs the export endpoint does not
+            cover (`cash-flow-projection`, `budget-vs-actual`, `audit`) — see its module
+            comment. */}
+        <ExportControl view={view} filters={filters} ledgerAccountId={ledgerAccountId} />
       </div>
 
       {capabilities !== undefined && (

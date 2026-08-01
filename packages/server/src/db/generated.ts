@@ -433,6 +433,21 @@ export interface Contacts {
   wire_instructions: string | null;
 }
 
+export interface CustomerStatements {
+  artifact_storage_key: string;
+  as_of: string;
+  contact_id: Buffer;
+  created_at: Generated<Date>;
+  generated_by_user_id: Buffer;
+  id: Buffer;
+  key_prefix: string | null;
+  org_id: Buffer;
+  provider_message_id: string | null;
+  recipient_email: string | null;
+  status: string;
+  token_hash: Buffer | null;
+}
+
 export interface Dimensions {
   code: string;
   created_at: Generated<Date>;
@@ -1236,6 +1251,7 @@ export interface DB {
   change_feed_cursors: ChangeFeedCursors;
   check_number_sequences: CheckNumberSequences;
   contacts: Contacts;
+  customer_statements: CustomerStatements;
   dimension_values: DimensionValues;
   dimensions: Dimensions;
   document_captures: DocumentCaptures;

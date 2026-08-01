@@ -348,6 +348,15 @@ const OVERRIDES = {
     // `catalog_item_id` BINARY(16) columns on the four line tables need no entry:
     // the generator maps BINARY(16) to `Buffer` and carries the nullability itself.
     'catalog_items.unit_amount_minor': 'bigint | null',
+
+    // ── Customer statement of account (0022_account_statements) ────────────────
+    //
+    // One override: `customer_statements.as_of` is a calendar DATE — the date the
+    // open-item balance is computed as at — so it maps to `string`, the same
+    // correction `statement_packages.period_start` takes. Its other non-scalar
+    // columns are DATETIME(3) (`created_at`, kept `Date`) and BINARY (mapped to
+    // `Buffer`), with no money or BIGINT counter, so this is the only override.
+    'customer_statements.as_of': 'string',
   },
 };
 

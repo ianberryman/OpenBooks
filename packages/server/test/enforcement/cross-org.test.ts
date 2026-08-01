@@ -2451,6 +2451,9 @@ describe('A7 across every surface that takes a resource id', () => {
     const tokenGatedPublicOperations = new Set([
       'getPublicInvoiceView',
       'getPublicInvoicePdf',
+      // OB-220: the hosted customer-statement PDF's `{token}` is the identical
+      // capability token the hosted-invoice pair carry — not an org-scoped resource id.
+      'getPublicStatementArtifact',
       'receiveInboundBill',
       'createPublicPayLink',
       'receiveProcessorWebhook',

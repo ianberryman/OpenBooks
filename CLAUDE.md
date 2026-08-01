@@ -30,6 +30,19 @@ And **never read a gate or test result through `… | tail`/`| grep`**: the pipe
 when the command failed, so a `vitest`/`yarn check` failure hides behind a `tail` that reports success —
 redirect to a file and check `$?` (or read the file) when the exit code matters.
 
+A third gate gotcha, learned the hard way: **`yarn lint` (`eslint .`, type-aware over the whole
+monorepo) can exhaust Node's default heap and die with `Reached heap limit … out of memory`** — an
+OOM, not a lint error. It halts `yarn check` at the lint step (~70s in, before typecheck/test) and
+the background-task "exit 0" notification is _unreliable_ here (it reports the wrapper's code, not
+eslint's — read the log). This is **environmental, not a code defect**: the baseline tree (changes
+stashed) OOMs identically, so a few added files did not cause it. To get past it, either raise the
+heap — `node --max-old-space-size=8192 node_modules/eslint/bin/eslint.js .` (invoke node directly;
+`NODE_OPTIONS` does not reliably reach eslint through `yarn`) — or, to prove your _changes_ are
+lint-clean without the whole-repo run, `./node_modules/.bin/eslint <your changed files>` (per-file
+type-aware linting loads a far smaller program and does not OOM). Do the per-file lint as part of
+integration regardless; it catches real rule violations (`switch-exhaustiveness-check`,
+`no-circular`, unused `eslint-disable`) the OOM'd whole-repo run never reaches.
+
 Yarn 4 is pinned in-repo at `.yarn/releases/`. Do not `corepack enable` — the committed
 release exists so nothing needs the network. `enableScripts: false` is deliberate;
 argon2 and esbuild resolve platform prebuilds at require time.
@@ -229,6 +242,24 @@ Best practices this split has earned:
   and self-reviews. The orchestrator integrates (cherry-pick the disjoint branches), runs
   `yarn check`, and fixes what the gate surfaces. Un-gated subagent output is unproven;
   the gate is where parallel work is proven.
+- **A worktree branches from HEAD, not your working tree — so your uncommitted foundation is
+  invisible to the streams.** When you fan out on top of an uncommitted trunk (a new migration,
+  regenerated `generated.ts`, new shared-types contracts), the worktree subagents will not see any
+  of it. Two things make this a non-issue, and you must do both: **paste the exact contract shapes
+  into each spec** (the new Kysely row type, the wire schema field list, the service signatures) so
+  the subagent authors against them without reading them from disk; and **keep every stream
+  ADD-ONLY** (new files only, no edits to files the trunk touched) so cherry-picking their output
+  into your tree is conflict-free. Reserve every shared/registry file (route index, `App.tsx`,
+  `nav.ts`, the tripwire tests, `openapi.json`) for the orchestrator's own integration step.
+- **The pinned MySQL tripwires a subagent can't run are more than a count.** Beyond the
+  `schema-and-route-tripwires` memory's list, a new table/route this session had to move: `harness.test.ts`
+  holds a **hardcoded ordered list of migration names** (not just a count) and `grants.test.ts` a
+  **hardcoded `APPEND_ONLY_TABLES` `toEqual([...])`** — both need the new name inserted. A new **public
+  (unauthenticated, token-gated) route** with an `operationId` must be added to _two_ coverage
+  exemptions or both fail: `permission-matrix.test.ts`'s ungated-operations set and
+  `cross-org.test.ts`'s `tokenGatedPublicOperations` set (mirror `getPublicInvoicePdf`). Finalise a
+  route's path/shape **before** running `yarn spec`/`codegen` — changing it after means regenerating
+  `openapi.json` + the web `schema.d.ts` again, and re-checking `yarn drift`.
 - **Schema changes need the orchestrator's hand.** A subagent writes the migration and the
   `MUTABLE_TABLES`/`APPEND_ONLY_TABLES`/`TENANT_TABLES` entries but leaves `generated.ts` —
   codegen needs a live migrated database. Pre-release you cannot incrementally migrate an

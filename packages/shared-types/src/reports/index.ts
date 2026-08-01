@@ -104,6 +104,14 @@ export type { StatementOfCashFlows, StatementOfCashFlowsQueryParams } from './ca
 export { statementOfCashFlowsQuerySchema, statementOfCashFlowsSchema } from './cash-flow';
 
 /**
+ * Report export (OB-220, ROADMAP part 2). Read `export.ts` for why export is one
+ * `GET` route rather than one per report, and for which reports the v1 set omits.
+ */
+export { EXPORT_FORMATS, REPORT_EXPORT_KINDS } from './export';
+export type { ExportFormat, ExportReportQueryParams, ReportExportKind } from './export';
+export { exportFormatSchema, exportReportQuerySchema, reportExportKindSchema } from './export';
+
+/**
  * The forward cash-flow projection (OB-158, K6). Read `cash-flow-projection.ts`
  * for why `asOf` defaults to today rather than being required the way aging's is,
  * for why overdue amounts land in the earliest bucket instead of being excluded,
