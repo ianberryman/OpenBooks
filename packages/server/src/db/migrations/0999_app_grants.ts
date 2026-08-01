@@ -408,6 +408,17 @@ const MUTABLE_TABLES = [
   'secrets',
   'processor_connections',
   'processor_events',
+  // ── Payout sync (0024_payout_sync, OB-237) ──
+  //
+  // `payout_account_map` is a settings list, `org_accounting_settings`'s reason:
+  // remapping a `reporting_category` to a different GL account changes how a
+  // *future* payout is coded and reaches no journal already posted. `payout_syncs`
+  // is working state whose `status` legitimately moves (`pending_review→posted|
+  // skipped`), `document_captures`'/`reconciliation_sessions`' reason — the
+  // financial fact it produces lives in `journals` (append-only above), and the
+  // sync row only remembers which journal that was (`journal_id`) and who posted it.
+  'payout_account_map',
+  'payout_syncs',
   // ── Cash application (0012_cash_application, plus the 0006_banking restructure) ──
   //
   // `payment_terms` is a settings list `org_accounting_settings`'s own reason:

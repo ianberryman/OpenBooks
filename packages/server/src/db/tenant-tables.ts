@@ -103,6 +103,8 @@ export const TENANT_TABLES = [
   'org_members',
   'payment_terms',
   'payments',
+  'payout_account_map',
+  'payout_syncs',
   'pending_payment_intents',
   'pending_payments',
   'period_close_events',

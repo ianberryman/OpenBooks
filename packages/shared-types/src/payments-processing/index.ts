@@ -16,13 +16,34 @@
 
 export {
   connectProcessorRequestSchema,
+  PAYOUT_SYNC_MODES,
+  payoutSyncModeSchema,
   PROCESSOR_EXTERNAL_ACCOUNT_ID_MAX_LENGTH,
   PROCESSOR_KINDS,
   PROCESSOR_PUBLISHABLE_KEY_MAX_LENGTH,
   processorConnectionSchema,
   processorKindSchema,
 } from './connections';
-export type { ConnectProcessorRequest, ProcessorConnection, ProcessorKind } from './connections';
+export type {
+  ConnectProcessorRequest,
+  PayoutSyncMode,
+  ProcessorConnection,
+  ProcessorKind,
+} from './connections';
 
 export { payLinkResponseSchema } from './pay-link';
 export type { PayLinkResponse } from './pay-link';
+
+export {
+  PAYOUT_REPORTING_CATEGORIES,
+  payoutAccountMapEntrySchema,
+  payoutReportingCategorySchema,
+  payoutSyncSchema,
+  updatePayoutSyncConfigRequestSchema,
+} from './payout-sync';
+export type {
+  PayoutAccountMapEntry,
+  PayoutReportingCategory,
+  PayoutSync,
+  UpdatePayoutSyncConfigRequest,
+} from './payout-sync';

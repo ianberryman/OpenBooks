@@ -329,6 +329,46 @@ export interface ProcessorCheckoutLink {
 }
 
 /**
+ * The reporting categories a payout breaks down into (OB-237, D-237-6) — the
+ * account-mapping key. Stripe reports each underlying balance transaction with a
+ * `reporting_category`; an adapter buckets the many raw values Stripe uses into
+ * these six the summary-journal builder knows how to place. `charge` credits
+ * revenue, `fee` debits the fee account, `refund` debits contra-revenue, `tax`
+ * credits Sales Tax Payable (only present when the org uses Stripe Tax), `dispute`
+ * debits a loss account, `adjustment` is the catch-all.
+ */
+export type PayoutReportingCategory =
+  'charge' | 'refund' | 'fee' | 'tax' | 'dispute' | 'adjustment';
+
+/** One reporting-category total within a payout — a non-negative magnitude (D-237-4). */
+export interface PayoutCategoryAmount {
+  readonly reportingCategory: PayoutReportingCategory;
+  /** Non-negative magnitude for this category, a cents string (D-13) — the builder assigns the side. */
+  readonly amountMinor: string;
+  /** How many underlying balance transactions rolled into this total. */
+  readonly count: number;
+}
+
+/**
+ * One payout's grossed-up breakdown (OB-237). The bare Payout object carries only
+ * the net `amount`; this is the aggregation an adapter builds from the underlying
+ * balance transactions (`GET /v1/balance_transactions?payout=po_…`, D-237-4). The
+ * summary-journal builder turns it into one balanced draft: `netMinor` is the
+ * clearing-account plug (what the deposit will later reconcile against), and each
+ * category is a line whose side the builder knows. Money is always a cents string
+ * (D-13); nothing here is a decimal or a float.
+ */
+export interface PayoutBreakdown {
+  readonly payoutId: string;
+  /** The payout's net transfer amount — the clearing plug. Cents string (D-13). */
+  readonly netMinor: string;
+  readonly currency: string;
+  /** ISO-8601 instant the payout was made. */
+  readonly occurredAt: string;
+  readonly categories: readonly PayoutCategoryAmount[];
+}
+
+/**
  * The AR inbound-rail mirror of the AP disbursement rails (D-67, D-86) — the
  * new D-07 provider for initiative J. Behind it, Stripe's and Square's
  * divergent checkout and webhook shapes are normalised to one contract, so
@@ -372,6 +412,15 @@ export interface PaymentProcessorProvider {
     readonly events: readonly NormalizedProcessorEvent[];
     readonly cursor: string;
   }>;
+  /**
+   * One payout's grossed-up breakdown (OB-237, D-237-4): the underlying
+   * balance transactions, aggregated by `reporting_category`. The bare payout
+   * object carries only the net `amount`, so a summary-sales journal that
+   * grossed up sales, fees and refunds cannot be built from a `payout` event
+   * alone — this is the follow-up fetch that supplies the detail. Money is
+   * always a cents string (D-13).
+   */
+  fetchPayoutBreakdown(payoutId: string): Promise<PayoutBreakdown>;
 }
 
 export interface Providers {

@@ -8,6 +8,7 @@ import { registerDailyTask, runAsAutomation } from '../scheduling';
 import type { DailyTaskPayload } from '../scheduling';
 
 import {
+  advanceEventCursor,
   advanceReconciledThrough,
   orgScope,
   selectAllActiveConnectionsAcrossOrgs,
@@ -45,22 +46,19 @@ import { recordNormalizedEvent } from './webhook.service';
  * this poll and a payout are two different ways the connection's own "we have
  * accounted for everything through here" line can move forward.
  *
- * ## The cursor is a timestamp, not an event id — a flagged seam gap
+ * ## The event cursor is an opaque id, not a timestamp (OB-237, D-237-5)
  *
- * `PaymentProcessorProvider.listEventsSince(cursor)` is documented as an opaque
- * cursor, and the real Stripe adapter (`providers/payment/stripe.ts`) treats it
- * as the last-seen **event id** (`starting_after`), not a timestamp — that is
- * how Stripe's own event-list pagination works. `processor_connections`
- * (`0011_payment_processing`) has no dedicated cursor column, only the
- * `DATETIME` `last_polled_at`/`reconciled_through` pair the payout-reconcile
- * cursor already uses, so this sweep passes `lastPolledAt`'s ISO string where
- * the real adapter expects an opaque id. Against `fake` (D-102, what the gate
- * exercises) this is harmless — `createFakePaymentProcessor.listEventsSince`
- * ignores its cursor argument entirely. Against a real Stripe/Square sandbox it
- * would under- or over-fetch relative to true "since" semantics. The correct
- * fix is a dedicated cursor column on `processor_connections` — a schema
- * change, and per CLAUDE.md's own note on schema work, the orchestrator's to
- * make, not this ticket's; flagged rather than silently worked around.
+ * Fixed. `PaymentProcessorProvider.listEventsSince(cursor)` is an opaque cursor,
+ * and the real Stripe adapter treats it as the last-seen **event id**
+ * (`starting_after`). This sweep now passes `connection.eventCursor` — the
+ * dedicated `processor_connections.event_cursor` column OB-237 added — and
+ * advances it from `listEventsSince`'s returned cursor after a successful page
+ * (`advanceEventCursor`), so a real Stripe/Square feed resumes from a true id.
+ * `last_polled_at` reverts to pure telemetry (when the poll last ran); the
+ * balance-reconcile timestamp still rides `advanceReconciledThrough`. The prior
+ * defect — handing `lastPolledAt`'s ISO string to an adapter expecting an id —
+ * is gone, and `fake` (D-102, the gate's implementation) is unaffected: it
+ * ignores its cursor argument either way.
  */
 
 export const PROCESSOR_POLL_QUEUE = 'payments-processing.processor-poll';
@@ -123,17 +121,20 @@ async function pollOneConnection(
   ctx: RequestContext,
   deps: ProcessorPollJobDeps,
 ): Promise<void> {
-  const { connection, clearingAccountId, provider } = await loadConnectionProvider(
+  const { connection, clearingAccountId, eventCursor, provider } = await loadConnectionProvider(
     connectionId,
     ctx,
   );
 
-  const { events } = await provider.listEventsSince(connection.lastPolledAt);
+  // OB-237/D-237-5: resume from the opaque event cursor (Stripe's last-seen event
+  // id), never `lastPolledAt`'s timestamp.
+  const { events, cursor } = await provider.listEventsSince(eventCursor);
   for (const event of events) {
     // Same dedup path the webhook route uses (`webhook.service.ts`'s header) —
     // a redrive of an event the webhook already captured is a no-op here.
     await recordNormalizedEvent(connectionId, connection.processor, event, ctx);
   }
+  await advanceEventCursor(orgScope(ctx), connectionBytes, cursor);
 
   const reportedBalance = await provider.fetchBalanceMinor();
   const ledgerBalance = await bookBalance(orgScope(ctx), uuidToBuffer(clearingAccountId), runDate);

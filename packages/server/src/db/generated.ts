@@ -905,6 +905,37 @@ export interface PaymentTerms {
   updated_at: Generated<Date>;
 }
 
+export interface PayoutAccountMap {
+  account_id: Buffer;
+  connection_id: Buffer;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  id: Buffer;
+  org_id: Buffer;
+  reporting_category: string;
+  updated_at: Generated<Date>;
+}
+
+export interface PayoutSyncs {
+  breakdown: Json;
+  connection_id: Buffer;
+  created_at: Generated<Date>;
+  currency: string;
+  external_payout_id: string;
+  fee_minor: bigint;
+  gross_minor: bigint;
+  id: Buffer;
+  journal_id: Buffer | null;
+  net_minor: bigint;
+  occurred_at: Date;
+  org_id: Buffer;
+  posted_at: Date | null;
+  posted_by_user_id: Buffer | null;
+  skip_reason: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
 export interface PendingPaymentIntents {
   applied_vendor_credit_id: Buffer | null;
   bill_id: Buffer;
@@ -962,9 +993,11 @@ export interface PredocumentDeliveries {
 }
 
 export interface ProcessorConnections {
+  auto_post: Generated<number>;
   clearing_account_id: Buffer;
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
+  event_cursor: string | null;
   external_account_id: string | null;
   fee_account_id: Buffer;
   id: Buffer;
@@ -975,6 +1008,7 @@ export interface ProcessorConnections {
   publishable_key: string | null;
   reconciled_through: Date | null;
   secret_ref: string;
+  sync_mode: Generated<"apply_payments" | "summary_sales">;
   updated_at: Generated<Date>;
   webhook_secret_ref: string;
 }
@@ -1336,6 +1370,8 @@ export interface DB {
   orgs: Orgs;
   payment_terms: PaymentTerms;
   payments: Payments;
+  payout_account_map: PayoutAccountMap;
+  payout_syncs: PayoutSyncs;
   pending_payment_intents: PendingPaymentIntents;
   pending_payments: PendingPayments;
   period_close_events: PeriodCloseEvents;

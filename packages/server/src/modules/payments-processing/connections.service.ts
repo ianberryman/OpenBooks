@@ -281,6 +281,12 @@ export async function loadConnectionProvider(
   readonly connection: ProcessorConnection;
   readonly clearingAccountId: string;
   readonly feeAccountId: string;
+  /**
+   * The opaque event cursor (OB-237, D-237-5), off the wire DTO deliberately —
+   * it is an internal Stripe event id the poll resumes from, not connection
+   * metadata a UI shows. `null` until the first poll pages.
+   */
+  readonly eventCursor: string | null;
   readonly provider: PaymentProcessorProvider;
 }> {
   await requirePermission(ctx, 'processing.read');
@@ -307,6 +313,7 @@ export async function loadConnectionProvider(
     connection: toProcessorConnection(row),
     clearingAccountId: bufferToUuid(row.clearing_account_id),
     feeAccountId: bufferToUuid(row.fee_account_id),
+    eventCursor: row.event_cursor,
     provider: paymentProcessorFor(row.processor, deps),
   };
 }

@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 
 import type { ProcessorKind } from '@openbooks/plugin-api';
-import type { ProcessorConnection } from '@openbooks/shared-types';
+import type { PayoutSyncMode, ProcessorConnection } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
 import type { DB, TenantDatabase } from '../../db';
@@ -48,6 +48,9 @@ const CONNECTION_COLUMNS = [
   'external_account_id',
   'last_polled_at',
   'reconciled_through',
+  'sync_mode',
+  'auto_post',
+  'event_cursor',
   'is_active',
   'created_by_user_id',
   'created_at',
@@ -65,6 +68,9 @@ export interface ConnectionRow {
   readonly external_account_id: string | null;
   readonly last_polled_at: Date | null;
   readonly reconciled_through: Date | null;
+  readonly sync_mode: PayoutSyncMode;
+  readonly auto_post: number;
+  readonly event_cursor: string | null;
   readonly is_active: number;
   readonly created_by_user_id: Buffer;
   readonly created_at: Date;
@@ -154,8 +160,13 @@ export async function insertConnection(db: TenantDatabase, input: NewConnectionR
       // Nullable, but not `Generated` (no schema `DEFAULT`), so Kysely's insert
       // type requires them named — a fresh connection has neither yet: the D-85
       // backstop has not polled it and there is nothing to reconcile through.
+      // `event_cursor` (OB-237/D-237-5) is the same shape — no cursor until the
+      // first poll pages. `sync_mode`/`auto_post` carry schema DEFAULTs, so Kysely
+      // treats them as generated and a fresh connection starts in `apply_payments`,
+      // review-first, exactly like PAY before OB-237.
       last_polled_at: null,
       reconciled_through: null,
+      event_cursor: null,
       created_by_user_id: input.createdByUserId,
     })
     .execute();
@@ -270,6 +281,39 @@ export async function advanceReconciledThrough(
     .execute();
 }
 
+/**
+ * Advances the opaque event cursor (OB-237, D-237-5) — the fix for the
+ * timestamp-as-cursor defect the poll header (`poll.job.ts`) and
+ * `plugin-api/providers.ts` both flag. The poll passes `listEventsSince`'s
+ * returned cursor (Stripe's last-seen event id) here after a successful page, so
+ * the next sweep resumes from a real id, never `last_polled_at`'s ISO string.
+ */
+export async function advanceEventCursor(
+  db: TenantDatabase,
+  id: Buffer,
+  cursor: string,
+): Promise<void> {
+  await db
+    .updateTable('processor_connections')
+    .set({ event_cursor: cursor })
+    .where('id', '=', id)
+    .execute();
+}
+
+/** Sets a connection's payout-sync mode and auto-post (OB-237, D-237-1/D-237-2). */
+export async function setSyncConfigRow(
+  db: TenantDatabase,
+  id: Buffer,
+  syncMode: PayoutSyncMode,
+  autoPost: boolean,
+): Promise<void> {
+  await db
+    .updateTable('processor_connections')
+    .set({ sync_mode: syncMode, auto_post: autoPost ? 1 : 0 })
+    .where('id', '=', id)
+    .execute();
+}
+
 /** Never includes `secret_ref`/`webhook_secret_ref` or the values they name (D-83). */
 export function toProcessorConnection(row: ConnectionRow): ProcessorConnection {
   return {
@@ -280,6 +324,8 @@ export function toProcessorConnection(row: ConnectionRow): ProcessorConnection {
     publishableKey: row.publishable_key,
     externalAccountId: row.external_account_id,
     isActive: row.is_active !== 0,
+    syncMode: row.sync_mode,
+    autoPost: row.auto_post !== 0,
     lastPolledAt: row.last_polled_at === null ? null : row.last_polled_at.toISOString(),
     reconciledThrough:
       row.reconciled_through === null ? null : row.reconciled_through.toISOString(),

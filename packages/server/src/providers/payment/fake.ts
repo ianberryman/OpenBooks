@@ -60,6 +60,26 @@ export function createFakePaymentProcessor(deps: PaymentAdapterDeps): PaymentPro
     listEventsSince(cursor) {
       return Promise.resolve({ events: [], cursor: cursor ?? '0' });
     },
+
+    fetchPayoutBreakdown(payoutId) {
+      // A fixed, balanced breakdown (OB-237, D-237-4) — the `fake` is the gate's
+      // real implementation (D-102), so the summary-journal builder and the
+      // payout→review→post→reconcile E2E have a deterministic breakdown to run
+      // against. It grosses up to a journal that balances: charge 10000 credited
+      // to revenue; fee 300 and refund 500 debited; clearing debited the net
+      // 9200 (= 10000 − 300 − 500), so Dr(9200+300+500) === Cr(10000).
+      return Promise.resolve({
+        payoutId,
+        netMinor: '9200',
+        currency: 'usd',
+        occurredAt: '2024-01-01T00:00:00.000Z',
+        categories: [
+          { reportingCategory: 'charge', amountMinor: '10000', count: 2 },
+          { reportingCategory: 'fee', amountMinor: '300', count: 2 },
+          { reportingCategory: 'refund', amountMinor: '500', count: 1 },
+        ],
+      });
+    },
   };
 }
 

@@ -53,6 +53,7 @@ describe('test database harness', () => {
         '0021_bank_feeds',
         '0022_account_statements',
         '0023_ten99',
+        '0024_payout_sync',
         '0999_app_grants',
       ]);
     });

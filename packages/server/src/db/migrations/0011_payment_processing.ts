@@ -102,6 +102,23 @@ export async function up(db: MigrationDb): Promise<void> {
       external_account_id VARCHAR(120) NULL,
       last_polled_at      DATETIME(3)  NULL,
       reconciled_through  DATETIME(3)  NULL,
+      -- Payout sync (OB-237). Added in place per D-15, the 0023_ten99
+      -- excluded_from_1099 precedent -- pre-release schema is edited at the CREATE,
+      -- not ALTERed. sync_mode (D-237-1) is the headline, per-connection and
+      -- mutually exclusive: apply_payments is today's PAY behaviour byte for byte
+      -- (a charge clears one invoice), summary_sales suppresses per-charge posting
+      -- and books one grossed-up journal per payout instead -- both on one account
+      -- would double-count revenue. auto_post (D-237-2) is review-first by default:
+      -- a payout sync lands as a payout_syncs staging row a human posts, unless
+      -- opted in to post directly under the automation actor.
+      -- (No backticks in this comment: they would close the sql template, per CLAUDE.md.)
+      sync_mode           ENUM('apply_payments','summary_sales') NOT NULL DEFAULT 'apply_payments',
+      auto_post           TINYINT(1)   NOT NULL DEFAULT 0,
+      -- The opaque event cursor (D-237-5), fixing the timestamp-as-cursor defect
+      -- flagged in plugin-api providers.ts and poll.job.ts: the poll advances this
+      -- from listEventsSince's returned cursor (Stripe's last-seen event id,
+      -- starting_after), never last_polled_at, which reverts to telemetry.
+      event_cursor        VARCHAR(255) NULL,
       is_active           TINYINT(1)   NOT NULL DEFAULT 1,
       created_by_user_id  BINARY(16)   NOT NULL,
       created_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

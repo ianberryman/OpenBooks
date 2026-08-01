@@ -119,6 +119,22 @@ export function createSquarePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
       // payments/payouts scan above, not a missed-webhook replay like Stripe's.
       return Promise.resolve({ events: [], cursor: cursor ?? '0' });
     },
+
+    fetchPayoutBreakdown(payoutId): Promise<never> {
+      // Summary-sales payout sync (OB-237) is Stripe-first and US-only for v1 —
+      // the account-mapping and grossed-up summary journal are built and proven
+      // against Stripe's `balance_transactions`/`reporting_category` shape
+      // (D-237-4). Square's payout-entries endpoint differs enough to be its own
+      // ticket; until then a Square connection cannot be put in `summary_sales`
+      // mode (the connect service refuses it), so this is unreachable rather than
+      // a silent wrong answer — thrown, not stubbed, for `verifyAndParseWebhook`'s
+      // reason: the caller has no fallback.
+      return Promise.reject(
+        new Error(
+          `square payout breakdown is not implemented (OB-237 is Stripe-first); payout ${payoutId}`,
+        ),
+      );
+    },
   };
 }
 

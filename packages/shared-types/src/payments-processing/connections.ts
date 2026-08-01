@@ -32,6 +32,25 @@ export const PROCESSOR_KINDS = ['stripe', 'square', 'fake'] as const;
 
 export type ProcessorKind = (typeof PROCESSOR_KINDS)[number];
 
+/**
+ * How a connection turns processor activity into ledger entries (OB-237, D-237-1),
+ * per-connection and mutually exclusive. `apply_payments` is the PAY default — a
+ * charge clears one OpenBooks invoice (`recordPayment`). `summary_sales` is for an
+ * org whose invoicing lives entirely in the processor: per-charge posting is
+ * suppressed and one grossed-up journal is booked per payout instead. Both on one
+ * account would double-count revenue.
+ */
+export const PAYOUT_SYNC_MODES = ['apply_payments', 'summary_sales'] as const;
+
+export type PayoutSyncMode = (typeof PAYOUT_SYNC_MODES)[number];
+
+export const payoutSyncModeSchema = z.enum(PAYOUT_SYNC_MODES).meta({
+  description:
+    'How this connection posts (D-237-1). `apply_payments`: a charge clears an ' +
+    'invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting ' +
+    'suppressed. Mutually exclusive — both would double-count revenue.',
+});
+
 export const processorKindSchema = z.enum(PROCESSOR_KINDS).meta({
   description:
     'Which processor this connection talks to. `fake` is a real, deterministic ' +
@@ -136,6 +155,13 @@ export const processorConnectionSchema = z
       description:
         'An inactive connection stops the webhook and the poll from writing new ' +
         'payments through it, and keeps every payment it already recorded.',
+    }),
+    syncMode: payoutSyncModeSchema,
+    autoPost: z.boolean().meta({
+      description:
+        'When `summary_sales`: whether each payout’s summary journal is posted ' +
+        'automatically (D-237-2) or held as a `pending_review` payout sync for a human ' +
+        'to post. Review-first by default.',
     }),
     lastPolledAt: z.iso.datetime().nullable().meta({
       description: 'When the D-85 polling backstop last ran against this connection.',

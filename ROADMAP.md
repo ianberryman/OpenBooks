@@ -56,7 +56,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE** | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
 | **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**      | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
 
-Two operational placeholders sit outside the competitive sweep: the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items (OB-229…231) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235).
+Two operational placeholders sit outside the competitive sweep: the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items (OB-229…231) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
 
 ---
 
@@ -460,7 +460,159 @@ reviewed draft journal (`Dr Clearing / Dr Fees … Cr Revenue / Cr Sales Tax Pay
 posts with one click; a day or two later the real deposit lands in the bank feed and reconciles
 against the clearing balance. Weekly income entry becomes glance-and-approve. Corrections use the
 Reverse path ([OB-236](#follow-up--reversal-is-unreachable-for-an-already-posted-entry-ob-236)).
-Unscheduled; folds naturally into PAY or FEEDS rather than a standalone milestone.
+Unscheduled; folds naturally into PAY (the `payments-processing` module) rather than a standalone
+milestone.
+
+#### Execution plan (dev-ready)
+
+The exploration that pinned the seams below surfaced one thing that changes the calculus above: the
+review-first default is **not** a drop-in. `createDraft` refuses a non-user author
+(`requireAuthor` @ `modules/drafts/drafts.service.ts:623`) and `journal_drafts` carries no origin
+column, so an automation-run sync cannot land a draft. The fix is to model the review surface on the
+**OCR staging precedent** (`document_captures` — a machine-written staging row a human reviews, then
+posts) rather than the drafts/`agent-proposals` queue. That, plus five smaller forks, is settled here.
+
+##### Forks settled (the decisions)
+
+- **[D-237-1] Mode is per-connection and mutually exclusive — the headline.** Add
+  `sync_mode ENUM('apply_payments','summary_sales') NOT NULL DEFAULT 'apply_payments'` to
+  `processor_connections`. In `summary_sales` mode the per-charge webhook/poll path still records the
+  event into `processor_events` (audit + idempotency) but does **not** call `recordProcessorCharge`
+  (`payments-processing/posting.service.ts:77`) — otherwise revenue double-counts, once per charge and
+  again in the payout summary. The **payout** event becomes the sole posting trigger. The default
+  preserves today's PAY behaviour byte-for-byte, so `summary_sales` is purely additive.
+- **[D-237-2] Review-first via a dedicated `payout_syncs` staging surface, not `journal_drafts`**
+  (see the constraint above). A `payout_syncs` row holds the computed breakdown + `status`; a "Stripe
+  payouts to review" screen lists pending rows; **Post** builds the summary journal through
+  `postJournal` (`modules/ledger/posting.service.ts:115`) under the **reviewing user's** identity
+  (`journals.post`). `auto_post` (opt-in per connection) instead posts directly at sync time under the
+  automation actor — the `recordProcessorCharge` precedent, where automations post without a draft.
+- **[D-237-3] Clearing account, not direct-to-bank.** Reuse `processor_connections.clearing_account_id`:
+  the summary journal debits clearing for the net, and the payout deposit lands a day or two later in
+  the OB-227 bank feed and reconciles against the clearing balance (the existing
+  `clearBankStatementLine(method:'link_entry')` path + the [D-85](#d-85) balance backstop). Direct-to-bank
+  would make the bank match 1:1 but forfeit that reconciliation check.
+- **[D-237-4] Breakdown via the balance-transactions list, aggregated in-process.** A new adapter
+  method fetches `GET /v1/balance_transactions?payout=po_…&limit=100` (paged via `starting_after`) and
+  aggregates by `reporting_category` into cents-string totals — synchronous plain `fetch` (the
+  "never a vendor SDK" rule), real-time — over the async Reporting API. The bare Payout object carries
+  only the net `amount` (which is all the current `payout` normalizer captures —
+  `providers/payment/stripe.ts:365`), so the breakdown fetch is genuinely new machinery.
+- **[D-237-5] A dedicated opaque event cursor, fixing the flagged timestamp-as-cursor defect.** Add
+  `event_cursor VARCHAR(255) NULL` to `processor_connections`; the poll advances it from
+  `listEventsSince`'s returned cursor (the last **event id**). This closes the gap confessed in two
+  places — `plugin-api/src/providers.ts:110-120` ("never reuses a timestamp as a cursor the way PAY's
+  poll mistakenly did") and `payments-processing/poll.job.ts:48-63` — where `last_polled_at` (a
+  `DATETIME`, surfaced as an ISO string @ `connections.repository.ts:283`) is handed to a `listEventsSince`
+  that expects an event id. `last_polled_at` reverts to pure telemetry. **This edits PAY's live poll
+  path, so it is the orchestrator's shared-file change, not an add-only stream.**
+- **[D-237-6] Sales tax rides the mapping, no tax logic invented.** A `tax` `reporting_category` maps to
+  Sales Tax Payable (`2200`) **only** when the org uses **Stripe Tax** (then Stripe breaks `tax` out as
+  its own category); otherwise there is no `tax` category and tax is baked into `charge` gross. The
+  mapping simply has that row, or it doesn't.
+- **[D-237-7] No new permission key.** The mapping + review-list config reuse `processing.read` /
+  `processing.write` (already seeded, `catalog.ts:98-99`); posting a reviewed sync requires
+  `journals.post`. Catalog stays **75** — no `AssertCatalogSize` bump, no `0001` seed (like OB-236).
+
+##### Seams that already exist — reuse verbatim (no new machinery)
+
+| Need                                | Reuse (symbol @ path)                                                                                                                                    | How OB-237 uses it                                                                                                                                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Post the summary journal            | `postJournal` @ `modules/ledger/posting.service.ts:115`; balanced-line check @ `:362-373`; `source:'clearing'` valid @ `plugin-api/src/posting.ts`       | The builder assembles Dr Clearing / Dr Fees … Cr Revenue / Cr Sales Tax Payable as `bigint` cents and posts straight through — mirror `refundJournalLines` @ `payments-processing/posting.service.ts:484-504`. |
+| System-actor provenance (auto-post) | `runAsAutomation` @ `modules/scheduling/automation.ts`; actor spread @ `payments-processing/posting.service.ts:144-146`                                  | Wrap the sync; `actor_type:'automation'`, `invocationMode` omitted → satisfies `chk_journals_invocation_mode`. `actorId` = connection uuid.                                                                    |
+| Object-level idempotency            | `createExternalRef`/`lookupExternalRef` @ `modules/external-refs`; `entityType:'payment'` already allowed                                                | Key the payout **object id** → the summary journal, so a webhook+poll double-delivery can't double-post. Paired with a `uq` on `payout_syncs.external_payout_id`.                                              |
+| Payout reconcile                    | `clearBankStatementLine(method:'link_entry')` @ `modules/banking/clearing/clearing.service.ts:131`                                                       | The deposit is an ordinary bank line; link it to the summary journal's clearing leg — existing M4 pipeline, unchanged.                                                                                         |
+| Balance backstop                    | `fetchBalanceMinor` @ `providers/payment/stripe.ts:97`; `bookBalance` @ `banking/reconciliation`                                                         | The daily poll already asserts clearing's book balance ≈ Stripe's reported balance ([D-85](#d-85)) — the summary posting keeps that identity true.                                                             |
+| Poll scheduling                     | `registerProcessorPollJob` @ `payments-processing/poll.job.ts:73`; `pollOneConnection` @ `:119`                                                          | Add the payout branch inside the existing per-connection loop; no new job, no second entrypoint wiring.                                                                                                        |
+| Account-nomination screen pattern   | `screens/settings/discount-accounts.tsx` (account-picker `Combobox` + one `PATCH`); `resolveControlAccount` @ `modules/settings/control-accounts.ts:202` | The mapping screen is a per-category `Combobox` grid narrowed by account type; resolve re-validates type/active on every post.                                                                                 |
+| Mapping-table shape                 | `bank_rules.set_account_id` @ `migrations/0006_banking.ts:586` (condition → GL account + optional contact/dimensions)                                    | The closest existing "input key → GL account" table; `payout_account_map` is its minimal cousin keyed on `reporting_category`.                                                                                 |
+| Pre-fill defaults                   | `GENERAL_SMALL_BUSINESS` @ `modules/accounts/chart-templates.ts:145-296`                                                                                 | Revenue `4010/4020`, fees `5050`/`6020`, sales tax `2200`, clearing `1060` (undeposited funds) or a nominated dedicated account — pre-fill the map from these.                                                 |
+
+##### What's genuinely new (the build)
+
+1. **Adapter method** `fetchPayoutBreakdown(connection, payoutId) → PayoutBreakdown` on
+   `PaymentProcessorProvider` (`plugin-api/src/providers.ts:341-373`, re-exported from `index.ts:91-103`),
+   real Stripe impl (`balance_transactions` aggregation via the existing `stripeRequest` chokepoint @
+   `stripe.ts:193`), a **`fake` impl that returns a deterministic breakdown** (so the gate exercises the
+   builder — today `fake.listEventsSince` ignores its cursor @ `fake.ts:60`, so the fake must be built
+   out here), and a **throwing** Square impl (US-only, Stripe-first).
+2. **Summary-journal builder** `buildPayoutSummaryJournal(breakdown, map, clearingAccountId) → JournalLineInput[]` —
+   grossed-up, contra refunds/disputes, balances in `bigint` cents; posts through `postJournal`, never
+   `recordPayment` (which is invoice/receivable-bound @ `payments/payments.service.ts:132-148`, so it
+   cannot express a no-invoice revenue journal).
+3. **`payout_syncs` staging** + the "Stripe payouts to review" screen (the D-237-2 surface).
+4. **`payout_account_map`** per-connection `reporting_category → account_id` + its settings screen.
+5. **The `event_cursor` column** and the D-237-5 poll fix.
+6. **The `summary_sales` suppression fork** in the charge path (D-237-1).
+
+##### Schema — migration `0024_payout_sync` (next free prefix; `0023_ten99` is the highest before `0999`)
+
+Pre-release, edited in place ([D-15](#d-15)); `generated.ts` regenerated against a throwaway MySQL
+(the manual-statement-line precedent used a hand-edited `generated.ts` for an in-place `ALTER` — either
+works, codegen is cleaner). Money columns are **cents strings** in JSON / `BIGINT` minor otherwise.
+
+- **`ALTER processor_connections`** — add `sync_mode ENUM('apply_payments','summary_sales') NOT NULL
+DEFAULT 'apply_payments'`, `auto_post TINYINT(1) NOT NULL DEFAULT 0`, `event_cursor VARCHAR(255) NULL`.
+  (An `ENUM` widen / new columns need `yarn codegen`; `sync_mode` becomes a literal union in `generated.ts`.)
+- **`payout_account_map`** (tenant, mutable) — `id`, `org_id`, `connection_id`, `reporting_category
+VARCHAR + CHECK` (**not `ENUM`** — the `customer_statements.status` precedent avoids a `generated.ts`
+  union ripple; values `charge|refund|fee|tax|dispute|adjustment`), `account_id` composite FK
+  `(org_id, account_id) → accounts`, timestamps; `uq (org_id, connection_id, reporting_category)`.
+- **`payout_syncs`** (tenant, mutable — `status`/`journal_id` transition) — `id`, `org_id`,
+  `connection_id`, `external_payout_id VARCHAR` with `uq (org_id, external_payout_id)`, `gross_minor`/
+  `fee_minor`/`net_minor BIGINT`, `currency CHAR(3)`, `status ENUM('pending_review','posted','skipped')`,
+  `journal_id BINARY(16) NULL` (set on post), `breakdown JSON` (per-category cents strings — the F7
+  `JSON.stringify`-of-`bigint` site to watch), `occurred_at`, timestamps.
+
+##### Contract-first seams (pin before any fan-out)
+
+- **`PayoutBreakdown`** (internal, `shared-types`): `{ payoutId, netMinor, currency, occurredAt,
+byCategory: Record<ReportingCategory, { grossMinor, feeMinor, netMinor, count }> }` — all money **cents
+  strings**.
+- **`fetchPayoutBreakdown`** added to `PaymentProcessorProvider`; barrel re-export in `plugin-api/index.ts`.
+- **Wire contracts:** map GET/PUT, `payout_syncs` list/get, `post`/`skip` actions — Zod `…Wire` schemas
+  defined **locally in the route file** (the known gotcha, `recurring-invoices.ts` pattern).
+
+##### Waves (folds into `payments-processing`; OB-237 stays one ledger ticket)
+
+| Wave                                   | Work-items                                                                                                                                                                                                                                                                               | Owner                           |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **0 — Foundation**                     | `0024` schema (ALTER + 2 tables) + `generated.ts` codegen; the `fetchPayoutBreakdown` interface + `PayoutBreakdown` shape + fake impl; wire contracts; the D-237-5 cursor edit to the live poll                                                                                          | **Orchestrator** (shared files) |
+| **1 — Adapter + builder** (parallel)   | Stripe `fetchPayoutBreakdown` (balance-transactions aggregation) · `buildPayoutSummaryJournal` + the mapping resolve · `summary_sales` suppression in the charge path · `payout_syncs`/`payout_account_map` repos + services                                                             | Sonnet streams (add-only)       |
+| **2 — Transport + screens** (parallel) | `/v1` routes (map GET/PUT, payout-syncs list/get/post/skip) + the poll payout-branch (fetch → upsert `payout_syncs` → `auto_post ? post : pending`) · "Stripe payouts to review" screen + the mapping settings screen (mirror `discount-accounts.tsx`)                                   | Sonnet streams                  |
+| **3 — Verification**                   | Property suite (a generated payout stream sums to a **balanced** journal; the summary-mode double-count guard holds — **prove it, don't assume**; a re-sync collapses to one `payout_syncs` row + one journal) + E2E (fake payout → review → post → deposit reconciles against clearing) | Orchestrator integrates         |
+
+**Critical path:** `0024` + interface → Stripe `fetchPayoutBreakdown` + builder → poll payout-branch →
+review screen → E2E.
+
+##### Tripwire / registry checklist (two new tables + an ALTER + new routes)
+
+`db/tenant-tables.ts` (+2, compile-checked) · `0999_app_grants.ts` `MUTABLE_TABLES` (+2) and per-table
+grant · `test/enforcement/grants.test.ts` `APPEND_ONLY_TABLES` `toEqual([…])` unchanged but the source-
+and read-back grant parsers must cover the two new names · `test/harness.test.ts` migration-name **list**
+(+ `'0024_payout_sync'`) · `test/db/tenant-scope.test.ts` · `test/enforcement/permission-matrix.test.ts`
+(new service methods, all under existing keys) · `test/transport/routes.test.ts` ·
+`test/transport/openapi.test.ts` + regenerate root `openapi.json` **and** web `schema.d.ts` ·
+`test/enforcement/cross-org.test.ts` (a **real owner-accessible** `payout_syncs` fixture for the
+`/v1/…/{id}` A7 control — `SEALED.ownerGetsNotFound` is false) + `cross-org-references.test.ts` B11
+(`external_payout_id` / any `*Id` field needs a SURFACES row or an EXEMPT reason) · **`generated.ts` via
+throwaway-MySQL codegen** (orchestrator's hand). No catalog/`catalog.test`/`0001` change (D-237-7).
+Names are digit-free (`payout_syncs`, `payout_account_map`) so the `[a-z_]` identifier regexes are safe.
+
+##### Deliberate divergences and still-owed edges (flag, don't silently absorb)
+
+- **Review-first is a staging table, not a `journal_drafts` draft** — the `requireAuthor` constraint
+  (D-237-2). A machine-authored draft would need relaxing that guard + a `journal_drafts` origin column;
+  the staging table is the smaller, precedent-backed choice.
+- **The D-237-5 cursor fix touches PAY's live `apply_payments` poll.** Regression-cover that the existing
+  charge/refund path is unchanged — this is the one non-additive edit.
+- **In `summary_sales` mode, refunds/disputes net into the payout summary**, not the per-charge
+  `recordProcessorRefund` path — the two refund paths must be mutually exclusive per D-237-1, or a refund
+  double-books. Property-test this alongside the charge double-count guard.
+- **Real Stripe `balance_transactions` aggregation is proven only in a manual sandbox** (D-102 stands —
+  the gate runs the `fake`, which must return a real breakdown, not a stub, or the builder is untested).
+- **Multi-currency still out** (§13): `currency` is recorded, but a non-`usd` payout is **skipped-and-
+  flagged** (`status:'skipped'`), never mis-posted at a 1:1 rate.
 
 ### Product follow-up — an optional product/service catalog (future)
 
@@ -1147,6 +1299,42 @@ to prevent (see the tenancy non-negotiables in `CLAUDE.md`), so the real design 
 consolidation is a **read-only reporting overlay** over multiple tenant scopes (preferred — no new write
 path, no cross-tenant journals) or a first-class consolidation entity with its own ledger. Defer the
 decision to scoping; flagged here so the tenancy implications are visible before anyone starts.
+
+### Follow-up — fund accounting for government & nonprofit via a balancing segment (OB-238, future option)
+
+**Placeholder — future option, only if the need arises; not scoped.** ABSENT today, and deliberately so:
+OpenBooks is a commercial (GAAP/FASB) book. True **fund accounting** — where each fund is a
+_self-balancing_ set of accounts (GASB modified-accrual for government; restricted/unrestricted net
+assets for nonprofits) — is a distinct vertical that **QuickBooks and Xero do not serve either**; the
+incumbents are Sage Intacct, Blackbaud and MIP. So this is a market-expansion play, not a competitive
+gap, and it is recorded only so the design fit is on file if a government/nonprofit need ever surfaces.
+
+The fit is better than it looks. A government account code is already compound (`101-51000` = Fund 101,
+Object 51000), and OpenBooks already models that shape — the `account` is the object, and
+`journal_line_dimensions` already tags each line with department/program-style segments. The one thing
+no current dimension has is a **balancing invariant**: today a journal balances per _entry_, and a
+dimension is pure analysis (nothing in the trial balance moves when you retag — `0002_ledger.ts`). Three
+modelings were weighed. **Fund-as-dimension** gives consolidation and shared master data for free but
+funds never self-balance — it fails the definition. **Fund-as-org** (one tenant per fund) makes funds
+self-balance for free but _inverts_ the problem: there is no cross-org posting and no consolidated
+reporting (every report is `tenantDb`-scoped), and the chart, contacts and items duplicate per fund —
+trading "funds don't balance" for "funds don't roll up." The preferred shape is
+**fund-as-balancing-segment**: mark one dimension axis `balancing` and enforce debit=credit _per fund
+within each entry_ in the balance validation in `posting.service.ts`. That keeps one shared chart and one
+org — so consolidation is just grouping (or omitting) the fund axis, and the government-wide view is free
+— while giving each fund its own self-balancing trial balance.
+
+Change surface, deferred to scoping: a `balancing` flag on a `dimensions` axis; the per-fund balance rule
+in `posting.service.ts` (this touches the append-only **balance invariant**, which is why it is a
+milestone, not config); **auto-generated interfund due-to/due-from lines** when one entry legitimately
+spans funds (otherwise the per-fund rule rejects it); fund-balance **equity classifications**
+(restricted/committed/assigned/unassigned) as equity sub-accounts; GASB modified-accrual **statements**
+(statement of revenues, expenditures & changes in fund balance) as new report projections over the
+existing balances core; and **encumbrance/appropriation control** — budgets _posted_ and reserved
+against, which OpenBooks has no concept of today (budgets are report-only, POs non-posting) — as a
+separate, larger workstream. Cousin to [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)
+(OB-233) but distinct: MULTI rolls up _across_ the `org` boundary; fund accounting partitions _within_
+one org. Both perturb load-bearing invariants, so both are flagged before anyone starts.
 
 ### Follow-up — mileage tracking (OB-234, future)
 

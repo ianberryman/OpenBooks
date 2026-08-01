@@ -369,6 +369,11 @@ const OVERRIDES = {
     'ten99_form_runs.threshold_minor': 'bigint',
     'ten99_forms.amount_minor': 'bigint',
     'vendor_tax_profiles.w9_received_on': 'string | null',
+    // Payout sync (0024_payout_sync, OB-237): money columns are bigint minor units
+    // at runtime, not the number the introspector infers for a BIGINT.
+    'payout_syncs.gross_minor': 'bigint',
+    'payout_syncs.fee_minor': 'bigint',
+    'payout_syncs.net_minor': 'bigint',
   },
 };
 

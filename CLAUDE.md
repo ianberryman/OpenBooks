@@ -294,3 +294,25 @@ references.test.ts` (B11) flags **every `*Id`/`*Ids`-suffixed body/query field a
 - **The shell is zsh: unquoted `$VAR` does NOT word-split.** `eslint $FILES` sends the whole string as
   one path ("No files matching the pattern …"). Pass file lists inline as separate args, or use an
   array / `${=VAR}`.
+
+## Observed inefficiencies (running log)
+
+Wasted cycles from past sessions, recorded so the next agent skips them. Append new ones here; keep
+each to the mistake + the fix.
+
+- **The task tools (`TaskCreate`/`TaskUpdate`/`TaskGet`/…) are _deferred_** — their schemas are not
+  loaded at session start, so a direct call fails with `InputValidationError` (schema absent). And
+  `TaskCreate` is **one task per call** with top-level `subject`/`description` — there is no `tasks`/
+  `todos` array. For a job of ≤~3 steps, **skip the tracker entirely** (hold the plan in-head) rather
+  than pay a `ToolSearch` round-trip to load a schema you'll use twice. Only load them (`ToolSearch
+"select:TaskCreate,TaskUpdate"`) for genuinely long multi-phase work.
+- **Line-number citations in `ROADMAP.md`/`CLAUDE.md` rot — grep the symbol, don't trust the number.**
+  A seam cited as `plugin-api/src/providers.ts:111` was actually the `BankFeedProvider` cursor warning
+  at ~110-120, a _different_ interface than the reader expected. When a doc points at `file:line`,
+  confirm by searching for the named symbol/comment; the line has usually drifted. When _writing_ such
+  citations, prefer `symbol @ path:line` (the roadmap's own convention) so a stale number still resolves.
+- **For a scope/plan deliverable, fan out read-only `Explore` agents to pin seams _before_ writing —
+  this worked; make it the default.** Two disjoint Explore agents (adapter/schema vs posting/draft/
+  config) returned exact `file:line` shapes in parallel while the orchestrator studied house style,
+  so the plan referenced real code, not guesses. Scope each agent to non-overlapping paths and ask for
+  copied signatures + line numbers, not prose.

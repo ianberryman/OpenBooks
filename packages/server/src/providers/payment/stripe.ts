@@ -3,6 +3,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type {
   NormalizedProcessorEvent,
   PaymentProcessorProvider,
+  PayoutBreakdown,
+  PayoutCategoryAmount,
+  PayoutReportingCategory,
   ProcessorCheckoutLink,
 } from '@openbooks/plugin-api';
 
@@ -118,7 +121,97 @@ export function createStripePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
       const lastEvent = page.data.length > 0 ? page.data[page.data.length - 1] : undefined;
       return { events, cursor: lastEvent?.id ?? cursor ?? '0' };
     },
+
+    async fetchPayoutBreakdown(payoutId): Promise<PayoutBreakdown> {
+      // One payout's underlying balance transactions, aggregated by
+      // `reporting_category` (OB-237, D-237-4). The payout object itself carries
+      // only the net `amount`; the detail is the balance-transactions list, paged
+      // via `starting_after` exactly like the event feed. Per this file's header
+      // (D-102), this is believed-correct-from-the-docs and confirmed only in a
+      // sandbox — the gate exercises `fake.ts`, not this.
+      const payout = await stripeRequest<StripePayout>(
+        deps,
+        'GET',
+        `/payouts/${encodeURIComponent(payoutId)}`,
+      );
+
+      const totals = new Map<PayoutReportingCategory, { amount: bigint; count: number }>();
+      // Stripe reports the per-charge fee in each transaction's own `fee` field
+      // rather than as a separate line, so fees are summed here and added as the
+      // `fee` category below, not read off a `fee`-category row.
+      let feeTotal = 0n;
+      let startingAfter: string | null = null;
+
+      for (;;) {
+        const query = new URLSearchParams({ payout: payoutId, limit: '100' });
+        if (startingAfter !== null) query.set('starting_after', startingAfter);
+        const page = await stripeRequest<StripeBalanceTransactionList>(
+          deps,
+          'GET',
+          `/balance_transactions?${query.toString()}`,
+        );
+
+        for (const txn of page.data) {
+          feeTotal += BigInt(txn.fee);
+          const category = bucketReportingCategory(txn.reporting_category);
+          // The payout line itself carries no category the builder places.
+          if (category === null) continue;
+          const bucket = totals.get(category) ?? { amount: 0n, count: 0 };
+          bucket.amount += absBigInt(BigInt(txn.amount));
+          bucket.count += 1;
+          totals.set(category, bucket);
+        }
+
+        const last = page.data.length > 0 ? page.data[page.data.length - 1] : undefined;
+        if (!page.has_more || last === undefined) break;
+        startingAfter = last.id;
+      }
+
+      if (feeTotal > 0n) {
+        const existing = totals.get('fee') ?? { amount: 0n, count: 0 };
+        totals.set('fee', { amount: existing.amount + feeTotal, count: existing.count });
+      }
+
+      const categories: PayoutCategoryAmount[] = [...totals].map(
+        ([reportingCategory, { amount, count }]) => ({
+          reportingCategory,
+          amountMinor: amount.toString(),
+          count,
+        }),
+      );
+
+      return {
+        payoutId,
+        netMinor: String(payout.amount),
+        currency: payout.currency,
+        occurredAt: new Date(payout.created * 1000).toISOString(),
+        categories,
+      };
+    },
   };
+}
+
+/** `|n|` on a bigint — Stripe reports refunds and other money-out lines as negative amounts. */
+function absBigInt(value: bigint): bigint {
+  return value < 0n ? -value : value;
+}
+
+/**
+ * Buckets Stripe's many raw `reporting_category` values into the six the
+ * summary-journal builder knows how to place (OB-237, D-237-6). `null` for the
+ * `payout` line itself, which is the transfer, not a category to post. Kept
+ * deliberately loose (prefix/substring) because Stripe's category vocabulary is
+ * broad and versioned — an unrecognised money-moving line falls to `adjustment`
+ * rather than being silently dropped.
+ */
+function bucketReportingCategory(raw: string): PayoutReportingCategory | null {
+  if (raw === 'payout') return null;
+  if (raw.startsWith('charge') || raw === 'partial_capture_reversal') return 'charge';
+  if (raw.includes('refund')) return 'refund';
+  if (raw.includes('dispute')) return 'dispute';
+  if (raw === 'tax') return 'tax';
+  if (raw.includes('fee') || raw === 'network_cost') return 'fee';
+  return 'adjustment';
 }
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
@@ -141,6 +234,27 @@ interface StripeBalance {
 interface StripeBalanceTransaction {
   readonly id: string;
   readonly fee: number;
+}
+
+/** A `balance_transaction` row as `fetchPayoutBreakdown` reads it (OB-237). */
+interface StripeBalanceTransactionRow {
+  readonly id: string;
+  readonly amount: number;
+  readonly fee: number;
+  readonly reporting_category: string;
+}
+
+interface StripeBalanceTransactionList {
+  readonly data: readonly StripeBalanceTransactionRow[];
+  readonly has_more: boolean;
+}
+
+/** The bare payout object — only its net `amount` and `created` are read (OB-237). */
+interface StripePayout {
+  readonly id: string;
+  readonly amount: number;
+  readonly currency: string;
+  readonly created: number;
 }
 
 /**
