@@ -3178,6 +3178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/purchase-orders/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The purchase-orders-list headline figures
+         * @description What is still in draft, what is approved and awaiting conversion to a bill, and what has converted in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today. A purchase order posts no journal (D-M3), so these are stored-column predicates over `purchase_orders`, not a read against the payable aging.
+         */
+        get: operations["purchaseOrdersSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/purchase-orders/{purchaseOrderId}": {
         parameters: {
             query?: never;
@@ -10494,6 +10514,40 @@ export interface components {
             totals: components["schemas"]["DocumentTotalsInput"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        /** @description The headline figures the purchase-orders list shows: draft value, approved (awaiting conversion) value, and value converted in the last 30 days, as at a date (defaulting to today). */
+        PurchaseOrdersSummary: {
+            /** @description How many approved purchase orders are awaiting conversion. */
+            approvedCount: number;
+            /** @description The gross value of every approved purchase order not yet converted — the commitment awaiting a bill. */
+            approvedValue: components["schemas"]["MinorUnits"];
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDate"];
+            /** @description How many purchase orders converted within that window. */
+            convertedCount: number;
+            /** @description The gross value of purchase orders converted to a bill within the 30 days ending on `asOf`. */
+            convertedValue: components["schemas"]["MinorUnits"];
+            /** @description How many purchase orders are still in draft. */
+            draftCount: number;
+            /** @description The gross value of every purchase order still in draft. */
+            draftValue: components["schemas"]["MinorUnits"];
+        };
+        /** @description The headline figures the purchase-orders list shows: draft value, approved (awaiting conversion) value, and value converted in the last 30 days, as at a date (defaulting to today). */
+        PurchaseOrdersSummaryInput: {
+            /** @description How many approved purchase orders are awaiting conversion. */
+            approvedCount: number;
+            /** @description The gross value of every approved purchase order not yet converted — the commitment awaiting a bill. */
+            approvedValue: components["schemas"]["MinorUnitsInput"];
+            /** @description The date the figures were computed as at — echoed so a client knows what it got. */
+            asOf: components["schemas"]["CalendarDateInput"];
+            /** @description How many purchase orders converted within that window. */
+            convertedCount: number;
+            /** @description The gross value of purchase orders converted to a bill within the 30 days ending on `asOf`. */
+            convertedValue: components["schemas"]["MinorUnitsInput"];
+            /** @description How many purchase orders are still in draft. */
+            draftCount: number;
+            /** @description The gross value of every purchase order still in draft. */
+            draftValue: components["schemas"]["MinorUnitsInput"];
         };
         /**
          * @description How many units this line is for, with at most 4 fraction digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s rounding error arrives scaled. Negative is allowed — that is a discount or a return line.
@@ -20216,6 +20270,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PurchaseOrder"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    purchaseOrdersSummary: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrdersSummary"];
                 };
             };
             /** @description Default Response */

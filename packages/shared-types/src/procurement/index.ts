@@ -68,6 +68,8 @@ export {
   purchaseOrderPageSchema,
   purchaseOrderSchema,
   purchaseOrderSummarySchema,
+  purchaseOrdersSummaryQuerySchema,
+  purchaseOrdersSummarySchema,
   updatePurchaseOrderRequestSchema,
 } from './purchase-orders';
 export type {
@@ -78,5 +80,7 @@ export type {
   PurchaseOrderPage,
   PurchaseOrderStatus,
   PurchaseOrderSummary,
+  PurchaseOrdersSummary,
+  PurchaseOrdersSummaryQuery,
   UpdatePurchaseOrderRequest,
 } from './purchase-orders';

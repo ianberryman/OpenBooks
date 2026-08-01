@@ -344,6 +344,7 @@ describe('the /v1 route table', () => {
         // and the lean send path for the two pre-documents.
         'createPurchaseOrder',
         'listPurchaseOrders',
+        'purchaseOrdersSummary',
         'getPurchaseOrder',
         'updatePurchaseOrder',
         'approvePurchaseOrder',

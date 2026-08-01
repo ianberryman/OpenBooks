@@ -1,13 +1,20 @@
 import {
   billSchema,
+  calendarDateSchema,
   createPurchaseOrderRequestSchema,
   pageCursorSchema,
   PURCHASE_ORDER_STATUSES,
   purchaseOrderPageSchema,
   purchaseOrderSchema,
+  purchaseOrdersSummarySchema,
   updatePurchaseOrderRequestSchema,
 } from '@openbooks/shared-types';
-import type { Bill, PurchaseOrder, PurchaseOrderPage } from '@openbooks/shared-types';
+import type {
+  Bill,
+  PurchaseOrder,
+  PurchaseOrderPage,
+  PurchaseOrdersSummary,
+} from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
@@ -18,6 +25,7 @@ import {
   discardPurchaseOrder,
   getPurchaseOrder,
   listPurchaseOrders,
+  purchaseOrdersSummary,
   updatePurchaseOrder,
 } from '../../modules/purchase-orders';
 import { withIdempotency } from '../../modules/idempotency';
@@ -63,6 +71,11 @@ const listPurchaseOrdersWireQuerySchema = z.strictObject({
   status: z.enum(PURCHASE_ORDER_STATUSES).optional(),
   limit: pageLimitQuery('purchase orders'),
   cursor: pageCursorSchema.optional(),
+});
+
+/** Local, `estimatesSummaryWireQuerySchema`'s reason restated: no `id` to reference. */
+const purchaseOrdersSummaryWireQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional(),
 });
 
 export function registerPurchaseOrderRoutes(app: App): void {
@@ -124,6 +137,31 @@ export function registerPurchaseOrderRoutes(app: App): void {
         },
         getContext(),
       );
+    },
+  );
+
+  app.get(
+    '/v1/purchase-orders/summary',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'purchaseOrdersSummary',
+        summary: 'The purchase-orders-list headline figures',
+        description:
+          'What is still in draft, what is approved and awaiting conversion to a bill, and what ' +
+          'has converted in the last 30 days, as at a date. A live snapshot rather than a report: ' +
+          '`asOf` defaults to today. A purchase order posts no journal (D-M3), so these are ' +
+          'stored-column predicates over `purchase_orders`, not a read against the payable aging.',
+        tags: [TAG],
+        querystring: purchaseOrdersSummaryWireQuerySchema,
+        response: { 200: purchaseOrdersSummarySchema, ...ERROR_RESPONSES },
+      },
+    },
+    // A static segment, so `find-my-way` matches it ahead of `/v1/purchase-orders/:purchaseOrderId`
+    // whatever the registration order; it is placed here so a reader sees why.
+    async (request): Promise<PurchaseOrdersSummary> => {
+      const { asOf } = request.query;
+      return purchaseOrdersSummary(asOf === undefined ? {} : { asOf }, getContext());
     },
   );
 

@@ -24243,6 +24243,106 @@
         ],
         "type": "object"
       },
+      "PurchaseOrdersSummary": {
+        "additionalProperties": false,
+        "description": "The headline figures the purchase-orders list shows: draft value, approved (awaiting conversion) value, and value converted in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "approvedCount": {
+            "description": "How many approved purchase orders are awaiting conversion.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "approvedValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The gross value of every approved purchase order not yet converted — the commitment awaiting a bill."
+          },
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "convertedCount": {
+            "description": "How many purchase orders converted within that window.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "convertedValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The gross value of purchase orders converted to a bill within the 30 days ending on `asOf`."
+          },
+          "draftCount": {
+            "description": "How many purchase orders are still in draft.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "draftValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The gross value of every purchase order still in draft."
+          }
+        },
+        "required": [
+          "asOf",
+          "draftValue",
+          "draftCount",
+          "approvedValue",
+          "approvedCount",
+          "convertedValue",
+          "convertedCount"
+        ],
+        "type": "object"
+      },
+      "PurchaseOrdersSummaryInput": {
+        "additionalProperties": false,
+        "description": "The headline figures the purchase-orders list shows: draft value, approved (awaiting conversion) value, and value converted in the last 30 days, as at a date (defaulting to today).",
+        "properties": {
+          "approvedCount": {
+            "description": "How many approved purchase orders are awaiting conversion.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "approvedValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The gross value of every approved purchase order not yet converted — the commitment awaiting a bill."
+          },
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the figures were computed as at — echoed so a client knows what it got."
+          },
+          "convertedCount": {
+            "description": "How many purchase orders converted within that window.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "convertedValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The gross value of purchase orders converted to a bill within the 30 days ending on `asOf`."
+          },
+          "draftCount": {
+            "description": "How many purchase orders are still in draft.",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "draftValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The gross value of every purchase order still in draft."
+          }
+        },
+        "required": [
+          "asOf",
+          "draftValue",
+          "draftCount",
+          "approvedValue",
+          "approvedCount",
+          "convertedValue",
+          "convertedCount"
+        ],
+        "type": "object"
+      },
       "Quantity": {
         "description": "How many units this line is for, with at most 4 fraction digits. A string and not a JSON number: a quantity multiplies a price, so a parser’s rounding error arrives scaled. Negative is allowed — that is a discount or a return line.",
         "examples": [
@@ -45531,6 +45631,48 @@
           }
         },
         "summary": "Create a draft purchase order",
+        "tags": [
+          "purchase-orders"
+        ]
+      }
+    },
+    "/v1/purchase-orders/summary": {
+      "get": {
+        "description": "What is still in draft, what is approved and awaiting conversion to a bill, and what has converted in the last 30 days, as at a date. A live snapshot rather than a report: `asOf` defaults to today. A purchase order posts no journal (D-M3), so these are stored-column predicates over `purchase_orders`, not a read against the payable aging.",
+        "operationId": "purchaseOrdersSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrdersSummary"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "The purchase-orders-list headline figures",
         "tags": [
           "purchase-orders"
         ]

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { calendarDateSchema, pageQueryShape, pageSchema } from '../wire';
+import { calendarDateSchema, minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 import {
   DOCUMENT_MAX_LINES,
@@ -207,3 +207,68 @@ export const purchaseOrderPageSchema = pageSchema(purchaseOrderSummarySchema, {
 });
 
 export type PurchaseOrderPage = z.infer<typeof purchaseOrderPageSchema>;
+
+/**
+ * The purchase-orders-list headline figures, as at a date — `estimatesSummaryQuerySchema`'s
+ * reason applies unchanged: this is a live snapshot, not a reproducible report, so `asOf`
+ * is optional and defaults to today.
+ */
+export const purchaseOrdersSummaryQuerySchema = z.strictObject({
+  asOf: calendarDateSchema.optional().meta({
+    description:
+      'The date the figures are computed as at. Defaults to today: this is a live snapshot, not ' +
+      'a reproducible report.',
+  }),
+});
+
+export type PurchaseOrdersSummaryQuery = z.input<typeof purchaseOrdersSummaryQuerySchema>;
+
+/**
+ * The three headline figures the purchase-orders list shows, one per lifecycle state (D-M6):
+ * what is still in draft, what has been approved and is awaiting conversion to a bill, and
+ * what has converted in the last 30 days. A purchase order posts no journal (D-M3), so —
+ * exactly as `EstimatesSummary` does on the AR side — these figures are stored-column
+ * predicates over `purchase_orders`, not a read against the aging repository.
+ *
+ * Unlike `EstimatesSummary` there is no "expired" figure: a purchase order's `expectedDate`
+ * is an informational delivery date, not a lapse, so the middle card is "awaiting
+ * conversion" (approved but not yet converted) rather than an expiry comparison.
+ */
+export const purchaseOrdersSummarySchema = z
+  .strictObject({
+    asOf: calendarDateSchema.meta({
+      description:
+        'The date the figures were computed as at — echoed so a client knows what it got.',
+    }),
+    draftValue: minorUnitsSchema.meta({
+      description: 'The gross value of every purchase order still in draft.',
+    }),
+    draftCount: z.int().nonnegative().meta({
+      description: 'How many purchase orders are still in draft.',
+    }),
+    approvedValue: minorUnitsSchema.meta({
+      description:
+        'The gross value of every approved purchase order not yet converted — the commitment ' +
+        'awaiting a bill.',
+    }),
+    approvedCount: z.int().nonnegative().meta({
+      description: 'How many approved purchase orders are awaiting conversion.',
+    }),
+    convertedValue: minorUnitsSchema.meta({
+      description:
+        'The gross value of purchase orders converted to a bill within the 30 days ending on ' +
+        '`asOf`.',
+    }),
+    convertedCount: z.int().nonnegative().meta({
+      description: 'How many purchase orders converted within that window.',
+    }),
+  })
+  .meta({
+    id: 'PurchaseOrdersSummary',
+    description:
+      'The headline figures the purchase-orders list shows: draft value, approved (awaiting ' +
+      'conversion) value, and value converted in the last 30 days, as at a date (defaulting to ' +
+      'today).',
+  });
+
+export type PurchaseOrdersSummary = z.infer<typeof purchaseOrdersSummarySchema>;

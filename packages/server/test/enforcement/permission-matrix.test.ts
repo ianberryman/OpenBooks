@@ -310,6 +310,7 @@ import {
   discardPurchaseOrder,
   getPurchaseOrder,
   listPurchaseOrders,
+  purchaseOrdersSummary,
   updatePurchaseOrder,
 } from '../../src/modules/purchase-orders';
 import { sendEstimate, sendPurchaseOrder } from '../../src/modules/predocument-delivery';
@@ -2998,6 +2999,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'listPurchaseOrders',
     permission: 'purchase_orders.read',
     call: (s) => listPurchaseOrders({}, s.ctx),
+  },
+  {
+    name: 'purchaseOrdersSummary',
+    operationId: 'purchaseOrdersSummary',
+    permission: 'purchase_orders.read',
+    call: (s) => purchaseOrdersSummary({}, s.ctx),
   },
   {
     name: 'getPurchaseOrder',

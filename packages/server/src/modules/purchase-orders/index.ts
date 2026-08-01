@@ -21,6 +21,7 @@
  * | `discardPurchaseOrder(id, ctx)`                  | `purchase_orders.write` |
  * | `approvePurchaseOrder(id, ctx)`                  | `purchase_orders.write` |
  * | `convertPurchaseOrderToBill(id, ctx)`            | `purchase_orders.write` (→ `bills.write`) |
+ * | `purchaseOrdersSummary(query, ctx)`              | `purchase_orders.read`  |
  *
  * There are no routes here: transport is `transport/routes/purchase-orders.ts`.
  * There is no `send` operation here either — `modules/predocument-delivery`
@@ -36,5 +37,7 @@ export {
   listPurchaseOrders,
   updatePurchaseOrder,
 } from './purchase-orders.service';
+
+export { purchaseOrdersSummary } from './summary.service';
 
 export { PURCHASE_ORDER_RESOURCE } from './purchase-orders.repository';

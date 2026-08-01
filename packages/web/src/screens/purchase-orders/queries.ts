@@ -3,6 +3,7 @@ import type {
   InfiniteData,
   UseInfiniteQueryResult,
   UseMutationResult,
+  UseQueryResult,
 } from '@tanstack/react-query';
 import { useMemo, useRef } from 'react';
 
@@ -38,6 +39,7 @@ export type SendPurchaseOrderRequest = components['schemas']['SendPredocumentReq
 export type PredocumentDelivery = components['schemas']['PredocumentDelivery'];
 export type DocumentLine = components['schemas']['DocumentLine'];
 export type Bill = components['schemas']['Bill'];
+export type PurchaseOrdersSummary = components['schemas']['PurchaseOrdersSummary'];
 
 export type Account = components['schemas']['Account'];
 export type Contact = components['schemas']['Contact'];
@@ -59,6 +61,7 @@ function purchaseOrderDetailQueryKey(purchaseOrderId: string): readonly unknown[
 
 export const VENDORS_QUERY_KEY = ['purchase-orders', 'vendors'] as const;
 const ACCOUNTS_QUERY_KEY = ['purchase-orders', 'accounts'] as const;
+const PURCHASE_ORDERS_SUMMARY_QUERY_KEY = ['purchase-orders', 'summary'] as const;
 
 /** `PAGE_SIZE_MAX` on the server; over it is refused rather than clamped. */
 const PAGE_LIMIT = 200;
@@ -186,21 +189,17 @@ export function usePurchaseOrderList(
   });
 }
 
-export interface PurchaseOrderResult {
-  readonly order: PurchaseOrder | null;
-  readonly isPending: boolean;
-  readonly error: unknown;
-}
-
 /**
  * One purchase order, with its lines — fetched on demand rather than carried on the list
  * row, because `PurchaseOrderPage.items` is `PurchaseOrderSummary[]` and a summary carries
- * no lines at all. The edit dialog fetches this the moment it opens on an existing order,
- * the same "detail is its own read" discipline `fixed-assets/schedule-view.tsx`'s
- * `useFixedAsset` keeps for a row the register's own page may not currently hold.
+ * no lines at all. The routed detail/editor fetches this by id (`useEstimate`'s shape on the
+ * AR side) rather than editing off the summary the list already holds, so a cold URL lands
+ * on a full order.
  */
-export function usePurchaseOrder(purchaseOrderId: string | null): PurchaseOrderResult {
-  const query = useQuery({
+export function usePurchaseOrder(
+  purchaseOrderId: string | null,
+): UseQueryResult<PurchaseOrder, Error> {
+  return useQuery({
     queryKey: purchaseOrderDetailQueryKey(purchaseOrderId ?? ''),
     queryFn: async () =>
       unwrap(
@@ -210,11 +209,88 @@ export function usePurchaseOrder(purchaseOrderId: string | null): PurchaseOrderR
       ),
     enabled: purchaseOrderId !== null,
   });
+}
+
+/** The server-side narrowings the redesigned list offers — the same two `/v1/purchase-orders`
+ * accepts. The draft/approved/converted card narrowing and any text search stay client-side
+ * (`order-presentation.ts`), for `estimates.tsx`'s reason: they are not filters the API has. */
+export interface PurchaseOrderListFilters {
+  readonly contactId?: string;
+  readonly status?: PurchaseOrderStatus;
+}
+
+/**
+ * One capped page of purchase orders for the redesigned list — flattened and filterable,
+ * unlike the infinite `usePurchaseOrderList` the old screen paged with. `truncated` is the
+ * presence of a next cursor, echoed the way `sales/queries.ts`' `useDocumentList` does it, so
+ * the list can say "narrow the filter to reach the rest" rather than fake a second page.
+ */
+export function usePurchaseOrderListItems(filters: PurchaseOrderListFilters = {}): {
+  readonly items: readonly PurchaseOrderSummary[];
+  readonly isPending: boolean;
+  readonly error: unknown;
+  readonly truncated: boolean;
+  readonly refetch: () => void;
+} {
+  const query = useQuery({
+    queryKey: [
+      ...PURCHASE_ORDERS_SCOPE,
+      'list-page',
+      filters.contactId ?? null,
+      filters.status ?? null,
+    ],
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/v1/purchase-orders', {
+          params: {
+            query: {
+              limit: PAGE_LIMIT,
+              ...(filters.contactId === undefined ? {} : { contactId: filters.contactId }),
+              ...(filters.status === undefined ? {} : { status: filters.status }),
+            },
+          },
+        }),
+      ),
+  });
 
   return {
-    order: query.data ?? null,
-    isPending: purchaseOrderId !== null && query.isPending,
+    items: query.data?.items ?? [],
+    isPending: query.isPending,
     error: query.error,
+    truncated: query.data?.nextCursor != null,
+    refetch: () => {
+      void query.refetch();
+    },
+  };
+}
+
+export interface PurchaseOrdersSummaryResult {
+  readonly data: PurchaseOrdersSummary | null;
+  readonly error: unknown;
+  readonly refetch: () => void;
+}
+
+/**
+ * The three headline figures above the purchase-orders list — draft value, approved value
+ * awaiting conversion, and what converted in the last 30 days. Server-computed
+ * (`GET /v1/purchase-orders/summary`) rather than summed from the page for
+ * `estimates/summary-cards.tsx`'s reason: the list is one capped page, and only the server
+ * sees every purchase order. The "converted last 30 days" figure in particular needs
+ * `convertedAt`, which is not on the summary rows the list holds.
+ */
+export function usePurchaseOrdersSummary(): PurchaseOrdersSummaryResult {
+  const query = useQuery({
+    queryKey: PURCHASE_ORDERS_SUMMARY_QUERY_KEY,
+    queryFn: async () =>
+      unwrap(await api.GET('/v1/purchase-orders/summary', { params: { query: {} } })),
+  });
+
+  return {
+    data: query.data ?? null,
+    error: query.error,
+    refetch: () => {
+      void query.refetch();
+    },
   };
 }
 

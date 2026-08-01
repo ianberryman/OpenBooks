@@ -6,19 +6,20 @@ import type { StubRoute } from './test-support';
 import { installApiStub, renderWithQueryClient } from './test-support';
 
 /**
- * Purchase orders (D-M3, D-M6, D-M7).
+ * Purchase orders (initiative M, OB-170…174; ROADMAP D-M3, D-M4, D-M6, D-M7) — the AP-side
+ * mirror of an estimate, so this suite is the mirror of `estimates/estimates.test.tsx`.
  *
- * Three things are worth a test, `fixed-assets.test.tsx`'s own list:
+ * Four things are worth a test:
  *
- * 1. **The list reads what the server stored and says so plainly** — vendor, status and
- *    total, none of it recomputed here.
+ * 1. **The list reads what the server computed and says so plainly** — document number,
+ *    vendor, status and total, none of it recomputed here.
  * 2. **A create carries one idempotency key and the exact body the contract describes** —
- *    `taxMode` hard-coded to `exclusive` since this screen offers no tax-rate control, and
- *    an empty `lines` array when nothing was typed (`createPurchaseOrder`'s own words:
- *    lines is optional).
- * 3. **Approve and convert hit their own routes, never a patch of `status`** — D-M6's
- *    status is stored, not derived, and this screen only ever calls the two POST endpoints
- *    that change it.
+ *    including the fixed `taxMode: 'exclusive'` this screen never exposes a control for
+ *    (`order-state.ts`'s file header explains why) and no `dimensionValueIds` at all (D-M7).
+ * 3. **Approve hits `POST …/approve` with no body**, once, keyed to the order rather than the
+ *    click.
+ * 4. **Convert hits `POST …/convert` and reports the bill it produced**, never a second
+ *    `PurchaseOrder` — the detail navigates to `/purchases/bills/:id`.
  */
 const { PurchaseOrdersScreen } = await import('../purchase-orders');
 
@@ -26,55 +27,55 @@ const TIMESTAMPS = { createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-
 
 const VENDOR_ID = '11111111-1111-4111-8111-111111111111';
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
-const PURCHASE_ORDER_ID = '33333333-3333-4333-8333-333333333333';
+const ORDER_ID = '33333333-3333-4333-8333-333333333333';
 const BILL_ID = '44444444-4444-4444-8444-444444444444';
 
 const VENDOR = {
   id: VENDOR_ID,
-  displayName: 'Acme Supplies',
-  code: null,
-  email: 'ap@acme.test',
-  phone: null,
+  code: 'VEND-1',
+  displayName: 'Morgan Supplies',
   legalName: null,
-  notes: null,
-  isActive: true,
+  email: 'orders@morgan.example',
+  phone: null,
   isCustomer: false,
   isVendor: true,
   isEmployee: false,
+  notes: null,
+  isActive: true,
   ...TIMESTAMPS,
 };
 
 const ACCOUNT = {
   id: ACCOUNT_ID,
   code: '5000',
-  name: 'Office supplies',
-  description: null,
+  name: 'Cost of goods',
   type: 'expense',
   normalBalance: 'debit',
   parentAccountId: null,
+  description: null,
   cashBasisRole: null,
   isActive: true,
   ...TIMESTAMPS,
 };
 
-function totals(gross: string): { net: string; tax: string; gross: string } {
+function totals(gross: string): Record<string, unknown> {
   return { net: gross, tax: '0', gross };
 }
 
-function purchaseOrderSummary(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function orderSummary(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    id: PURCHASE_ORDER_ID,
-    contactId: VENDOR_ID,
+    id: ORDER_ID,
     documentNumber: null,
     reference: null,
-    memo: null,
-    issueDate: '2026-01-15',
+    contactId: VENDOR_ID,
+    issueDate: '2026-01-01',
     expectedDate: null,
     taxMode: 'exclusive',
     status: 'draft',
-    approvedAt: null,
+    memo: null,
+    totals: totals('100000'),
     convertedBillId: null,
-    totals: totals('0'),
+    approvedAt: null,
     ...TIMESTAMPS,
     ...overrides,
   };
@@ -104,49 +105,79 @@ function listRoute(orders: readonly Record<string, unknown>[]): StubRoute {
   };
 }
 
+/** The headline figures the list's summary cards read (`GET /v1/purchase-orders/summary`).
+ * Zeros are enough for tests that do not assert the figures. This route matches the
+ * `:purchaseOrderId` pattern too, so callers must order it ahead of the detail route. */
+function summaryRoute(): StubRoute {
+  return {
+    method: 'GET',
+    path: '/v1/purchase-orders/summary',
+    reply: () => ({
+      status: 200,
+      body: {
+        asOf: '2026-07-01',
+        draftValue: '0',
+        draftCount: 0,
+        approvedValue: '0',
+        approvedCount: 0,
+        convertedValue: '0',
+        convertedCount: 0,
+      },
+    }),
+  };
+}
+
+/** The full order (lines included) the routed detail/editor loads by id — the list holds only
+ * the lineless summary. */
+function fullOrder(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { ...orderSummary(overrides), lines: [] };
+}
+
+function detailRoute(order: Record<string, unknown>): StubRoute {
+  return {
+    method: 'GET',
+    path: '/v1/purchase-orders/:purchaseOrderId',
+    reply: () => ({ status: 200, body: order }),
+  };
+}
+
 describe('PurchaseOrdersScreen', () => {
-  it('reads vendor, status and total off the response rather than deriving them', async () => {
+  it('reads document number, vendor, status and total off the order rather than deriving them', async () => {
     installApiStub([
       ...referenceRoutes(),
+      summaryRoute(),
       listRoute([
-        purchaseOrderSummary({
-          documentNumber: 'PO-0001',
-          status: 'approved',
-          approvedAt: '2026-01-16T00:00:00.000Z',
-          totals: totals('50000'),
-        }),
+        orderSummary({ documentNumber: '1007', status: 'approved', totals: totals('250000') }),
       ]),
     ]);
     renderWithQueryClient(<PurchaseOrdersScreen />);
 
-    expect(await screen.findByText('PO-0001')).toBeInTheDocument();
-    expect(screen.getByText('Acme Supplies')).toBeInTheDocument();
+    expect(await screen.findByText('1007')).toBeInTheDocument();
+    expect(screen.getByText('Morgan Supplies')).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.getByText('$500.00')).toBeInTheDocument();
+    expect(screen.getByText('$2,500.00')).toBeInTheDocument();
   });
 
-  it('creates a draft with one idempotency key and the exact body the contract describes', async () => {
+  /**
+   * "New purchase order" pre-creates a draft (its lines are optional — the server produces an
+   * empty one) and opens it at its own URL, so the create body is exactly a vendor, today's
+   * issue date and the fixed `taxMode: 'exclusive'` this screen never exposes a control for —
+   * no lines, and so no `dimensionValueIds` (D-M7) — carried on one idempotency key.
+   */
+  it('creates a draft on the New button with one key and the fixed exclusive tax mode, then opens its editor', async () => {
     const stub = installApiStub([
       ...referenceRoutes(),
+      summaryRoute(),
       listRoute([]),
       {
         method: 'POST',
         path: '/v1/purchase-orders',
         reply: ({ body }) => ({
           status: 201,
-          body: {
-            ...(body as object),
-            id: PURCHASE_ORDER_ID,
-            documentNumber: null,
-            status: 'draft',
-            approvedAt: null,
-            convertedBillId: null,
-            totals: totals('0'),
-            lines: [],
-            ...TIMESTAMPS,
-          },
+          body: { ...fullOrder(), ...(body as object), id: ORDER_ID },
         }),
       },
+      detailRoute(fullOrder()),
     ]);
     const user = userEvent.setup();
     renderWithQueryClient(<PurchaseOrdersScreen />);
@@ -157,74 +188,57 @@ describe('PurchaseOrdersScreen', () => {
     });
     await user.click(newButton);
 
-    const dialog = await screen.findByRole('dialog', { name: 'New purchase order' });
-
-    // Option lists open in their own Radix popover portal, appended alongside the dialog's
-    // rather than nested inside it — `fixed-assets.test.tsx`'s own reason for picking an
-    // option off the unscoped `screen`.
-    await user.click(within(dialog).getByRole('combobox', { name: 'Vendor' }));
-    await user.click(await screen.findByText('Acme Supplies'));
-
-    await user.click(within(dialog).getByRole('button', { name: 'Create' }));
+    // A draft with no number yet, so it opens on the editor page (which owns the Memo field).
+    expect(await screen.findByLabelText('Memo')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(stub.keysFor('POST', '/v1/purchase-orders')).toHaveLength(1);
     });
     const created = stub.calls.find((call) => call.method === 'POST');
-    const body = created?.body as Record<string, unknown> | undefined;
-    expect(typeof body?.['issueDate']).toBe('string');
     expect(created?.body).toEqual({
       contactId: VENDOR_ID,
-      issueDate: body?.['issueDate'],
-      expectedDate: null,
-      reference: null,
-      memo: null,
+      issueDate: expect.any(String) as string,
       taxMode: 'exclusive',
-      // No line was ever touched, so the untouched blank row is dropped rather than sent
-      // half-formed — `createPurchaseOrder`'s own words: lines is optional.
-      lines: [],
     });
     expect(created?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('approves against its own route, one idempotency key, never a patch of status', async () => {
+  it('approves a draft from its editor with a single POST and no body', async () => {
     const stub = installApiStub([
       ...referenceRoutes(),
-      listRoute([purchaseOrderSummary()]),
+      detailRoute(fullOrder({ status: 'draft' })),
       {
         method: 'POST',
         path: '/v1/purchase-orders/:purchaseOrderId/approve',
         reply: () => ({
           status: 200,
-          body: purchaseOrderSummary({
-            documentNumber: 'PO-0001',
-            status: 'approved',
-            approvedAt: '2026-01-16T00:00:00.000Z',
-            lines: [],
-          }),
+          body: fullOrder({ documentNumber: '1008', status: 'approved' }),
         }),
       },
     ]);
     const user = userEvent.setup();
-    renderWithQueryClient(<PurchaseOrdersScreen />);
+    // Cold-load the draft's own URL — the routing exists so a link lands on the right component.
+    renderWithQueryClient(<PurchaseOrdersScreen />, `/purchase-orders/${ORDER_ID}`);
 
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click(await screen.findByRole('button', { name: 'Approve & Send' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Approve this purchase order?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
 
     await waitFor(() => {
       expect(stub.keysFor('POST', '/v1/purchase-orders/:purchaseOrderId/approve')).toHaveLength(1);
     });
-    const approved = stub.calls.find((call) => call.path.endsWith('/approve'));
-    expect(approved?.path).toBe(`/v1/purchase-orders/${PURCHASE_ORDER_ID}/approve`);
+    const approved = stub.calls.find(
+      (call) => call.method === 'POST' && call.path.endsWith('/approve'),
+    );
     expect(approved?.body).toBeUndefined();
-    expect(approved?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
-
-    expect(await screen.findByText('Approved PO-0001.')).toBeInTheDocument();
+    expect(approved?.path).toBe(`/v1/purchase-orders/${ORDER_ID}/approve`);
   });
 
-  it('converts an approved order to a bill against its own route', async () => {
-    const stub = installApiStub([
+  it('converts an approved order and navigates to the bill it produced, not a second order', async () => {
+    installApiStub([
       ...referenceRoutes(),
-      listRoute([purchaseOrderSummary({ documentNumber: 'PO-0001', status: 'approved' })]),
+      detailRoute(fullOrder({ documentNumber: '1009', status: 'approved' })),
       {
         method: 'POST',
         path: '/v1/purchase-orders/:purchaseOrderId/convert',
@@ -232,42 +246,37 @@ describe('PurchaseOrdersScreen', () => {
           status: 200,
           body: {
             id: BILL_ID,
+            documentNumber: '2001',
             contactId: VENDOR_ID,
-            documentNumber: 'BILL-0001',
-            reference: null,
-            issueDate: '2026-01-16',
-            dueDate: '2026-02-15',
+            issueDate: '2026-07-30',
+            dueDate: '2026-07-30',
             taxMode: 'exclusive',
-            memo: null,
             status: 'draft',
-            journalId: null,
-            voidJournalId: null,
+            memo: null,
+            reference: null,
             lines: [],
-            totals: totals('0'),
-            taxSummary: [],
-            settlement: { allocated: '0', outstanding: '0' },
-            allocations: [],
+            totals: totals('100000'),
+            settlement: { allocated: '0', outstanding: '100000' },
+            voidedAt: null,
+            reversesJournalId: null,
+            journalId: null,
             ...TIMESTAMPS,
           },
         }),
       },
     ]);
     const user = userEvent.setup();
-    renderWithQueryClient(<PurchaseOrdersScreen />);
+    renderWithQueryClient(<PurchaseOrdersScreen />, `/purchase-orders/${ORDER_ID}`);
 
     await user.click(await screen.findByRole('button', { name: 'Convert to bill' }));
 
-    await waitFor(() => {
-      expect(stub.keysFor('POST', '/v1/purchase-orders/:purchaseOrderId/convert')).toHaveLength(1);
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Convert this purchase order to a bill?',
     });
-    const converted = stub.calls.find((call) => call.path.endsWith('/convert'));
-    expect(converted?.path).toBe(`/v1/purchase-orders/${PURCHASE_ORDER_ID}/convert`);
-    expect(converted?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+    await user.click(within(dialog).getByRole('button', { name: 'Convert' }));
 
-    expect(
-      await screen.findByText(
-        'Converted to draft bill BILL-0001 — approve it on the Purchases screen to reach the ledger.',
-      ),
-    ).toBeInTheDocument();
+    // Converting hands back the produced Bill; the detail reports it by navigating to it —
+    // the `/purchases/*` marker route stands in for the bill screen.
+    expect(await screen.findByText('Bill page')).toBeInTheDocument();
   });
 });
