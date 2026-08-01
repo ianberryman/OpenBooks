@@ -6,7 +6,7 @@ fully transparent: the free community infrastructure that benefits everyone — 
 never pay us a cent.**
 
 > **What your donation pays for — and what it doesn't.**
-> Donations cover the *community* resources below. They do **not** subsidize the commercial hosted
+> Donations cover the _community_ resources below. They do **not** subsidize the commercial hosted
 > service (customers pay for that) or general development. Every donated dollar goes to keeping the
 > free, shared resources running.
 
@@ -26,15 +26,15 @@ These are the shared, free resources donations keep online. Some are **projected
 yet and only incur cost once stood up (noted below). We publish real figures on Open Collective as
 they land.
 
-| Resource | What it is | Rough monthly cost                   | Status                       |
-| --- | --- |--------------------------------------|------------------------------|
+| Resource                     | What it is                                                                                           | Rough monthly cost                   | Status                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------- |
 | **Live demo instance** (AWS) | A public, resettable demo so anyone can try OpenBooks without installing it — app + database hosting | `$15/mo`                             | Projected (not yet stood up) |
-| **Docs & marketing site** | Static site (docs, feature tour, the published API spec) on a CDN | `$5/mo` (low — static/CDN)           | Projected                    |
-| **Transactional email** | Sending for the demo instance + project communication | `$12/mo`                             | Projected                    |
-| **Domain & DNS** | The project domain(s) | `$12/yr`                             | —                            |
-| **CI** | Running the full `yarn check` gate on contributions | `$0` (may be free on public runners) | See OB-230                   |
-| **Backups / misc** | Demo data backups, incidental services | `$10/yr`                             | Projected                    |
-| **Total** | | **`~$34`/mo**                        | **`~$406`/yr**               |
+| **Docs & marketing site**    | Static site (docs, feature tour, the published API spec) on a CDN                                    | `$5/mo` (low — static/CDN)           | Projected                    |
+| **Transactional email**      | Sending for the demo instance + project communication                                                | `$12/mo`                             | Projected                    |
+| **Domain & DNS**             | The project domain(s)                                                                                | `$12/yr`                             | —                            |
+| **CI**                       | Running the full `yarn check` gate on contributions                                                  | `$0` (may be free on public runners) | See OB-230                   |
+| **Backups / misc**           | Demo data backups, incidental services                                                               | `$10/yr`                             | Projected                    |
+| **Total**                    |                                                                                                      | **`~$34`/mo**                        | **`~$406`/yr**               |
 
 ## Funding goals
 

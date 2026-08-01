@@ -1,7 +1,7 @@
 name: 🧭 Initiative / roadmap item
 description: A scoped, plannable unit of work for the roadmap board — the successor to the old OB-NNN tickets.
-title: "[Initiative] "
-labels: ["type:initiative", "status:triage"]
+title: '[Initiative] '
+labels: ['type:initiative', 'status:triage']
 body:
   - type: markdown
     attributes:
@@ -20,17 +20,17 @@ body:
     attributes:
       label: Priority tier
       options:
-        - "T1 — table stakes"
-        - "T2 — mid-market breadth"
-        - "T3 — longer horizon / strategic"
-        - "Readiness / hardening"
+        - 'T1 — table stakes'
+        - 'T2 — mid-market breadth'
+        - 'T3 — longer horizon / strategic'
+        - 'Readiness / hardening'
     validations:
       required: true
   - type: input
     id: area
     attributes:
       label: Area
-      placeholder: "ledger / ar / ap / banking / reporting / platform / self-host / docs …"
+      placeholder: 'ledger / ar / ap / banking / reporting / platform / self-host / docs …'
     validations:
       required: true
   - type: textarea
