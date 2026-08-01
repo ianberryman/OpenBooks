@@ -45,7 +45,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**              | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
 | **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**              | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
 | **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**       | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
-| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Placeholder — not scoped**        | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-future)                                                                                                        |
+| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Scoped — dev-ready**              | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-scoped--dev-ready)                                                                                             |
 | **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**           | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
 | **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**   | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
 | **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **Placeholder — not scoped**        | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
@@ -615,9 +615,9 @@ aging, cash-flow, budget-vs-actual; a web Export control sits in the Reports she
 all-rows-per-filter paging mechanism, not a report service) and export of `cash-flow-projection` /
 `audit` (bucket-grid / `audit.read`-gated). Report export is the substantive part-2 deliverable.
 
-**(1099 tracking & e-file was split out into its own milestone — see [1099 reporting](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-future).)**
+**(1099 tracking & e-file was split out into its own milestone — see [1099 reporting](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-scoped--dev-ready).)**
 
-### Milestone 1099 — contractor tax reporting (1099-NEC/MISC) (OB-228, future)
+### Milestone 1099 — contractor tax reporting (1099-NEC/MISC) (OB-228, scoped — dev-ready)
 
 Split out of OB-220 into its own milestone because, while it posts **no journals** (a reporting/
 compliance overlay, not a ledger change — low-risk, like budgets and the audit report), it carries
@@ -625,43 +625,169 @@ real domain subtlety, sensitive PII, and a variable-cost external integration th
 OB-220 items do not. US table stakes: QBO ships it from Simple Start, QBD has a 1099 wizard (e-files
 via Tax1099), Xero includes W-9/1099 management on all US plans.
 
-**The pieces:**
+**v1 slice:** vendor tax profile (encrypted TIN + W-9 fields) → a calendar-year cash-paid **worksheet**
+per 1099 vendor (card/third-party payments excluded, human-reviewed) → **Generate** snapshots
+immutable 1099-NEC/MISC + 1096 forms as branded PDFs → a `manual` **e-file** adapter emits the
+IRS-format file the org files itself, with a real transmit adapter behind the seam and deferred.
 
-1. **Vendor tax data (schema change).** Mark a vendor 1099-eligible and store what a form needs: TIN
-   (EIN/SSN), tax classification / legal name, address, and the default form + box (1099-NEC box 1
-   is the common case; 1099-MISC for rent/royalties). The **TIN is sensitive PII** — store it
-   **encrypted via the existing per-org AES-GCM `SecretsProvider`** (or an encrypted column), never
-   a plaintext contacts field — plus W-9 capture on the contact editor. New columns on the vendor
-   contact or a `vendor_tax_info` table.
-2. **Payment accumulation by calendar year (the report) — where most of the real work is.** Sum
-   **cash actually paid** to each 1099 vendor in the tax year, with two correctness anchors: (a) it
-   is **cash-basis, calendar-year** — payments/disbursements in the year, not bills accrued; and (b)
-   it must **exclude card / third-party-network payments**, which the processor reports on 1099-K —
-   double-reporting is the classic 1099 bug. **OpenBooks fits unusually well here:** PB already
-   models rails as classification tags (check/ACH/wire vs. card), so the exclusion is a filter on
-   existing data, not new plumbing. Threshold ($600, kept configurable — thresholds keep moving).
-3. **Form generation.** 1099-NEC/MISC PDFs + the 1096 transmittal, and Copy B delivery to recipients
-   — all reusing the branded-PDF **delivery** infra (the invoices / statement-package path). An
-   append-only **`form_1099_filings`** record of what was filed fits the existing precedent
-   (`statement_packages` / `period_close_events` are already append-only).
-4. **E-file — the variable-cost piece, behind a seam.** IRS IRIS/FIRE is the compliance treadmill.
-   Introduce a **`Form1099Provider`** seam (same idiom as `DocumentExtractionProvider` / `CheckOutput`)
-   with a **`manual` adapter as the v1 default** — generate the data + PDFs + a CSV / IRS-format
-   export the user files themselves (gate-safe, no external dependency) — and a real **e-file adapter
-   deferred** (Tax1099 / Track1099 / Yearli). Optional **TIN matching** is a provider feature.
+#### OB-228 execution — dev-ready, parallelised
 
-**Architecture & tripwires.** No posting path, no ledger risk. Per the schema/route-tripwire
-checklist: a new migration + `MUTABLE_TABLES` / append-only entries, `generated.ts` regen against a
-throwaway MySQL, and **likely a dedicated permission key** (`tax_filings.read`/`write` — SoD around
-PII and filing argues against reusing `bills`), which moves the permission-matrix count, the
-route-table, and OpenAPI coverage.
+Scoped from a three-stream code sweep (provider/PII seams · the vendor-payment data path · the
+schema/route tripwires). **Headline findings that shaped the design:** (1) the amount rollup has a
+clean source of truth — `payments WHERE direction='paid' AND void_journal_id IS NULL`, keyed by
+`payment_date`, modelled on `modules/reports/aging.repository.ts:selectPayments`; (2) **the
+card/1099-K exclusion has no existing column** — `pending_payments.rail` is only `check|ach|wire`
+(there is _no_ card rail), and a direct `recordPayment` carries no rail at all, so the earlier
+scoping note's "PB already models card vs. non-card, the exclusion is a filter on existing data" is
+**wrong** and is corrected by [D-228-3](#d-228-3); and (3) the PDF/module/provider patterns are all
+established (pdfmake `modules/*/renderer/`, the `paymentProcessorFor`-style per-connection adapter
+factory, the `secrets` AES-GCM envelope) so the streams author against known shapes.
 
-**Recommended v1 slice:** vendor tax fields (encrypted TIN) → calendar-year cash-paid report
-excluding card rails → 1099-NEC/MISC + 1096 PDF → CSV/IRS-format export. Defer live e-file to the
-`Form1099Provider` adapter. **The correctness anchor for whoever builds it is the card/third-party-
-payment exclusion (1099-K overlap)** — the single most likely source of a wrong-numbers support
-ticket. Effort: the track+accumulate+PDF+export slice is **small–medium**; only live e-file is
-medium-large, and the seam keeps it out of the critical path.
+**Forks settled ([D-228-1](#d-228-1)…[D-228-8](#d-228-8)):**
+
+- <a id="d-228-1"></a>**D-228-1 — v1 forms = 1099-NEC + 1099-MISC**, one reportable box per vendor (`default_box`,
+  `nec_1` the common case; `misc_1` rent / `misc_3` other income). A single vendor with activity in
+  **two** boxes (both NEC and MISC) is the deferred edge — one profile, one box in v1.
+- <a id="d-228-2"></a>**D-228-2 — TIN at rest = an app-encrypted column on an isolated `vendor_tax_profiles`
+  tenant table, NOT `SecretsProvider`.** A TIN is per-vendor reference data at unbounded cardinality;
+  `SecretsProvider`'s hosted `aws-secrets-manager` adapter bills per-secret and is built for a bounded
+  credential set, and the `secrets` table deliberately has **no `org_id`** and sits outside the
+  `tenantDb()` dependency-cruiser guard — so storing per-vendor PII there would forfeit the tenancy
+  guarantee. Reuse the `providers/secrets/local.ts` AES-256-GCM envelope (`iv‖tag‖ct`,
+  key = `sha256(SECRETS_ENCRYPTION_KEY)`) via a **factored `crypto/field-encryption.ts` helper**;
+  persist `tax_id_ciphertext` + a `tax_id_last4` for masked display, and **only `tax_id_last4` ever
+  crosses the wire**. Contrast: the real **e-file vendor API key** (a bounded per-org operational
+  credential) _does_ go through `SecretsProvider` (`${orgId}/efile/credentials`) — the right tool for
+  that job. The `local` secrets adapter and the TIN column then share one crypto implementation. This
+  instantiates the **general rule (owner, this session): an app-encrypted column is the default for
+  row-level sensitive data; the `secrets` store holds only an org's credential secrets** (API keys,
+  webhook secrets) — never per-row PII.
+- <a id="d-228-3"></a>**D-228-3 — card / 1099-K exclusion = an `accounts.excluded_from_1099` flag + a reviewable
+  worksheet.** Since the data cannot classify card payments (finding 2), the owner marks card /
+  third-party-network clearing accounts excluded, and the worksheet lists every counted payment with
+  drill-down so a human confirms the total before **Generate**. Perfect automated 1099-K exclusion is
+  **out of v1, flagged** — this is the single most likely source of a wrong-numbers support ticket and
+  the correctness anchor for whoever builds it.
+- <a id="d-228-4"></a>**D-228-4 — reportable amount** = Σ `payments` for the vendor `WHERE direction='paid' AND
+void_journal_id IS NULL AND payment_date` in the tax calendar year AND the cash account is not
+  `excluded_from_1099`, grouped by `contact_id`. Rolled up from **`payments`, never `ap_allocations`**
+  (so unallocated prepayments count and vendor-credit / discount settlements — which move no cash — do
+  not), always on `payment_date` (never bill `issue_date`). Threshold default **$600** (NEC),
+  per-run configurable. Corporations (`tax_classification` c/s-corp) are flagged generally-exempt but
+  still shown for the human to decide.
+- <a id="d-228-5"></a>**D-228-5 — filing immutability.** The per-vendor form snapshot `ten99_forms` is
+  **append-only**; a correction is a NEW row carrying `corrects_form_id` (the reversing-entry house
+  style, [D-02](#d-02)), never a mutation. The batch `ten99_form_runs` is **mutable** working state
+  (`draft→generated→submitted→accepted|rejected` + the e-file provider ref), like a reconciliation
+  session. Worksheet numbers are computed **live**; "Generate" is what snapshots the immutable forms.
+- <a id="d-228-6"></a>**D-228-6 — two permission keys `ten99.read` / `ten99.write`** (catalog **73 → 75**). read =
+  worksheet + forms (masked TIN only); write = manage vendor tax profiles incl. TIN, generate, e-file.
+  Seeded **owner + accountant + bookkeeper** on write (1099 prep is clerk work — _not_
+  bookkeeper-excluded); read auto-grants to every `%.read` holder. An owner-only **transmit** SoD (a
+  third `ten99.file` key mirroring `disbursements.issue`) is the offered alternative, not the default.
+- <a id="d-228-7"></a>**D-228-7 — e-file behind a `Form1099Provider` seam**, `manual` the gate-driving default
+  (deterministic; emits the IRS **IRIS**-format flat file + recipient **Copy B** PDFs, **no
+  transmission** — the org files via the free IRIS portal or hands the file to a vendor). A real
+  transmit adapter (IRIS A2A / Tax1099 / Track1099) is deferred and, like Stripe/Square, proven only in
+  a manual sandbox ([D-102](#d-102) idiom). **No red-ink Copy A printing** — e-file/IRIS supersedes it.
+- <a id="d-228-8"></a>**D-228-8 — recipient delivery reuses the hosted-PDF path** — a token-gated
+  `getPublicTen99Pdf` mirroring `getPublicStatementArtifact`, so a contractor gets a link to their
+  Copy B. Cuttable to payer-downloads-and-distributes if v1 needs trimming.
+
+**Pinned contracts (fix before the fan-out):**
+
+- **Interface** (`plugin-api/src/providers.ts`; re-export _every_ new type from `index.ts`'s
+  `export type { … } from './providers'` barrel — missing barrel exports were the OB-227 trap):
+  `Form1099ProviderKind = 'manual' | 'iris'`; `Form1099Provider { buildTransmission(input: { taxYear:
+number; forms: readonly Ten99FormData[] }): Promise<Ten99Transmission>; submit(t: Ten99Transmission):
+Promise<Ten99SubmitResult>; getStatus(providerRef: string): Promise<Ten99FilingStatus> }`;
+  `Form1099AdapterDeps = { apiKey: string | null; environment: 'sandbox' | 'production'; appBaseUrl?:
+string }`; the `manual` adapter's `submit` returns `{ providerRef: 'manual', status:
+'ready_to_file' }` and exposes the flat-file artifact.
+- **Migration `0023_ten99.ts`** (0022 is current max; 0999 stays last) — three tenant tables + one
+  in-place column:
+  - `vendor_tax_profiles` (**MUTABLE + TENANT**): `id, org_id, contact_id` FK `contacts(org_id,id)`
+    with `uq_vendor_tax_profiles_contact` (one per vendor), `is_1099_eligible`, `tax_id_ciphertext
+VARBINARY(255) NULL`, `tax_id_last4 CHAR(4) NULL`, `tax_id_type ENUM('ein','ssn','itin') NULL`,
+    `tax_classification ENUM('individual','c_corp','s_corp','partnership','llc','other') NULL`,
+    `default_form ENUM('1099_nec','1099_misc') DEFAULT '1099_nec'`, `default_box VARCHAR(8) DEFAULT
+'nec_1'`, `legal_name_override VARCHAR(255) NULL` (falls back to `contacts.legal_name`),
+    `w9_received_on DATE NULL`, `created_by_user_id`, timestamps.
+  - `ten99_form_runs` (**MUTABLE + TENANT**): `id, org_id, tax_year INT, status
+ENUM('draft','generated','submitted','accepted','rejected') DEFAULT 'draft', efile_provider,
+efile_ref, threshold_minor BIGINT, generated_by_user_id`, timestamps.
+  - `ten99_forms` (**APPEND-ONLY + TENANT**): `id, org_id, run_id` FK, `contact_id, tax_year INT,
+form_type ENUM('1099_nec','1099_misc'), box_code VARCHAR(8), amount_minor BIGINT,
+recipient_legal_name, recipient_tin_last4 CHAR(4), recipient_address_snapshot VARCHAR(1024),
+corrects_form_id BIGINT NULL` (self-FK), `pdf_document_id, created_at`.
+  - **in place on `accounts`** (D-15 edit): `excluded_from_1099 TINYINT(1) NOT NULL DEFAULT 0` — ripples
+    into the hand-written `AccountRow` type + `toAccount`/`NewAccountRow` (the OB-227 `feed_source`
+    lesson).
+  - **`scripts/codegen.mjs` `OVERRIDES.columns`:** every `BIGINT` (`ten99_forms.amount_minor`,
+    `ten99_form_runs.threshold_minor`), every `DATE` (`vendor_tax_profiles.w9_received_on`), and confirm
+    the `VARBINARY` `tax_id_ciphertext` maps to `Buffer` (add an override if the generator disagrees).
+- **`crypto/field-encryption.ts`** (Wave 0, load-bearing): `encryptField(plaintext: string): Buffer` /
+  `decryptField(buf: Buffer): string`, the AES-256-GCM envelope factored out of `providers/secrets/local.ts`
+  so the secrets adapter and the TIN column share one implementation.
+- **Permission keys** `ten99.read` / `ten99.write` — `0001_tenancy.ts seedPermissions` +
+  `permissions/catalog.ts PERMISSION_KEYS`, bump `AssertCatalogSize<75>`.
+- **Service** (`modules/ten99/`, mirror `modules/account-statements/`): `upsertVendorTaxProfile` ·
+  `getVendorTaxProfile` (masked) · `computeTen99Worksheet({ taxYear, thresholdMinor })` (the live
+  rollup) · `generateTen99Run` (snapshots append-only forms) · `getTen99Run` · `renderTen99Form`
+  (pdfmake, `renderer/{index,document,types}.ts`, import `loadDefaultFonts` from `delivery/renderer/fonts`,
+  pin `CreationDate`) · `submitTen99Efile` · `getTen99FilingStatus`. `requirePermission` in the service
+  only; TIN via the crypto helper; PDFs via `storageProvider()`.
+- **Routes** (`transport/routes/ten99.ts`, model `customer-statements.ts`; writes carry
+  `idempotencyKeyHeaderSchema` + `withIdempotency`): `PUT /v1/vendor-tax-profiles/{contactId}` ·
+  `GET /v1/vendor-tax-profiles/{contactId}` · `GET /v1/ten99/worksheet?taxYear=&threshold=` ·
+  `POST /v1/ten99/runs` · `GET /v1/ten99/runs/{runId}` · `GET /v1/ten99/forms/{formId}/pdf` ·
+  `POST /v1/ten99/runs/{runId}/efile` · `GET /v1/ten99/runs/{runId}/status` · public
+  `GET /public/ten99/{token}/pdf`.
+- **Shared-types** `packages/shared-types/src/ten99/{ten99.ts,index.ts}` — Zod v4 `z.strictObject` +
+  `.meta({ id })`, money as a cents-only `z.string()` `*Minor` field (D-13), `calendarDateSchema` from
+  `../wire`.
+
+**Waves.** _Wave 0 (orchestrator, one gate-green commit — codegen needs a live DB, not a worktree
+subagent):_ migration `0023` + the `accounts` in-place column + `MUTABLE_TABLES`/`APPEND_ONLY_TABLES`/
+`TENANT_TABLES`/`tenant-tables.ts` + `migrations/index.ts` + `generated.ts` regen (throwaway MySQL) +
+codegen overrides + shared-types `ten99` domain + `Form1099Provider` interface + barrel + the
+`crypto/field-encryption.ts` helper + the two permission keys seeded (`AssertCatalogSize<75>`).
+_Wave 1 (four disjoint Sonnet streams, ADD-ONLY new files):_ **A** adapters `providers/efile/`
+(`manual` deterministic drives the gate + `iris` real-but-sandbox throw) + the `E_FILE_PROVIDER`
+config block (`config/providers.ts`+`config.ts`+`env.ts`) + the redaction substrings
+(`logging/redact.ts` `SECRET_FIELD_SUBSTRINGS += 'taxid','tin','ein','ssn'`) · **B** `modules/ten99/`
+(profile+rollup+generate services, repository, pdfmake `renderer/`, `form-1099.job.ts` if the e-file
+status poll is wired) · **C** `transport/routes/ten99.ts` + the route/permission/cross-org/openapi
+tripwires · **D** the web **1099 Center** (vendor tax setup with masked TIN + W-9; the year worksheet
+with threshold + card-exclusion review + drill-down; generate / download / e-file; recipient delivery).
+_Wave 2 (orchestrator):_ `yarn spec` + web codegen, the pinned-tripwire integration (below), a
+property/mutation suite (the rollup computed two independent ways must agree; the **$600 threshold
+boundary**; a payment on an `excluded_from_1099` account drops from the total; a voided payment is
+excluded; a correction never mutates the original `ten99_forms` row; a TIN round-trips
+encrypt→decrypt and only `last4` crosses the wire), and an authored-not-gate-run `ten99.spec.ts` E2E
+(vendor + TIN + W-9 → pay by check and via a card-flagged account → worksheet shows only the check
+total, past threshold → generate → download Copy B → manual IRIS export).
+
+**Tripwire ledger (exact literals).** Catalog **73 → 75**: `catalog.ts:188` `AssertCatalogSize<75>`;
+`catalog.test.ts:58-59` two `toHaveLength(75)`; `harness.test.ts:110` `toBe(75)`; `resolution.test.ts`
+per-role counts (owner 73→**75**, bookkeeper 64→**66**, accountant 34→**36**, approver 33→**34** + the
+`:276` membership `toBe(34)`, readOnly 30→**31**; ap_only/ar_only unchanged unless `ten99.*` is added
+to their explicit `IN(...)` lists — a flagged option). `tenant-tables.ts` **+3** alpha
+(`ten99_form_runs`, `ten99_forms`, `vendor_tax_profiles`); `tenant-scope.test.ts:161-243` `toEqual`
+**82 → 85**. `0999_app_grants.ts`: `MUTABLE_TABLES` `+vendor_tax_profiles +ten99_form_runs`,
+`APPEND_ONLY_TABLES` `+ten99_forms`; `grants.test.ts:346-361` append `ten99_forms`. `migrations/index.ts`
+(+`0023` import + record) and `harness.test.ts:33-56` (insert `'0023_ten99'` before `'0999_app_grants'`).
+Routes: `routes.test.ts:82-394` +9 operationIds; `permission-matrix.test.ts` `OPERATIONS` +
+`GRANTED_TO` (+`ten99.read`/`ten99.write`) + the coverage assertions; `cross-org.test.ts:1135+`
+`SURFACES` for the id-addressed routes + `UNGATED_OPERATIONS:3409` and `tokenGatedPublicOperations:2451`
+(the public `getPublicTen99Pdf`); the B11 `cross-org-references` file for the `?contactId` worksheet
+filter. Then `openapi.json` (`yarn spec`) + web `schema.d.ts` (`yarn workspace @openbooks/web codegen`).
+If any e-file key ever enters `Config` (rather than per-org secrets), also update `config/redact.ts` +
+the `redact.test.ts:38-42` `toEqual`.
+
+**Effort:** the profile + worksheet + PDF + `manual` export slice is **small–medium** and fully
+parallelisable on the four Wave-1 streams; only a real transmit adapter is medium-large, and the seam
+keeps it off the critical path.
 
 ### Follow-up — sales-tax automation via a pluggable tax provider (OB-221, future)
 
