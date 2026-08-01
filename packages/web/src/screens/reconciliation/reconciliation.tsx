@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button, Combobox, Field, FieldLabel, Select } from '../../components';
 import { OpenSessionDialog } from './open-session-dialog';
 import type { SessionFilters, SessionState } from './queries';
-import { NO_SESSION_FILTERS, useBankAccountOptions } from './queries';
+import { NO_SESSION_FILTERS, useBankAccountOptions, useLedgerAccount } from './queries';
 import { SessionDetail } from './session-detail';
 import { SessionList } from './session-list';
 
@@ -51,6 +51,15 @@ export function ReconciliationScreen(): ReactElement {
   const [opening, setOpening] = useState(false);
 
   const accounts = useBankAccountOptions();
+
+  // The ledger account the chosen bank account *is* (D-46), fetched only for its
+  // `normalBalance`: the balances the server sends are in the account's normal frame
+  // (OB-227b), so on a credit-normal account a positive figure is the amount owed and the
+  // detail panel labels it as such. The bank-account row already holds `accountId`, so this
+  // is one extra `GET`, not a second lookup the user waits on to pick an account.
+  const selectedBankAccount = accounts.find((account) => account.id === filters.bankAccountId);
+  const ledgerAccount = useLedgerAccount(selectedBankAccount?.accountId ?? null);
+  const isCreditNormal = ledgerAccount.data?.normalBalance === 'credit';
 
   function filter<K extends keyof SessionFilters>(key: K, value: SessionFilters[K]): void {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -119,6 +128,7 @@ export function ReconciliationScreen(): ReactElement {
              the previous panel's tab and half-typed reopen reason. */
           key={selected}
           sessionId={selected}
+          isCreditNormal={isCreditNormal}
         />
       )}
 

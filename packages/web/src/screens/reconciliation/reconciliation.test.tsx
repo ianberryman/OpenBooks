@@ -24,6 +24,7 @@ import { createQueryClient } from '../../query/client';
 import { ReconciliationScreen } from './reconciliation';
 import type {
   BankAccount,
+  LedgerAccount,
   ReconciliationReport,
   ReconciliationSession,
   ReconciliationSessionSummary,
@@ -190,8 +191,37 @@ function report(): ReconciliationReport {
   };
 }
 
+/**
+ * The ledger account the bank account *is* (D-46). Debit-normal by default — an ordinary
+ * asset bank account — so the balances read as money held. The credit-normal override is a
+ * credit card over a liability, the case OB-227b makes the panel say "owed" for.
+ */
+function ledgerAccount(overrides: Partial<LedgerAccount> = {}): LedgerAccount {
+  return {
+    id: LEDGER,
+    code: '1000',
+    name: 'Barclays Current',
+    description: null,
+    type: 'asset',
+    normalBalance: 'debit',
+    cashBasisRole: null,
+    parentAccountId: null,
+    isActive: true,
+    createdAt: '2026-01-05T09:00:00.000Z',
+    updatedAt: '2026-01-05T09:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function stubLedgerAccount(account: LedgerAccount = ledgerAccount()): void {
+  stub('GET', `/v1/accounts/${LEDGER}`, () => json(200, account));
+}
+
 function stubBankAccounts(): void {
   stub('GET', '/v1/bank-accounts', () => json(200, { items: [bankAccount()], nextCursor: null }));
+  // The detail panel resolves the ledger account for its `normalBalance` (OB-227b); every
+  // test that opens a session touches this route.
+  stubLedgerAccount();
 }
 
 function renderScreen(): void {
@@ -316,6 +346,47 @@ describe('ReconciliationScreen — the session detail', () => {
     // Zero difference, so the assertion is allowed — the server still decides, but the
     // control is not disabled.
     expect(screen.getByRole('button', { name: 'Finalise reconciliation' })).toBeEnabled();
+  });
+
+  /**
+   * A credit-card account is credit-normal (a liability), and OB-227b sends its balances in
+   * that normal frame — a positive figure is the amount owed. The panel says so when the
+   * ledger account's `normalBalance` is `credit`.
+   */
+  it('labels the balances as amounts owed on a credit-normal account', async () => {
+    const user = userEvent.setup();
+
+    stubBankAccounts();
+    stubLedgerAccount(ledgerAccount({ type: 'liability', normalBalance: 'credit' }));
+    stub('GET', '/v1/reconciliation-sessions', () =>
+      json(200, { items: [summaryOf(session())], nextCursor: null }),
+    );
+    stub('GET', `/v1/reconciliation-sessions/${SESSION}`, () => json(200, session()));
+
+    renderScreen();
+    await openSessionDetail(user);
+
+    expect(await screen.findByText(/a positive figure is the amount owed/)).toBeInTheDocument();
+  });
+
+  /**
+   * The mirror: on a debit-normal bank account — the default fixture — the note would be
+   * wrong, so it is absent. The balances still render; only the "owed" framing is withheld.
+   */
+  it('does not label a debit-normal bank account as owing', async () => {
+    const user = userEvent.setup();
+
+    stubBankAccounts();
+    stub('GET', '/v1/reconciliation-sessions', () =>
+      json(200, { items: [summaryOf(session())], nextCursor: null }),
+    );
+    stub('GET', `/v1/reconciliation-sessions/${SESSION}`, () => json(200, session()));
+
+    renderScreen();
+    await openSessionDetail(user);
+
+    expect(await screen.findByRole('region', { name: 'The reconciliation' })).toBeInTheDocument();
+    expect(screen.queryByText(/amount owed/)).not.toBeInTheDocument();
   });
 
   /**

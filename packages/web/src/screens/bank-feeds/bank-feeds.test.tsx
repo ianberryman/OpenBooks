@@ -21,6 +21,7 @@ import { installApiStub, renderWithQueryClient } from './test-support';
  * 5. **Disconnect is confirmed and goes through the deactivate route, never a `PATCH`.**
  */
 const { BankFeedsScreen } = await import('./index');
+const { linkedAccountLabel } = await import('./connect-dialog');
 
 const BANK_ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
@@ -277,5 +278,31 @@ describe('BankFeedsScreen', () => {
     expect(posted?.path).toBe(`/v1/bank-feeds/${CONNECTION_ID}/deactivate`);
     expect(posted?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
     expect(stub.calls.some((call) => call.method === 'PATCH')).toBe(false);
+  });
+});
+
+/**
+ * The connect picker's option label. Stripe FC reports `credit` for a card, and v1 feeds
+ * asset accounts only (D-130), so the one category worth marking is the card — it is the
+ * account a user reaching for a current-account feed should recognise and pass over. Every
+ * other value is left off rather than guessed at.
+ */
+describe('linkedAccountLabel', () => {
+  it('marks a credit card and leaves every other category unmarked', () => {
+    const base = {
+      externalAccountId: 'acct_1',
+      displayName: 'Barclays Platinum',
+      institution: null,
+    };
+
+    expect(linkedAccountLabel({ ...base, category: 'credit' })).toBe(
+      'Barclays Platinum (Credit card)',
+    );
+    expect(linkedAccountLabel({ ...base, category: 'cash' })).toBe('Barclays Platinum');
+    expect(linkedAccountLabel({ ...base, category: null })).toBe('Barclays Platinum');
+    // The institution still rides along when the provider names one.
+    expect(linkedAccountLabel({ ...base, institution: 'Barclays', category: 'credit' })).toBe(
+      'Barclays Platinum — Barclays (Credit card)',
+    );
   });
 });

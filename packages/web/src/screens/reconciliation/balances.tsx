@@ -94,14 +94,28 @@ function Figure({
 export function BalancesPanel({
   balances,
   unclearedLineCount,
+  isCreditNormal = false,
 }: {
   readonly balances: ReconciliationBalances;
   readonly unclearedLineCount: number;
+  /**
+   * Whether the reconciled account is credit-normal — a credit card over a liability
+   * (OB-227b). The server sends these balances in the account's normal frame, so on such an
+   * account a positive figure is the amount *owed*, not money held. The panel does no
+   * arithmetic on that (D-46); it only says which way the sign reads.
+   */
+  readonly isCreditNormal?: boolean;
 }): ReactElement {
   const balanced = isZero(balances.difference);
 
   return (
     <div className="flex flex-col gap-4">
+      {isCreditNormal && (
+        <p className="rounded-md border border-border bg-surface-sunken px-3 py-2 text-xs text-text-subtle">
+          This is a credit-normal account, such as a credit card. Its balances are shown in the
+          account&rsquo;s normal frame, so a positive figure is the amount owed.
+        </p>
+      )}
       <section
         aria-label="The reconciliation"
         className="flex flex-col rounded-lg border border-border bg-surface p-4"

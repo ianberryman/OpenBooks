@@ -189,6 +189,10 @@ export async function createReconciliationSession(
         id,
         bankAccountId,
         endDate: request.endDate,
+        // Entered and stored in the account's normal frame (D-227b-1): + = money in for an
+        // asset, + = the balance owed for a credit card. Every read-back figure is presented
+        // in the same frame (`computeFigures`), and for an asset the frame is the cash frame,
+        // so this is unchanged from before OB-227b.
         statementClosingBalance: BigInt(request.statementClosingBalance),
         createdByUserId: author,
       });
@@ -331,12 +335,20 @@ export async function finaliseReconciliationSession(
       session.end_date,
       session.id,
     );
-    const clearedBalance =
+    const clearedBalanceCash =
       (await openingBalance(trx, session.bank_account_id, startDate)) +
       (await clearedInWindow(trx, session.bank_account_id, startDate, session.end_date)).sum;
 
+    // The stored closing balance is in the account's normal frame (D-227b-1), so bring the
+    // cash-frame cleared balance into that frame before comparing — a credit card's
+    // difference then reads in the frame the user asserted it in. Identity for an asset.
+    const bankAccount = assertFound(
+      await selectBankAccount(trx, session.bank_account_id),
+      BANK_ACCOUNT_RESOURCE,
+    );
     const statementClosing = session.statement_closing_balance_minor;
-    const difference = statementClosing - clearedBalance;
+    const difference =
+      statementClosing - inNormalFrame(clearedBalanceCash, bankAccount.normal_balance);
     // D-50: the cleared balance, not the book balance. An unpresented cheque is in the
     // book balance and not this one, so it does not block.
     if (difference !== 0n) throw balanceMismatch(difference);
@@ -458,12 +470,18 @@ async function computeFigures(
       ? await clearedStamped(db, session.id)
       : await clearedInWindow(db, session.bank_account_id, startDate, session.end_date);
 
-  const clearedBalance = opening + members.sum;
-  const book = await bookBalance(db, bankAccount.account_id, session.end_date);
+  // Computed in the universal cash frame (+ = money in) — correct for any account type —
+  // then presented in the account's normal frame (D-227b-1): a credit card reads + = owed,
+  // an asset is unchanged (`inNormalFrame` is the identity for a debit-normal account).
+  const nb = bankAccount.normal_balance;
+  const clearedBalance = inNormalFrame(opening + members.sum, nb);
+  const book = inNormalFrame(await bookBalance(db, bankAccount.account_id, session.end_date), nb);
+  // Stored already in the account's normal frame (see `createReconciliationSession`), so it
+  // is directly comparable to the two figures above.
   const statementClosing = session.statement_closing_balance_minor;
 
   return {
-    openingBalance: opening,
+    openingBalance: inNormalFrame(opening, nb),
     clearedBalance,
     statementClosingBalance: statementClosing,
     difference: statementClosing - clearedBalance,
@@ -477,6 +495,24 @@ async function computeFigures(
       session.end_date,
     ),
   };
+}
+
+/**
+ * The reconciliation display/entry frame (OB-227b, D-227b-1).
+ *
+ * Every balance in this module is computed in the universal **cash frame** — `SUM(debit)
+ * − SUM(credit)`, positive when money is in — which is correct double-entry for an asset
+ * and a liability alike. What differs is only how a human reads it: a credit-normal
+ * account (a credit card) is reconciled in its **normal frame**, positive = the balance
+ * owed, which is the cash frame negated. A debit-normal asset's two frames coincide, so
+ * this is the identity for every account M4 reconciled before this change — which is why
+ * the whole pre-existing reconciliation suite still passes untouched. Its own inverse, so
+ * the same function converts a user-entered closing balance back to the cash frame.
+ * Exported for `report.service.ts`, whose reconciling items are the same cash-frame ledger
+ * movements presented in the same normal frame as the balances they must tie out to.
+ */
+export function inNormalFrame(cashFrameMinor: bigint, normalBalance: 'credit' | 'debit'): bigint {
+  return normalBalance === 'credit' ? -cashFrameMinor : cashFrameMinor;
 }
 
 function toBalances(figures: SessionFigures): ReconciliationBalances {

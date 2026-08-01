@@ -85,6 +85,24 @@ const INITIAL_VALUES: FormValues = {
   externalAccountId: null,
 };
 
+/**
+ * The picker label for one linkable account: its name, the institution when the provider
+ * named one, and its provider category when that is a credit card.
+ *
+ * Stripe FC reports `cash` for a bank account and `credit` for a card (the `linkedAccounts`
+ * schema note). The category is advisory and v1 feeds asset accounts only (D-130), so the
+ * one classification worth surfacing here is the card: it is the account a user reaching for
+ * a current-account feed should recognise and pass over. Any other value — `cash` or an
+ * unfamiliar one — is left off rather than guessed at.
+ */
+export function linkedAccountLabel(account: LinkedAccount): string {
+  const base =
+    account.institution === null
+      ? account.displayName
+      : `${account.displayName} — ${account.institution}`;
+  return account.category === 'credit' ? `${base} (Credit card)` : base;
+}
+
 function ConnectBankFeedForm({
   bankAccounts,
   onConnected,
@@ -283,10 +301,7 @@ function ConnectBankFeedForm({
               value={values.externalAccountId ?? ''}
               options={(linkedAccounts ?? []).map((account) => ({
                 value: account.externalAccountId,
-                label:
-                  account.institution === null
-                    ? account.displayName
-                    : `${account.displayName} — ${account.institution}`,
+                label: linkedAccountLabel(account),
               }))}
               onValueChange={(externalAccountId) => {
                 set('externalAccountId', externalAccountId);

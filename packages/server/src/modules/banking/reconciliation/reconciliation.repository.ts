@@ -143,6 +143,15 @@ export interface BankAccountRow {
   /** The bank account's own ledger account — the frame every balance is computed in. */
   readonly account_id: Buffer;
   readonly is_active: number;
+  /**
+   * The ledger account's normal balance (OB-227b). Every balance here is computed in the
+   * universal cash frame (`SUM(debit) − SUM(credit)`, + = money in) — correct double-entry
+   * for any account type — and this is the one extra fact the *presentation* needs: a
+   * credit-normal account (a credit card / liability) is read and reconciled in its own
+   * frame (+ = balance owed), which is the cash frame negated. For a debit-normal asset
+   * the two frames coincide, so nothing changes.
+   */
+  readonly normal_balance: 'credit' | 'debit';
 }
 
 export async function selectBankAccount(
@@ -151,8 +160,13 @@ export async function selectBankAccount(
 ): Promise<BankAccountRow | undefined> {
   return db
     .selectFrom('bank_accounts')
-    .select(['account_id', 'is_active'])
-    .where('id', '=', id)
+    .innerJoin('accounts', (join) =>
+      join
+        .onRef('accounts.id', '=', 'bank_accounts.account_id')
+        .onRef('accounts.org_id', '=', 'bank_accounts.org_id'),
+    )
+    .select(['bank_accounts.account_id', 'bank_accounts.is_active', 'accounts.normal_balance'])
+    .where('bank_accounts.id', '=', id)
     .executeTakeFirst();
 }
 

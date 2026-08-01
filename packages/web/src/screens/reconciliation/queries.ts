@@ -40,6 +40,7 @@ export type SessionState = ReconciliationSession['state'];
 export type CreateSessionRequest = components['schemas']['CreateReconciliationSessionRequestInput'];
 export type ReopenRequest = components['schemas']['ReopenReconciliationSessionRequestInput'];
 export type BankAccount = components['schemas']['BankAccount'];
+export type LedgerAccount = components['schemas']['Account'];
 
 const ROOT = 'reconciliation';
 
@@ -58,6 +59,7 @@ export const reconciliationKeys = {
   report: (sessionId: string) => [ROOT, 'report', sessionId] as const,
   reports: [ROOT, 'report'] as const,
   bankAccounts: [ROOT, 'bank-accounts'] as const,
+  ledgerAccount: (accountId: string) => [ROOT, 'ledger-account', accountId] as const,
 };
 
 async function invalidateAfterWrite(queryClient: QueryClient): Promise<void> {
@@ -282,6 +284,30 @@ export function useBankAccountOptions(): readonly BankAccount[] {
   });
 
   return query.data ?? [];
+}
+
+/**
+ * The ledger account a bank account *is* (D-46), fetched only for the one thing this screen
+ * cannot read off the `BankAccount` DTO: its `normalBalance`. The balances the server now
+ * sends are in the account's normal frame (OB-227b), so on a credit-normal account — a
+ * credit card over a liability — a positive figure is the amount *owed*, and the balances
+ * panel needs the normal balance to say so rather than leaving the sign to be misread.
+ *
+ * A single `GET /v1/accounts/{accountId}`, disabled until an account is chosen; the account's
+ * type and normal balance are immutable once it carries postings (the `Account` schema note),
+ * so the default cache staleness is fine and no write on this screen touches it.
+ */
+export function useLedgerAccount(accountId: string | null): UseQueryResult<LedgerAccount, Error> {
+  return useQuery({
+    queryKey: reconciliationKeys.ledgerAccount(accountId ?? ''),
+    queryFn: async (): Promise<LedgerAccount> =>
+      unwrap(
+        await api.GET('/v1/accounts/{accountId}', {
+          params: { path: { accountId: accountId ?? '' } },
+        }),
+      ),
+    enabled: accountId !== null,
+  });
 }
 
 /**

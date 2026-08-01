@@ -22,7 +22,7 @@ import {
   type SessionRow,
   type UnclearedLineRow,
 } from './reconciliation.repository';
-import { toSummary } from './reconciliation.service';
+import { inNormalFrame, toSummary } from './reconciliation.service';
 
 /**
  * The bank reconciliation report (OB-083; ROADMAP D-40, D-46, D-50, D-51; acceptance
@@ -115,17 +115,26 @@ async function readReport(db: TenantDatabase, session: SessionRow): Promise<Reco
     endDate: summary.endDate,
     state: summary.state,
     balances: summary.balances,
-    reconcilingItems: ledgerEntries.map(toReconcilingItem),
+    reconcilingItems: ledgerEntries.map((row) =>
+      toReconcilingItem(row, bankAccount.normal_balance),
+    ),
     unclearedStatementLines: unclearedLines.map(toUnclearedStatementLine),
   };
 }
 
-/** D-13's single conversion out for a ledger item: `bigint` minor units to a string. */
-function toReconcilingItem(row: LedgerEntryRow): ReconcilingItem {
+/**
+ * D-13's single conversion out for a ledger item: `bigint` minor units to a string,
+ * presented in the account's normal frame (D-227b-1) so a reconciling item on a credit
+ * card reads in the same frame as the balances it ties out to. Identity for an asset.
+ */
+function toReconcilingItem(
+  row: LedgerEntryRow,
+  normalBalance: 'credit' | 'debit',
+): ReconcilingItem {
   return {
     journalId: bufferToUuid(row.journalId),
     date: row.entryDate,
-    amount: row.movement.toString(),
+    amount: inNormalFrame(row.movement, normalBalance).toString(),
     description: row.memo,
     reference: row.reference,
   };

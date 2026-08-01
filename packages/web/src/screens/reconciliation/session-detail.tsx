@@ -38,7 +38,18 @@ import { ReconciliationReportView } from './report';
 
 type Tab = 'summary' | 'report';
 
-export function SessionDetail({ sessionId }: { readonly sessionId: string }): ReactElement {
+export function SessionDetail({
+  sessionId,
+  isCreditNormal = false,
+}: {
+  readonly sessionId: string;
+  /**
+   * Whether the account this session reconciles is credit-normal — a credit card over a
+   * liability (OB-227b). The balances arrive in the account's normal frame, so this decides
+   * whether the panel reads a positive figure as a balance held or an amount owed.
+   */
+  readonly isCreditNormal?: boolean;
+}): ReactElement {
   const session = useSession(sessionId);
   const [tab, setTab] = useState<Tab>('summary');
 
@@ -82,7 +93,11 @@ export function SessionDetail({ sessionId }: { readonly sessionId: string }): Re
 
       {tab === 'summary' ? (
         <div className="flex flex-col gap-4">
-          <BalancesPanel balances={data.balances} unclearedLineCount={data.unclearedLineCount} />
+          <BalancesPanel
+            balances={data.balances}
+            unclearedLineCount={data.unclearedLineCount}
+            isCreditNormal={isCreditNormal}
+          />
           {data.state === 'open' ? (
             <FinalisePanel session={data} />
           ) : (
