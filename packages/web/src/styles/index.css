@@ -63,6 +63,27 @@
 }
 
 /**
+ * iOS zoom-on-focus fix (Initiative R follow-up). Mobile Safari and Chrome-on-iOS zoom the
+ * page into any form control whose font-size is below 16px — and the shared control
+ * appearance (`CONTROL_CLASSES` in `field.tsx`) is `text-base`, which the type scale sets to
+ * 14px (`--ob-text-base`). The zoom then leaves the layout scrolled and resized. Raising just
+ * the controls to 16px on a coarse (touch) pointer stops the zoom at its trigger, and is the
+ * accessible fix: unlike `maximum-scale=1` in the viewport meta it does not disable the
+ * pinch-zoom people rely on, and it leaves the desktop (fine-pointer) UI at its denser 14px.
+ *
+ * Unlayered on purpose: it must outrank Tailwind's `text-base` utility, and an unlayered rule
+ * wins the cascade over any `@layer` (where all of Tailwind lives) without `!important`.
+ * Checkbox/radio/range are excluded — they carry no text and iOS does not zoom them.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/**
  * Print. A bill's "Print" button (`document-editor.tsx`) is `window.print()`, and this is
  * the layout it prints: the app chrome — the top bar, the primary nav, and anything marked
  * `.no-print` (action bars, the mobile sticky footer) — drops away, and the scrolled `#main`
