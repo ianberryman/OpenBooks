@@ -8,6 +8,7 @@ import { loadConfig } from '../../src/config';
 import { destroyDatabase, initializeDatabase, isDatabaseInitialized } from '../../src/db/index';
 import { createLogger } from '../../src/logging';
 import { resolveSessionIdentity, SESSION_COOKIE_NAME } from '../../src/modules/auth/index';
+import { setFieldEncryptionKey } from '../../src/crypto/field-encryption';
 import { selectEmailProvider, setOutboundEmail, setStorageProvider } from '../../src/providers';
 import { createLocalStorageProvider } from '../../src/providers/storage/local';
 import { IDEMPOTENCY_KEY_HEADER } from '../../src/transport/index';
@@ -60,6 +61,12 @@ export function useV1App(): V1Harness {
     storageDir = await mkdtemp(join(tmpdir(), 'openbooks-v1-storage-'));
     setStorageProvider(createLocalStorageProvider({ provider: 'local', basePath: storageDir }));
 
+    // Field-level column encryption (OB-228, D-228-2): the vendor-TIN column derives its key
+    // from `getConfig()` in production, but this harness builds config explicitly rather than
+    // from `process.env`, so install the key through the settable seam — the same shape as the
+    // storage/email seams above. Matches the email config's `SECRETS_ENCRYPTION_KEY`.
+    setFieldEncryptionKey('k'.repeat(32));
+
     // `sendInvoice` (INV) is the first operation on this surface to email anything, and
     // `outboundEmail()` otherwise resolves through `getConfig()` — unset here — and throws.
     // Install a real `log` provider over a discarded stream, the same seam `test/members`
@@ -104,6 +111,7 @@ export function useV1App(): V1Harness {
     app = undefined;
     setStorageProvider(undefined);
     setOutboundEmail(undefined);
+    setFieldEncryptionKey(undefined);
     if (storageDir !== undefined) await rm(storageDir, { recursive: true, force: true });
     storageDir = undefined;
     await destroyDatabase();

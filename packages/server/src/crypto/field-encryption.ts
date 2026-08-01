@@ -23,7 +23,20 @@ import { InternalError } from '../errors';
 const IV_BYTES = 12;
 const AUTH_TAG_BYTES = 16;
 
+/**
+ * A settable key, the storage/email/secrets-provider idiom (`providers/index.ts`): a suite
+ * that exercises an encrypted column installs a key here in its `beforeAll`, because the test
+ * harness builds config explicitly rather than from `process.env`, so `getConfig()` is not a
+ * reliable source there. Unset in production, where `getConfig()` below is the real source.
+ */
+let overrideKey: Buffer | undefined;
+
+export function setFieldEncryptionKey(key: string | undefined): void {
+  overrideKey = key === undefined ? undefined : createHash('sha256').update(key, 'utf8').digest();
+}
+
 function fieldKey(): Buffer {
+  if (overrideKey !== undefined) return overrideKey;
   const secrets = getConfig().providers.secrets;
   if (secrets.provider !== 'local') {
     throw new InternalError(
