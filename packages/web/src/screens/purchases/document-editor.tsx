@@ -20,6 +20,7 @@ import {
   formatMoney,
 } from '../../components';
 import type { ComboboxOption, PillTone, SelectOption } from '../../components';
+import { useDimensionAxes } from '../../dimensions';
 import { useIsCompact } from '../../lib/use-viewport';
 import { AllocateDialog } from './allocate-dialog';
 import { STATUS_LABELS, allocateVendorCredit, documentApi, vocabularyFor } from './ap-document';
@@ -140,6 +141,10 @@ export function DocumentEditor({
     document === null ? emptyState() : stateFromDocument(document),
   );
   const [dirty, setDirty] = useState(false);
+  // Which lines' dimension panel is open, keyed by `EditorLine.key` — owned here rather
+  // than per-row, the journal-entry draft editor's pattern, so switching lines does not
+  // fight React's row identity.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [saved, setSaved] = useState<ApDocument | null>(document);
   const [failure, setFailure] = useState<unknown>(null);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
@@ -166,6 +171,10 @@ export function DocumentEditor({
   // A bill/vendor credit seeds from the purchase catalog; only active purchase items are
   // suggested, sorted by name.
   const catalogItems = useCatalogItemChoices('purchase');
+
+  // The org's reporting axes, for the per-line "Dimensions" panel — one shared fetch
+  // across every line editor (`dimensions/axes.ts`).
+  const { axes, isLoading: axesLoading } = useDimensionAxes();
 
   const status: DocumentStatus = saved?.status ?? 'draft';
   const readOnly = status !== 'draft';
@@ -318,6 +327,16 @@ export function DocumentEditor({
       serverError: serverLineErrors.get(line.key),
       disabled: busy,
       readOnly,
+      axes,
+      axesLoading,
+      expanded: expanded.has(line.key),
+      onToggleDetail: () => {
+        setExpanded((current) => {
+          const next = new Set(current);
+          if (!next.delete(line.key)) next.add(line.key);
+          return next;
+        });
+      },
       onChange: (next: EditorLine) => {
         edit({
           ...state,
@@ -787,6 +806,9 @@ export function DocumentEditor({
                     </th>
                     <th scope="col" className="p-1 text-right font-medium">
                       Line total
+                    </th>
+                    <th scope="col" className="p-1 font-medium">
+                      <span className="sr-only">Dimensions</span>
                     </th>
                     <th scope="col" className="p-1 font-medium">
                       <span className="sr-only">Remove</span>

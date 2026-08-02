@@ -11,6 +11,8 @@ import {
   formatMoney,
 } from '../../components';
 import type { ComboboxOption } from '../../components';
+import { LineDimensionFields } from '../../dimensions';
+import type { DimensionAxis } from '../../dimensions';
 import { cx } from '../../lib/cx';
 import type { EditorLine } from './document-state';
 
@@ -46,10 +48,25 @@ export interface LineRowProps {
   readonly fieldErrors: Readonly<Record<string, string>>;
   readonly stale: boolean;
   readonly disabled: boolean;
+  /** The org's reporting axes (`useDimensionAxes`), called once by the editor. */
+  readonly axes: readonly DimensionAxis[];
+  /** True while the axes are still loading, to suppress the premature "no dimensions" note. */
+  readonly axesLoading: boolean;
+  /** Whether this line's dimension-tagging panel is open — owned by the parent editor. */
+  readonly expanded: boolean;
   readonly onChange: (line: EditorLine) => void;
   /** Opens the inline create-item dialog, seeded with the typed description. */
   readonly onCreateItem: (typed: string) => void;
   readonly onRemove: () => void;
+  readonly onToggleDetail: () => void;
+}
+
+/** `line.dimensionValueIds.length === 0 ? 'Dimensions' : \`Dimensions (${n})\`` — shared by
+ * `LineRow` and `LineCard` so the two presentations cannot label the toggle differently. */
+function dimensionsLabel(line: EditorLine): string {
+  return line.dimensionValueIds.length === 0
+    ? 'Dimensions'
+    : `Dimensions (${String(line.dimensionValueIds.length)})`;
 }
 
 /**
@@ -116,121 +133,157 @@ export function LineRow({
   fieldErrors,
   stale,
   disabled,
+  axes,
+  axesLoading,
+  expanded,
   onChange,
   onCreateItem,
   onRemove,
+  onToggleDetail,
 }: LineRowProps): ReactElement {
   const path = `lines.${String(index)}`;
   const number = String(index + 1);
 
   return (
-    <tr className="align-top">
-      <td className="p-1">
-        <Field error={fieldErrors[`${path}.description`]}>
-          <LineItemCombobox
-            aria-label={`Description, line ${number}`}
-            value={line.description}
-            items={catalogItems}
+    <>
+      <tr className="align-top">
+        <td className="p-1">
+          <Field error={fieldErrors[`${path}.description`]}>
+            <LineItemCombobox
+              aria-label={`Description, line ${number}`}
+              value={line.description}
+              items={catalogItems}
+              disabled={disabled}
+              onValueChange={(text) => {
+                onChange({ ...line, description: text });
+              }}
+              onItemSelect={(item) => {
+                onChange(applyCatalogItem(line, item));
+              }}
+              onCreate={onCreateItem}
+            />
+          </Field>
+        </td>
+
+        <td className="w-24 p-1">
+          <Field error={fieldErrors[`${path}.quantity`]}>
+            <TextInput
+              aria-label={`Quantity, line ${number}`}
+              /**
+               * `type="text"` with `inputMode="decimal"`, for `MoneyInput`'s reason applied
+               * to a multiplier: a number input silently discards what it cannot parse, and
+               * a quantity is multiplied by a price before anyone sees the result.
+               */
+              inputMode="decimal"
+              autoComplete="off"
+              value={line.quantity}
+              disabled={disabled}
+              className="text-right font-mono tabular-nums"
+              onChange={(event) => {
+                onChange({ ...line, quantity: event.target.value });
+              }}
+            />
+          </Field>
+        </td>
+
+        <td className="w-32 p-1">
+          <Field error={fieldErrors[`${path}.unitAmount`]}>
+            <MoneyInput
+              aria-label={`Unit price, line ${number}`}
+              value={line.unitAmount}
+              disabled={disabled}
+              onValueChange={(value) => {
+                onChange({ ...line, unitAmount: value });
+              }}
+            />
+          </Field>
+        </td>
+
+        <td className="min-w-48 p-1">
+          <Field error={fieldErrors[`${path}.accountId`]}>
+            <Combobox
+              aria-label={`Account, line ${number}`}
+              options={accountOptions}
+              value={line.accountId}
+              disabled={disabled}
+              placeholder="Search accounts…"
+              onValueChange={(value) => {
+                onChange({ ...line, accountId: value });
+              }}
+            />
+          </Field>
+        </td>
+
+        <td className="min-w-40 p-1">
+          <Field error={fieldErrors[`${path}.taxRateId`]}>
+            <Combobox
+              aria-label={`Tax rate, line ${number}`}
+              options={taxRateOptions}
+              value={line.taxRateId}
+              disabled={disabled}
+              placeholder="No tax"
+              onValueChange={(value) => {
+                onChange({ ...line, taxRateId: optionValue(value) });
+              }}
+            />
+          </Field>
+        </td>
+
+        <td className="p-1 pt-3 text-right">
+          <Computed value={line.priced?.netAmount ?? null} stale={stale} />
+        </td>
+
+        <td className="p-1 pt-3 text-right">
+          <Computed value={line.priced?.taxAmount ?? null} stale={stale} />
+        </td>
+
+        <td className="p-1 pt-3 text-right">
+          <Computed value={line.priced?.grossAmount ?? null} stale={stale} />
+        </td>
+
+        <td className="p-1">
+          <Button
+            size="sm"
+            aria-expanded={expanded}
+            aria-label={`Dimensions, line ${number}`}
             disabled={disabled}
-            onValueChange={(text) => {
-              onChange({ ...line, description: text });
-            }}
-            onItemSelect={(item) => {
-              onChange(applyCatalogItem(line, item));
-            }}
-            onCreate={onCreateItem}
-          />
-        </Field>
-      </td>
+            className="whitespace-nowrap"
+            onClick={onToggleDetail}
+          >
+            {dimensionsLabel(line)}
+          </Button>
+        </td>
 
-      <td className="w-24 p-1">
-        <Field error={fieldErrors[`${path}.quantity`]}>
-          <TextInput
-            aria-label={`Quantity, line ${number}`}
-            /**
-             * `type="text"` with `inputMode="decimal"`, for `MoneyInput`'s reason applied
-             * to a multiplier: a number input silently discards what it cannot parse, and
-             * a quantity is multiplied by a price before anyone sees the result.
-             */
-            inputMode="decimal"
-            autoComplete="off"
-            value={line.quantity}
+        <td className="p-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Remove line ${number}`}
             disabled={disabled}
-            className="text-right font-mono tabular-nums"
-            onChange={(event) => {
-              onChange({ ...line, quantity: event.target.value });
-            }}
-          />
-        </Field>
-      </td>
+            onClick={onRemove}
+          >
+            ×
+          </Button>
+        </td>
+      </tr>
 
-      <td className="w-32 p-1">
-        <Field error={fieldErrors[`${path}.unitAmount`]}>
-          <MoneyInput
-            aria-label={`Unit price, line ${number}`}
-            value={line.unitAmount}
-            disabled={disabled}
-            onValueChange={(value) => {
-              onChange({ ...line, unitAmount: value });
-            }}
-          />
-        </Field>
-      </td>
-
-      <td className="min-w-48 p-1">
-        <Field error={fieldErrors[`${path}.accountId`]}>
-          <Combobox
-            aria-label={`Account, line ${number}`}
-            options={accountOptions}
-            value={line.accountId}
-            disabled={disabled}
-            placeholder="Search accounts…"
-            onValueChange={(value) => {
-              onChange({ ...line, accountId: value });
-            }}
-          />
-        </Field>
-      </td>
-
-      <td className="min-w-40 p-1">
-        <Field error={fieldErrors[`${path}.taxRateId`]}>
-          <Combobox
-            aria-label={`Tax rate, line ${number}`}
-            options={taxRateOptions}
-            value={line.taxRateId}
-            disabled={disabled}
-            placeholder="No tax"
-            onValueChange={(value) => {
-              onChange({ ...line, taxRateId: optionValue(value) });
-            }}
-          />
-        </Field>
-      </td>
-
-      <td className="p-1 pt-3 text-right">
-        <Computed value={line.priced?.netAmount ?? null} stale={stale} />
-      </td>
-
-      <td className="p-1 pt-3 text-right">
-        <Computed value={line.priced?.taxAmount ?? null} stale={stale} />
-      </td>
-
-      <td className="p-1 pt-3 text-right">
-        <Computed value={line.priced?.grossAmount ?? null} stale={stale} />
-      </td>
-
-      <td className="p-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label={`Remove line ${number}`}
-          disabled={disabled}
-          onClick={onRemove}
-        >
-          ×
-        </Button>
-      </td>
-    </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={10} className="p-1 pb-4">
+            <LineDimensionFields
+              axes={axes}
+              dimensionValueIds={line.dimensionValueIds}
+              index={index}
+              disabled={disabled}
+              isLoading={axesLoading}
+              onChange={(dimensionValueIds) => {
+                onChange({ ...line, dimensionValueIds });
+              }}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -261,9 +314,13 @@ export function LineCard({
   fieldErrors,
   stale,
   disabled,
+  axes,
+  axesLoading,
+  expanded,
   onChange,
   onCreateItem,
   onRemove,
+  onToggleDetail,
 }: LineRowProps): ReactElement {
   const path = `lines.${String(index)}`;
   const number = String(index + 1);
@@ -364,6 +421,31 @@ export function LineCard({
           />
         </Field>
       </CardField>
+
+      <div>
+        <Button
+          size="sm"
+          aria-expanded={expanded}
+          aria-label={`Dimensions, line ${number}`}
+          disabled={disabled}
+          onClick={onToggleDetail}
+        >
+          {dimensionsLabel(line)}
+        </Button>
+      </div>
+
+      {expanded && (
+        <LineDimensionFields
+          axes={axes}
+          dimensionValueIds={line.dimensionValueIds}
+          index={index}
+          disabled={disabled}
+          isLoading={axesLoading}
+          onChange={(dimensionValueIds) => {
+            onChange({ ...line, dimensionValueIds });
+          }}
+        />
+      )}
 
       <div className="flex items-center justify-between border-t border-border pt-2">
         <span className="text-xs font-medium text-text-subtle">Line total</span>

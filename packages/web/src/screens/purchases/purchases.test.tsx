@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PurchasesScreen } from '../purchases';
+import type { Dimension, DimensionValue } from '../../dimensions';
 import type { Account, Bill, Contact, TaxRate, VendorCredit } from './queries';
 
 /**
@@ -104,6 +105,28 @@ const PURCHASE_TAX: TaxRate = {
   createdAt: TIMESTAMP,
   updatedAt: TIMESTAMP,
 };
+
+const DIMENSION: Dimension = {
+  id: 'dim-dept',
+  code: 'DEPT',
+  name: 'Department',
+  description: null,
+  isActive: true,
+  createdAt: TIMESTAMP,
+  updatedAt: TIMESTAMP,
+};
+
+const DIMENSION_VALUES: readonly DimensionValue[] = [
+  {
+    id: 'dv-sales',
+    dimensionId: 'dim-dept',
+    code: 'SALES',
+    name: 'Sales team',
+    isActive: true,
+    createdAt: TIMESTAMP,
+    updatedAt: TIMESTAMP,
+  },
+];
 
 const BILL_ID = 'bill-0001';
 /** The **vendor's** number, and the string the whole D-36 argument is about. */
@@ -277,6 +300,10 @@ function createApiDouble(): ApiDouble {
     if (method === 'GET' && pathname === '/v1/accounts') return page([EXPENSE]);
     if (method === 'GET' && pathname === '/v1/contacts') return page([VENDOR]);
     if (method === 'GET' && pathname === '/v1/tax-rates') return page([PURCHASE_TAX]);
+    if (method === 'GET' && pathname === '/v1/dimensions') return page([DIMENSION]);
+    if (method === 'GET' && /^\/v1\/dimensions\/[^/]+\/values$/.test(pathname)) {
+      return page(DIMENSION_VALUES);
+    }
     if (method === 'GET' && pathname === '/v1/vendor-credits') {
       return page(
         vendorCredits.map(({ lines: _lines, allocations: _allocations, ...summary }) => summary),
@@ -670,5 +697,58 @@ describe('a vendor credit', () => {
     expect(applied[0]?.body).toEqual({
       allocations: [{ targetId: BILL_ID, targetType: 'bill', amount: '50000' }],
     });
+  });
+});
+
+describe('per-line dimension tagging', () => {
+  /**
+   * The AP editor omitted `dimensionValueIds` from its request entirely until now — this
+   * is the disclosure the journal-entry editor already has, shared through
+   * `dimensions/line-dimensions.tsx` rather than reimplemented here.
+   */
+  it('offers a Dimensions toggle that reveals the org’s reporting axes', async () => {
+    const user = userEvent.setup();
+    await openBill(user);
+
+    const toggle = screen.getByRole('button', { name: 'Dimensions, line 1' });
+    expect(toggle).toHaveTextContent('Dimensions');
+    expect(screen.queryByRole('combobox', { name: 'Department, line 1' })).toBeNull();
+
+    await user.click(toggle);
+
+    expect(await screen.findByRole('combobox', { name: 'Department, line 1' })).toBeInTheDocument();
+  });
+
+  /**
+   * Guards the state layer, not the picker: `editor-state.ts` dropped `dimensionValueIds`
+   * on read and sent nothing on write, so a document loaded with a tagged line would save
+   * as though the tag had never been there. Nothing here touches the picker — dirtying the
+   * draft through an unrelated field is deliberate, so the assertion is about what
+   * `stateFromDocument`/`toRequestLine` carried, not about a tag just typed in.
+   */
+  it('round-trips a line’s dimension tag from load to save', async () => {
+    const user = userEvent.setup();
+    const bill = draftBill();
+    server.setBill({
+      ...bill,
+      lines: bill.lines.map((line) => ({ ...line, dimensionValueIds: ['dv-sales'] })),
+    });
+    await openBill(user);
+
+    expect(screen.getByRole('button', { name: 'Dimensions, line 1' })).toHaveTextContent(
+      'Dimensions (1)',
+    );
+
+    await user.type(screen.getByLabelText('Notes / Terms'), 'x');
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+
+    await waitFor(() => {
+      expect(server.calls.some((call) => call.method === 'PATCH')).toBe(true);
+    });
+
+    const patch = server.calls.filter((call) => call.method === 'PATCH')[0]?.body as {
+      lines?: readonly { dimensionValueIds?: readonly string[] }[];
+    };
+    expect(patch.lines?.[0]?.dimensionValueIds).toEqual(['dv-sales']);
   });
 });

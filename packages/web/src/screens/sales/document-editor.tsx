@@ -15,6 +15,7 @@ import {
   TextInput,
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
+import { useDimensionAxes } from '../../dimensions';
 import { useIsCompact } from '../../lib/use-viewport';
 import { ContactFormDialog } from '../contacts/contact-form';
 import { CatalogItemDialog } from '../settings/catalog-item-dialog';
@@ -116,6 +117,7 @@ export function DocumentEditor({
   const [state, setState] = useState<EditorState>(() => stateFromDocument(document));
   const [saved, setSaved] = useState<SalesDocument>(document);
   const [dirty, setDirty] = useState(false);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [confirming, setConfirming] = useState<'approve' | 'discard' | null>(null);
   const [repricing, setRepricing] = useState<TaxMode | null>(null);
   const [newCustomerName, setNewCustomerName] = useState<string | null>(null);
@@ -131,6 +133,7 @@ export function DocumentEditor({
   // items, sorted by name. Archived ones are never offered — a hand-typed description is the
   // fallback, not a stale item.
   const catalogItems = useCatalogItemChoices('sales');
+  const { axes, isLoading: axesLoading } = useDimensionAxes();
   /**
    * The last refusal, held rather than derived from the three mutations: only the most
    * recent attempt is the one the user is looking at, and reading `approve.error ??
@@ -209,6 +212,15 @@ export function DocumentEditor({
     edit({
       ...state,
       lines: state.lines.map((existing) => (existing.key === line.key ? line : existing)),
+    });
+  }
+
+  /** Toggles one line's dimension-tagging panel — mirrors `journal-entry/draft-editor.tsx`. */
+  function toggleDetail(key: string): void {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
     });
   }
 
@@ -472,12 +484,18 @@ export function DocumentEditor({
                 fieldErrors={fieldErrors}
                 stale={dirty}
                 disabled={busy}
+                axes={axes}
+                axesLoading={axesLoading}
+                expanded={expanded.has(line.key)}
                 onChange={editLine}
                 onCreateItem={(typed) => {
                   setCreatingItemFor({ key: line.key, typed });
                 }}
                 onRemove={() => {
                   edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
+                }}
+                onToggleDetail={() => {
+                  toggleDetail(line.key);
                 }}
               />
             ))}
@@ -630,6 +648,9 @@ export function DocumentEditor({
                     Total
                   </th>
                   <th scope="col" className="p-1 font-medium">
+                    <span className="sr-only">Dimensions</span>
+                  </th>
+                  <th scope="col" className="p-1 font-medium">
                     <span className="sr-only">Remove</span>
                   </th>
                 </tr>
@@ -646,12 +667,18 @@ export function DocumentEditor({
                     fieldErrors={fieldErrors}
                     stale={dirty}
                     disabled={busy}
+                    axes={axes}
+                    axesLoading={axesLoading}
+                    expanded={expanded.has(line.key)}
                     onChange={editLine}
                     onCreateItem={(typed) => {
                       setCreatingItemFor({ key: line.key, typed });
                     }}
                     onRemove={() => {
                       edit({ ...state, lines: state.lines.filter((it) => it.key !== line.key) });
+                    }}
+                    onToggleDetail={() => {
+                      toggleDetail(line.key);
                     }}
                   />
                 ))}

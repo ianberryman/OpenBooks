@@ -12,6 +12,8 @@ import {
   formatMoney,
 } from '../../components';
 import type { ComboboxOption, SelectOption } from '../../components';
+import { LineDimensionFields } from '../../dimensions';
+import type { DimensionAxis } from '../../dimensions';
 import type { EditorLine, LineProblem } from './editor-state';
 
 type CatalogItem = components['schemas']['CatalogItem'];
@@ -69,6 +71,11 @@ export interface LineRowProps {
   readonly serverError: string | undefined;
   readonly disabled: boolean;
   readonly readOnly: boolean;
+  /** The org's reporting axes — fetched once by the parent editor (`dimensions/axes.ts`). */
+  readonly axes: readonly DimensionAxis[];
+  readonly axesLoading: boolean;
+  readonly expanded: boolean;
+  readonly onToggleDetail: () => void;
   readonly onChange: (line: EditorLine) => void;
   /** Opens the inline create-item dialog, seeded with the typed description. */
   readonly onCreateItem: (typed: string) => void;
@@ -89,6 +96,7 @@ interface LineControls {
   readonly unitPrice: ReactElement;
   readonly total: ReactElement;
   readonly remove: ReactElement | null;
+  readonly details: ReactElement;
 }
 
 function lineControls({
@@ -102,6 +110,8 @@ function lineControls({
   serverError,
   disabled,
   readOnly,
+  expanded,
+  onToggleDetail,
   onChange,
   onCreateItem,
   onRemove,
@@ -214,22 +224,64 @@ function lineControls({
         ✕
       </Button>
     ),
+    // Not gated on `readOnly`: an approved document's lines can still carry tags worth
+    // reading, and the toggle opens the panel to show them (the picker inside is what
+    // `readOnly` disables).
+    details: (
+      <Button
+        size="sm"
+        aria-expanded={expanded}
+        aria-label={`Dimensions, line ${position}`}
+        disabled={disabled}
+        onClick={onToggleDetail}
+      >
+        {line.dimensionValueIds.length === 0
+          ? 'Dimensions'
+          : `Dimensions (${String(line.dimensionValueIds.length)})`}
+      </Button>
+    ),
   };
 }
 
+/** Every column `LineRow` renders, real and sr-only alike — the expanded row's `colSpan`. */
+const COLUMN_COUNT = 8;
+
 export function LineRow(props: LineRowProps): ReactElement {
   const c = lineControls(props);
+  const { line, index, axes, axesLoading, expanded, disabled, readOnly, onChange } = props;
 
   return (
-    <tr className="align-top">
-      <td className="p-1">{c.description}</td>
-      <td className="w-20 p-1">{c.quantity}</td>
-      <td className="min-w-48 p-1">{c.account}</td>
-      <td className="min-w-36 p-1">{c.taxRate}</td>
-      <td className="w-32 p-1">{c.unitPrice}</td>
-      <td className="w-32 p-1 text-right">{c.total}</td>
-      <td className="w-10 p-1">{c.remove}</td>
-    </tr>
+    <>
+      <tr className="align-top">
+        <td className="p-1">{c.description}</td>
+        <td className="w-20 p-1">{c.quantity}</td>
+        <td className="min-w-48 p-1">{c.account}</td>
+        <td className="min-w-36 p-1">{c.taxRate}</td>
+        <td className="w-32 p-1">{c.unitPrice}</td>
+        <td className="w-32 p-1 text-right">{c.total}</td>
+        <td className="w-28 p-1">{c.details}</td>
+        <td className="w-10 p-1">{c.remove}</td>
+      </tr>
+      {expanded && (
+        // A second `<tr>` rather than a cell inside the first: a `LineDimensionFields` panel
+        // wide enough to hold every axis does not fit in a table cell sized for one column,
+        // and this is the journal-entry editor's own answer to the same layout problem.
+        <tr>
+          <td colSpan={COLUMN_COUNT} className="p-1 pb-4">
+            <LineDimensionFields
+              axes={axes}
+              dimensionValueIds={line.dimensionValueIds}
+              index={index}
+              disabled={disabled || readOnly}
+              isLoading={axesLoading}
+              onChange={(dimensionValueIds) => {
+                onChange({ ...line, dimensionValueIds });
+              }}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -250,13 +302,17 @@ function CardField({ label, children }: { label: string; children: ReactNode }):
  */
 export function LineCard(props: LineRowProps): ReactElement {
   const c = lineControls(props);
-  const position = String(props.index + 1);
+  const { line, index, axes, axesLoading, expanded, disabled, readOnly, onChange } = props;
+  const position = String(index + 1);
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-text-subtle">Line {position}</span>
-        {c.remove}
+        <div className="flex items-center gap-2">
+          {c.details}
+          {c.remove}
+        </div>
       </div>
       <CardField label="Description">{c.description}</CardField>
       <div className="flex gap-2">
@@ -273,6 +329,18 @@ export function LineCard(props: LineRowProps): ReactElement {
         <span className="text-xs font-medium text-text-subtle">Line total</span>
         {c.total}
       </div>
+      {expanded && (
+        <LineDimensionFields
+          axes={axes}
+          dimensionValueIds={line.dimensionValueIds}
+          index={index}
+          disabled={disabled || readOnly}
+          isLoading={axesLoading}
+          onChange={(dimensionValueIds) => {
+            onChange({ ...line, dimensionValueIds });
+          }}
+        />
+      )}
     </li>
   );
 }

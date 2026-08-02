@@ -30,6 +30,8 @@ export interface EditorLine {
    * only (D-CAT-2) — carried through unedited, never re-read to reprice.
    */
   readonly catalogItemId: string | null;
+  /** At most one value per reporting axis (`dimensions/axes.ts`'s `withAxisValue`). */
+  readonly dimensionValueIds: readonly string[];
 }
 
 export interface EditorState {
@@ -57,6 +59,7 @@ export function blankLine(): EditorLine {
     taxRateId: null,
     unitAmount: null,
     catalogItemId: null,
+    dimensionValueIds: [],
   };
 }
 
@@ -97,6 +100,7 @@ export function stateFromDocument(document: ApDocument): EditorState {
     taxRateId: line.taxRateId,
     unitAmount: line.unitAmount,
     catalogItemId: line.catalogItemId,
+    dimensionValueIds: line.dimensionValueIds,
   }));
 
   return {
@@ -194,6 +198,7 @@ function toRequestLine(line: EditorLine): DocumentLineRequest {
     taxRateId: line.taxRateId,
     // Provenance only (D-CAT-2): recorded so the line remembers the item it was seeded from.
     catalogItemId: line.catalogItemId,
+    dimensionValueIds: [...line.dimensionValueIds],
   };
 }
 

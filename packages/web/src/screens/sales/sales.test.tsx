@@ -32,6 +32,7 @@ const { fetchMock } = vi.hoisted(() => {
   return { fetchMock };
 });
 
+import type { Dimension, DimensionValue } from '../../dimensions';
 import { createQueryClient } from '../../query/client';
 import { SalesScreen } from '../sales';
 import type { Account, Allocation, Contact, Invoice, TaxRate } from './queries';
@@ -116,6 +117,30 @@ const TAX_RATE: TaxRate = {
   createdAt: '2026-01-05T09:00:00.000Z',
   updatedAt: '2026-01-05T09:00:00.000Z',
 };
+
+const DIMENSION_ID = 'dim-dept';
+
+const DIMENSION: Dimension = {
+  id: DIMENSION_ID,
+  code: 'DEPT',
+  name: 'Department',
+  description: null,
+  isActive: true,
+  createdAt: '2026-01-05T09:00:00.000Z',
+  updatedAt: '2026-01-05T09:00:00.000Z',
+};
+
+const DIMENSION_VALUES: readonly DimensionValue[] = [
+  {
+    id: 'dv-sales',
+    dimensionId: DIMENSION_ID,
+    code: 'SALES',
+    name: 'Sales team',
+    isActive: true,
+    createdAt: '2026-01-05T09:00:00.000Z',
+    updatedAt: '2026-01-05T09:00:00.000Z',
+  },
+];
 
 const ALLOCATION: Allocation = {
   id: ALLOCATION_ID,
@@ -208,6 +233,10 @@ function stubReferenceData(): void {
   stub('GET', '/v1/accounts', () => json(200, { items: [ACCOUNT], nextCursor: null }));
   stub('GET', '/v1/tax-rates', () => json(200, { items: [TAX_RATE], nextCursor: null }));
   stub('GET', '/v1/credit-notes', () => json(200, { items: [], nextCursor: null }));
+  // The document editor now reads the org's reporting axes on every mount
+  // (`useDimensionAxes`, `../../dimensions`), so every test needs a route for it even when
+  // it does not care about dimensions — empty here, overridden per-test where it does.
+  stub('GET', '/v1/dimensions', () => json(200, { items: [], nextCursor: null }));
   stubInvoicesSummary();
 }
 
@@ -496,5 +525,43 @@ describe('SalesScreen', () => {
     expect(screen.getAllByText('$240.00')).toHaveLength(2);
     // A credit note has no due date, so the column does not exist on this tab.
     expect(screen.queryByRole('columnheader', { name: 'Due' })).not.toBeInTheDocument();
+  });
+
+  /**
+   * Per-line dimension tagging (the AR/AP editors' share of the journal-entry editor's
+   * "Details" expander, `../../dimensions`). The toggle is collapsed by default — a line's
+   * tags are not the first thing a bookkeeper needs to see — and opening it reveals one
+   * picker per active reporting axis.
+   */
+  describe('line dimension tagging', () => {
+    it('reveals a picker per axis when the Dimensions toggle is opened', async () => {
+      const user = userEvent.setup();
+      const draft = invoice();
+
+      stubReferenceData();
+      // Overrides the empty-axes default `stubReferenceData` sets, so this test alone sees
+      // a real reporting axis.
+      stub('GET', '/v1/dimensions', () => json(200, { items: [DIMENSION], nextCursor: null }));
+      stub('GET', `/v1/dimensions/${DIMENSION_ID}/values`, () =>
+        json(200, { items: DIMENSION_VALUES, nextCursor: null }),
+      );
+      stub('GET', '/v1/invoices', () => json(200, { items: [summaryOf(draft)], nextCursor: null }));
+      stub('GET', `/v1/invoices/${INVOICE_ID}`, () => json(200, draft));
+
+      await openTheInvoice(user);
+
+      const toggle = await screen.findByRole('button', { name: 'Dimensions, line 1' });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        screen.queryByRole('combobox', { name: 'Department, line 1' }),
+      ).not.toBeInTheDocument();
+
+      await user.click(toggle);
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(
+        await screen.findByRole('combobox', { name: 'Department, line 1' }),
+      ).toBeInTheDocument();
+    });
   });
 });
