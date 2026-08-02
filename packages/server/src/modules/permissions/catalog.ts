@@ -159,6 +159,14 @@ export const PERMISSION_KEYS = [
   // transmit SoD key in v1 (D-228-6); an owner-only `ten99.file` is the offered alternative.
   'ten99.read',
   'ten99.write',
+  // Tracked inventory & COGS (initiative INVENTORY, OB-224). A read/write pair
+  // distinct from `catalog.write` (D-INV-8): `inventory.read` gates the valuation
+  // report, on-hand views and reorder alerts and auto-grants to every `%.read`
+  // holder; `inventory.write` gates the stock-adjustment document — a distinct
+  // authority from editing an item's costing fields, which ride `catalog.write`.
+  // Held by owner and bookkeeper; the AR/AP clerks do not adjust stock.
+  'inventory.read',
+  'inventory.write',
 ] as const;
 
 /**
@@ -193,7 +201,7 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 75> = true;
+type AssertCatalogSize<_N extends 77> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

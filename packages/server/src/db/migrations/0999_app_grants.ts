@@ -183,6 +183,18 @@ const APPEND_ONLY_TABLES = [
   // to be append-only. Its mutable siblings (`vendor_tax_profiles`, `ten99_form_runs`)
   // are below.
   'ten99_forms',
+  // ── Tracked inventory & COGS (0025_inventory, OB-224) ───────────────────────
+  //
+  // `inventory_movements` is the append-only subledger — the source of truth for
+  // on-hand qty and value (D-INV): every receipt, sale, adjustment, true-up and
+  // reversal appends a signed `(qty_delta, value_delta)` row, and on-hand is a fold
+  // over them. It is `bank_statement_lines`' evidence argument applied to stock: a
+  // subledger row you can rewrite stops tying to the inventory-asset control account
+  // (the OB-088 agreement), so a correction is a compensating `'reversal'`/`'true_up'`
+  // movement carrying a new journal, never an edit. Its mutable sibling
+  // `inventory_adjustments` (the count/shrinkage *header*, pencil until posted) is
+  // below.
+  'inventory_movements',
 ] as const;
 
 /**
@@ -514,6 +526,17 @@ const MUTABLE_TABLES = [
   // APPEND_ONLY_TABLES above (OB-228, D-228-5).
   'vendor_tax_profiles',
   'ten99_form_runs',
+  // ── Tracked inventory & COGS (0025_inventory, OB-224) ───────────────────────
+  //
+  // `inventory_adjustments` is the count/shrinkage document header, pencil not
+  // ledger fact (D-INV-6): it is built and edited, then `post` stamps `journal_id`
+  // and appends the movements — an UPDATE the append-only grant would refuse. The
+  // immutable record of the adjustment is the `journals` it posts and the
+  // `inventory_movements` it appends (append-only above); a correction is a
+  // reversing journal (D-02), recorded by `reversed_by_journal_id`, never an edit to
+  // a posted row. `catalog_items` (mutable above, D-CAT) carries the item costing
+  // fields — settings that seed a line and post no journal.
+  'inventory_adjustments',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

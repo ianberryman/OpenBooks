@@ -25,6 +25,7 @@ export * from './dimensions';
 export * from './drafts';
 export * from './fixed-assets';
 export * from './imports';
+export * from './inventory';
 export * from './invoicing';
 export * from './journals';
 export * from './members';

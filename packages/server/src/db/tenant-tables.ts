@@ -85,6 +85,8 @@ export const TENANT_TABLES = [
   'fixed_asset_schedule',
   'fixed_assets',
   'idempotency_keys',
+  'inventory_adjustments',
+  'inventory_movements',
   'invoice_deliveries',
   'journal_draft_line_dimensions',
   'journal_draft_lines',

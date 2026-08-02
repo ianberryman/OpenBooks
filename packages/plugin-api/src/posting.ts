@@ -54,11 +54,12 @@ export interface PostJournalInput extends ActorProvenance {
   readonly memo?: string;
   /**
    * Which subsystem produced the posting — `invoice`, `bill`, `payment`,
-   * `credit_note`, `vendor_credit`, `clearing`, or `manual` (OB-091). A short
-   * string rather than an enum so a new origin needs no change to the kernel or an
-   * ALTER on the journals table (`journals.source` is a VARCHAR for the same
-   * reason). Defaults to `manual` when unset; a reversal always records `reversal`
-   * and does not take this field (see ReverseJournalInput).
+   * `credit_note`, `vendor_credit`, `clearing`, `inventory` (the perpetual COGS /
+   * stock-adjustment journal, OB-224), or `manual` (OB-091). A short string rather
+   * than an enum so a new origin needs no change to the kernel or an ALTER on the
+   * journals table (`journals.source` is a VARCHAR for the same reason). Defaults to
+   * `manual` when unset; a reversal always records `reversal` and does not take this
+   * field (see ReverseJournalInput).
    */
   readonly source?: string;
   /** At least two lines, balanced. Enforced in OB-020 — arity is not expressible here. */

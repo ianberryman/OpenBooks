@@ -348,7 +348,9 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('catalog.read',             'View the item catalog (CAT)'),
       ('catalog.write',            'Create, modify, and deactivate catalog items (CAT)'),
       ('ten99.read',               'View the 1099 worksheet and filed forms (OB-228)'),
-      ('ten99.write',              'Manage vendor W-9/TIN data, generate and e-file 1099s (OB-228)')
+      ('ten99.write',              'Manage vendor W-9/TIN data, generate and e-file 1099s (OB-228)'),
+      ('inventory.read',           'View inventory valuation, on-hand, and reorder alerts (OB-224)'),
+      ('inventory.write',          'Post stock adjustments and write-offs (OB-224)')
   `.execute(db);
 }
 

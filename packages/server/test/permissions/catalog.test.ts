@@ -55,8 +55,10 @@ describe('the permission catalog and the seeded table agree', () => {
     // 69 → 70: Accountant access & period close added audit.read (P, D-98).
     // 70 → 72: The item catalog added catalog.read/write (CAT, D-CAT-1).
     // 72 → 73: Live bank feeds added banking.connect (OB-227, D-131).
-    expect(await selectCatalogCodes()).toHaveLength(75);
-    expect(PERMISSION_KEYS).toHaveLength(75);
+    // 73 → 75: 1099 reporting added ten99.read/write (OB-228).
+    // 75 → 77: Tracked inventory added inventory.read/write (OB-224, D-INV-8).
+    expect(await selectCatalogCodes()).toHaveLength(77);
+    expect(PERMISSION_KEYS).toHaveLength(77);
   });
 
   it('lists no code twice', async () => {

@@ -374,6 +374,25 @@ const OVERRIDES = {
     'payout_syncs.gross_minor': 'bigint',
     'payout_syncs.fee_minor': 'bigint',
     'payout_syncs.net_minor': 'bigint',
+
+    // ── Tracked inventory & COGS (0025_inventory, OB-224) ─────────────────────
+    //
+    // The movement's signed deltas are BIGINTs the driver returns as bigint:
+    // `value_delta_minor` is money (cents) and `qty_delta_micros` is a count scaled
+    // by 1e6 (the `ar_document_lines.quantity_micros` treatment), both plain `bigint`
+    // — a delta that silently defaulted to zero is the subledger drift the OB-088
+    // agreement exists to catch. `movement_date` and the adjustment's
+    // `adjustment_date` are calendar DATEs → `string`. The catalog costing fields are
+    // both nullable money/count BIGINTs (`bigint | null`, nullability spelled out
+    // since an override replaces the whole mapped type); the new BINARY(16) account
+    // and journal FK columns map to `Buffer` and carry their own nullability, so they
+    // need no entry.
+    'inventory_movements.qty_delta_micros': 'bigint',
+    'inventory_movements.value_delta_minor': 'bigint',
+    'inventory_movements.movement_date': 'string',
+    'inventory_adjustments.adjustment_date': 'string',
+    'catalog_items.default_cost_minor': 'bigint | null',
+    'catalog_items.reorder_point_micros': 'bigint | null',
   },
 };
 

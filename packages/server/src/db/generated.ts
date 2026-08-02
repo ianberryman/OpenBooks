@@ -150,6 +150,7 @@ export interface ArDocumentLines {
 }
 
 export interface ArDocuments {
+  cogs_journal_id: Buffer | null;
   contact_id: Buffer;
   created_at: Generated<Date>;
   created_by_user_id: Buffer;
@@ -379,12 +380,18 @@ export interface Budgets {
 export interface CatalogItems {
   account_id: Buffer | null;
   code: string | null;
+  cogs_account_id: Buffer | null;
+  costing_method: string | null;
   created_at: Generated<Date>;
+  default_cost_minor: bigint | null;
   direction: string;
   id: Buffer;
+  inventory_asset_account_id: Buffer | null;
   is_active: Generated<number>;
+  item_type: Generated<string>;
   name: string;
   org_id: Buffer;
+  reorder_point_micros: bigint | null;
   tax_rate_id: Buffer | null;
   unit_amount_minor: bigint | null;
   updated_at: Generated<Date>;
@@ -659,6 +666,32 @@ export interface IdempotencyKeys {
   response_status: number | null;
 }
 
+export interface InventoryAdjustments {
+  adjustment_date: string;
+  created_at: Generated<Date>;
+  created_by_user_id: Buffer;
+  id: Buffer;
+  journal_id: Buffer | null;
+  memo: string | null;
+  org_id: Buffer;
+  reversed_by_journal_id: Buffer | null;
+  updated_at: Generated<Date>;
+}
+
+export interface InventoryMovements {
+  catalog_item_id: Buffer;
+  created_at: Generated<Date>;
+  id: Buffer;
+  journal_id: Buffer;
+  movement_date: string;
+  movement_type: string;
+  org_id: Buffer;
+  qty_delta_micros: bigint;
+  source_doc_id: Buffer | null;
+  source_doc_type: string | null;
+  value_delta_minor: bigint;
+}
+
 export interface InvoiceDeliveries {
   artifact_storage_key: string;
   created_at: Generated<Date>;
@@ -815,6 +848,7 @@ export interface OrgAccountingSettings {
   depreciation_expense_account_id: Buffer | null;
   discount_given_account_id: Buffer | null;
   discount_received_account_id: Buffer | null;
+  inventory_shrinkage_account_id: Buffer | null;
   org_id: Buffer;
   payable_control_account_id: Buffer | null;
   receivable_control_account_id: Buffer | null;
@@ -1351,6 +1385,8 @@ export interface DB {
   fixed_asset_schedule: FixedAssetSchedule;
   fixed_assets: FixedAssets;
   idempotency_keys: IdempotencyKeys;
+  inventory_adjustments: InventoryAdjustments;
+  inventory_movements: InventoryMovements;
   invoice_deliveries: InvoiceDeliveries;
   journal_draft_line_dimensions: JournalDraftLineDimensions;
   journal_draft_lines: JournalDraftLines;
