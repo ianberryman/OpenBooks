@@ -369,6 +369,40 @@ export interface PayoutBreakdown {
 }
 
 /**
+ * What `fetchPayoutBreakdown` returns (OB-237b, D-237-8/D-237-10). An **automatic**
+ * (scheduled) payout resolves synchronously — Stripe answers
+ * `GET /balance_transactions?payout=po_…` for it, so its breakdown is available
+ * now (`ready`). A **manual** payout has no per-payout balance-transactions
+ * breakdown — Stripe 400s that filter ("can only be filtered on automatic
+ * transfers") — so the adapter starts an async Reporting-API run instead and
+ * returns its id (`awaiting_report`); the finalize sweep polls it later with
+ * `fetchPayoutReport`. Either way the payout's own net, currency and occurredAt
+ * are read off the bare payout object up front, so the staging row can be written
+ * immediately in both cases. Money is a cents string (D-13).
+ */
+export type PayoutBreakdownResult =
+  | { readonly kind: 'ready'; readonly breakdown: PayoutBreakdown }
+  | {
+      readonly kind: 'awaiting_report';
+      /** The processor's async report-run id the finalize sweep polls (D-237-10). */
+      readonly reportRunId: string;
+      /** The payout's net transfer amount, off the bare payout object. Cents string (D-13). */
+      readonly netMinor: string;
+      readonly currency: string;
+      /** ISO-8601 instant the payout was made. */
+      readonly occurredAt: string;
+    };
+
+/**
+ * The state of a payout-reconciliation report run started for a manual payout
+ * (OB-237b, D-237-10): `pending` until the processor finishes generating it, then
+ * the same `PayoutBreakdown` the synchronous path returns. Only reached for a
+ * payout that came back `awaiting_report`.
+ */
+export type PayoutReportResult =
+  { readonly kind: 'pending' } | { readonly kind: 'ready'; readonly breakdown: PayoutBreakdown };
+
+/**
  * The AR inbound-rail mirror of the AP disbursement rails (D-67, D-86) — the
  * new D-07 provider for initiative J. Behind it, Stripe's and Square's
  * divergent checkout and webhook shapes are normalised to one contract, so
@@ -417,10 +451,21 @@ export interface PaymentProcessorProvider {
    * balance transactions, aggregated by `reporting_category`. The bare payout
    * object carries only the net `amount`, so a summary-sales journal that
    * grossed up sales, fees and refunds cannot be built from a `payout` event
-   * alone — this is the follow-up fetch that supplies the detail. Money is
-   * always a cents string (D-13).
+   * alone — this is the follow-up fetch that supplies the detail.
+   *
+   * Routes by payout type (OB-237b, D-237-8): an automatic payout resolves
+   * `ready`; a manual payout has no synchronous breakdown, so the adapter starts
+   * an async Reporting-API run and returns `awaiting_report` for the finalize
+   * sweep to poll. Money is always a cents string (D-13).
    */
-  fetchPayoutBreakdown(payoutId: string): Promise<PayoutBreakdown>;
+  fetchPayoutBreakdown(payoutId: string): Promise<PayoutBreakdownResult>;
+  /**
+   * Polls a payout-reconciliation report run started for a manual payout
+   * (OB-237b, D-237-10): `pending` until the processor finishes it, then the same
+   * `PayoutBreakdown` the synchronous path returns. Only reached for a payout that
+   * came back `awaiting_report` from `fetchPayoutBreakdown`.
+   */
+  fetchPayoutReport(reportRunId: string): Promise<PayoutReportResult>;
 }
 
 export interface Providers {

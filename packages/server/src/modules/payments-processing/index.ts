@@ -89,6 +89,7 @@ export { handleProcessorWebhook, recordNormalizedEvent } from './webhook.service
 export { getPayoutSyncConfig, updatePayoutSyncConfig } from './payout-config.service';
 export type { SyncPayoutInput, SyncPayoutResult } from './payout-sync.service';
 export {
+  finalizePayoutReports,
   getPayoutSync,
   listPayoutSyncs,
   postPayoutSync,

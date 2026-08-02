@@ -112,6 +112,7 @@ function payoutSync(overrides: Record<string, unknown> = {}): Record<string, unk
     breakdown: [{ reportingCategory: 'charge', amountMinor: '10000', count: 1 }],
     journalId: null,
     skipReason: null,
+    reportRunId: null,
     occurredAt: '2026-07-01T12:00:00.000Z',
     postedAt: null,
     ...TIMESTAMPS,
@@ -281,5 +282,17 @@ describe('PayoutsReview', () => {
     expect(stub.calls.some((call) => call.method === 'PATCH')).toBe(false);
 
     expect(await screen.findByText('No reason given')).toBeInTheDocument();
+  });
+
+  it('shows an awaiting_report payout as read-only, with no Post/Skip actions', async () => {
+    installApiStub([
+      listSyncsRoute([payoutSync({ status: 'awaiting_report', reportRunId: 'frr_test_1' })]),
+    ]);
+    renderWithQueryClient(<PayoutsReview connectionId={CONNECTION_ID} />);
+
+    expect(await screen.findByText('Awaiting report')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting Stripe report…')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
   });
 });

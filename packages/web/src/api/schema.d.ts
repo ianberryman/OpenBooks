@@ -10665,12 +10665,14 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
             postedAt: string | null;
+            /** @description The async Stripe Reporting-API run id backing an `awaiting_report` manual payout (D-237-10); `null` for an automatic payout that resolved synchronously. */
+            reportRunId: string | null;
             skipReason: string | null;
             /**
-             * @description A payout sync’s lifecycle (D-237-2): `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd) with a reason.
+             * @description A payout sync’s lifecycle: `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd, a failed breakdown fetch) with a reason (D-237-2/D-237-11), and `awaiting_report` is a manual payout whose async Stripe Reporting-API run has not finalized yet (D-237-10).
              * @enum {string}
              */
-            status: "pending_review" | "posted" | "skipped";
+            status: "pending_review" | "posted" | "skipped" | "awaiting_report";
         };
         /** @description A connection’s payout-sync mode, auto-post, and category→account mapping (OB-237). */
         PayoutSyncConfig: {
@@ -10727,12 +10729,14 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
             postedAt: string | null;
+            /** @description The async Stripe Reporting-API run id backing an `awaiting_report` manual payout (D-237-10); `null` for an automatic payout that resolved synchronously. */
+            reportRunId: string | null;
             skipReason: string | null;
             /**
-             * @description A payout sync’s lifecycle (D-237-2): `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd) with a reason.
+             * @description A payout sync’s lifecycle: `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd, a failed breakdown fetch) with a reason (D-237-2/D-237-11), and `awaiting_report` is a manual payout whose async Stripe Reporting-API run has not finalized yet (D-237-10).
              * @enum {string}
              */
-            status: "pending_review" | "posted" | "skipped";
+            status: "pending_review" | "posted" | "skipped" | "awaiting_report";
         };
         /** @description A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned. */
         PendingPayment: {
@@ -21723,7 +21727,7 @@ export interface operations {
     listPayoutSyncs: {
         parameters: {
             query?: {
-                status?: "pending_review" | "posted" | "skipped";
+                status?: "pending_review" | "posted" | "skipped" | "awaiting_report";
             };
             header?: never;
             path: {

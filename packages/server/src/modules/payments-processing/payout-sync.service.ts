@@ -1,4 +1,8 @@
-import type { JournalLineInput, PayoutBreakdown } from '@openbooks/plugin-api';
+import type {
+  JournalLineInput,
+  PayoutBreakdown,
+  PayoutBreakdownResult,
+} from '@openbooks/plugin-api';
 import type { PayoutSync } from '@openbooks/shared-types';
 import { add, fromMinorString, toMinorString, ZERO } from '@openbooks/shared-types/money';
 
@@ -14,7 +18,9 @@ import {
   PAYOUT_SYNC_RESOURCE,
   insertPayoutSync,
   markPayoutSyncPosted,
+  markPayoutSyncReportReady,
   markPayoutSyncSkipped,
+  selectAwaitingReportSyncsForConnection,
   selectPayoutSyncById,
   selectPayoutSyncByIdForUpdate,
   selectPayoutSyncByExternal,
@@ -106,7 +112,67 @@ export async function syncPayout(
       };
     }
 
-    const breakdown = await provider.fetchPayoutBreakdown(input.externalPayoutId);
+    // D-237-11: a breakdown fetch that throws (a network fault, an unexpected
+    // Stripe 400) is recorded as a *visible* `skipped` row carrying the
+    // processor's own message — never a swallowed `processor_events` 'failed' with
+    // no UI trace, which is what left today's manual-payout failure invisible. The
+    // caller (dispatch) then sees a normal return, so the event marks 'processed'.
+    let result: PayoutBreakdownResult;
+    try {
+      result = await provider.fetchPayoutBreakdown(input.externalPayoutId);
+    } catch (error) {
+      const id = await insertPayoutSync(trx, {
+        connectionId: connectionBytes,
+        externalPayoutId: input.externalPayoutId,
+        // Amounts and currency are unknown when the fetch itself failed; the
+        // skip_reason carries the real information and this row books nothing.
+        grossMinor: 0n,
+        feeMinor: 0n,
+        netMinor: 0n,
+        currency: 'usd',
+        status: 'skipped',
+        breakdown: [],
+        skipReason: breakdownFailureReason(error),
+        reportRunId: null,
+        occurredAt: new Date(),
+        journalId: null,
+        postedByUserId: null,
+        postedAt: null,
+      });
+      return { payoutSyncId: id, status: 'skipped', alreadyRecorded: false };
+    }
+
+    // D-237-10: a manual payout has no synchronous breakdown — the adapter has
+    // started an async Stripe Reporting-API run. Stage the row `awaiting_report`
+    // with the net known off the payout object (gross/fee are filled when the
+    // finalize sweep resolves the report); a non-usd one is skipped now (§13).
+    if (result.kind === 'awaiting_report') {
+      const net = BigInt(result.netMinor);
+      const nonUsd = result.currency.toLowerCase() !== 'usd';
+      const id = await insertPayoutSync(trx, {
+        connectionId: connectionBytes,
+        externalPayoutId: input.externalPayoutId,
+        grossMinor: net,
+        feeMinor: 0n,
+        netMinor: net,
+        currency: result.currency,
+        status: nonUsd ? 'skipped' : 'awaiting_report',
+        breakdown: [],
+        skipReason: nonUsd ? `unsupported_currency:${result.currency}` : null,
+        reportRunId: result.reportRunId,
+        occurredAt: new Date(result.occurredAt),
+        journalId: null,
+        postedByUserId: null,
+        postedAt: null,
+      });
+      return {
+        payoutSyncId: id,
+        status: nonUsd ? 'skipped' : 'awaiting_report',
+        alreadyRecorded: false,
+      };
+    }
+
+    const breakdown = result.breakdown;
     const totals = payoutTotals(breakdown);
     const occurredAt = new Date(breakdown.occurredAt);
 
@@ -122,6 +188,7 @@ export async function syncPayout(
         status: 'skipped',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: `unsupported_currency:${breakdown.currency}`,
+        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -149,6 +216,7 @@ export async function syncPayout(
         status: 'skipped',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: built.reason,
+        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -168,6 +236,7 @@ export async function syncPayout(
         status: 'pending_review',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: null,
+        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -194,6 +263,7 @@ export async function syncPayout(
       status: 'posted',
       breakdown: breakdown.categories.map((c) => ({ ...c })),
       skipReason: null,
+      reportRunId: null,
       occurredAt,
       journalId: uuidToBuffer(journalId),
       postedByUserId: null,
@@ -301,9 +371,97 @@ export async function skipPayoutSync(
   return toPayoutSync(assertFound(await selectPayoutSyncById(db, bytes), PAYOUT_SYNC_RESOURCE));
 }
 
+/**
+ * Finalizes a connection's `awaiting_report` manual payouts (OB-237b, D-237-10),
+ * called once per connection by the daily poll. Each row's async Stripe report is
+ * polled; a still-`pending` one is left for the next tick; a resolved one fills the
+ * now-known gross/fee/breakdown and either posts (auto-post) or moves to
+ * `pending_review`, unless the current mapping cannot build it (→ `skipped`).
+ *
+ * The report is fetched **outside** the row lock (a network call must not hold one),
+ * then each row is re-selected `FOR UPDATE` and its status re-checked before the
+ * write, so a concurrent sweep or a human action that already moved the row is a
+ * no-op rather than a double-post — `postPayoutSync`'s locking discipline, applied
+ * to the machine path. `external_refs` on the payout object id is the final backstop
+ * against a double journal.
+ */
+export async function finalizePayoutReports(
+  connectionId: string,
+  ctx: RequestContext,
+): Promise<void> {
+  const { clearingAccountId, feeAccountId, provider, connection } = await loadConnectionProvider(
+    connectionId,
+    ctx,
+  );
+  const connectionBytes = assertFound(connectionIdBytes(connectionId), CONNECTION_RESOURCE);
+
+  const pending = await selectAwaitingReportSyncsForConnection(orgScope(ctx), connectionBytes);
+  for (const row of pending) {
+    if (row.report_run_id === null) continue;
+    const report = await provider.fetchPayoutReport(row.report_run_id);
+    if (report.kind === 'pending') continue;
+    const breakdown = report.breakdown;
+
+    await orgScope(ctx).transaction(async (trx) => {
+      const locked = await selectPayoutSyncByIdForUpdate(trx, row.id);
+      if (locked === undefined || locked.status !== 'awaiting_report') return;
+
+      const totals = payoutTotals(breakdown);
+      const accounts = await resolveSummaryAccounts(
+        trx,
+        connectionBytes,
+        clearingAccountId,
+        feeAccountId,
+      );
+      const built = buildPayoutSummaryJournal(breakdown, accounts);
+      if (!built.ok) {
+        await markPayoutSyncSkipped(trx, row.id, built.reason);
+        return;
+      }
+
+      const shared = {
+        grossMinor: totals.gross,
+        feeMinor: totals.fee,
+        netMinor: totals.net,
+        breakdown: breakdown.categories.map((c) => ({ ...c })),
+      };
+
+      if (!connection.autoPost) {
+        await markPayoutSyncReportReady(trx, row.id, {
+          status: 'pending_review',
+          ...shared,
+          journalId: null,
+          postedAt: null,
+        });
+        return;
+      }
+
+      const journalId = await postSummaryJournal(
+        connectionId,
+        locked.external_payout_id,
+        breakdown,
+        built.lines,
+        ctx,
+      );
+      await markPayoutSyncReportReady(trx, row.id, {
+        status: 'posted',
+        ...shared,
+        journalId: uuidToBuffer(journalId),
+        postedAt: new Date(),
+      });
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Internals
 // ---------------------------------------------------------------------------
+
+/** A failed breakdown fetch → a `skip_reason` (D-237-11), bounded to the column width. */
+function breakdownFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `breakdown_failed:${message}`.slice(0, 255);
+}
 
 /**
  * Posts the summary journal and keys it in `external_refs` on the payout object

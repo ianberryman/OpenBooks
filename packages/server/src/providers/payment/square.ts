@@ -1,6 +1,11 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
-import type { NormalizedProcessorEvent, PaymentProcessorProvider } from '@openbooks/plugin-api';
+import type {
+  NormalizedProcessorEvent,
+  PaymentProcessorProvider,
+  PayoutBreakdownResult,
+  PayoutReportResult,
+} from '@openbooks/plugin-api';
 
 import type { PaymentAdapterDeps } from './types';
 
@@ -120,7 +125,7 @@ export function createSquarePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
       return Promise.resolve({ events: [], cursor: cursor ?? '0' });
     },
 
-    fetchPayoutBreakdown(payoutId): Promise<never> {
+    fetchPayoutBreakdown(payoutId): Promise<PayoutBreakdownResult> {
       // Summary-sales payout sync (OB-237) is Stripe-first and US-only for v1 —
       // the account-mapping and grossed-up summary journal are built and proven
       // against Stripe's `balance_transactions`/`reporting_category` shape
@@ -132,6 +137,18 @@ export function createSquarePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
       return Promise.reject(
         new Error(
           `square payout breakdown is not implemented (OB-237 is Stripe-first); payout ${payoutId}`,
+        ),
+      );
+    },
+
+    fetchPayoutReport(reportRunId): Promise<PayoutReportResult> {
+      // OB-237b's async Reporting-API path is Stripe-only (D-237-10); a Square
+      // connection never reaches `awaiting_report` because `fetchPayoutBreakdown`
+      // above is unreachable in `summary_sales` mode, so this is unreachable too —
+      // thrown, not stubbed, for the same reason.
+      return Promise.reject(
+        new Error(
+          `square payout report is not implemented (OB-237b is Stripe-first); report ${reportRunId}`,
         ),
       );
     },

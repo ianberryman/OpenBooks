@@ -14,6 +14,7 @@ import {
   selectAllActiveConnectionsAcrossOrgs,
 } from './connections.repository';
 import { loadConnectionProvider } from './connections.service';
+import { finalizePayoutReports } from './payout-sync.service';
 import { recordNormalizedEvent } from './webhook.service';
 
 /**
@@ -153,4 +154,10 @@ async function pollOneConnection(
   }
 
   await advanceReconciledThrough(orgScope(ctx), connectionBytes, new Date());
+
+  // OB-237b/D-237-10: finalize any manual payouts whose async Stripe reconciliation
+  // report has completed since a prior tick (awaiting_report → posted|pending_review
+  // |skipped). Same daily cadence, same per-connection automation scope — a
+  // still-pending report simply waits for the next tick.
+  await finalizePayoutReports(connectionId, ctx);
 }

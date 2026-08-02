@@ -78,7 +78,7 @@ const payoutSyncParamsSchema = z.strictObject({ payoutSyncId: z.uuid() });
 
 /** Local wire querystring for the review list (the `…Wire` idiom — not reused from the module). */
 const payoutSyncListQuerySchema = z.strictObject({
-  status: z.enum(['pending_review', 'posted', 'skipped']).optional(),
+  status: z.enum(['pending_review', 'posted', 'skipped', 'awaiting_report']).optional(),
 });
 
 /** Local wire body for the human "skip" action. */
