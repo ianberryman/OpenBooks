@@ -105,7 +105,13 @@ export function createStripePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
 
     async listEventsSince(cursor) {
       const query = new URLSearchParams({ limit: '100' });
-      if (cursor !== null) query.set('starting_after', cursor);
+      // `starting_after` must be a real Stripe event id. A null cursor (first poll),
+      // the `'0'` empty-account sentinel this method itself returns when a page has
+      // no events, and any legacy non-id value all mean "fetch the latest page" —
+      // sending a non-id id makes Stripe throw `No such notification: '0'` (OB-237:
+      // caught live once the D-85 poll persisted and resumed from the returned
+      // cursor, which the hermetic `fake` never exercises).
+      if (cursor !== null && cursor.startsWith('evt_')) query.set('starting_after', cursor);
 
       const page = await stripeRequest<StripeEventList>(deps, 'GET', `/events?${query.toString()}`);
 
