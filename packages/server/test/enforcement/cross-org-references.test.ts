@@ -83,7 +83,7 @@ import {
 // Not through `modules/reports`' index — OB-065 never exported it and OB-067 did
 // not either; `src/transport/routes/reports.ts` reaches for the file the same way.
 import { createCustomerStatement } from '../../src/modules/account-statements';
-import { connectProcessor } from '../../src/modules/payments-processing';
+import { connectProcessor, updatePayoutSyncConfig } from '../../src/modules/payments-processing';
 import { getAging } from '../../src/modules/reports/aging.service';
 import { exportReport } from '../../src/modules/reports/export';
 import {
@@ -271,6 +271,15 @@ interface Org {
    * that reuses it, in whatever order they run.
    */
   readonly pendingPaymentId: string;
+
+  /**
+   * Payout sync (OB-237): a `fake` processor connection this org owns, so the
+   * `updatePayoutSyncConfig.accountId` reference row has a real connection to
+   * configure while the cross-org account id travels in a mapping entry — connected
+   * once here rather than in the reach, so a second reference pass does not hit
+   * `processor_already_connected` (a 412, not the 404 under test).
+   */
+  readonly payoutConnectionId: string;
 }
 
 /** One of the org's six uncleared lines, by index — asserted present. */
@@ -537,12 +546,31 @@ async function org(label: string): Promise<Org> {
     ),
   );
 
+  // Payout sync (OB-237): one `fake` processor connection this org owns, so the
+  // `updatePayoutSyncConfig.accountId` reference row configures a real connection
+  // while a stranger's account id rides a mapping entry. Connected here, not in the
+  // reach, so the second reference pass reuses it rather than colliding on the
+  // one-connection-per-processor unique key.
+  const payoutConnection = await runInContext(ctx, () =>
+    connectProcessor(
+      {
+        processor: 'fake',
+        clearingAccountId: revenue.uuid,
+        feeAccountId: expense.uuid,
+        secretKey: 'sk_test_b11_payout',
+        webhookSecret: 'whsec_b11_payout',
+      },
+      ctx,
+    ),
+  );
+
   return {
     ctx,
     orgUuid: record.uuid,
     orgId: record.id,
     userUuid: user.uuid,
     accountId: cash.uuid,
+    payoutConnectionId: payoutConnection.id,
     revenueId: revenue.uuid,
     periodId: period.uuid,
     contactId: contact.id,
@@ -3524,6 +3552,26 @@ const REFERENCES: readonly Reference[] = [
           feeAccountId: id,
           secretKey: 'sk_test_b11',
           webhookSecret: 'whsec_b11',
+        },
+        s.caller.ctx,
+      ),
+  },
+  // Payout sync (OB-237). `updatePayoutSyncConfig` maps each `reporting_category` to
+  // a nominated GL account (D-237-6); the config service `assertActiveAccount`s each,
+  // so a cross-org `accountId` in an entry 404s before the mapping is written — the
+  // `connectProcessor` shape above. A real caller connection is connected first (the
+  // caller's own accounts), then the cross-org id rides one mapping entry.
+  {
+    operationId: 'updatePayoutSyncConfig',
+    field: 'accountId',
+    subject: (o) => o.accountId,
+    reach: (id, s) =>
+      updatePayoutSyncConfig(
+        s.caller.payoutConnectionId,
+        {
+          syncMode: 'apply_payments',
+          autoPost: false,
+          entries: [{ reportingCategory: 'charge', accountId: id }],
         },
         s.caller.ctx,
       ),

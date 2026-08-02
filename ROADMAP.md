@@ -330,6 +330,21 @@ on `openapi.json` and the generated client). Unscheduled; overlaps M7's launch-r
 should be scoped with it, but captured separately because the **site itself** — hosting, IA,
 generator choice, its own CI/deploy — is a deliverable the phase order does not yet name.
 
+**Docs-UI generator — lean Fumadocs (candidate, not committed).** Of the generator options
+named above, the leaning for the **docs** surface specifically is **[Fumadocs](https://fumadocs.dev)**
+(Next.js/React, MDX): it keeps the docs shell in the same React idiom as `packages/web` so shared
+brand tokens import cleanly, it is **self-hosted** (fits OpenBooks' everything-in-repo, no-hosted-
+dependency posture — contrast Mintlify/GitBook, which are hosted and bundle their own AI chat), and
+it leaves the **AI layer under our control** — the earlier docs-grounded-assistant idea would index
+the _same_ MDX and cite specific sections, so the assistant refreshes when docs change and cannot
+confidently state a stale ledger rule (e.g. a superseded `D-NN`), the way a frozen custom-GPT upload
+would. Rationale for not rolling our own: search, version-switching, MDX rendering, mobile nav, dark
+mode and deep-link anchors are exactly the parts you would rebuild, and the value is the content, not
+the shell. Still unscoped and still separate from the SPA; the marketing pages themselves may use a
+different/leaner generator, but the docs shell is where Fumadocs earns its place. Alternatives kept
+open: Docusaurus (safe React default, heavier), Starlight (fastest defaults, but Astro not React),
+Mintlify (lowest effort to get docs **and** the assistant, at the cost of a hosted dependency).
+
 ### Follow-up — import & reconcile should work for any account type (future)
 
 The M4 banking module (import, matching, reconciliation) is built and tested for **asset bank

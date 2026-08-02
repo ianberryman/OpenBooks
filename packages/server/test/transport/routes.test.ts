@@ -325,6 +325,13 @@ describe('the /v1 route table', () => {
         'getProcessorConnection',
         'deactivateProcessorConnection',
         'reactivateProcessorConnection',
+        // Payout sync (OB-237).
+        'getPayoutSyncConfig',
+        'updatePayoutSyncConfig',
+        'listPayoutSyncs',
+        'getPayoutSync',
+        'postPayoutSync',
+        'skipPayoutSync',
         // Cash application (OB-139).
         'createPaymentTerm',
         'listPaymentTerms',

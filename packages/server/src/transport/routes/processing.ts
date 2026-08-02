@@ -1,5 +1,11 @@
-import { connectProcessorRequestSchema, processorConnectionSchema } from '@openbooks/shared-types';
-import type { ProcessorConnection } from '@openbooks/shared-types';
+import {
+  connectProcessorRequestSchema,
+  payoutSyncConfigSchema,
+  payoutSyncSchema,
+  processorConnectionSchema,
+  updatePayoutSyncConfigRequestSchema,
+} from '@openbooks/shared-types';
+import type { PayoutSync, PayoutSyncConfig, ProcessorConnection } from '@openbooks/shared-types';
 import { z } from 'zod';
 
 import { getContext } from '../../context';
@@ -7,9 +13,15 @@ import { withIdempotency } from '../../modules/idempotency';
 import {
   connectProcessor,
   deactivateProcessorConnection,
+  getPayoutSync,
+  getPayoutSyncConfig,
   getProcessorConnection,
+  listPayoutSyncs,
   listProcessorConnections,
+  postPayoutSync,
   reactivateProcessorConnection,
+  skipPayoutSync,
+  updatePayoutSyncConfig,
 } from '../../modules/payments-processing';
 import type { App } from '../types';
 import {
@@ -62,6 +74,17 @@ import {
 const TAG = 'processing';
 
 const processorConnectionParamsSchema = z.strictObject({ connectionId: z.uuid() });
+const payoutSyncParamsSchema = z.strictObject({ payoutSyncId: z.uuid() });
+
+/** Local wire querystring for the review list (the `…Wire` idiom — not reused from the module). */
+const payoutSyncListQuerySchema = z.strictObject({
+  status: z.enum(['pending_review', 'posted', 'skipped']).optional(),
+});
+
+/** Local wire body for the human "skip" action. */
+const skipPayoutSyncBodySchema = z.strictObject({
+  reason: z.string().trim().max(255).optional(),
+});
 
 export function registerProcessingRoutes(app: App): void {
   app.post(
@@ -197,6 +220,161 @@ export function registerProcessingRoutes(app: App): void {
       );
 
       return reply.status(result.status).send(idempotentBody<ProcessorConnection>(result));
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Payout sync (OB-237) — the summary-sales mode/mapping config, and the
+  // "Stripe payouts to review" staging rows a human posts (D-237-1, D-237-2).
+  // -------------------------------------------------------------------------
+
+  app.get(
+    '/v1/processing/connections/:connectionId/payout-sync/config',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getPayoutSyncConfig',
+        summary: 'Get a connection’s payout-sync configuration',
+        description:
+          'The sync mode (`apply_payments` vs `summary_sales`), whether summaries auto-post, ' +
+          'and the reporting_category → GL account mapping (OB-237).',
+        tags: [TAG],
+        params: processorConnectionParamsSchema,
+        response: { 200: payoutSyncConfigSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<PayoutSyncConfig> =>
+      getPayoutSyncConfig(request.params.connectionId, getContext()),
+  );
+
+  app.put(
+    '/v1/processing/connections/:connectionId/payout-sync/config',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'updatePayoutSyncConfig',
+        summary: 'Set a connection’s payout-sync configuration',
+        description:
+          'Sets the mode, auto-post, and the full category→account mapping in one call ' +
+          '(D-237-1/D-237-2/D-237-6). The mapping is replaced wholesale. `summary_sales` is ' +
+          'refused for a processor that cannot break a payout down (Stripe-first, D-237-4).',
+        tags: [TAG],
+        headers: idempotencyKeyHeaderSchema,
+        params: processorConnectionParamsSchema,
+        body: updatePayoutSyncConfigRequestSchema,
+        response: { 200: payoutSyncConfigSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const { connectionId } = request.params;
+      const result = await withIdempotency(
+        {
+          endpoint: 'updatePayoutSyncConfig',
+          request: { connectionId, ...request.body },
+          successStatus: 200,
+        },
+        () => updatePayoutSyncConfig(connectionId, request.body, ctx),
+      );
+      return reply.status(result.status).send(idempotentBody<PayoutSyncConfig>(result));
+    },
+  );
+
+  app.get(
+    '/v1/processing/connections/:connectionId/payout-syncs',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'listPayoutSyncs',
+        summary: 'List a connection’s payout syncs',
+        description:
+          'The "Stripe payouts to review" list (D-237-2): each payout’s grossed-up summary, ' +
+          'newest first, optionally filtered by status.',
+        tags: [TAG],
+        params: processorConnectionParamsSchema,
+        querystring: payoutSyncListQuerySchema,
+        response: { 200: z.array(payoutSyncSchema), ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<PayoutSync[]> =>
+      wireList(
+        await listPayoutSyncs(request.params.connectionId, request.query.status, getContext()),
+      ),
+  );
+
+  app.get(
+    '/v1/processing/payout-syncs/:payoutSyncId',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getPayoutSync',
+        summary: 'One payout sync',
+        tags: [TAG],
+        params: payoutSyncParamsSchema,
+        response: { 200: payoutSyncSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request): Promise<PayoutSync> =>
+      getPayoutSync(request.params.payoutSyncId, getContext()),
+  );
+
+  app.post(
+    '/v1/processing/payout-syncs/:payoutSyncId/post',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'postPayoutSync',
+        summary: 'Post a payout sync’s summary journal',
+        description:
+          'Posts a `pending_review` payout sync’s grossed-up summary journal under the reviewing ' +
+          'user (D-237-2). Rebuilt from the stored breakdown and the current mapping; ' +
+          '`external_refs` on the payout id makes a double-post impossible.',
+        tags: [TAG],
+        headers: idempotencyKeyHeaderSchema,
+        params: payoutSyncParamsSchema,
+        response: { 200: payoutSyncSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const { payoutSyncId } = request.params;
+      const result = await withIdempotency(
+        { endpoint: 'postPayoutSync', request: { payoutSyncId }, successStatus: 200 },
+        () => postPayoutSync(payoutSyncId, ctx),
+      );
+      return reply.status(result.status).send(idempotentBody<PayoutSync>(result));
+    },
+  );
+
+  app.post(
+    '/v1/processing/payout-syncs/:payoutSyncId/skip',
+    {
+      onRequest: ORG_SCOPED_WRITE_HOOKS,
+      schema: {
+        operationId: 'skipPayoutSync',
+        summary: 'Decline a payout sync',
+        description:
+          'Marks a `pending_review` payout sync `skipped` — a human deciding not to book this ' +
+          'payout (D-237-2). Nothing is posted.',
+        tags: [TAG],
+        headers: idempotencyKeyHeaderSchema,
+        params: payoutSyncParamsSchema,
+        body: skipPayoutSyncBodySchema,
+        response: { 200: payoutSyncSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request, reply) => {
+      const ctx = getContext();
+      const { payoutSyncId } = request.params;
+      const result = await withIdempotency(
+        {
+          endpoint: 'skipPayoutSync',
+          request: { payoutSyncId, ...request.body },
+          successStatus: 200,
+        },
+        () => skipPayoutSync(payoutSyncId, request.body.reason ?? '', ctx),
+      );
+      return reply.status(result.status).send(idempotentBody<PayoutSync>(result));
     },
   );
 }

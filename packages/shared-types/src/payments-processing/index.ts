@@ -38,6 +38,7 @@ export {
   PAYOUT_REPORTING_CATEGORIES,
   payoutAccountMapEntrySchema,
   payoutReportingCategorySchema,
+  payoutSyncConfigSchema,
   payoutSyncSchema,
   updatePayoutSyncConfigRequestSchema,
 } from './payout-sync';
@@ -45,5 +46,6 @@ export type {
   PayoutAccountMapEntry,
   PayoutReportingCategory,
   PayoutSync,
+  PayoutSyncConfig,
   UpdatePayoutSyncConfigRequest,
 } from './payout-sync';

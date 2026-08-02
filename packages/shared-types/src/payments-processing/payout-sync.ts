@@ -78,6 +78,22 @@ export const updatePayoutSyncConfigRequestSchema = z
 
 export type UpdatePayoutSyncConfigRequest = z.infer<typeof updatePayoutSyncConfigRequestSchema>;
 
+/** A connection's payout-sync configuration as the API returns it (OB-237). */
+export const payoutSyncConfigSchema = z
+  .strictObject({
+    connectionId: z.uuid(),
+    syncMode: payoutSyncModeSchema,
+    autoPost: z.boolean(),
+    entries: z.array(payoutAccountMapEntrySchema),
+  })
+  .meta({
+    id: 'PayoutSyncConfig',
+    description:
+      'A connection’s payout-sync mode, auto-post, and category→account mapping (OB-237).',
+  });
+
+export type PayoutSyncConfig = z.infer<typeof payoutSyncConfigSchema>;
+
 /** One category's rolled-up magnitude within a payout (a cents string, D-13). */
 export const payoutSyncCategoryLineSchema = z.strictObject({
   reportingCategory: payoutReportingCategorySchema,

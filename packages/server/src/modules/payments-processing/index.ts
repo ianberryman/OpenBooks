@@ -86,5 +86,15 @@ export {
 export type { HandleWebhookInput, HandleWebhookResult } from './webhook.service';
 export { handleProcessorWebhook, recordNormalizedEvent } from './webhook.service';
 
+export { getPayoutSyncConfig, updatePayoutSyncConfig } from './payout-config.service';
+export type { SyncPayoutInput, SyncPayoutResult } from './payout-sync.service';
+export {
+  getPayoutSync,
+  listPayoutSyncs,
+  postPayoutSync,
+  skipPayoutSync,
+  syncPayout,
+} from './payout-sync.service';
+
 export { PROCESSOR_POLL_QUEUE, registerProcessorPollJob } from './poll.job';
 export type { ProcessorPollJobDeps } from './poll.job';

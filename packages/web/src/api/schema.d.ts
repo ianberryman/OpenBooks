@@ -3299,6 +3299,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/processing/connections/{connectionId}/payout-sync/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a connection’s payout-sync configuration
+         * @description The sync mode (`apply_payments` vs `summary_sales`), whether summaries auto-post, and the reporting_category → GL account mapping (OB-237).
+         */
+        get: operations["getPayoutSyncConfig"];
+        /**
+         * Set a connection’s payout-sync configuration
+         * @description Sets the mode, auto-post, and the full category→account mapping in one call (D-237-1/D-237-2/D-237-6). The mapping is replaced wholesale. `summary_sales` is refused for a processor that cannot break a payout down (Stripe-first, D-237-4).
+         */
+        put: operations["updatePayoutSyncConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/connections/{connectionId}/payout-syncs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a connection’s payout syncs
+         * @description The "Stripe payouts to review" list (D-237-2): each payout’s grossed-up summary, newest first, optionally filtered by status.
+         */
+        get: operations["listPayoutSyncs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/processing/connections/{connectionId}/reactivate": {
         parameters: {
             query?: never;
@@ -3313,6 +3357,63 @@ export interface paths {
          * @description The only way back in (D-103) — never a second `connectProcessor`, which `processor_already_connected` would refuse. Idempotent: an already-active connection is returned unchanged rather than refused.
          */
         post: operations["reactivateProcessorConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/payout-syncs/{payoutSyncId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One payout sync */
+        get: operations["getPayoutSync"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/payout-syncs/{payoutSyncId}/post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post a payout sync’s summary journal
+         * @description Posts a `pending_review` payout sync’s grossed-up summary journal under the reviewing user (D-237-2). Rebuilt from the stored breakdown and the current mapping; `external_refs` on the payout id makes a double-post impossible.
+         */
+        post: operations["postPayoutSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/processing/payout-syncs/{payoutSyncId}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline a payout sync
+         * @description Marks a `pending_review` payout sync `skipped` — a human deciding not to book this payout (D-237-2). Nothing is posted.
+         */
+        post: operations["skipPayoutSync"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10507,6 +10608,132 @@ export interface components {
         PaymentTermListInput: {
             paymentTerms: components["schemas"]["PaymentTermInput"][];
         };
+        /** @description A reporting_category → GL account mapping row for a payout-sync connection (OB-237). */
+        PayoutAccountMapEntry: {
+            /**
+             * Format: uuid
+             * @description The ledger account this category posts to — an account the org already has (D-23).
+             */
+            accountId: string;
+            /**
+             * @description Which kind of payout line a mapping row places (D-237-6): `charge`→revenue, `refund`→contra-revenue, `fee`→fee account, `tax`→Sales Tax Payable, `dispute`→loss, `adjustment`→catch-all. The clearing plug is always the connection’s own clearing account, never mapped here.
+             * @enum {string}
+             */
+            reportingCategory: "charge" | "refund" | "fee" | "tax" | "dispute" | "adjustment";
+        };
+        /** @description A reporting_category → GL account mapping row for a payout-sync connection (OB-237). */
+        PayoutAccountMapEntryInput: {
+            /**
+             * Format: uuid
+             * @description The ledger account this category posts to — an account the org already has (D-23).
+             */
+            accountId: string;
+            /**
+             * @description Which kind of payout line a mapping row places (D-237-6): `charge`→revenue, `refund`→contra-revenue, `fee`→fee account, `tax`→Sales Tax Payable, `dispute`→loss, `adjustment`→catch-all. The clearing plug is always the connection’s own clearing account, never mapped here.
+             * @enum {string}
+             */
+            reportingCategory: "charge" | "refund" | "fee" | "tax" | "dispute" | "adjustment";
+        };
+        /** @description A payout-sync staging row a human reviews and posts (OB-237, D-237-2). */
+        PayoutSync: {
+            breakdown: {
+                /** @description Non-negative magnitude for this category, cents-only (D-13). */
+                amountMinor: string;
+                count: number;
+                /**
+                 * @description Which kind of payout line a mapping row places (D-237-6): `charge`→revenue, `refund`→contra-revenue, `fee`→fee account, `tax`→Sales Tax Payable, `dispute`→loss, `adjustment`→catch-all. The clearing plug is always the connection’s own clearing account, never mapped here.
+                 * @enum {string}
+                 */
+                reportingCategory: "charge" | "refund" | "fee" | "tax" | "dispute" | "adjustment";
+            }[];
+            /** Format: uuid */
+            connectionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            externalPayoutId: string;
+            /** @description Total processor fees for the payout, cents-only (D-13). */
+            feeMinor: string;
+            /** @description Gross sales + tax for the payout, cents-only (D-13). */
+            grossMinor: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The posted summary journal, once posted. */
+            journalId: string | null;
+            /** @description The net payout amount — the clearing plug, cents-only (D-13). */
+            netMinor: string;
+            /** Format: date-time */
+            occurredAt: string;
+            postedAt: string | null;
+            skipReason: string | null;
+            /**
+             * @description A payout sync’s lifecycle (D-237-2): `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd) with a reason.
+             * @enum {string}
+             */
+            status: "pending_review" | "posted" | "skipped";
+        };
+        /** @description A connection’s payout-sync mode, auto-post, and category→account mapping (OB-237). */
+        PayoutSyncConfig: {
+            autoPost: boolean;
+            /** Format: uuid */
+            connectionId: string;
+            entries: components["schemas"]["PayoutAccountMapEntry"][];
+            /**
+             * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+             * @enum {string}
+             */
+            syncMode: "apply_payments" | "summary_sales";
+        };
+        /** @description A connection’s payout-sync mode, auto-post, and category→account mapping (OB-237). */
+        PayoutSyncConfigInput: {
+            autoPost: boolean;
+            /** Format: uuid */
+            connectionId: string;
+            entries: components["schemas"]["PayoutAccountMapEntryInput"][];
+            /**
+             * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+             * @enum {string}
+             */
+            syncMode: "apply_payments" | "summary_sales";
+        };
+        /** @description A payout-sync staging row a human reviews and posts (OB-237, D-237-2). */
+        PayoutSyncInput: {
+            breakdown: {
+                /** @description Non-negative magnitude for this category, cents-only (D-13). */
+                amountMinor: string;
+                count: number;
+                /**
+                 * @description Which kind of payout line a mapping row places (D-237-6): `charge`→revenue, `refund`→contra-revenue, `fee`→fee account, `tax`→Sales Tax Payable, `dispute`→loss, `adjustment`→catch-all. The clearing plug is always the connection’s own clearing account, never mapped here.
+                 * @enum {string}
+                 */
+                reportingCategory: "charge" | "refund" | "fee" | "tax" | "dispute" | "adjustment";
+            }[];
+            /** Format: uuid */
+            connectionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            externalPayoutId: string;
+            /** @description Total processor fees for the payout, cents-only (D-13). */
+            feeMinor: string;
+            /** @description Gross sales + tax for the payout, cents-only (D-13). */
+            grossMinor: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The posted summary journal, once posted. */
+            journalId: string | null;
+            /** @description The net payout amount — the clearing plug, cents-only (D-13). */
+            netMinor: string;
+            /** Format: date-time */
+            occurredAt: string;
+            postedAt: string | null;
+            skipReason: string | null;
+            /**
+             * @description A payout sync’s lifecycle (D-237-2): `pending_review` awaits a human, `posted` has a summary journal, `skipped` was declined (unmapped category, non-usd) with a reason.
+             * @enum {string}
+             */
+            status: "pending_review" | "posted" | "skipped";
+        };
         /** @description A queued, unissued payment: pencil until issue (D-64), posting no journal. `status` is `open` while it may still be edited or cancelled, `issued` once materialised into a real Payment, `cancelled` if abandoned. */
         PendingPayment: {
             /** Format: uuid */
@@ -12903,6 +13130,30 @@ export interface components {
             name?: string;
             /** @description Days from issue to due. Zero is "due on receipt". */
             netDays?: number;
+        };
+        /** @description Sets a connection’s payout-sync mode, auto-post, and category→account mapping (OB-237). */
+        UpdatePayoutSyncConfigRequest: {
+            /** @description Whether each payout’s summary journal posts automatically or is held for review (D-237-2). */
+            autoPost: boolean;
+            /** @description The complete category→account mapping. Replaced wholesale; a category with no entry that appears in a payout sends that sync to `skipped` rather than mis-posting. */
+            entries: components["schemas"]["PayoutAccountMapEntry"][];
+            /**
+             * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+             * @enum {string}
+             */
+            syncMode: "apply_payments" | "summary_sales";
+        };
+        /** @description Sets a connection’s payout-sync mode, auto-post, and category→account mapping (OB-237). */
+        UpdatePayoutSyncConfigRequestInput: {
+            /** @description Whether each payout’s summary journal posts automatically or is held for review (D-237-2). */
+            autoPost: boolean;
+            /** @description The complete category→account mapping. Replaced wholesale; a category with no entry that appears in a payout sends that sync to `skipped` rather than mis-posting. */
+            entries: components["schemas"]["PayoutAccountMapEntryInput"][];
+            /**
+             * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+             * @enum {string}
+             */
+            syncMode: "apply_payments" | "summary_sales";
         };
         /** @description Partial update to an open pending payment. `intents`, when supplied, replaces the set wholesale rather than patching individual lines. */
         UpdatePendingPaymentRequest: {
@@ -21153,6 +21404,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When `summary_sales`: whether each payout’s summary journal is posted automatically (D-237-2) or held as a `pending_review` payout sync for a human to post. Review-first by default. */
+                        autoPost: boolean;
                         /** Format: uuid */
                         clearingAccountId: string;
                         externalAccountId: string | null;
@@ -21172,6 +21425,11 @@ export interface operations {
                         publishableKey: string | null;
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
+                        /**
+                         * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+                         * @enum {string}
+                         */
+                        syncMode: "apply_payments" | "summary_sales";
                     }[];
                 };
             };
@@ -21234,6 +21492,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When `summary_sales`: whether each payout’s summary journal is posted automatically (D-237-2) or held as a `pending_review` payout sync for a human to post. Review-first by default. */
+                        autoPost: boolean;
                         /** Format: uuid */
                         clearingAccountId: string;
                         externalAccountId: string | null;
@@ -21253,6 +21513,11 @@ export interface operations {
                         publishableKey: string | null;
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
+                        /**
+                         * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+                         * @enum {string}
+                         */
+                        syncMode: "apply_payments" | "summary_sales";
                     };
                 };
             };
@@ -21285,6 +21550,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When `summary_sales`: whether each payout’s summary journal is posted automatically (D-237-2) or held as a `pending_review` payout sync for a human to post. Review-first by default. */
+                        autoPost: boolean;
                         /** Format: uuid */
                         clearingAccountId: string;
                         externalAccountId: string | null;
@@ -21304,6 +21571,11 @@ export interface operations {
                         publishableKey: string | null;
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
+                        /**
+                         * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+                         * @enum {string}
+                         */
+                        syncMode: "apply_payments" | "summary_sales";
                     };
                 };
             };
@@ -21339,6 +21611,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When `summary_sales`: whether each payout’s summary journal is posted automatically (D-237-2) or held as a `pending_review` payout sync for a human to post. Review-first by default. */
+                        autoPost: boolean;
                         /** Format: uuid */
                         clearingAccountId: string;
                         externalAccountId: string | null;
@@ -21358,7 +21632,114 @@ export interface operations {
                         publishableKey: string | null;
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
+                        /**
+                         * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+                         * @enum {string}
+                         */
+                        syncMode: "apply_payments" | "summary_sales";
                     };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPayoutSyncConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSyncConfig"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePayoutSyncConfig: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePayoutSyncConfigRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSyncConfig"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listPayoutSyncs: {
+        parameters: {
+            query?: {
+                status?: "pending_review" | "posted" | "skipped";
+            };
+            header?: never;
+            path: {
+                connectionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSync"][];
                 };
             };
             /** @description Default Response */
@@ -21393,6 +21774,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When `summary_sales`: whether each payout’s summary journal is posted automatically (D-237-2) or held as a `pending_review` payout sync for a human to post. Review-first by default. */
+                        autoPost: boolean;
                         /** Format: uuid */
                         clearingAccountId: string;
                         externalAccountId: string | null;
@@ -21412,7 +21795,117 @@ export interface operations {
                         publishableKey: string | null;
                         /** @description The instant through which the clearing account has been reconciled against the processor’s own reported balance (D-85, J6). */
                         reconciledThrough: string | null;
+                        /**
+                         * @description How this connection posts (D-237-1). `apply_payments`: a charge clears an invoice. `summary_sales`: one grossed-up journal per payout, per-charge posting suppressed. Mutually exclusive — both would double-count revenue.
+                         * @enum {string}
+                         */
+                        syncMode: "apply_payments" | "summary_sales";
                     };
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPayoutSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payoutSyncId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSync"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    postPayoutSync: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                payoutSyncId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSync"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    skipPayoutSync: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                payoutSyncId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSync"];
                 };
             };
             /** @description Default Response */

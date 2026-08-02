@@ -267,9 +267,15 @@ import {
 import {
   connectProcessor,
   deactivateProcessorConnection,
+  getPayoutSync,
+  getPayoutSyncConfig,
   getProcessorConnection,
+  listPayoutSyncs,
   listProcessorConnections,
+  postPayoutSync,
   reactivateProcessorConnection,
+  skipPayoutSync,
+  updatePayoutSyncConfig,
 } from '../../src/modules/payments-processing';
 import {
   buildPendingPayment,
@@ -925,6 +931,15 @@ interface Scene {
    * cannot connect a processor still has one to be refused against.
    */
   readonly processorConnectionId: string;
+  /**
+   * A payout-sync id for `getPayoutSync`/`postPayoutSync`/`skipPayoutSync` (OB-237).
+   * A placeholder rather than a real row: this suite's `judge` distinguishes
+   * `permission_denied` alone, so a denied role is refused at the gate before the id
+   * is used, and an allowed role reaching a `NotFoundError` past the gate still reads
+   * `allowed`. The real owner-accessible fixture that A7 needs lives in
+   * `cross-org.test.ts`, not here.
+   */
+  readonly payoutSyncId: string;
   /**
    * A `fake` live-feed connection on `bankAccountId`, for `getBankFeed`,
    * `syncBankFeed`, and `deactivateBankFeed` (OB-227). Connected by Owner (`setup`)
@@ -2807,6 +2822,50 @@ const OPERATIONS: readonly Operation[] = [
     permission: 'processing.write',
     call: (s) => reactivateProcessorConnection(s.processorConnectionId, s.ctx),
   },
+  // Payout sync (OB-237) — config + the review-list ops. Config/list read/write the
+  // connection; get/post/skip take a `payoutSyncId` (the scene builds one real
+  // pending_review row). All reuse `processing.read`/`.write` (D-237-7 — no new key).
+  {
+    name: 'getPayoutSyncConfig',
+    operationId: 'getPayoutSyncConfig',
+    permission: 'processing.read',
+    call: (s) => getPayoutSyncConfig(s.processorConnectionId, s.ctx),
+  },
+  {
+    name: 'updatePayoutSyncConfig',
+    operationId: 'updatePayoutSyncConfig',
+    permission: 'processing.write',
+    call: (s) =>
+      updatePayoutSyncConfig(
+        s.processorConnectionId,
+        { syncMode: 'apply_payments', autoPost: false, entries: [] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'listPayoutSyncs',
+    operationId: 'listPayoutSyncs',
+    permission: 'processing.read',
+    call: (s) => listPayoutSyncs(s.processorConnectionId, undefined, s.ctx),
+  },
+  {
+    name: 'getPayoutSync',
+    operationId: 'getPayoutSync',
+    permission: 'processing.read',
+    call: (s) => getPayoutSync(s.payoutSyncId, s.ctx),
+  },
+  {
+    name: 'postPayoutSync',
+    operationId: 'postPayoutSync',
+    permission: 'processing.write',
+    call: (s) => postPayoutSync(s.payoutSyncId, s.ctx),
+  },
+  {
+    name: 'skipPayoutSync',
+    operationId: 'skipPayoutSync',
+    permission: 'processing.write',
+    call: (s) => skipPayoutSync(s.payoutSyncId, 'not this one', s.ctx),
+  },
 
   // ---------------------------------------------------------------------------
   // Live bank feeds (OB-227) — the six `bank-feeds` module operations, the
@@ -3987,6 +4046,9 @@ async function scene(role: SystemRoleName): Promise<Scene> {
     clearedStatementLineId: clearedLineUuid,
     registrableBankLedgerAccountId: registrable.uuid,
     processorConnectionId: processorConnection.id,
+    // Placeholder (see the type doc): no real row needed — the gate refuses a denied
+    // role before this id is read, and A7's real fixture lives in cross-org.test.ts.
+    payoutSyncId: '00000000-0000-4000-8000-0000000237ff',
     bankFeedConnectionId: bankFeedConnection.id,
     receivableId: receivable.uuid,
     payableId: payable.uuid,

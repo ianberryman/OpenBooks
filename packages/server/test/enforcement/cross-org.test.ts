@@ -194,6 +194,14 @@ interface Scene {
   readonly processorConnectionId: string;
 
   /**
+   * Payout sync (OB-237): a real `payout_syncs` row on the connection above, for
+   * `getPayoutSync`/`postPayoutSync`/`skipPayoutSync` (D-237-2). A real row, not a
+   * placeholder — `getPayoutSync` is a records-producing `/{id}` GET, so A7's
+   * control pass needs the owner to reach it (`ownerGetsNotFound: false`).
+   */
+  readonly payoutSyncId: string;
+
+  /**
    * Live bank feeds (OB-227): a `fake` feed connection on its own bank account, for
    * `getBankFeed`/`syncBankFeed`/`deactivateBankFeed` to answer about across orgs. A
    * dedicated ledger and bank account rather than a shared one, because connecting a
@@ -480,6 +488,35 @@ async function scene(app: App): Promise<Scene> {
     },
   );
 
+  // Payout sync (OB-237): a real `payout_syncs` row on the connection above,
+  // inserted directly rather than through `syncPayout` — `captureScene`'s reason
+  // (a service call would enqueue/reach config the review routes under test do not
+  // need, and `loadConnectionProvider` reads `getConfig()`, which the harness does
+  // not populate). A7 only needs a real owner-accessible row `getPayoutSync`
+  // answers about (200); `pending_review` with no mapping is enough — `post`
+  // against it is a `ValidationError` (unmapped), still not a 404.
+  const payoutSyncId = newUuid();
+  await harness.db.app
+    .insertInto('payout_syncs')
+    .values({
+      id: uuidToBuffer(payoutSyncId),
+      org_id: uuidToBuffer(owner.orgId),
+      connection_id: uuidToBuffer(processorConnectionId),
+      external_payout_id: 'po_a7_fixture',
+      gross_minor: 10000n,
+      fee_minor: 300n,
+      net_minor: 9200n,
+      currency: 'usd',
+      status: 'pending_review',
+      breakdown: JSON.stringify([
+        { reportingCategory: 'charge', amountMinor: '10000', count: 2 },
+        { reportingCategory: 'fee', amountMinor: '300', count: 2 },
+        { reportingCategory: 'refund', amountMinor: '500', count: 1 },
+      ]),
+      occurred_at: new Date('2024-01-01T00:00:00.000Z'),
+    })
+    .execute();
+
   // Live bank feeds (OB-227): a `fake` feed connection on its own bank account. A
   // dedicated ledger and bank account, `bankFeedConnectionId`'s reason above —
   // connecting flips the account's `feedSource` and there is one feed per account, so
@@ -610,6 +647,7 @@ async function scene(app: App): Promise<Scene> {
     approvableProposalId,
     rejectableProposalId,
     processorConnectionId,
+    payoutSyncId,
     bankFeedConnectionId,
     pendingPaymentId,
     purchaseOrderId,
@@ -2259,6 +2297,54 @@ const SURFACES: readonly Surface[] = [
     method: 'POST',
     path: '/v1/processing/connections/%s/reactivate',
     id: (s) => s.processorConnectionId,
+  },
+
+  // ---------------------------------------------------------------------------
+  // Payout sync (OB-237). Three connection-addressed ops (config get/set, the
+  // review list) and three payout-sync-addressed ops (get/post/skip). A stranger's
+  // id 404s on the connection or the sync before any state is touched (A7); the
+  // owner control pass runs get, post, skip against the one `skipped` fixture row
+  // — post and skip against a non-`pending_review` row are refused with a
+  // `ValidationError` (not a 404), which is all `ownerGetsNotFound` asks.
+  // ---------------------------------------------------------------------------
+
+  {
+    operationId: 'getPayoutSyncConfig',
+    method: 'GET',
+    path: '/v1/processing/connections/%s/payout-sync/config',
+    id: (s) => s.processorConnectionId,
+  },
+  {
+    operationId: 'updatePayoutSyncConfig',
+    method: 'PUT',
+    path: '/v1/processing/connections/%s/payout-sync/config',
+    id: (s) => s.processorConnectionId,
+    payload: () => ({ syncMode: 'apply_payments', autoPost: false, entries: [] }),
+  },
+  {
+    operationId: 'listPayoutSyncs',
+    method: 'GET',
+    path: '/v1/processing/connections/%s/payout-syncs',
+    id: (s) => s.processorConnectionId,
+  },
+  {
+    operationId: 'getPayoutSync',
+    method: 'GET',
+    path: '/v1/processing/payout-syncs/%s',
+    id: (s) => s.payoutSyncId,
+  },
+  {
+    operationId: 'postPayoutSync',
+    method: 'POST',
+    path: '/v1/processing/payout-syncs/%s/post',
+    id: (s) => s.payoutSyncId,
+  },
+  {
+    operationId: 'skipPayoutSync',
+    method: 'POST',
+    path: '/v1/processing/payout-syncs/%s/skip',
+    id: (s) => s.payoutSyncId,
+    payload: () => ({ reason: 'a7' }),
   },
 
   // ---------------------------------------------------------------------------

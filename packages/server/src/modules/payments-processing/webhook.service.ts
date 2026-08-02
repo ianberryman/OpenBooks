@@ -1,4 +1,5 @@
 import type { NormalizedProcessorEvent, ProcessorKind } from '@openbooks/plugin-api';
+import type { PayoutSyncMode } from '@openbooks/shared-types';
 
 import type { RequestContext } from '../../context';
 import { assertFound, ValidationError } from '../../errors';
@@ -7,8 +8,10 @@ import {
   PROCESSOR_CONNECTION_RESOURCE as RESOURCE,
   connectionIdBytes,
   orgScope,
+  selectConnectionByIdForUpdate,
 } from './connections.repository';
 import { loadConnectionProvider } from './connections.service';
+import { syncPayout } from './payout-sync.service';
 import {
   recordProcessorCharge,
   recordProcessorChargeback,
@@ -122,6 +125,17 @@ export async function recordNormalizedEvent(
 ): Promise<HandleWebhookResult> {
   const db = orgScope(ctx);
   const connectionBytes = assertFound(connectionIdBytes(connectionId), RESOURCE);
+  // Read the sync mode with the connection's own row lock, NOT a plain SELECT: a
+  // non-locking consistent read here would fix this transaction's REPEATABLE READ
+  // snapshot before the charge path's `external_refs` check runs, so two racing
+  // deliveries of one charge would each miss the other's ref and double-post (the
+  // F9 idempotency the `idempotency.property.test` contention case proves). A
+  // locking read is a current read and does not establish the consistent snapshot,
+  // so the later `external_refs` read still sees the winner's committed row.
+  const connection = assertFound(
+    await selectConnectionByIdForUpdate(db, connectionBytes),
+    RESOURCE,
+  );
 
   const isNew = await insertProcessorEventIfNew(db, {
     connectionId: connectionBytes,
@@ -134,7 +148,7 @@ export async function recordNormalizedEvent(
   if (!isNew) return { status: 'duplicate' };
 
   try {
-    const outcome = await dispatch(connectionId, event, ctx);
+    const outcome = await dispatch(connectionId, connection.sync_mode, event, ctx);
     await markProcessorEvent(db, processor, event.externalEventId, outcome);
     return { status: outcome };
   } catch (error) {
@@ -149,17 +163,31 @@ export async function recordNormalizedEvent(
  * folded into the charge (D-104: the per-charge fee posts inside
  * `recordProcessorCharge` itself) and every standalone `fee` delivery is
  * therefore `'ignored'` here rather than posted a second time.
+ *
+ * ## Mode-aware (OB-237, D-237-1)
+ *
+ * In `summary_sales` mode the per-charge/refund/dispute postings are **suppressed**
+ * — the event is still recorded in `processor_events` (audit + idempotency) but
+ * books nothing, because the **payout** is the sole posting trigger (`syncPayout`
+ * grosses the whole batch up into one journal). Booking both would double-count
+ * revenue. In the default `apply_payments` mode every branch behaves exactly as
+ * PAY always has.
  */
 async function dispatch(
   connectionId: string,
+  syncMode: PayoutSyncMode,
   event: NormalizedProcessorEvent,
   ctx: RequestContext,
 ): Promise<ProcessorEventOutcome> {
+  const summarySales = syncMode === 'summary_sales';
+
   switch (event.kind) {
     case 'fee':
       return 'ignored';
 
     case 'charge': {
+      // D-237-1: a summary-sales connection books revenue once, at the payout.
+      if (summarySales) return 'ignored';
       if (event.invoiceId === null) {
         // D-83: the checkout session carries the invoice id for certain
         // identity. A charge with none is not a guess this system is willing
@@ -185,6 +213,9 @@ async function dispatch(
     }
 
     case 'refund':
+      // D-237-1: in summary_sales a refund nets into the payout summary, not a
+      // per-charge reversal — so the two refund paths never both fire.
+      if (summarySales) return 'ignored';
       await recordProcessorRefund(
         {
           connectionId,
@@ -198,6 +229,12 @@ async function dispatch(
       return 'processed';
 
     case 'payout':
+      if (summarySales) {
+        // D-237-1/D-237-2: the payout is the sole posting trigger — one grossed-up
+        // summary journal, posted or staged for review.
+        await syncPayout({ connectionId, externalPayoutId: event.externalObjectId }, ctx);
+        return 'processed';
+      }
       await recordProcessorPayout(
         {
           connectionId,
@@ -214,6 +251,8 @@ async function dispatch(
       return 'processed';
 
     case 'dispute':
+      // D-237-1: in summary_sales a dispute nets into the payout summary.
+      if (summarySales) return 'ignored';
       await recordProcessorChargeback(
         {
           connectionId,
