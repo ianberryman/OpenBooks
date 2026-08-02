@@ -851,9 +851,15 @@ Names are digit-free (`payout_syncs`, `payout_account_map`) so the `[a-z_]` iden
 > **Status:** BUILT & MERGED to `develop` (`eb05411`) — the async-report machinery is deleted and a manual
 > payout now records a visible `skipped` row. Gate-verified: tsc ×5 packages, eslint, `yarn drift`, 190
 > server tests (payments-processing + the permission-matrix / cross-org / routes / harness / grants
-> tripwires, 24 migrations apply), 6 web tests. **Not pushed, not deployed** — prod still runs the invalid
-> async build until redeployed, and the `0024` revert makes that deploy another D-15 DB reset. The build
-> record below is retained for the decision trail.
+> tripwires, 24 migrations apply), 6 web tests. **DEPLOYED to prod** via a **non-destructive rebuild**
+> (`docker compose build` + `up -d`, no `down -v`): the correction is pure-removal, so the corrected code
+> runs against the existing schema, and `migrate` reported _"schema already up to date"_ — **data
+> preserved, no D-15 reset needed** (unlike OB-237/237b, which added a table). Verified live: the served
+> `/docs/json` `PayoutSync.status` enum is now `(pending_review, posted, skipped)` with zero
+> `awaiting_report`/`reportRunId`; `/health` + web(:8089) 200. **Still NOT pushed to `origin/develop`.**
+> One harmless residue: the prod DB keeps an unused nullable `report_run_id` column + the wider status
+> CHECK (never written/read by the new code) until the next real schema reset. The build record below is
+> retained for the decision trail.
 
 **BUILT — `yarn check` green (2,994 tests / 298 files).** All four forks shipped via an
 orchestrated fan-out (Opus owned the trunk — schema in-place edit + codegen + the plugin-api
