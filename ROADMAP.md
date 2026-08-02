@@ -288,20 +288,20 @@ bar rather than left as the one un-redesigned screen.
 **Do this next.** Re-review the app on a phone-width viewport and make every screen's **page
 header behave like the redesigned document pages (the new bill/invoice/estimate/PO editors) — the
 header must stay fixed and NOT scroll out of view** as the content scrolls beneath it. Initiative R
+and the document-UI thread already fixed the _app frame_ (the shell moved from `h-screen`/`100vh`
+to `h-dvh` + `overscroll-contain` so a document's header stops scrolling off once the content
+bottoms out), and the redesigned editor pages have the intended sticky-header behaviour. This
+ticket is the **deliberate sweep to confirm it holds on mobile across all ~36 screens and to bring
+any lagging screen up to the same pattern** — a per-page header that is `sticky top-0` (with the
+app background and a bottom border so it reads as pinned) rather than a plain block that scrolls
+with the list.
 
-- the document-UI thread already fixed the _app frame_ (the shell moved from `h-screen`/`100vh` to
-  `h-dvh` + `overscroll-contain` so a document's header stops scrolling off once the content bottoms
-  out), and the redesigned editor pages have the intended sticky-header behaviour. This ticket is the
-  **deliberate sweep to confirm it holds on mobile across all ~36 screens and to bring any lagging
-  screen up to the same pattern** — a per-page header that is `sticky top-0` (with the app background
-- a bottom border so it reads as pinned) rather than a plain block that scrolls with the list.
-
-* **Exemplar to match:** the bill editor page (`packages/web/src/screens/purchases/document-editor.tsx`)
+- **Exemplar to match:** the bill editor page (`packages/web/src/screens/purchases/document-editor.tsx`)
   and its siblings from the document-UI redesign — the breadcrumb/title/summary header treatment.
-* **Scope:** UI/CSS only — no service or schema change. Walk each screen at ~390px (the `mobile`
+- **Scope:** UI/CSS only — no service or schema change. Walk each screen at ~390px (the `mobile`
   Playwright viewport), scroll a long list/detail, and confirm the header stays put; fix the ones
   that don't by lifting the redesigned pages' sticky-header pattern.
-* **Verify like R did:** the `mobile-smoke` narrative is the one E2E actually run at phone width;
+- **Verify like R did:** the `mobile-smoke` narrative is the one E2E actually run at phone width;
   extend/observe it (or a manual small-viewport pass per screen) so a header that scrolls away is
   caught, the way OB-219 caught the header-overflow reflow bug the component tests could not.
 
