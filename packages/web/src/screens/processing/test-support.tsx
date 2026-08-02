@@ -54,7 +54,7 @@ export interface StubReply {
 }
 
 export interface StubRoute {
-  readonly method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** `/v1/processing/connections/:connectionId` — the shape the server declares its own
    *  routes with. */
   readonly path: string;

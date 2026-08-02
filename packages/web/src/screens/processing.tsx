@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import { Button, ErrorBanner } from '../components';
+import { Button, ErrorBanner, Select } from '../components';
+import type { SelectOption } from '../components';
 import { ConnectProcessorDialog } from './processing/connect-dialog';
 import { ConnectionList } from './processing/list';
+import { PayoutSyncConfig } from './processing/payout-sync-config';
+import { PayoutsReview } from './processing/payouts-review';
 import type { ProcessorConnection } from './processing/queries';
 import {
   useConnectionList,
@@ -11,6 +14,12 @@ import {
   useProcessingReferenceData,
   useSetConnectionActive,
 } from './processing/queries';
+
+const PROCESSOR_LABEL: Readonly<Record<ProcessorConnection['processor'], string>> = {
+  stripe: 'Stripe',
+  square: 'Square',
+  fake: 'Fake (test)',
+};
 
 /**
  * Connect-a-processor settings (OB-151; wraps OB-147/OB-150's `/v1/processing/connections`
@@ -41,11 +50,20 @@ import {
 export function ProcessingScreen(): ReactElement {
   const [connecting, setConnecting] = useState(false);
   const [togglePendingId, setTogglePendingId] = useState<string | null>(null);
+  // The connection whose payout-sync config + review are shown (OB-237). Null by
+  // default so the section — and its per-connection queries — stays inert until a
+  // user opts into it, keeping the screen's first paint one list, not N.
+  const [payoutConnectionId, setPayoutConnectionId] = useState<string | null>(null);
 
   const reference = useProcessingReferenceData();
   const list = useConnectionList();
   const setActive = useSetConnectionActive();
   const intentKey = useIntentKey();
+
+  const payoutOptions: readonly SelectOption[] = list.connections.map((connection) => ({
+    value: connection.id,
+    label: `${PROCESSOR_LABEL[connection.processor]}${connection.isActive ? '' : ' (inactive)'}`,
+  }));
 
   function toggleActive(connection: ProcessorConnection): void {
     const active = !connection.isActive;
@@ -108,6 +126,33 @@ export function ProcessingScreen(): ReactElement {
           reference={reference.data}
           onOpenChange={setConnecting}
         />
+      )}
+
+      {list.connections.length > 0 && (
+        <section className="flex flex-col gap-4 border-t border-border pt-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-text">Payout sync</h2>
+            <p className="max-w-form text-text-muted">
+              For an organization whose sales live entirely in the processor, book one grossed-up
+              summary journal per payout instead of applying each charge to an invoice. Choose a
+              connection to set its mode and account mapping, and review the payouts it produces.
+            </p>
+          </div>
+
+          <Select
+            value={payoutConnectionId}
+            onValueChange={setPayoutConnectionId}
+            options={payoutOptions}
+            placeholder="Choose a connection…"
+          />
+
+          {payoutConnectionId !== null && (
+            <div className="flex flex-col gap-6">
+              <PayoutSyncConfig connectionId={payoutConnectionId} />
+              <PayoutsReview connectionId={payoutConnectionId} />
+            </div>
+          )}
+        </section>
       )}
     </div>
   );
