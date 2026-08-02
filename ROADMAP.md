@@ -653,6 +653,173 @@ Names are digit-free (`payout_syncs`, `payout_account_map`) so the `[a-z_]` iden
 - **Multi-currency still out** (§13): `currency` is recorded, but a non-`usd` payout is **skipped-and-
   flagged** (`status:'skipped'`), never mis-posted at a 1:1 rate.
 
+### Follow-up — manual payouts + the async Reporting-API breakdown (OB-237b) — SCOPED, not built
+
+**Surfaced live in the first real Stripe sandbox run, not by the gate.** OB-237 (D-237-4) breaks a
+payout down with `GET /v1/balance_transactions?payout=po_…`, but Stripe **400s that filter for a
+_manual_ payout**: _"Balance transaction history can only be filtered on automatic transfers, not
+manual."_ The scope's premise was Stripe's **automatic** (scheduled, "pays out net weekly") payouts;
+a manually-created payout has no per-payout `balance_transactions` breakdown. Two gaps this exposed:
+
+1. **Manual payouts are unsupported by the chosen endpoint**, and the alternative D-237-4 flagged —
+   the **Reporting API `payout_reconciliation.by_id.summary.1`** — _does_ cover them but was not built
+   (it is an async report-run lifecycle, ruled out then for latency).
+2. **The failure is invisible.** `syncPayout`'s `fetchPayoutBreakdown` throws on the 400, which
+   `recordNormalizedEvent` swallows into a `processor_events` row at `status:'failed'` with no
+   `payout_syncs` row — so the operator sees nothing in the UI or DB and must read Stripe's own logs
+   to find out. That silent-swallow is a bug independent of manual-payout support.
+
+Also seen: the test payout was `status:'pending'` (future `arrival_date`). A payout should be
+reconciled only once **paid** (settled) — a pending one has no final breakdown.
+
+**Forks to settle (the decisions):**
+
+- **[D-237-8] Route by payout type.** `syncPayout` already fetches the payout object for `netMinor`;
+  read its `automatic` (bool) there. `automatic:true` → the existing synchronous
+  `balance_transactions?payout=` path. `automatic:false` → the Reporting-API path below. No guessing.
+- **[D-237-9] Reconcile only a `paid` payout.** Refine the Stripe normalizer so only `payout.paid`
+  triggers a sync; `payout.created`/`payout.updated` (pending) are `ignored` at the dispatch (they
+  carry no final breakdown). `NormalizedProcessorEvent` today maps every `payout.*` to `kind:'payout'`
+  with no status — this needs a paid-vs-pending distinction (a `payoutStatus` field, or classifying
+  only `payout.paid` as the payout kind).
+- **[D-237-10] The async report lifecycle needs a state + a sweep.** The Reporting API cannot answer
+  in one handler: `POST /v1/reporting/report_runs` `{report_type:'payout_reconciliation.by_id.summary.1',
+parameters:{payout, …}}` → poll `GET /v1/reporting/report_runs/{id}` until `status:'succeeded'` →
+  its `result` is a **File** → `GET` the file (CSV) → aggregate rows by `reporting_category` into the
+  existing `PayoutBreakdown` shape. So a manual sync lands in a **new `awaiting_report` `payout_syncs`
+  status** carrying the `report_run_id`, and a scheduled step (reuse the D-85 daily poll, or a
+  `FOR UPDATE SKIP LOCKED` lease sweep like automations) finalizes it → `pending_review`/`posted`
+  once the report is ready. This is the bulk of the work — a state machine, not one more `fetch`.
+- **[D-237-11] Surface every breakdown failure (ship first, independent of the above).** A breakdown
+  fetch that errors (the manual 400, a network fault) records a `payout_syncs` row at
+  `status:'skipped'` with `skip_reason` = the processor's own message — never a swallowed
+  `processor_events` `failed` with no UI trace. This alone turns today's silent failure into a visible
+  "manual payouts aren't supported yet (OB-237b)" line the operator can see, and is worth shipping as
+  a small first step even if the full Reporting-API path is deferred.
+
+**Seams (reuse):** `stripeRequest` (`providers/payment/stripe.ts`) for the new `/reporting/report_runs`
+
+- file-download calls; `fetchPayoutBreakdown` splits into the automatic (current) and manual (report)
+  paths behind one interface method (or a second method + the router in `syncPayout`); the fake gets a
+  deterministic report that is immediately `succeeded` so the gate exercises the state machine (the real
+  report lag is D-102 sandbox-only, like the rest of `stripe.ts`); the finalize sweep reuses
+  `registerDailyTask`/`runAsAutomation`.
+
+**Schema:** `ALTER payout_syncs` — add `report_run_id VARCHAR NULL` and widen the `status` CHECK with
+`awaiting_report`. Pre-release in-place edit (D-15) → `yarn codegen` → and, as with OB-237, a schema
+change means the prod deploy is again a **DB reset**, not a plain rebuild.
+
+**Waves:** (0) interface method(s) + adapter Reporting-API calls + fake + schema/codegen; (1)
+`syncPayout` routing (D-237-8/9) + skip-and-flag (D-237-11) + the `awaiting_report` finalize sweep
+(D-237-10); (2) UI renders the `awaiting_report`/`skipped` states with reasons in "Payouts to review";
+(3) property (a generated report finalizes to a balanced journal; a manual+pending payout never posts)
+
+- E2E. **D-237-11 can ship as wave 1a on its own** to stop the silent failure immediately.
+
+**Until built:** a manual or pending payout is silently marked `failed` in `processor_events` (no UI
+row). Automatic, paid payouts work today (OB-237). To exercise OB-237 end-to-end now, use an
+**automatic** payout schedule in the Stripe dashboard rather than a manual payout.
+
+### Follow-up — memorized manual-journal templates + a per-account balance-impact indicator on the JE screen (OB-239 / OB-239b)
+
+Two complementary aids for **manual (adjusting) journal entries** — the residual GL entries that have
+no document behind them (depreciation, accruals/deferrals, prepaid amortization, a payroll journal, a
+loan payment split principal/interest, owner draws, reclasses). Both target the same user, who knows the
+_shape_ of a routine entry but not its mechanics. **This is scoped to manual JEs only:** anything that
+maps to a document (a sale, a bill, a customer/vendor payment, a bank line) still goes through
+invoices/bills/payments/match, which already generate correct double-entry _and_ drive the subledger —
+templating those would re-introduce the debit/credit problem the document layer exists to remove.
+
+**OB-239 — memorized journal templates (a "recipe": which accounts, which side; amounts filled at
+post time).** A saved template is a named set of lines, each carrying an **account and its `side`**
+(debit/credit) and an **optional** default amount. Invoking one opens the JE editor pre-populated with
+the accounts and sides locked, the user types the numbers, and it lands — **default to a draft for
+review**, not a direct post. It solves the two stated pains precisely: the side is locked (no more
+"credit or debit?"), and the lines are enumerated so **no leg is forgotten** — the classic
+missing-contra error (booking depreciation expense but omitting accumulated depreciation) becomes
+impossible by construction. Storing the _accounts_ but leaving _amounts_ blank is the right split: it
+captures the hard-to-remember part without entrenching a stale number, and the post-time balance check
+(Σdebits === Σcredits) already exists in the posting service.
+
+**Most of the data model already exists (reuse, not rebuild).** `recurring-journals` is a journal
+template in all but name: `recurring_journal_template_lines` already carries `account_id`, `side`,
+`amount_minor`, and the module already shapes a stored line **two ways** — post directly
+(`toJournalLine`) or land a draft (`toDraftLine`), both at `modules/recurring-journals/engine.ts:187`.
+The _only_ thing coupling that template to "recurring" is the schedule sweep. OB-239 is that template
+**minus the schedule, invoked on demand**. The draft flow (`modules/drafts`) and the manual-JE→draft
+posting path (P's `journal_drafts.entry_type`→`source`) are the landing target.
+
+**OB-239b — per-account balance-impact indicator on the JE screen (independent, web-only, ships
+first).** A live summary strip on [`journal-entry.tsx`](packages/web/src/screens/journal-entry.tsx)
+showing each account's **signed effect on its own balance** as lines are entered — e.g. paying a
+$5,000 bill reads `Accounts Payable ↓ 5,000 · Business Checking ↓ 5,000`. The sign is
+**normal-balance-signed** (balance-impact), _not_ raw debit-positive: `delta = (line.side ===
+account.normalBalance) ? +amount : −amount`. This is computable exactly because every account stores a
+**required, type-independent `normalBalance`** (`'debit'`/`'credit'`, [accounts.ts:220](packages/shared-types/src/accounts/accounts.ts:220)),
+already present on the account list the screen fetches for its picker — **so OB-239b needs no backend
+change.** It doubles as an error-catcher: an entry meant to _pay_ a bill that shows checking going _up_
+is a reversed debit/credit, invisible in the raw line grid but glaring here. Pair with a running
+`Debits 5,000 / Credits 5,000 — balanced ✓` total and the screen is largely self-checking. Consider
+`↑/↓ increase/decrease` labels over bare `±` for the debit/credit-unsure audience this serves.
+**Aggregate in `bigint` minor units and `formatMoney` for display** — `openbooks/no-float-money` will
+(correctly) block any `cents/100`.
+
+**Relationship to recurring journals — SETTLED: unify the UX, separate the storage.** QuickBooks
+bundles both into one "recurring transaction" object with a _Scheduled / Reminder / Unscheduled_ type
+(Unscheduled = the pure on-demand template); we take the **product** framing but not the **data model**.
+Present **one "Journal templates" surface where a schedule is optional** — the QBO trichotomy collapses
+to two axes (_has a schedule?_ × _auto-post vs. draft-for-review?_): today's `recurring-journals` sweep
+is the auto-posting scheduled case, a scheduled template landing a draft is the "Reminder" case, and
+OB-239's on-demand template is the "Unscheduled" case. But **store OB-239 in its own additive tables**
+(`journal_entry_templates` + `journal_entry_template_lines`), reusing only the **line-shaping helpers**
+(`toJournalLine`/`toDraftLine`) and the **draft landing path** — **not** the recurring engine or its
+tables. Two reasons this is not overloading `recurring_journal_templates`:
+
+- **Invariant isolation (the real reason).** The recurring engine is an **unattended, automated
+  poster** with three load-bearing invariants an on-demand template violates: lines post **verbatim
+  (D-90)** (`amount_minor NOT NULL`, materialized as-is), the sweep selects by `next_run_date`, and
+  idempotency guards `last_run_date` vs `next_run_date`. An on-demand template needs a **nullable**
+  amount (filled at invoke) and has no schedule — merging forks the sweep's `selectDue` + idempotency
+  logic to exclude a row type that must never be swept, and makes "a _scheduled_ template with no
+  amount" a representable-but-broken state. The failure mode is the automated poster silently
+  materializing a human's blank template — an append-only ledger (D-02) can't take that back. QBO can
+  merge them because its posting isn't governed by these DB-enforced invariants; ours is.
+- **Additive vs. retrofit.** `recurring-journals` is already **built and gate-green**; a new sibling
+  table is purely ADD-ONLY. Retrofitting the shipped table (nullable amount, null-schedule "kind")
+  is a **pre-release in-place migration edit → full DB reset (D-15)** plus re-verifying a tested,
+  invariant-heavy subsystem — more risk, no correctness upside.
+
+Accepted cost: two list/CRUD paths behind one screen. Cheap next to forking the automated sweep.
+
+**Remaining forks to settle:**
+
+- **Default-to-draft vs. direct-post** — recommend **draft-for-review** (reuse `toDraftLine`/`modules/drafts`),
+  direct-post opt-in. Journals are append-only (D-02): a templated mistake costs a reversing entry, so a
+  review checkpoint is worth the click, and templates raise posting velocity for both good and bad.
+- **No new permission key** — reuse `journals.write` / the existing draft keys, keeping the catalog
+  count stable (the [D-237-7](#d-237-7) precedent). Template CRUD is `journals.write`.
+- **Amounts: blank-fill vs. stored default** — recommend **blank by default, optional stored default
+  per line** (the user's need is _accounts_, not amounts). A stored default suits genuinely fixed
+  entries (a flat monthly rent accrual); leave it null for anything that varies.
+
+**Sequencing:** OB-239b is a self-contained web-only change with **zero schema/API surface** — ship it
+first and standalone. OB-239 is the larger, schema-touching piece (mostly additive, reusing the
+recurring-journals shape). They are independent; neither blocks the other.
+
+##### Tripwire / registry checklist (OB-239 — two new **mutable** tables + new routes; OB-239b touches none)
+
+`db/tenant-tables.ts` (+2, compile-checked) · `0999_app_grants.ts` `MUTABLE_TABLES` (+2, editable
+templates — **not** append-only) and per-table grant · `test/enforcement/grants.test.ts` source- and
+read-back grant parsers cover the two new names · `test/harness.test.ts` migration-name **list**
+(+ the new migration) · `test/db/tenant-scope.test.ts` · `test/enforcement/permission-matrix.test.ts`
+(new service methods, all under existing `journals.write`) · `test/transport/routes.test.ts` ·
+`test/transport/openapi.test.ts` + regenerate root `openapi.json` **and** web `schema.d.ts` ·
+`test/enforcement/cross-org.test.ts` (a **real owner-accessible** `journal_entry_templates` fixture for
+the `/v1/…/{id}` A7 control) + `cross-org-references.test.ts` B11 (the line `accountId` fields need a
+SURFACES row or an EXEMPT reason) · **`generated.ts` via throwaway-MySQL codegen** (orchestrator's
+hand). Names are digit-free (`journal_entry_templates`, `journal_entry_template_lines`) so the
+`[a-z_]` identifier regexes are safe. No catalog/`catalog.test`/`0001` change.
+
 ### Product follow-up — an optional product/service catalog (future)
 
 Invoice and bill lines are free-form today by deliberate decision (no product/item table — see
