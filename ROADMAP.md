@@ -418,7 +418,31 @@ done; this is the read-and-navigate surface that makes it usable. Note the hones
 from the engine: a reversal's date defaults to today (it must land in an open period — the original's
 period is usually closed), and dimension tags are intentionally **not** copied to the reversal (D-32).
 
-### Follow-up — automatic Stripe payout sync → summary-sales journals (OB-237)
+### Follow-up — automatic Stripe payout sync → summary-sales journals (OB-237) — BUILT
+
+**BUILT and gate-green (2,990 tests: 2,334 server / 656 web+shared+plugin), commits
+`22457c6…8d1cd71` on `develop` (unpushed).** Delivered as the scoped three-wave orchestrated
+fan-out below — Opus owned wave 0 (schema/codegen/contracts/adapters/the D-237-5 cursor fix) and
+integration; Sonnet streams authored the disjoint add-only pieces (the summary-journal builder +
+its property test, the two repositories, the two web screens, the E2E). Every fork settled as
+scoped (D-237-1…7): `summary_sales` is per-connection and suppresses per-charge posting so revenue
+books once at the payout (D-237-1); review-first lands a **`payout_syncs` staging row** a human
+posts, not a `journal_drafts` draft — the `createDraft` non-user-author constraint the scope flagged
+(D-237-2); a dedicated `event_cursor` column replaced the flagged timestamp-as-cursor in PAY's live
+poll (D-237-5); no new permission key, catalog stays 75 (D-237-7). Integration caught the usual
+pinned tripwires the isolated streams can't run (routes table, permission-matrix +6 ops, cross-org
+A7 with a real `payout_syncs` fixture + B11 `updatePayoutSyncConfig.accountId`, harness/tenant-scope
+migration lists, grants `MUTABLE_TABLES`, generated.ts via throwaway MySQL + bigint codegen
+overrides) **plus one real concurrency bug the streams couldn't see**: reading the connection's sync
+mode in `recordNormalizedEvent` with a plain `SELECT` fixed the loser's REPEATABLE READ snapshot
+before the charge path's `external_refs` check, breaking F9 idempotency — the contention property
+test caught it, fixed by making it a locking read (a current read does not establish the consistent
+snapshot). **Deliberate lean-v1 edges, flagged:** real Stripe `balance_transactions` aggregation is
+sandbox-proven only (D-102 — the gate runs the deterministic `fake`); Square is refused
+`summary_sales` (Stripe-first, D-237-4); a non-`usd` payout is recorded `skipped`, never mis-posted
+at 1:1 (§13); and the summary journal dates to the payout's `occurredAt`. The E2E
+(`payout-sync.spec.ts`) is authored gate-clean and stack-runnable but, like PB's/automations', not
+run by the gate. Scoping notes and the execution plan follow.
 
 For an org whose **sales and invoicing live entirely in Stripe** (OpenBooks is the GL, not the AR
 system), income should arrive on the ledger automatically. Stripe pays out net weekly; each payout
