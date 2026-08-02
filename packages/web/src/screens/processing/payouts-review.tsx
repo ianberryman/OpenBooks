@@ -30,14 +30,12 @@ const STATUS_LABEL: Readonly<Record<PayoutSync['status'], string>> = {
   pending_review: 'Pending review',
   posted: 'Posted',
   skipped: 'Skipped',
-  awaiting_report: 'Awaiting report',
 };
 
 const STATUS_TONE: Readonly<Record<PayoutSync['status'], PillTone>> = {
   pending_review: 'accent',
   posted: 'positive',
   skipped: 'muted',
-  awaiting_report: 'muted',
 };
 
 export interface PayoutsReviewProps {
@@ -154,10 +152,10 @@ export function PayoutsReview({ connectionId }: PayoutsReviewProps): ReactElemen
 }
 
 /**
- * A `pending_review` row offers Post/Skip; an `awaiting_report` row (a manual payout still
- * waiting on its async Stripe reconciliation report) offers nothing — the daily sweep is what
- * advances it; a `posted` row names the journal it produced; a `skipped` row shows the reason
- * (or the fact that none was given) rather than leaving the cell blank.
+ * A `pending_review` row offers Post/Skip; a `posted` row names the journal it produced; a
+ * `skipped` row shows the reason (or the fact that none was given) rather than leaving the cell
+ * blank — including a manual payout, which is skipped because no per-payout breakdown exists in
+ * any Stripe API (OB-237b correction).
  */
 function PayoutRowActions({
   sync,
@@ -196,10 +194,6 @@ function PayoutRowActions({
         </Button>
       </div>
     );
-  }
-
-  if (sync.status === 'awaiting_report') {
-    return <span className="text-xs text-text-subtle">Awaiting Stripe report…</span>;
   }
 
   if (sync.status === 'posted') {

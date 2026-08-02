@@ -5,7 +5,6 @@ import type {
   PaymentProcessorProvider,
   PayoutBreakdownResult,
   PayoutCategoryAmount,
-  PayoutReportResult,
   PayoutReportingCategory,
   ProcessorCheckoutLink,
 } from '@openbooks/plugin-api';
@@ -130,32 +129,23 @@ export function createStripePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
     },
 
     async fetchPayoutBreakdown(payoutId): Promise<PayoutBreakdownResult> {
-      // Route by payout type (OB-237b, D-237-8). The bare payout object carries
-      // the net `amount`, `currency`, `created` and — crucially — `automatic`.
+      // Route by payout type (OB-237b correction, D-237-8-rev). The bare payout
+      // object carries the net `amount`, `currency`, `created` and — crucially —
+      // `automatic`.
       const payout = await fetchStripePayout(deps, payoutId);
 
-      // A **manual** payout has no per-payout balance-transactions breakdown:
-      // `GET /balance_transactions?payout=` 400s for it ("can only be filtered on
-      // automatic transfers, not manual" — caught live, OB-237b). So the adapter
-      // starts an async Reporting-API run and hands back its id; the payout's own
-      // net/currency/occurredAt (known now) let the caller stage the row
-      // immediately, and the finalize sweep polls the run with `fetchPayoutReport`.
+      // A **manual** payout has no per-payout breakdown in ANY Stripe API: the
+      // `balance_transactions?payout=` filter 400s ("can only be filtered on
+      // automatic transfers, not manual") and so does the Reporting-API
+      // `payout_reconciliation` report ("must refer to an automatic payout") — its
+      // amount is arbitrary and tied to no transaction set (caught live, OB-237b
+      // correction; confirmed by Stripe's docs). Resolve `unsupported` rather than
+      // start a report run that can only 400; the caller records a visible,
+      // actionable skip. Full manual-payout support is OB-237c (period recognition).
       if (!payout.automatic) {
-        const params = new URLSearchParams();
-        params.set('report_type', PAYOUT_RECONCILIATION_REPORT_TYPE);
-        params.set('parameters[payout]', payoutId);
-        const run = await stripeRequest<StripeReportRun>(
-          deps,
-          'POST',
-          '/reporting/report_runs',
-          params,
-        );
         return {
-          kind: 'awaiting_report',
-          reportRunId: run.id,
-          netMinor: String(payout.amount),
-          currency: payout.currency,
-          occurredAt: new Date(payout.created * 1000).toISOString(),
+          kind: 'unsupported',
+          reason: 'manual_payout_unsupported:summary_sales requires automatic payouts',
         };
       }
 
@@ -196,48 +186,10 @@ export function createStripePaymentProcessor(deps: PaymentAdapterDeps): PaymentP
         },
       };
     },
-
-    async fetchPayoutReport(reportRunId): Promise<PayoutReportResult> {
-      // Poll the async payout-reconciliation report (OB-237b, D-237-10). D-102:
-      // believed-correct-from-the-docs, exercised in the gate only via `fake.ts`.
-      const run = await stripeRequest<StripeReportRun>(
-        deps,
-        'GET',
-        `/reporting/report_runs/${encodeURIComponent(reportRunId)}`,
-      );
-      if (run.status !== 'succeeded' || run.result === null || run.result === undefined) {
-        // `pending`/`running` — and, defensively, `failed`: the sweep leaves the
-        // row `awaiting_report` and retries on the next tick rather than inventing
-        // a breakdown. A persistently failing run is an operator-visible stuck row.
-        return { kind: 'pending' };
-      }
-
-      // The run remembers the payout it was parameterised on, so the net/currency/
-      // occurredAt come off the same bare payout object the synchronous path reads,
-      // and the CSV file supplies the per-category detail.
-      const payoutId = run.parameters.payout;
-      const [payout, csv] = await Promise.all([
-        fetchStripePayout(deps, payoutId),
-        stripeDownloadText(deps, run.result.url),
-      ]);
-
-      return {
-        kind: 'ready',
-        breakdown: {
-          payoutId,
-          netMinor: String(payout.amount),
-          currency: payout.currency,
-          occurredAt: new Date(payout.created * 1000).toISOString(),
-          categories: aggregatePayoutRows(parsePayoutReconciliationCsv(csv)),
-        },
-      };
-    },
   };
 }
 
-const PAYOUT_RECONCILIATION_REPORT_TYPE = 'payout_reconciliation.by_id.summary.1';
-
-/** The bare payout object read by both the synchronous and report-finalize paths. */
+/** The bare payout object read by the synchronous automatic-payout path. */
 function fetchStripePayout(deps: PaymentAdapterDeps, payoutId: string): Promise<StripePayout> {
   return stripeRequest<StripePayout>(deps, 'GET', `/payouts/${encodeURIComponent(payoutId)}`);
 }
@@ -252,11 +204,10 @@ interface PayoutAggregateRow {
 }
 
 /**
- * Buckets rows into the summary-journal builder's six categories (OB-237, D-237-6),
- * shared by the automatic (`balance_transactions`) and manual (report CSV) paths so
- * both grossing-up routes land identical numbers. Stripe reports the per-line fee in
- * each row's own `fee` field rather than as a separate line, so fees are summed and
- * added as the `fee` category, not read off a `fee`-category row.
+ * Buckets rows into the summary-journal builder's six categories (OB-237, D-237-6)
+ * for the automatic-payout (`balance_transactions`) path. Stripe reports the per-line
+ * fee in each row's own `fee` field rather than as a separate line, so fees are summed
+ * and added as the `fee` category, not read off a `fee`-category row.
  */
 function aggregatePayoutRows(rows: readonly PayoutAggregateRow[]): PayoutCategoryAmount[] {
   const totals = new Map<PayoutReportingCategory, { amount: bigint; count: number }>();
@@ -280,44 +231,6 @@ function aggregatePayoutRows(rows: readonly PayoutAggregateRow[]): PayoutCategor
     amountMinor: amount.toString(),
     count,
   }));
-}
-
-/**
- * Parses the `payout_reconciliation.by_id.summary.1` CSV into aggregate rows
- * (OB-237b, D-102 — sandbox-only, so this follows Stripe's documented summary
- * columns rather than a proven schema). The summary report has one row per
- * `reporting_category` with `net` and `fee` money columns in Stripe's own minor
- * units; the header row names the columns, so indices are read by name rather than
- * assumed. An unparseable amount is skipped rather than coerced to a wrong number.
- */
-function parsePayoutReconciliationCsv(csv: string): PayoutAggregateRow[] {
-  const lines = csv.split(/\r?\n/).filter((line) => line.trim() !== '');
-  const header = lines.shift();
-  if (header === undefined) return [];
-  const columns = header.split(',').map((name) => name.trim());
-  const categoryIdx = columns.indexOf('reporting_category');
-  const netIdx = columns.indexOf('net');
-  const feeIdx = columns.indexOf('fee');
-  if (categoryIdx === -1 || netIdx === -1) return [];
-
-  const rows: PayoutAggregateRow[] = [];
-  for (const line of lines) {
-    const cells = line.split(',');
-    const rawCategory = cells[categoryIdx]?.trim();
-    if (rawCategory === undefined || rawCategory === '') continue;
-    rows.push({
-      rawCategory,
-      amount: absBigInt(parseMinor(cells[netIdx])),
-      fee: feeIdx === -1 ? 0n : absBigInt(parseMinor(cells[feeIdx])),
-    });
-  }
-  return rows;
-}
-
-/** A CSV money cell in Stripe minor units → bigint; a blank/non-integer cell is 0n. */
-function parseMinor(cell: string | undefined): bigint {
-  const trimmed = cell?.trim() ?? '';
-  return /^-?\d+$/.test(trimmed) ? BigInt(trimmed) : 0n;
 }
 
 /** `|n|` on a bigint — Stripe reports refunds and other money-out lines as negative amounts. */
@@ -386,27 +299,9 @@ interface StripePayout {
   readonly created: number;
   /**
    * True for a scheduled payout (queryable via `balance_transactions`), false for a
-   * manually-created one (which needs the async Reporting-API path, D-237-8).
+   * manually-created one (which has no per-payout breakdown in any Stripe API — OB-237b correction).
    */
   readonly automatic: boolean;
-}
-
-/**
- * A Stripe Reporting-API report run (OB-237b, D-237-10). `status` is `pending`/
- * `running`/`succeeded`/`failed`; `result` is the generated File once succeeded;
- * `parameters.payout` is the payout id the run was started for.
- */
-interface StripeReportRun {
-  readonly id: string;
-  readonly status: string;
-  readonly result: StripeReportFile | null;
-  readonly parameters: { readonly payout: string };
-}
-
-/** The File a succeeded report run produces — its `url` serves the CSV contents. */
-interface StripeReportFile {
-  readonly id: string;
-  readonly url: string;
 }
 
 /**
@@ -481,20 +376,6 @@ async function stripeRequest<T>(
     throw new Error(`stripe API error on ${method} ${path}: ${message}`);
   }
   return payload as T;
-}
-
-/**
- * Downloads a generated report File's contents (OB-237b, D-237-10). File contents
- * live on `files.stripe.com`, not the API host, and come back as CSV text rather
- * than JSON — so this is a bare bearer-authed `fetch`, not `stripeRequest`. The
- * File `url` Stripe returns is already absolute.
- */
-async function stripeDownloadText(deps: PaymentAdapterDeps, url: string): Promise<string> {
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${deps.secretKey}` } });
-  if (!response.ok) {
-    throw new Error(`stripe file download error on ${url}: HTTP ${response.status}`);
-  }
-  return response.text();
 }
 
 /**

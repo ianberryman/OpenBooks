@@ -66,40 +66,23 @@ export function createFakePaymentProcessor(deps: PaymentAdapterDeps): PaymentPro
     },
 
     fetchPayoutBreakdown(payoutId) {
-      // OB-237b/D-102: the `fake` is the gate's real implementation, so it models
-      // all three routes deterministically off the payout id — no network, no
+      // OB-237b correction / D-102: the `fake` is the gate's real implementation, so
+      // it models each route deterministically off the payout id — no network, no
       // magic beyond a substring the tests choose:
-      //  • `manual` → the async Reporting-API path (D-237-8/D-237-10): no
-      //    synchronous breakdown, `awaiting_report` carrying a report-run id the
-      //    finalize sweep then polls with `fetchPayoutReport`.
-      //  • `boom` → a breakdown fetch that fails (D-237-11): the visible-skip
-      //    path, proving a throw becomes a `skipped` row, not a swallowed failure.
+      //  • `manual` → `unsupported` (D-237-8-rev): a manual payout has no per-payout
+      //    breakdown in any Stripe API, so the caller records a visible `skipped` row.
+      //  • `boom` → a breakdown fetch that fails (D-237-11): the visible-skip path,
+      //    proving a throw becomes a `skipped` row, not a swallowed failure.
       //  • anything else → the synchronous automatic path (original OB-237).
       if (payoutId.includes('boom')) {
         return Promise.reject(new Error(`fake payout breakdown failed for ${payoutId}`));
       }
       if (payoutId.includes('manual')) {
         return Promise.resolve({
-          kind: 'awaiting_report',
-          reportRunId: `fake_report_${payoutId}`,
-          netMinor: '9200',
-          currency: 'usd',
-          occurredAt: '2024-01-01T00:00:00.000Z',
+          kind: 'unsupported',
+          reason: 'manual_payout_unsupported:summary_sales requires automatic payouts',
         });
       }
-      return Promise.resolve({ kind: 'ready', breakdown: fixedPayoutBreakdown(payoutId) });
-    },
-
-    fetchPayoutReport(reportRunId) {
-      // Immediately succeeded (D-102): the gate has no real report-generation lag
-      // to wait on, so the finalize sweep resolves on its first pass — except a
-      // `pending`-tagged run, which lets a test assert an unfinalized report never
-      // posts. The breakdown matches the automatic path's, so both routes reach an
-      // identical balanced journal.
-      if (reportRunId.includes('pending')) {
-        return Promise.resolve({ kind: 'pending' });
-      }
-      const payoutId = reportRunId.replace('fake_report_', '');
       return Promise.resolve({ kind: 'ready', breakdown: fixedPayoutBreakdown(payoutId) });
     },
   };
@@ -109,8 +92,7 @@ export function createFakePaymentProcessor(deps: PaymentAdapterDeps): PaymentPro
  * The fake's fixed, balanced breakdown (OB-237, D-237-4). Grosses up to a journal
  * that balances: charge 10000 credited to revenue; fee 300 and refund 500 debited;
  * clearing debited the net 9200 (= 10000 − 300 − 500), so Dr(9200+300+500) ===
- * Cr(10000). Shared by the synchronous and report-finalize paths so both land the
- * same numbers.
+ * Cr(10000). The synchronous automatic-payout path's fixed breakdown.
  */
 function fixedPayoutBreakdown(payoutId: string): PayoutBreakdown {
   return {

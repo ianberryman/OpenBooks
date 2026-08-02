@@ -112,7 +112,6 @@ function payoutSync(overrides: Record<string, unknown> = {}): Record<string, unk
     breakdown: [{ reportingCategory: 'charge', amountMinor: '10000', count: 1 }],
     journalId: null,
     skipReason: null,
-    reportRunId: null,
     occurredAt: '2026-07-01T12:00:00.000Z',
     postedAt: null,
     ...TIMESTAMPS,
@@ -284,14 +283,21 @@ describe('PayoutsReview', () => {
     expect(await screen.findByText('No reason given')).toBeInTheDocument();
   });
 
-  it('shows an awaiting_report payout as read-only, with no Post/Skip actions', async () => {
+  it('shows an unsupported manual payout as a skipped row with its reason and no actions', async () => {
     installApiStub([
-      listSyncsRoute([payoutSync({ status: 'awaiting_report', reportRunId: 'frr_test_1' })]),
+      listSyncsRoute([
+        payoutSync({
+          status: 'skipped',
+          skipReason: 'manual_payout_unsupported:summary_sales requires automatic payouts',
+        }),
+      ]),
     ]);
     renderWithQueryClient(<PayoutsReview connectionId={CONNECTION_ID} />);
 
-    expect(await screen.findByText('Awaiting report')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting Stripe report…')).toBeInTheDocument();
+    expect(await screen.findByText('Skipped')).toBeInTheDocument();
+    expect(
+      screen.getByText('manual_payout_unsupported:summary_sales requires automatic payouts'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument();
   });

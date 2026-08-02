@@ -931,7 +931,6 @@ export interface PayoutSyncs {
   org_id: Buffer;
   posted_at: Date | null;
   posted_by_user_id: Buffer | null;
-  report_run_id: string | null;
   skip_reason: string | null;
   status: Generated<string>;
   updated_at: Generated<Date>;

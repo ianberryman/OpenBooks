@@ -93,7 +93,6 @@ export type {
   PayoutBreakdown,
   PayoutBreakdownResult,
   PayoutCategoryAmount,
-  PayoutReportResult,
   PayoutReportingCategory,
   ProcessorCheckoutLink,
   ProcessorKind,

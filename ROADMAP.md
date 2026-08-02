@@ -794,7 +794,62 @@ Names are digit-free (`payout_syncs`, `payout_account_map`) so the `[a-z_]` iden
 - **Multi-currency still out** (§13): `currency` is recorded, but a non-`usd` payout is **skipped-and-
   flagged** (`status:'skipped'`), never mis-posted at a 1:1 rate.
 
-### Follow-up — manual payouts + the async Reporting-API breakdown (OB-237b) — BUILT, gate-green
+### Follow-up — manual payouts + the async Reporting-API breakdown (OB-237b) — BUILT, then INVALIDATED by a live run — see CORRECTION
+
+> **CORRECTION (a second live Stripe run, after the build).** OB-237b's whole premise — that the
+> Reporting API `payout_reconciliation.by_id.summary.1` breaks down a **manual** payout — is **false**,
+> and the built async-report path can never work. A manual payout, sent to `POST /reporting/report_runs`,
+> is rejected the same way the `balance_transactions?payout=` filter was: _"The payout parameter for
+> report type payout_reconciliation.by_id.summary.1 must refer to an automatic payout."_ Stripe's docs
+> confirm it is by design — _"you control the timing and amount of manual payouts, so Stripe can't
+> identify which transactions are included in each payout… the amount is arbitrary… you can't reconcile
+> it to specific balance transactions."_ **Both** payout-breakdown endpoints are automatic-only; a manual
+> payout has **no per-payout breakdown in any Stripe API**. (The `awaiting_report` row surfaced in the
+> UI — a `skipped` line reading `breakdown_failed:…must refer to an automatic payout` — is what exposed
+> this; D-237-11's visible-failure fix did its job.)
+>
+> **Why it bites, and only in `summary_sales` mode.** `summary_sales` suppresses per-charge postings
+> (`webhook.service.ts:169`), so the per-payout summary journal is the _sole_ revenue-recognition path.
+> A manual payout can't produce that journal, yet the M4 bank feed still posts `Dr Bank / Cr Clearing`
+> for the deposit (`posting.service.ts:34`; `recordProcessorPayout` posts no journal), leaving clearing
+> with a dangling `-net` and the sales unrecognized. **`apply_payments` connections are unaffected** —
+> payouts post no summary journal there; each charge already cleared AR (`recordProcessorCharge`).
+> A rejected first instinct: post the manual payout net-only (`Dr Bank / Cr Clearing`). Wrong twice —
+> M4 _already_ posts that leg (double-debiting Bank), and it recognizes no revenue, which is the actual gap.
+>
+> **Decisions (supersede D-237-8/9/10):**
+>
+> - **[D-237-8-rev] Detect manual up front; never attempt a report.** `fetchPayoutBreakdown` already
+>   fetches the payout with `automatic:boolean`. `automatic:false` → a terminal `{ kind: 'unsupported' }`
+>   result — no `report_runs` POST (it can only 400).
+> - **[D-237-10-WITHDRAWN] Delete the async-report machinery — unreachable dead code.** Remove:
+>   `fetchPayoutReport`, the `if (!payout.automatic)` report branch, `StripeReportRun`/`StripeReportFile`,
+>   `PAYOUT_RECONCILIATION_REPORT_TYPE`, `parsePayoutReconciliationCsv`/`parseMinor`/`stripeDownloadText`
+>   (`stripe.ts`); `PayoutReportResult` + `fetchPayoutReport` from the contract (`providers.ts:402,468`);
+>   the `awaiting_report` staging + `finalizePayoutReports` + `selectAwaitingReportSyncsForConnection` +
+>   `markPayoutSyncReportReady` (`payout-sync.service.ts`/`.repository.ts`); the poll finalize call
+>   (`poll.job.ts:162`); the fake's `manual`/report branches (`fake.ts:81–104`). `PayoutBreakdownResult`
+>   collapses to `{ kind:'ready' } | { kind:'unsupported' }`.
+> - **[D-237-11 KEPT & upgraded] Honest, actionable skip.** The surviving correct half. A manual payout
+>   records a first-class `skipped` row whose reason is actionable, not a raw Stripe 400:
+>   `manual_payout_unsupported:summary_sales requires automatic payouts`. The D-85 poll's balance
+>   backstop already logs the clearing/processor-balance mismatch the residual causes — a second signal.
+> - **[D-237-12 → OB-237c] The real fix is period/balance-driven recognition** (full scope below): decouple
+>   `summary_sales` recognition from payouts entirely, so manual payouts become pure cash movement.
+>
+> **Schema (revert the in-place `0024` edit, D-15):** drop `report_run_id`; narrow the status CHECK back
+> to `('pending_review','posted','skipped')`. In-place edit of `0024` (not a new migration → `harness.test.ts`
+> untouched) → `yarn codegen` → regenerate `openapi.json` (status enum at `23119`/`23342`/`48675`) + web
+> `schema.d.ts` (`10675`/`10739`/`21730`) → `yarn drift`. Deploy is again a **DB reset** (D-15).
+> **Web/test surface (all pinned):** drop `awaiting_report` from `STATUS_LABEL`/`STATUS_TONE` + the action
+> branch (`payouts-review.tsx`); delete the `awaiting_report` `it`-block (`payout-sync.test.tsx:287`), two of
+> three properties + the `finalizePayoutReports` import (`manual-payout.property.test.ts`), and the OB-237b
+> `test.step`s + `waitForPayoutSyncFinalized` (`payout-sync.spec.ts:470–632`); add one property + one E2E
+> step: a manual payout → `skipped` with the actionable reason, never a journal, never `awaiting_report`.
+> The enforcement/db tripwires (grants, permission-matrix, cross-org, route-table) don't move. **Mostly deletion.**
+>
+> **Status:** scope corrected; **code not yet changed** (the async-report build is still what's on `develop`
+> and in the prod image). The build record below is retained for the decision trail.
 
 **BUILT — `yarn check` green (2,994 tests / 298 files).** All four forks shipped via an
 orchestrated fan-out (Opus owned the trunk — schema in-place edit + codegen + the plugin-api
@@ -901,6 +956,76 @@ change means the prod deploy is again a **DB reset**, not a plain rebuild.
 **Until built:** a manual or pending payout is silently marked `failed` in `processor_events` (no UI
 row). Automatic, paid payouts work today (OB-237). To exercise OB-237 end-to-end now, use an
 **automatic** payout schedule in the Stripe dashboard rather than a manual payout.
+
+### Follow-up — period/balance-driven recognition for `summary_sales` (OB-237c) — SCOPED, not built
+
+**Why (from the OB-237b correction above).** Stripe cannot break a manual payout down by _any_ API —
+the amount is arbitrary and tied to no set of transactions. The real fix is to stop recognizing
+`summary_sales` revenue **per payout** and recognize it **per period from balance activity** instead —
+Stripe's own recommendation for manual-payout users: _"track and reconcile your Stripe balance like a
+bank account."_ This decouples recognition from payouts, so a payout (automatic **or** manual) becomes
+pure cash movement (M4's `Dr Bank / Cr Clearing`), and manual payouts are supported for free.
+
+**The model.** A daily sweep, per opted-in `summary_sales` connection, lists the connection's
+`balance_transactions` in the half-open window `[recognized_through, cutoff)` by `created`, **excludes
+`reporting_category === 'payout'`** (cash movement — M4's job, not recognition), aggregates the rest by
+`reporting_category` into the existing `PayoutBreakdown` shape, and posts **one period summary journal**:
+`Dr Clearing (period net)`, `Cr` revenue/tax, `Dr` fees/refunds/disputes/adjustments — the same
+`buildPayoutSummaryJournal` lines, the plug now the period's net balance change. Clearing then carries
+the running Stripe balance; payouts drain it via M4. Nothing double-counts — per-charge postings stay
+suppressed and payout rows are excluded from recognition.
+
+**Forks:**
+
+- **[D-237-12] (core) Recognize per-period, not per-payout.** Supersedes the per-payout summary journal
+  for a connection in period mode.
+- **[D-237-13] Recognition mode as connection config.** A new `PAYOUT_SYNC_MODES` value (`summary_period`)
+  beside `apply_payments`/`summary_sales` (shared-types `connections.ts:43`), or a boolean sub-flag on
+  `summary_sales`. Recommend the enum value (self-documenting; `payout-config.service.ts` validation + the
+  web config toggle move with it). Touches the shared-types enum → `openapi.json`/`schema.d.ts` regen; no
+  route/permission/table addition.
+- **[D-237-14] The checkpoint.** A `recognized_through DATE NOT NULL` high-water mark on
+  `processor_connections` (migration `0011`, in-place D-15 edit + codegen), seeded at connect time (or the
+  mode-switch date, D-237-16). Distinct from the D-85 reconcile cursor (which tracks _balance
+  reconciliation_, not recognition).
+- **[D-237-15] Exactly-once.** Half-open `[recognized_through, cutoff)`, `cutoff = start-of-today`
+  (recognize only settled days). Advance `recognized_through` to `cutoff` **atomically with the journal
+  post**, under the existing `processor_connections` `FOR UPDATE` lock (the `postPayoutSync` /
+  `recordProcessorPayout` discipline). Each balance transaction is recognized exactly once; a re-run is a
+  no-op.
+- **[D-237-16] Cutover.** Switching an existing per-payout `summary_sales` connection to period mode sets
+  `recognized_through = switch date` so already-summarized payouts aren't re-recognized — an explicit
+  operator action, flagged in the config UI. Mixing modes on one connection over one period is refused.
+
+**Seams (reuse):**
+
+- `stripe.ts` already pages `balance_transactions` for the automatic-payout path (`stripe.ts:168–186`) —
+  the same paging, filtered by `created[gte]`/`created[lt]` instead of `payout=`, dropping
+  `reporting_category === 'payout'`.
+- `aggregatePayoutRows` / `bucketReportingCategory` (`stripe.ts`), `buildPayoutSummaryJournal` +
+  `PayoutSummaryAccounts` (`summary-journal.builder.ts`) — unchanged; the memo generalizes from
+  `payout … · net` to a period label.
+- `registerDailyTask` / `runAsAutomation` + the per-connection loop in `poll.job.ts` — the sweep rides the
+  same daily tick as the D-85 poll.
+- Provider contract: a new `fetchBalanceActivity(sinceIso, untilIso): Promise<PayoutBreakdown>` on
+  `PaymentProcessorProvider` (`providers.ts`), re-exported from the plugin-api barrel (`index.ts`) per the
+  narrowest-surface rule; `fake.ts` returns a deterministic period aggregate. Square: `summary_sales` is
+  already refused for Square (`payout-config.service.ts:76`), so `summary_period` is Stripe-only — no
+  Square adapter work.
+
+**Schema:** `processor_connections` + `recognized_through DATE NULL` (+ the `summary_period` enum value if
+D-237-13 takes the enum route). In-place `0011` edit (D-15) → `yarn codegen` → wire regen → DB reset on deploy.
+
+**Waves:** (0) provider `fetchBalanceActivity` + adapter `balance_transactions`-by-date + fake; schema
+column + `summary_period` mode + codegen; config validation. (1) the period sweep — window, aggregate,
+post, cursor-advance under lock. (2) web: the recognition-mode toggle + cutover-date affordance + a
+period-recognition history view. (3) property (period aggregate balances to a valid journal; exactly-once
+across overlapping sweeps; payout rows excluded; cutover date honored) + an E2E (activity over a window →
+one period journal → a manual payout drains clearing via a matched bank line, never a `skipped` row).
+
+**Relationship to OB-237b:** OB-237c makes a manual payout a non-event for period-mode connections — the
+OB-237b honest-skip is correct only for a connection that stays in per-payout `summary_sales`. Per-payout
+`summary_sales` (automatic-only) and `apply_payments` are unchanged.
 
 ### Follow-up — memorized manual-journal templates + a per-account balance-impact indicator on the JE screen (OB-239 / OB-239b)
 

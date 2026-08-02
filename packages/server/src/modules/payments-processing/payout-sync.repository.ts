@@ -33,7 +33,6 @@ const PAYOUT_SYNC_COLUMNS = [
   'breakdown',
   'journal_id',
   'skip_reason',
-  'report_run_id',
   'occurred_at',
   'posted_by_user_id',
   'posted_at',
@@ -65,8 +64,6 @@ export interface PayoutSyncRow {
   readonly breakdown: unknown;
   readonly journal_id: Buffer | null;
   readonly skip_reason: string | null;
-  /** The async Stripe report-run id for an `awaiting_report` manual payout (D-237-10); else null. */
-  readonly report_run_id: string | null;
   readonly occurred_at: Date;
   readonly posted_by_user_id: Buffer | null;
   readonly posted_at: Date | null;
@@ -81,11 +78,9 @@ export interface NewPayoutSync {
   readonly feeMinor: bigint;
   readonly netMinor: bigint;
   readonly currency: string;
-  readonly status: 'pending_review' | 'posted' | 'skipped' | 'awaiting_report';
+  readonly status: 'pending_review' | 'posted' | 'skipped';
   readonly breakdown: readonly PayoutSyncBreakdownLine[];
   readonly skipReason: string | null;
-  /** The async Stripe report-run id for an `awaiting_report` manual payout (D-237-10); else null. */
-  readonly reportRunId: string | null;
   readonly occurredAt: Date;
   readonly journalId: Buffer | null;
   readonly postedByUserId: Buffer | null;
@@ -122,7 +117,6 @@ export async function insertPayoutSync(db: TenantDatabase, input: NewPayoutSync)
       breakdown: JSON.stringify(input.breakdown),
       journal_id: input.journalId,
       skip_reason: input.skipReason,
-      report_run_id: input.reportRunId,
       occurred_at: input.occurredAt,
       posted_by_user_id: input.postedByUserId,
       posted_at: input.postedAt,
@@ -177,7 +171,7 @@ export async function selectPayoutSyncByIdForUpdate(
 export async function selectPayoutSyncsForConnection(
   db: TenantDatabase,
   connectionId: Buffer,
-  status?: 'pending_review' | 'posted' | 'skipped' | 'awaiting_report',
+  status?: 'pending_review' | 'posted' | 'skipped',
 ): Promise<readonly PayoutSyncRow[]> {
   let query = db
     .selectFrom('payout_syncs')
@@ -223,62 +217,6 @@ export async function markPayoutSyncSkipped(
 }
 
 /**
- * The `awaiting_report` manual payouts for a connection whose async report the
- * finalize sweep polls (OB-237b, D-237-10). A plain read: each row is then
- * re-selected `FOR UPDATE` in its own transaction before finalizing, so the
- * network poll never holds a row lock (`finalizePayoutReports`'s reasoning).
- */
-export async function selectAwaitingReportSyncsForConnection(
-  db: TenantDatabase,
-  connectionId: Buffer,
-): Promise<readonly PayoutSyncRow[]> {
-  return db
-    .selectFrom('payout_syncs')
-    .select(PAYOUT_SYNC_COLUMNS)
-    .where('connection_id', '=', connectionId)
-    .where('status', '=', 'awaiting_report')
-    .orderBy('occurred_at', 'asc')
-    .orderBy('id', 'asc')
-    .execute();
-}
-
-/**
- * Finalizes an `awaiting_report` row once its async report has resolved (D-237-10):
- * fills the now-known gross/fee/net and per-category breakdown, and moves it to
- * `posted` (auto-post — `journalId`/`postedAt` set) or `pending_review` (a human
- * reviews the real numbers — both null). `posted_by_user_id` stays null: an
- * auto-post is the automation actor, not a user (D-237-2). The `report_run_id` is
- * kept for audit.
- */
-export async function markPayoutSyncReportReady(
-  db: TenantDatabase,
-  id: Buffer,
-  input: {
-    readonly status: 'pending_review' | 'posted';
-    readonly grossMinor: bigint;
-    readonly feeMinor: bigint;
-    readonly netMinor: bigint;
-    readonly breakdown: readonly PayoutSyncBreakdownLine[];
-    readonly journalId: Buffer | null;
-    readonly postedAt: Date | null;
-  },
-): Promise<void> {
-  await db
-    .updateTable('payout_syncs')
-    .set({
-      status: input.status,
-      gross_minor: input.grossMinor,
-      fee_minor: input.feeMinor,
-      net_minor: input.netMinor,
-      breakdown: JSON.stringify(input.breakdown),
-      journal_id: input.journalId,
-      posted_at: input.postedAt,
-    })
-    .where('id', '=', id)
-    .execute();
-}
-
-/**
  * `breakdown` is `JSON NOT NULL`, written by `insertPayoutSync` above and nowhere
  * else, so a value that is not the shape below here is this process's own write
  * having gone wrong rather than anything a caller sent — mysql2 has already parsed
@@ -315,7 +253,6 @@ export function toPayoutSync(row: PayoutSyncRow): PayoutSync {
     breakdown: toBreakdown(row.breakdown).map((line) => ({ ...line })),
     journalId: row.journal_id === null ? null : bufferToUuid(row.journal_id),
     skipReason: row.skip_reason,
-    reportRunId: row.report_run_id,
     occurredAt: row.occurred_at.toISOString(),
     postedAt: row.posted_at === null ? null : row.posted_at.toISOString(),
     createdAt: row.created_at.toISOString(),

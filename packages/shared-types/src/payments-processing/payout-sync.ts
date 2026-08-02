@@ -103,19 +103,14 @@ export const payoutSyncCategoryLineSchema = z.strictObject({
   count: z.number().int().nonnegative(),
 });
 
-export const PAYOUT_SYNC_STATUSES = [
-  'pending_review',
-  'posted',
-  'skipped',
-  'awaiting_report',
-] as const;
+export const PAYOUT_SYNC_STATUSES = ['pending_review', 'posted', 'skipped'] as const;
 
 export const payoutSyncStatusSchema = z.enum(PAYOUT_SYNC_STATUSES).meta({
   description:
     'A payout sync’s lifecycle: `pending_review` awaits a human, `posted` has a summary ' +
-    'journal, `skipped` was declined (unmapped category, non-usd, a failed breakdown fetch) ' +
-    'with a reason (D-237-2/D-237-11), and `awaiting_report` is a manual payout whose async ' +
-    'Stripe Reporting-API run has not finalized yet (D-237-10).',
+    'journal, and `skipped` was declined — an unmapped category, a non-usd payout, a failed ' +
+    'breakdown fetch, or a manual payout (unsupported: no per-payout breakdown exists in any ' +
+    'Stripe API) — carrying a reason (D-237-2 / D-237-11 / OB-237b correction).',
 });
 
 /**
@@ -145,14 +140,6 @@ export const payoutSyncSchema = z
       .nullable()
       .meta({ description: 'The posted summary journal, once posted.' }),
     skipReason: z.string().nullable(),
-    reportRunId: z
-      .string()
-      .nullable()
-      .meta({
-        description:
-          'The async Stripe Reporting-API run id backing an `awaiting_report` manual payout ' +
-          '(D-237-10); `null` for an automatic payout that resolved synchronously.',
-      }),
     occurredAt: z.iso.datetime(),
     postedAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),

@@ -18,9 +18,7 @@ import {
   PAYOUT_SYNC_RESOURCE,
   insertPayoutSync,
   markPayoutSyncPosted,
-  markPayoutSyncReportReady,
   markPayoutSyncSkipped,
-  selectAwaitingReportSyncsForConnection,
   selectPayoutSyncById,
   selectPayoutSyncByIdForUpdate,
   selectPayoutSyncByExternal,
@@ -133,7 +131,6 @@ export async function syncPayout(
         status: 'skipped',
         breakdown: [],
         skipReason: breakdownFailureReason(error),
-        reportRunId: null,
         occurredAt: new Date(),
         journalId: null,
         postedByUserId: null,
@@ -142,34 +139,28 @@ export async function syncPayout(
       return { payoutSyncId: id, status: 'skipped', alreadyRecorded: false };
     }
 
-    // D-237-10: a manual payout has no synchronous breakdown — the adapter has
-    // started an async Stripe Reporting-API run. Stage the row `awaiting_report`
-    // with the net known off the payout object (gross/fee are filled when the
-    // finalize sweep resolves the report); a non-usd one is skipped now (§13).
-    if (result.kind === 'awaiting_report') {
-      const net = BigInt(result.netMinor);
-      const nonUsd = result.currency.toLowerCase() !== 'usd';
+    // OB-237b correction (D-237-8-rev / D-237-11): a manual payout has no per-payout
+    // breakdown in any Stripe API, so the adapter resolves `unsupported`. Record a
+    // *visible*, actionable `skipped` row that books nothing — the operator sees why
+    // (never a swallowed failure), and the D-85 balance backstop surfaces the clearing
+    // residual the unrecognised sales leave. Full support is OB-237c (period recognition).
+    if (result.kind === 'unsupported') {
       const id = await insertPayoutSync(trx, {
         connectionId: connectionBytes,
         externalPayoutId: input.externalPayoutId,
-        grossMinor: net,
+        grossMinor: 0n,
         feeMinor: 0n,
-        netMinor: net,
-        currency: result.currency,
-        status: nonUsd ? 'skipped' : 'awaiting_report',
+        netMinor: 0n,
+        currency: 'usd',
+        status: 'skipped',
         breakdown: [],
-        skipReason: nonUsd ? `unsupported_currency:${result.currency}` : null,
-        reportRunId: result.reportRunId,
-        occurredAt: new Date(result.occurredAt),
+        skipReason: result.reason,
+        occurredAt: new Date(),
         journalId: null,
         postedByUserId: null,
         postedAt: null,
       });
-      return {
-        payoutSyncId: id,
-        status: nonUsd ? 'skipped' : 'awaiting_report',
-        alreadyRecorded: false,
-      };
+      return { payoutSyncId: id, status: 'skipped', alreadyRecorded: false };
     }
 
     const breakdown = result.breakdown;
@@ -188,7 +179,6 @@ export async function syncPayout(
         status: 'skipped',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: `unsupported_currency:${breakdown.currency}`,
-        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -216,7 +206,6 @@ export async function syncPayout(
         status: 'skipped',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: built.reason,
-        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -236,7 +225,6 @@ export async function syncPayout(
         status: 'pending_review',
         breakdown: breakdown.categories.map((c) => ({ ...c })),
         skipReason: null,
-        reportRunId: null,
         occurredAt,
         journalId: null,
         postedByUserId: null,
@@ -263,7 +251,6 @@ export async function syncPayout(
       status: 'posted',
       breakdown: breakdown.categories.map((c) => ({ ...c })),
       skipReason: null,
-      reportRunId: null,
       occurredAt,
       journalId: uuidToBuffer(journalId),
       postedByUserId: null,
@@ -369,88 +356,6 @@ export async function skipPayoutSync(
   }
   await markPayoutSyncSkipped(db, bytes, reason.trim() === '' ? 'skipped_by_user' : reason.trim());
   return toPayoutSync(assertFound(await selectPayoutSyncById(db, bytes), PAYOUT_SYNC_RESOURCE));
-}
-
-/**
- * Finalizes a connection's `awaiting_report` manual payouts (OB-237b, D-237-10),
- * called once per connection by the daily poll. Each row's async Stripe report is
- * polled; a still-`pending` one is left for the next tick; a resolved one fills the
- * now-known gross/fee/breakdown and either posts (auto-post) or moves to
- * `pending_review`, unless the current mapping cannot build it (→ `skipped`).
- *
- * The report is fetched **outside** the row lock (a network call must not hold one),
- * then each row is re-selected `FOR UPDATE` and its status re-checked before the
- * write, so a concurrent sweep or a human action that already moved the row is a
- * no-op rather than a double-post — `postPayoutSync`'s locking discipline, applied
- * to the machine path. `external_refs` on the payout object id is the final backstop
- * against a double journal.
- */
-export async function finalizePayoutReports(
-  connectionId: string,
-  ctx: RequestContext,
-): Promise<void> {
-  const { clearingAccountId, feeAccountId, provider, connection } = await loadConnectionProvider(
-    connectionId,
-    ctx,
-  );
-  const connectionBytes = assertFound(connectionIdBytes(connectionId), CONNECTION_RESOURCE);
-
-  const pending = await selectAwaitingReportSyncsForConnection(orgScope(ctx), connectionBytes);
-  for (const row of pending) {
-    if (row.report_run_id === null) continue;
-    const report = await provider.fetchPayoutReport(row.report_run_id);
-    if (report.kind === 'pending') continue;
-    const breakdown = report.breakdown;
-
-    await orgScope(ctx).transaction(async (trx) => {
-      const locked = await selectPayoutSyncByIdForUpdate(trx, row.id);
-      if (locked === undefined || locked.status !== 'awaiting_report') return;
-
-      const totals = payoutTotals(breakdown);
-      const accounts = await resolveSummaryAccounts(
-        trx,
-        connectionBytes,
-        clearingAccountId,
-        feeAccountId,
-      );
-      const built = buildPayoutSummaryJournal(breakdown, accounts);
-      if (!built.ok) {
-        await markPayoutSyncSkipped(trx, row.id, built.reason);
-        return;
-      }
-
-      const shared = {
-        grossMinor: totals.gross,
-        feeMinor: totals.fee,
-        netMinor: totals.net,
-        breakdown: breakdown.categories.map((c) => ({ ...c })),
-      };
-
-      if (!connection.autoPost) {
-        await markPayoutSyncReportReady(trx, row.id, {
-          status: 'pending_review',
-          ...shared,
-          journalId: null,
-          postedAt: null,
-        });
-        return;
-      }
-
-      const journalId = await postSummaryJournal(
-        connectionId,
-        locked.external_payout_id,
-        breakdown,
-        built.lines,
-        ctx,
-      );
-      await markPayoutSyncReportReady(trx, row.id, {
-        status: 'posted',
-        ...shared,
-        journalId: uuidToBuffer(journalId),
-        postedAt: new Date(),
-      });
-    });
-  }
 }
 
 // ---------------------------------------------------------------------------

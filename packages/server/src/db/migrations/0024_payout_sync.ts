@@ -35,9 +35,7 @@ import type { MigrationDb } from './types';
  * A machine-written staging row a human reviews, then posts — modelled on OCR's
  * `document_captures`, **not** `journal_drafts` (which refuses a non-user author
  * and carries no origin column, so an automation-run sync cannot draft). `status`
- * legitimately moves (`pending_review→posted|skipped`, and for a manual payout
- * `awaiting_report→pending_review|posted|skipped` once its async Stripe
- * Reporting-API run finalizes — OB-237b/D-237-10), so it is mutable, like a
+ * legitimately moves (`pending_review→posted|skipped`), so it is mutable, like a
  * reconciliation session. `journal_id` is set once the summary journal is posted
  * (append-only; the sync row remembers which one). `external_payout_id` is the
  * object-idempotency key — a webhook and the poll reporting the same payout must
@@ -94,18 +92,15 @@ export async function up(db: MigrationDb): Promise<void> {
       status             VARCHAR(16)  NOT NULL DEFAULT 'pending_review',
       -- The per-category aggregation the builder consumed; money is a cents string
       -- inside the JSON (D-13, F7 — never JSON.stringify a bigint to a number).
-      -- Empty ([]) while awaiting_report — filled once the report finalizes.
+      -- Empty ([]) for a skipped sync (e.g. an unsupported manual payout).
       breakdown          JSON         NOT NULL,
       -- Set once the summary journal is posted (append-only; the sync remembers it).
       journal_id         BINARY(16)   NULL,
-      -- Why a sync was skipped rather than posted (unmapped category, non-usd,
-      -- a breakdown fetch that failed — OB-237b/D-237-11, the visible-failure line).
+      -- Why a sync was skipped rather than posted (unmapped category, non-usd, a
+      -- breakdown fetch that failed, or a manual payout — which has no per-payout
+      -- breakdown in any Stripe API; OB-237b correction / D-237-11, the
+      -- visible-failure line). Full manual-payout support is OB-237c.
       skip_reason        VARCHAR(255) NULL,
-      -- OB-237b/D-237-10: a manual payout has no synchronous balance_transactions
-      -- breakdown, so the adapter starts a Stripe Reporting-API run and the sync
-      -- lands awaiting_report carrying its id; the daily finalize sweep polls it.
-      -- NULL for an automatic payout, which resolves synchronously.
-      report_run_id      VARCHAR(255) NULL,
       occurred_at        DATETIME(3)  NOT NULL,
       posted_by_user_id  BINARY(16)   NULL,
       posted_at          DATETIME(3)  NULL,
@@ -128,7 +123,7 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT fk_payout_syncs_posted_by
         FOREIGN KEY (posted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
       CONSTRAINT chk_payout_syncs_status
-        CHECK (status IN ('pending_review', 'posted', 'skipped', 'awaiting_report'))
+        CHECK (status IN ('pending_review', 'posted', 'skipped'))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `.execute(db);
 }
