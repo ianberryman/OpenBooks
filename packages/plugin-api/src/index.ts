@@ -88,6 +88,8 @@ export type {
   InboundEmailAttachment,
   InboundEmailMessage,
   InboundMailProvider,
+  LogRecord,
+  LogSinkProvider,
   NormalizedProcessorEvent,
   PaymentProcessorProvider,
   PayoutBreakdown,

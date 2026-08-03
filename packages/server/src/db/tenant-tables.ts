@@ -14,19 +14,26 @@ type TablesWithOrgId = {
 }[keyof DB];
 
 /**
- * Tables where `org_id` is nullable and NULL means "shared by every org".
+ * Tables where `org_id` is nullable and NULL means "shared by every org" (or, for
+ * `logs`, "no org — a boot/migration line, or telemetry that outlives its org").
  *
- * `roles` is the only one: spec §5 seeds six system roles shared across all orgs
- * (`org_id IS NULL`) and reserves non-null `org_id` for the custom roles that
- * arrive in v2. Scoping it with a plain `org_id = ?` would silently hide every
- * system role, which would leave every user with no permissions at all.
+ * `roles`: spec §5 seeds six system roles shared across all orgs (`org_id IS NULL`)
+ * and reserves non-null `org_id` for the custom roles. Scoping it with a plain
+ * `org_id = ?` would silently hide every system role, leaving every user with no
+ * permissions at all.
+ *
+ * `logs` (OB-255): operational application logs. `org_id` is nullable because a
+ * boot/shutdown/migration line has no actor and a request line carries whichever
+ * org made it; a bare `org_id = ?` would hide every orgless line. Reached through
+ * `systemDb` by the `db` `LogSinkProvider` (insert) and the retention sweep (prune),
+ * never `tenantDb`.
  *
  * This is a subtraction from the derived set, not an addition to it, so the unsafe
  * direction requires an explicit edit here with a reason. Access goes through
- * `systemDb` plus the deliberate `org_id = ? OR org_id IS NULL` predicate in the
- * permissions service.
+ * `systemDb` plus, for `roles`, the deliberate `org_id = ? OR org_id IS NULL`
+ * predicate in the permissions service.
  */
-type SharedScopeTable = 'roles';
+type SharedScopeTable = 'roles' | 'logs';
 
 /** Table names the tenant wrapper accepts. */
 export type TenantTableName = Exclude<TablesWithOrgId, SharedScopeTable>;

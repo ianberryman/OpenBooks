@@ -11,7 +11,7 @@
  * non-optional `queueUrl` hands the guarantee to consumers instead of making
  * every call site re-check what startup already proved.
  */
-import type { Env, LogLevel, NodeEnv } from './env';
+import type { Env, LogLevel, LogSink, NodeEnv } from './env';
 import {
   corsIssues,
   envSchema,
@@ -80,6 +80,14 @@ export interface Config {
   readonly nodeEnv: NodeEnv;
   readonly role: ProcessRole;
   readonly logLevel: LogLevel;
+  /**
+   * Where operational logs go beyond stdout (OB-255). `stdout` is the always-on
+   * default; `db` additionally persists redacted lines to the `logs` table, read
+   * by the `db` `LogSinkProvider` off the request path.
+   */
+  readonly logSink: LogSink;
+  /** The `logs` retention window the daily prune enforces under LOG_SINK=db. */
+  readonly logRetentionDays: number;
   readonly http: {
     readonly host: string;
     readonly port: number;
@@ -238,6 +246,8 @@ function shape(role: ProcessRole, env: Env): Config {
     nodeEnv: env.NODE_ENV,
     role,
     logLevel: env.LOG_LEVEL,
+    logSink: env.LOG_SINK,
+    logRetentionDays: env.LOG_RETENTION_DAYS,
     http: {
       host: env.HTTP_HOST,
       port: env.HTTP_PORT,

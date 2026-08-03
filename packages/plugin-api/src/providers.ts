@@ -43,6 +43,52 @@ export interface EmailProvider {
 }
 
 /**
+ * One operational log line, normalised off pino's JSON before it reaches a sink
+ * (OB-255). This is the shape the batching destination hands to a `LogSinkProvider`
+ * — the structured columns the `logs` table stores plus the leftover payload.
+ *
+ * `fields` is **already redacted**: pino's `formatters.log` (`logging/serialize.ts`)
+ * ran name-based redaction and stringified any bigint money before the line was
+ * emitted, so a sink neither re-redacts nor risks `JSON.stringify` throwing. The one
+ * gap redaction does not close is the `log` `EmailProvider`, which writes an invite
+ * token under an `email.text` field the name-based redactor does not match (D-255-4)
+ * — the `db` sink drops the whole `email` payload before it persists a row, which is
+ * why that scrub is the sink's concern and not this contract's.
+ */
+export interface LogRecord {
+  /** ISO-8601 instant the line was emitted (pino's `time`, normalised). */
+  readonly at: string;
+  /** pino's level label — 'info' | 'warn' | 'error' | … */
+  readonly level: string;
+  /** Which of the three roles produced the line — api | worker | migrate. */
+  readonly role: string;
+  readonly message: string;
+  /** The org the line was attributed to, or `null` for a boot/migration line. */
+  readonly orgId: string | null;
+  /** The already-redacted structured payload (provenance + caller fields). */
+  readonly fields: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A durable destination for operational logs, selected by `LOG_SINK` (OB-255,
+ * D-255-1). The D-07 provider idiom applied to logging: `stdout` is always on and
+ * needs no adapter, and a second sink (`db` now; `otel`/`http`/`cloudwatch` the
+ * deferred hosted slot) persists or ships redacted lines. The self-host `db` adapter
+ * batches into the `logs` table; a hosted one would ship to a managed log service.
+ *
+ * `write` takes a **batch** because a per-line synchronous DB write on the hot path
+ * is exactly what D-255-2 forbids — the caller (the batching destination) buffers
+ * off the request path and flushes N-lines/T-ms. It is **best-effort**: an
+ * implementation must not throw into its caller and must not assume it runs inside
+ * any transaction (a log write that joined a request's posting transaction could
+ * poison a rollback). A failed write falls back to stderr in the destination, never
+ * crashes the process, and never fails the request that produced the line.
+ */
+export interface LogSinkProvider {
+  write(batch: readonly LogRecord[]): Promise<void>;
+}
+
+/**
  * Which live-feed backend a `bank_feed_connections` row and a `BankFeedProvider`
  * instance both name (OB-227, ROADMAP D-126). `fake` is the third, real,
  * deterministic implementation the gate exercises in place of a network call to

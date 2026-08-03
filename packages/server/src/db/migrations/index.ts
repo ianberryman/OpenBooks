@@ -25,6 +25,7 @@ import * as m0022 from './0022_account_statements';
 import * as m0023 from './0023_ten99';
 import * as m0024 from './0024_payout_sync';
 import * as m0025 from './0025_inventory';
+import * as m0026 from './0026_logs';
 import * as m0999 from './0999_app_grants';
 
 /**
@@ -88,6 +89,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   '0023_ten99': m0023,
   '0024_payout_sync': m0024,
   '0025_inventory': m0025,
+  '0026_logs': m0026,
   '0999_app_grants': m0999,
 };
 

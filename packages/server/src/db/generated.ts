@@ -785,6 +785,16 @@ export interface JournalSequences {
   updated_at: Generated<Date>;
 }
 
+export interface Logs {
+  fields: Json;
+  id: Buffer;
+  level: string;
+  logged_at: Generated<Date>;
+  message: string;
+  org_id: Buffer | null;
+  role: string;
+}
+
 export interface OauthClients {
   client_id: string;
   created_at: Generated<Date>;
@@ -1395,6 +1405,7 @@ export interface DB {
   journal_lines: JournalLines;
   journal_sequences: JournalSequences;
   journals: Journals;
+  logs: Logs;
   oauth_clients: OauthClients;
   oauth_consents: OauthConsents;
   oauth_grants: OauthGrants;

@@ -537,6 +537,19 @@ const MUTABLE_TABLES = [
   // a posted row. `catalog_items` (mutable above, D-CAT) carries the item costing
   // fields — settings that seed a line and post no journal.
   'inventory_adjustments',
+  // ── Persisted application logs (0026_logs, OB-255) ──────────────────────────
+  //
+  // `logs` is MUTABLE, and deliberately so — the one place this file grants
+  // UPDATE/DELETE on a table that is not settings or a lock. A log line is
+  // operational telemetry, not a financial record and not evidence, so none of the
+  // immutability arguments above apply to it. It is mutable for the pointed reason
+  // the append-only tables are not: logs are high-volume and pruned to a retention
+  // window (`LOG_RETENTION_DAYS`), and the daily sweep (`modules/log-retention`)
+  // runs the DELETE as *this* app user — the `purgeExpiredIdempotencyKeys` shape
+  // (`idempotency_keys` is mutable above for the same reason). Making `logs`
+  // append-only would force a maintenance-role prune job this codebase has no
+  // precedent for, to protect rows that were never a ledger fact (ROADMAP D-255-3).
+  'logs',
 ] as const;
 
 export async function up(db: MigrationDb): Promise<void> {

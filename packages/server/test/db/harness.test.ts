@@ -55,6 +55,7 @@ describe('test database harness', () => {
         '0023_ten99',
         '0024_payout_sync',
         '0025_inventory',
+        '0026_logs',
         '0999_app_grants',
       ]);
     });

@@ -157,6 +157,14 @@ describe('the tenant table set is derived from the schema', () => {
     expect(isTenantTable('roles')).toBe(false);
   });
 
+  it('excludes logs, whose org_id is nullable and means "system/no org" (OB-255)', () => {
+    // A boot/migration log line has no org, and a request line carries whichever
+    // org made it; a bare org_id equality would hide every orgless line. logs is
+    // reached through systemDb by the db sink and the retention prune, not tenantDb.
+    // See tenant-tables.ts (SharedScopeTable).
+    expect(isTenantTable('logs')).toBe(false);
+  });
+
   it('includes every table that carries a non-nullable org_id', () => {
     expect([...TENANT_TABLES].sort()).toEqual([
       'accounts',

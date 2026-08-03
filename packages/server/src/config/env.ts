@@ -28,6 +28,19 @@ export type NodeEnv = (typeof NODE_ENVS)[number];
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/**
+ * Where operational logs go, beyond stdout (OB-255). `stdout` is the always-on
+ * default and the current behaviour — pino → the container's stdout, captured by
+ * `docker compose logs`. `db` additionally persists redacted lines to the `logs`
+ * table (D-255-1) so a self-host operator can query them in SQL; stdout stays on
+ * underneath it, so a DB-sink failure can never take the logs with it. The hosted
+ * shippers (`otel`/`http`/`cloudwatch`) are a deferred slot behind the same
+ * `LogSinkProvider` seam — the `sqs`/`aws-secrets-manager` idiom — and are not yet
+ * selectable here.
+ */
+export const LOG_SINKS = ['stdout', 'db'] as const;
+export type LogSink = (typeof LOG_SINKS)[number];
+
 const MUST_BE_SET = 'must be set';
 const PORT_MESSAGE = 'must be a port number between 1 and 65535';
 
@@ -54,6 +67,19 @@ export const envSchema = z.object({
   // for which process this is.
   NODE_ENV: oneOf(NODE_ENVS).default('development'),
   LOG_LEVEL: oneOf(LOG_LEVELS).default('info'),
+  // Persist logs to the DB (OB-255). Off by default — the self-host operator opts
+  // in with LOG_SINK=db; stdout is unconditional either way.
+  LOG_SINK: oneOf(LOG_SINKS).default('stdout'),
+  // The retention window the daily prune enforces on the `logs` table when
+  // LOG_SINK=db (D-255-3/D-255-5). 30 days by default, matching the M5 event-log
+  // precedent; capped at ten years so a fat-fingered value cannot mean "never
+  // prune". Ignored when LOG_SINK=stdout (nothing is persisted to prune).
+  LOG_RETENTION_DAYS: z.coerce
+    .number({ error: 'must be an integer between 1 and 3650' })
+    .int({ error: 'must be an integer between 1 and 3650' })
+    .min(1, { error: 'must be an integer between 1 and 3650' })
+    .max(3650, { error: 'must be an integer between 1 and 3650' })
+    .default(30),
 
   // --- HTTP ---------------------------------------------------------------
   // Binds all interfaces by default because the process always runs in a
