@@ -38,6 +38,7 @@ import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
 import { registerFixedAssetDepreciationJob } from '../modules/fixed-assets';
+import { registerLogRetentionJob } from '../modules/log-retention';
 import { registerProcessorPollJob } from '../modules/payments-processing';
 import { registerRecurringJournalJob } from '../modules/recurring-journals';
 import { startDailyTick } from '../modules/scheduling';
@@ -85,6 +86,16 @@ export async function startWorker(): Promise<void> {
   // The agent work-queue sweep (initiative Q, OB-200…210): matches `scheduled` and
   // `event` triggers and enqueues the work items their `agent_task` actions produce.
   await registerAutomationsJob(queueProvider(), { logger });
+  // Persisted-log retention prune (OB-255): a daily task like the sweeps above, gated
+  // on LOG_SINK=db — a stdout-only deployment persists nothing, so there is nothing to
+  // prune. Registered here for the same reason as every job above: under the in-process
+  // adapter the API is the consumer, but under `sqs` it is this worker.
+  if (config.logSink === 'db') {
+    await registerLogRetentionJob(queueProvider(), {
+      logger,
+      retentionDays: config.logRetentionDays,
+    });
+  }
 
   // The daily clock (OB-127) lives with the job handlers: whichever process consumes the
   // queue is the one that should drive the tick, or a sweep is enqueued to a queue this

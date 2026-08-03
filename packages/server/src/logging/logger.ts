@@ -3,6 +3,8 @@ import type { DestinationStream, Logger as PinoLogger, LoggerOptions } from 'pin
 import type { Config } from '../config';
 import { getConfig } from '../config';
 import { tryGetContext } from '../context';
+import { selectLogSink } from '../providers/logsink';
+import { createLogSinkStream } from './log-sink-stream';
 import { provenanceOf } from './provenance';
 import { redactLogRecord, serializeLogError } from './serialize';
 
@@ -71,9 +73,17 @@ export function prettyTransport(config: Config): PrettyTransport | undefined {
  * application of it.
  */
 export function createLogger(config: Config, destination?: DestinationStream): Logger {
+  // A caller-supplied destination (a test capturing output) wins and bypasses sink
+  // selection entirely; otherwise LOG_SINK decides whether a durable sink layers on
+  // top of stdout (OB-255, D-255-1). `undefined` means stdout-only, the default.
+  const sink = destination === undefined ? selectLogSink(config) : undefined;
+
   // A transport spawns a worker thread and takes ownership of the output, which is
-  // incompatible with a caller-supplied destination — pino throws if given both.
-  const transport = destination === undefined ? prettyTransport(config) : undefined;
+  // incompatible with a caller-supplied destination or a multistream — pino throws
+  // if given both. pino-pretty is a development convenience; when a durable sink is
+  // selected the output is JSON on both streams, so pretty is skipped.
+  const transport =
+    destination === undefined && sink === undefined ? prettyTransport(config) : undefined;
 
   const options: LoggerOptions = {
     level: config.logLevel,
@@ -87,7 +97,20 @@ export function createLogger(config: Config, destination?: DestinationStream): L
     ...(transport === undefined ? {} : { transport }),
   };
 
-  return destination === undefined ? pino(options) : pino(options, destination);
+  if (destination !== undefined) return pino(options, destination);
+  if (sink === undefined) return pino(options);
+
+  // LOG_SINK=db: fan the same formatted lines to stdout (always on) and to the
+  // batching sink destination, which persists them off the hot path. stdout is a
+  // separate multistream entry, so a sink failure is isolated to the sink and can
+  // never take the logs with it (D-255-1). The sink is held to `info`+ — debug and
+  // trace stay stdout-only (D-255-5), the high-volume levels not persisted by default.
+  const sinkStream = createLogSinkStream(sink);
+  const multi = pino.multistream([
+    { stream: pino.destination({ dest: 1, sync: false }) },
+    { stream: sinkStream, level: 'info' },
+  ]);
+  return pino(options, multi);
 }
 
 let resolved: Logger | undefined;

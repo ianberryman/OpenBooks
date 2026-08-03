@@ -23,6 +23,7 @@ import { parseStatement, registerStatementImportJob } from '../modules/banking';
 import { registerDocumentExtractionJob } from '../modules/bills';
 import { registerDunningJob, registerRecurringJob } from '../modules/invoicing';
 import { registerFixedAssetDepreciationJob } from '../modules/fixed-assets';
+import { registerLogRetentionJob } from '../modules/log-retention';
 import { registerProcessorPollJob } from '../modules/payments-processing';
 import { registerRecurringJournalJob } from '../modules/recurring-journals';
 import { startDailyTick } from '../modules/scheduling';
@@ -132,6 +133,15 @@ export async function startApi(): Promise<void> {
     // above: under the in-process adapter this is the process that consumes what it
     // enqueues.
     await registerAutomationsJob(queueProvider(), { logger });
+    // Persisted-log retention prune (OB-255): a daily task like the sweeps above.
+    // Gated on LOG_SINK=db — a stdout-only deployment persists nothing, so there is
+    // nothing to prune and no reason to run a daily DELETE against an empty table.
+    if (config.logSink === 'db') {
+      await registerLogRetentionJob(queueProvider(), {
+        logger,
+        retentionDays: config.logRetentionDays,
+      });
+    }
     // The daily tick (OB-127) runs here under the in-process adapter, because this is the
     // process that consumes what it enqueues (the comment above). A stop handle is captured so
     // the shutdown drain clears it before closing the pool.
