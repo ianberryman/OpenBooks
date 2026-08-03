@@ -8,12 +8,14 @@ import { Ten99RunDetail } from './run-detail';
 
 /**
  * One run's detail (OB-228 Wave-1 Stream D). `./queries` mocked at the hook boundary.
- * Worth asserting: a form's `downloadUrl` becomes the "Download Copy B" link exactly (the
- * same freshly-minted-URL contract `customer-statements.tsx`'s `StatementRow` follows,
- * never rebuilt from a path this client would have to guess at); a `null` one degrades to
- * "Not yet available" instead of a dead link; and e-file is only offered on a `generated`
- * run — D-228-6's "nothing about this transmit action bypasses server-side gating" made
- * legible in the one client-side way that is safe to assert, the enabled/disabled state.
+ * Worth asserting: "Download Copy B" points at the on-demand render route
+ * (`/v1/ten99/forms/{id}/pdf`) built from the form id, NOT the wire form's `downloadUrl` —
+ * that field is a signed URL to a deterministic storage key nothing renders eagerly, so a
+ * cold link 404s ("No such artifact"); the render route renders-stores-streams in one call.
+ * The href is asserted to ignore `downloadUrl` so the fixed wiring cannot silently regress.
+ * And e-file is only offered on a `generated` run — D-228-6's "nothing about this transmit
+ * action bypasses server-side gating" made legible in the one client-side way that is safe
+ * to assert, the enabled/disabled state.
  */
 
 const mocks = vi.hoisted(() => ({
@@ -69,7 +71,7 @@ function stubEfile(mutate: (variables: unknown) => void = vi.fn()): void {
 }
 
 describe('Ten99RunDetail', () => {
-  it("links straight to the form's downloadUrl", () => {
+  it('links Copy B to the on-demand render route built from the form id', () => {
     mocks.useTen99Run.mockReturnValue({
       isPending: false,
       isSuccess: true,
@@ -83,15 +85,17 @@ describe('Ten99RunDetail', () => {
 
     expect(screen.getByRole('link', { name: 'Download Copy B' })).toHaveAttribute(
       'href',
-      'https://files.example.test/form-1.pdf',
+      '/v1/ten99/forms/form-1/pdf',
     );
   });
 
-  it('shows "Not yet available" instead of a link when downloadUrl is null', () => {
+  it('ignores downloadUrl entirely — the Copy B href is the render route, never the storage key', () => {
     mocks.useTen99Run.mockReturnValue({
       isPending: false,
       isSuccess: true,
-      data: run({ forms: [form({ downloadUrl: null })] }),
+      data: run({
+        forms: [form({ id: 'form-9', downloadUrl: 'https://files.example.test/stale.pdf' })],
+      }),
       error: null,
       refetch: () => {},
     });
@@ -99,8 +103,10 @@ describe('Ten99RunDetail', () => {
 
     render(<Ten99RunDetail runId="run-1" onBack={() => {}} />);
 
-    expect(screen.getByText('Not yet available')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Download Copy B' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Download Copy B' })).toHaveAttribute(
+      'href',
+      '/v1/ten99/forms/form-9/pdf',
+    );
   });
 
   it('enables e-file on a generated run and submits the manual provider', async () => {

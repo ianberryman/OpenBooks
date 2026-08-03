@@ -160,6 +160,13 @@ services:
       # 3100 by default because 3000 is the most contended port on any machine that
       # runs more than one Node project.
       - '${API_HOST_PORT:-3100}:3000'
+    # The local StorageProvider persists rendered artifacts (1099 Copy B and invoice/
+    # statement PDFs, uploaded logos) under STORAGE_LOCAL_PATH. Shared with `worker` so an
+    # artifact either role writes is readable by the other, and a named volume so it survives
+    # the `build && up -d` recreate the update workflow does — the image dir is node-owned
+    # (Dockerfile) so this volume inherits a writable owner on first init.
+    volumes:
+      - storage-data:/var/lib/openbooks/storage
     depends_on:
       mysql:
         condition: service_healthy
@@ -172,6 +179,8 @@ services:
     environment:
       <<: *app-env
       OPENBOOKS_ROLE: worker
+    volumes:
+      - storage-data:/var/lib/openbooks/storage
     depends_on:
       mysql:
         condition: service_healthy
@@ -210,3 +219,4 @@ services:
 
 volumes:
   mysql-data:
+  storage-data:

@@ -98,6 +98,16 @@ ENV NODE_ENV=production
 COPY --from=prod-deps --chown=root:root /app /app
 COPY --from=build --chown=root:root /app/dist ./dist
 
+# The local StorageProvider (STORAGE_PROVIDER=local) writes rendered artifacts —
+# 1099 Copy B PDFs, invoice/statement PDFs, uploaded logos — under STORAGE_LOCAL_PATH
+# (compose default /var/lib/openbooks/storage). The process runs as `node` (below) and
+# /var/lib is root-owned, so the base directory must exist and be node-owned before the
+# privilege drop; without it the first write dies with `EACCES: mkdir '/var/lib/openbooks'`
+# (nothing had ever exercised a local write until the 1099 Copy B download). Creating it
+# here also sets the ownership a fresh Docker named volume mounted at this path inherits on
+# first init, so persisted artifact storage stays writable.
+RUN mkdir -p /var/lib/openbooks/storage && chown -R node:node /var/lib/openbooks
+
 # The `node` user (uid 1000) ships with the base image. Nothing in the runtime
 # tree is owned by it, so the process cannot modify its own code.
 USER node

@@ -5,6 +5,7 @@ import type { Ten99Form, Ten99Run, Ten99RunStatus } from '@openbooks/shared-type
 import { newIdempotencyKey } from '../api';
 import { Button, ErrorBanner, Pill, ResponsiveTable, formatMoney } from '../components';
 import type { PillTone } from '../components';
+import { API_BASE_URL } from '../env';
 import { cx } from '../lib/cx';
 import { useEfileTen99Run, useTen99Run } from './queries';
 
@@ -186,13 +187,23 @@ function FormRow({ form }: { readonly form: Ten99Form }): ReactElement {
         {form.recipientTinLast4 === null ? '—' : `••${form.recipientTinLast4}`}
       </td>
       <td className="py-2 text-right">
-        {form.downloadUrl === null ? (
-          <span className="text-sm text-text-subtle">Not yet available</span>
-        ) : (
-          <a href={form.downloadUrl} target="_blank" rel="noreferrer" className={LINK_CLASSES}>
-            Download Copy B
-          </a>
-        )}
+        {/*
+         * The on-demand render route (`GET /v1/ten99/forms/{id}/pdf`), not the wire form's
+         * `downloadUrl`. That field is a signed URL to a *deterministic storage key* that is
+         * only populated the first time the form is rendered (`ten99.service.ts` assumption 1),
+         * and nothing renders eagerly — so a cold link 404s ("No such artifact"). This route
+         * renders, stores, and streams in one call, so it works from a never-rendered state and
+         * always reflects current branding. Built from `API_BASE_URL` so a cross-origin
+         * deployment reaches the api, not the static host; same-origin resolves to a plain path.
+         */}
+        <a
+          href={`${API_BASE_URL}/v1/ten99/forms/${form.id}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className={LINK_CLASSES}
+        >
+          Download Copy B
+        </a>
       </td>
     </tr>
   );
