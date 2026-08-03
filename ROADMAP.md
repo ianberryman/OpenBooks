@@ -57,7 +57,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                       | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
 | **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                            | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
 
-Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251) and [persist application logs to the DB, with a shipping seam](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future) (OB-255). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
+Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251) and [persist application logs to the DB, with a shipping seam](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future) (OB-255), and a [generic audit log of all user actions](#security--operations--generic-audit-log-of-all-user-actions-ob-256-future) (OB-256, cloud-forensics + compliance self-hosters). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
 
 ---
 
@@ -2472,6 +2472,86 @@ is persisted beyond redaction; and the seam accepts a future external sink by co
 the sibling observability gap [OB-248](#open-source--self-host-readiness-ob-229ob-231) (metrics/dashboards
 — logs are the other half), [OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future),
 and the M5 `event_log` retention precedent.
+
+### Security & operations — generic audit log of all user actions (OB-256, future)
+
+**Placeholder — not scoped; owner-requested (2026-08-02). Important for cloud-hosting forensics, and
+wanted by compliance-minded self-hosters too.** Today's audit trail is deep but narrow: the audit report
+(`GET /v1/reports/audit`, `audit.read`) unifies **journal provenance + period-close events**,
+`security_events` records **OAuth credential lifecycle**, and `event_log` is the **integrator change
+feed**. There is **no universal record of user actions** — creating or editing a contact, a custom role
+(OB-226), a bank rule, running an export, viewing a sensitive report all leave no audit entry. The
+forensic question "who did what, from where, when, and did it succeed (or get denied)?" cannot be
+answered app-wide. This item closes that gap.
+
+**Goal.** A first-class, **append-only, queryable audit log** capturing every gated user action across
+**every entrypoint** — HTTP, MCP (the org's agent), and the worker/automation queue — with actor
+identity, org, target, outcome (**including denials**), and request metadata (IP, request id,
+user-agent). Retained long enough for forensics/compliance, exportable/shippable, and **distinct from
+[OB-255](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future)**: OB-255 is
+operational pino logging (debug/info lines); this is a **security record of intent and outcome**. The two
+share a sink seam but are different data with different retention and different consumers.
+
+**Forks to settle up front:**
+
+- **[D-256-1 — the interception point] The service boundary, not the transport.** Every capability funnels
+  through a service function that calls `requirePermission(ctx, key)` — transport holds no business logic
+  (non-negotiable), and MCP tools + worker jobs never touch HTTP. Capture there, via a thin
+  `recordAuditEvent(ctx, { action, targetId?, outcome })` invoked by a **service-boundary wrapper** (the
+  `withIdempotency` precedent), so **agent (MCP) and automation actions are captured too**, not just
+  browser traffic. A transport `onResponse` hook is a useful **complement** for HTTP request metadata
+  (status, latency, IP, user-agent) but must not be the only source, or the non-HTTP actors forensics most
+  cares about go unrecorded.
+- **[D-256-2] Reads: all mutations always; sensitive reads configurably.** Logging every list/get is
+  high-volume and low-signal. Default to **every mutation** plus **every denied attempt**, with
+  **sensitive-read capture opt-in per action** (viewing a TIN/PII, an export, the audit log itself).
+  Forensics wants "who viewed the vendor TIN," not "who paged the contacts list 400 times."
+- **[D-256-3] Capture denials and cross-org probes, not just successes.** A `permission_denied` or a
+  cross-org `404` (the [[openbooks-schema-and-route-tripwires]] A7 shape) is often the **most** interesting
+  event — it is what probing looks like. The record carries an `outcome` (`ok` / `denied` / `not_found` /
+  `error`), so blocked and failed actions are logged.
+- **[D-256-4] Actor identity is first-class.** `ctx` already distinguishes **user / API key / OAuth token /
+  automation-agent** (`actor_type` + id, spec §2.5, self-attested model for agents per D-100). Persist all
+  of it, plus the human behind an API key or token where it is known — this is what separates "the org's
+  integration did it" from "a named person did it."
+- **[D-256-5] Immutability and tamper-evidence.** Append-only is the floor (the app holds no `DELETE`,
+  `0999_app_grants`; the two-user split already makes rewriting hard). **Optional hash-chaining** (each row
+  carries a hash of the prior, so a deletion or edit is detectable) is the stronger forensics posture —
+  recommend **deferring the chain** to a follow-up and reserving the column, since append-only + the DB-user
+  split is already a strong v1.
+- **[D-256-6] Retention is its own knob, longer than operational logs.** Compliance retention (a year or
+  more) is separate from OB-255's 30/90-day operational window, and hits the same retention-vs-append-only
+  tension (a migrator-run prune or partition drop, since the app cannot `DELETE` an append-only table).
+  Export/ship **reuses OB-255's `LogSinkProvider` seam**, so the cloud model streams the audit log to a
+  SIEM / immutable store (couples to [OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future)).
+- **[D-256-7] Subsume `security_events`; feed the audit report.** Fold the OAuth credential events into the
+  new log (one record type, not two), and make the existing audit report read the generic-action source (or
+  add an **Activity** view) so there is one place to read "everything that happened," still gated `audit.read`.
+
+**Shape of the tickets (OB-256a…):**
+
+- **OB-256a — the `audit_events` table.** Append-only, **system-scoped** (nullable `org_id`, resolved
+  outside `tenantDb` — the `event_log`/`security_events`/`roles` precedent) + migration + `generated.ts` +
+  the pinned tripwires (`APPEND_ONLY_TABLES`, `grants`, `harness`, `tenant-scope`). Columns: `at`,
+  `actor_type`, `actor_user_id`, `actor_id`, `org_id` (nullable), `action` (the operationId/permission),
+  `target_type`, `target_id`, `outcome`, `request_id`, `ip`, `user_agent`, and a JSON `detail`.
+- **OB-256b — the `recordAuditEvent` seam + service-boundary capture** (mutations + denials, across HTTP /
+  MCP / worker) + the transport `onResponse` complement for HTTP metadata. The settable-seam idiom for the
+  test harness (`providers/index.ts` pattern).
+- **OB-256c — sensitive-read + denial/cross-org capture** (the opt-in read list; the `outcome` taxonomy).
+- **OB-256d — retention prune + export/ship via OB-255's sink**, migrate `security_events` into the log,
+  and extend the audit report / add the Activity view.
+- **OB-256e (deferred) — hash-chain tamper-evidence.**
+
+**Acceptance.** Every mutation across HTTP, MCP and the worker produces an `audit_events` row naming the
+actor, org, action, target and outcome; **denied and cross-org attempts are captured**; sensitive reads are
+captured when configured; the log is append-only and retained on its own (longer) window; it is queryable
+in SQL and shippable via the OB-255 seam; `security_events` is folded in and the audit report can read it;
+and it stays distinct from operational logging. Related:
+[OB-255](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future) (the sink seam
+and the ops-vs-audit distinction), the existing audit report,
+[OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future) (hosted forensics), and the
+[[openbooks-pii-at-rest-rule]] (audit rows may reference sensitive targets).
 
 ### Operations — evaluate AWS deployment architecture (OB-235, future)
 
