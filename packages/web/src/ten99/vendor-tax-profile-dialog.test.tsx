@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { VendorTaxProfile } from '@openbooks/shared-types';
 
+import { ApiError } from '../api';
 import { VendorTaxProfileDialog } from './vendor-tax-profile-dialog';
 
 /**
@@ -49,6 +50,16 @@ function stubProfile(data: VendorTaxProfile | undefined): void {
     isSuccess: data !== undefined,
     data,
     error: null,
+    refetch: () => {},
+  });
+}
+
+function stubProfileNotFound(): void {
+  mocks.useVendorTaxProfile.mockReturnValue({
+    isPending: false,
+    isSuccess: false,
+    data: undefined,
+    error: new ApiError(404, 'not_found', 'Not found', {}),
     refetch: () => {},
   });
 }
@@ -150,5 +161,16 @@ describe('VendorTaxProfileDialog', () => {
 
     await screen.findByRole('dialog');
     expect(screen.queryByRole('checkbox', { name: 'Clear the stored TIN' })).toBeNull();
+  });
+
+  it('shows a usable new-profile form, not an error, when the vendor has no profile yet (404)', async () => {
+    stubProfileNotFound();
+    stubUpsert();
+
+    renderDialog();
+
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Eligible for a 1099' })).toBeChecked();
   });
 });

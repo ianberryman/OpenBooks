@@ -15,6 +15,7 @@ import {
   useFieldControl,
 } from '../../components';
 import { cx } from '../../lib/cx';
+import { VendorTaxProfileDialog } from '../../ten99/vendor-tax-profile-dialog';
 import type { Contact, CreateContactRequest, UpdateContactRequest } from './queries';
 import { useCreateContact, useIntentKey, useUpdateContact } from './queries';
 
@@ -238,6 +239,7 @@ function ContactFormContent({
     contact === null ? { ...EMPTY_VALUES, ...seed } : valuesOf(contact),
   );
   const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const [open1099, setOpen1099] = useState(false);
 
   const create = useCreateContact();
   const update = useUpdateContact();
@@ -311,194 +313,224 @@ function ContactFormContent({
         </>
       }
     >
-      <form
-        id={formId}
-        noValidate
-        className="flex flex-col gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        {error !== undefined && error !== null && <ErrorBanner error={error} />}
-
-        <Field error={nameError ?? fieldErrors['displayName']}>
-          <FieldLabel>Name</FieldLabel>
-          <TextInput
-            value={values.displayName}
-            aria-required
-            autoComplete="off"
-            onChange={(event) => {
-              set('displayName', event.target.value);
-            }}
-          />
-        </Field>
-
-        <Field
-          error={fieldErrors['code']}
-          hint="Optional, and editable later — unlike an account code, nothing in the ledger cites it."
+      <>
+        <form
+          id={formId}
+          noValidate
+          className="flex flex-col gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
         >
-          <FieldLabel>Code</FieldLabel>
-          <TextInput
-            value={values.code}
-            autoComplete="off"
-            onChange={(event) => {
-              set('code', event.target.value);
-            }}
-          />
-        </Field>
+          {error !== undefined && error !== null && <ErrorBanner error={error} />}
 
-        <Field
-          error={fieldErrors['legalName']}
-          hint="The registered name, when it differs from the one above."
-        >
-          <FieldLabel>Legal name</FieldLabel>
-          <TextInput
-            value={values.legalName}
-            autoComplete="off"
-            onChange={(event) => {
-              set('legalName', event.target.value);
-            }}
-          />
-        </Field>
-
-        <Field error={fieldErrors['email']}>
-          <FieldLabel>Email</FieldLabel>
-          <TextInput
-            type="email"
-            value={values.email}
-            autoComplete="off"
-            onChange={(event) => {
-              set('email', event.target.value);
-            }}
-          />
-        </Field>
-
-        <Field error={fieldErrors['phone']}>
-          <FieldLabel>Phone</FieldLabel>
-          <TextInput
-            value={values.phone}
-            autoComplete="off"
-            onChange={(event) => {
-              set('phone', event.target.value);
-            }}
-          />
-        </Field>
-
-        {/* A fieldset for the same reason the Roles group below is one: the six address
-            fields describe one thing and should be announced together. */}
-        <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-          <legend className="px-1 text-sm font-medium text-text">Address</legend>
-
-          <Field error={fieldErrors['addressLine1']}>
-            <FieldLabel>Address line 1</FieldLabel>
+          <Field error={nameError ?? fieldErrors['displayName']}>
+            <FieldLabel>Name</FieldLabel>
             <TextInput
-              value={values.addressLine1}
+              value={values.displayName}
+              aria-required
               autoComplete="off"
               onChange={(event) => {
-                set('addressLine1', event.target.value);
+                set('displayName', event.target.value);
               }}
             />
           </Field>
 
-          <Field error={fieldErrors['addressLine2']}>
-            <FieldLabel>Address line 2</FieldLabel>
+          <Field
+            error={fieldErrors['code']}
+            hint="Optional, and editable later — unlike an account code, nothing in the ledger cites it."
+          >
+            <FieldLabel>Code</FieldLabel>
             <TextInput
-              value={values.addressLine2}
+              value={values.code}
               autoComplete="off"
               onChange={(event) => {
-                set('addressLine2', event.target.value);
+                set('code', event.target.value);
               }}
             />
           </Field>
 
-          <Field error={fieldErrors['city']}>
-            <FieldLabel>City</FieldLabel>
+          <Field
+            error={fieldErrors['legalName']}
+            hint="The registered name, when it differs from the one above."
+          >
+            <FieldLabel>Legal name</FieldLabel>
             <TextInput
-              value={values.city}
+              value={values.legalName}
               autoComplete="off"
               onChange={(event) => {
-                set('city', event.target.value);
+                set('legalName', event.target.value);
               }}
             />
           </Field>
 
-          <Field error={fieldErrors['region']}>
-            <FieldLabel>State / region</FieldLabel>
+          <Field error={fieldErrors['email']}>
+            <FieldLabel>Email</FieldLabel>
             <TextInput
-              value={values.region}
+              type="email"
+              value={values.email}
               autoComplete="off"
               onChange={(event) => {
-                set('region', event.target.value);
+                set('email', event.target.value);
               }}
             />
           </Field>
 
-          <Field error={fieldErrors['postalCode']}>
-            <FieldLabel>Postal code</FieldLabel>
+          <Field error={fieldErrors['phone']}>
+            <FieldLabel>Phone</FieldLabel>
             <TextInput
-              value={values.postalCode}
+              value={values.phone}
               autoComplete="off"
               onChange={(event) => {
-                set('postalCode', event.target.value);
+                set('phone', event.target.value);
               }}
             />
           </Field>
 
-          <Field error={fieldErrors['country']}>
-            <FieldLabel>Country</FieldLabel>
-            <TextInput
-              value={values.country}
-              autoComplete="off"
+          {/* A fieldset for the same reason the Roles group below is one: the six address
+              fields describe one thing and should be announced together. */}
+          <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+            <legend className="px-1 text-sm font-medium text-text">Address</legend>
+
+            <Field error={fieldErrors['addressLine1']}>
+              <FieldLabel>Address line 1</FieldLabel>
+              <TextInput
+                value={values.addressLine1}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('addressLine1', event.target.value);
+                }}
+              />
+            </Field>
+
+            <Field error={fieldErrors['addressLine2']}>
+              <FieldLabel>Address line 2</FieldLabel>
+              <TextInput
+                value={values.addressLine2}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('addressLine2', event.target.value);
+                }}
+              />
+            </Field>
+
+            <Field error={fieldErrors['city']}>
+              <FieldLabel>City</FieldLabel>
+              <TextInput
+                value={values.city}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('city', event.target.value);
+                }}
+              />
+            </Field>
+
+            <Field error={fieldErrors['region']}>
+              <FieldLabel>State / region</FieldLabel>
+              <TextInput
+                value={values.region}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('region', event.target.value);
+                }}
+              />
+            </Field>
+
+            <Field error={fieldErrors['postalCode']}>
+              <FieldLabel>Postal code</FieldLabel>
+              <TextInput
+                value={values.postalCode}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('postalCode', event.target.value);
+                }}
+              />
+            </Field>
+
+            <Field error={fieldErrors['country']}>
+              <FieldLabel>Country</FieldLabel>
+              <TextInput
+                value={values.country}
+                autoComplete="off"
+                onChange={(event) => {
+                  set('country', event.target.value);
+                }}
+              />
+            </Field>
+          </fieldset>
+
+          {/* A fieldset, so the two flags are announced as one group and the sentence below
+              is read as belonging to both rather than to whichever one focus landed on. */}
+          <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+            <legend className="px-1 text-sm font-medium text-text">Roles</legend>
+            <p className="text-xs text-text-subtle">
+              Independent, and any combination — including none. A contact that is none of these is
+              still named on journal lines without taking part in any subledger. Employee is what an
+              expense may be reimbursed to.
+            </p>
+            <CheckboxField
+              label="Customer"
+              checked={values.isCustomer}
+              onCheckedChange={(next) => {
+                set('isCustomer', next);
+              }}
+            />
+            <CheckboxField
+              label="Vendor"
+              checked={values.isVendor}
+              onCheckedChange={(next) => {
+                set('isVendor', next);
+              }}
+            />
+            <CheckboxField
+              label="Employee"
+              checked={values.isEmployee}
+              onCheckedChange={(next) => {
+                set('isEmployee', next);
+              }}
+            />
+          </fieldset>
+
+          {values.isVendor && (
+            <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+              <legend className="px-1 text-sm font-medium text-text">1099 reporting</legend>
+              {contact === null ? (
+                <p className="text-xs text-text-subtle">
+                  Save this vendor first, then set up their 1099 eligibility, TIN, and W-9 details.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-text-subtle">
+                    Mark this vendor 1099-eligible and record their TIN and W-9 details. Eligible
+                    vendors appear on the 1099 Center worksheet.
+                  </p>
+                  <div>
+                    <Button type="button" onClick={() => setOpen1099(true)}>
+                      Set up 1099 profile
+                    </Button>
+                  </div>
+                </>
+              )}
+            </fieldset>
+          )}
+
+          <Field error={fieldErrors['notes']}>
+            <FieldLabel>Notes</FieldLabel>
+            <TextArea
+              value={values.notes}
               onChange={(event) => {
-                set('country', event.target.value);
+                set('notes', event.target.value);
               }}
             />
           </Field>
-        </fieldset>
-
-        {/* A fieldset, so the two flags are announced as one group and the sentence below
-            is read as belonging to both rather than to whichever one focus landed on. */}
-        <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-          <legend className="px-1 text-sm font-medium text-text">Roles</legend>
-          <p className="text-xs text-text-subtle">
-            Independent, and any combination — including none. A contact that is none of these is
-            still named on journal lines without taking part in any subledger. Employee is what an
-            expense may be reimbursed to.
-          </p>
-          <CheckboxField
-            label="Customer"
-            checked={values.isCustomer}
-            onCheckedChange={(next) => {
-              set('isCustomer', next);
-            }}
-          />
-          <CheckboxField
-            label="Vendor"
-            checked={values.isVendor}
-            onCheckedChange={(next) => {
-              set('isVendor', next);
-            }}
-          />
-          <CheckboxField
-            label="Employee"
-            checked={values.isEmployee}
-            onCheckedChange={(next) => {
-              set('isEmployee', next);
-            }}
-          />
-        </fieldset>
-
-        <Field error={fieldErrors['notes']}>
-          <FieldLabel>Notes</FieldLabel>
-          <TextArea
-            value={values.notes}
-            onChange={(event) => {
-              set('notes', event.target.value);
-            }}
-          />
-        </Field>
-      </form>
+        </form>
+        <VendorTaxProfileDialog
+          contactId={open1099 && contact !== null ? contact.id : null}
+          contactName={contact?.displayName ?? ''}
+          onClose={() => setOpen1099(false)}
+        />
+      </>
     </DialogContent>
   );
 }

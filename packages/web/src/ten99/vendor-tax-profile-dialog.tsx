@@ -13,7 +13,7 @@ import type {
 import type { FormEvent, ReactElement, ReactNode } from 'react';
 import { useId, useState } from 'react';
 
-import { newIdempotencyKey } from '../api';
+import { ApiError, newIdempotencyKey } from '../api';
 import {
   Button,
   Dialog,
@@ -125,7 +125,14 @@ export function VendorTaxProfileDialog({
   const [w9ReceivedOn, setW9ReceivedOn] = useState('');
   const [seeded, setSeeded] = useState<string | null>(null);
 
-  const seedKey = open && profile.data !== undefined ? contactId : null;
+  // A vendor with no 1099 profile yet 404s (getVendorTaxProfile → assertFound) — the ordinary
+  // case now that this dialog is reachable from the contact card, not only from the worksheet
+  // (which lists only vendors that already have one, OB-253). Treat that 404 as a first-time
+  // setup: seed the form's defaults and show no error. The default query retry already skips
+  // 4xx (query/client.ts#isRetryable), so there is no loading flash.
+  const profileMissing = profile.error instanceof ApiError && profile.error.status === 404;
+  const settled = open && (profile.data !== undefined || profileMissing);
+  const seedKey = settled ? contactId : null;
   if (seedKey !== null && seedKey !== seeded) {
     setSeeded(seedKey);
     const data = profile.data;
@@ -200,7 +207,7 @@ export function VendorTaxProfileDialog({
           </>
         }
       >
-        {profile.error != null && (
+        {profile.error != null && !profileMissing && (
           <ErrorBanner error={profile.error} onRetry={() => void profile.refetch()} />
         )}
 
