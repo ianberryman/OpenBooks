@@ -38,6 +38,14 @@ x-openbooks-image: &openbooks-image
 x-app-env: &app-env
   NODE_ENV: production
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Persist operational logs to the DB so a self-host operator can query them in
+  # SQL without a separate log stack (OB-255). Default `stdout` here in the shared
+  # anchor so the `migrate` role — which runs before the `logs` table exists —
+  # never tries to persist; api and worker override it to `db` below. stdout stays
+  # on unconditionally underneath either way. LOG_RETENTION_DAYS bounds the daily
+  # prune (only meaningful under `db`).
+  LOG_SINK: ${LOG_SINK:-stdout}
+  LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-30}
   DATABASE_HOST: ${DATABASE_HOST:-mysql}
   DATABASE_PORT: ${DATABASE_PORT:-3306}
   DATABASE_NAME: ${DATABASE_NAME:-openbooks}
@@ -154,6 +162,10 @@ services:
       OPENBOOKS_ROLE: api
       HTTP_HOST: ${HTTP_HOST:-0.0.0.0}
       HTTP_PORT: 3000
+      # Persist logs to the `logs` table (OB-255); stdout stays on beneath it. The
+      # api is the in-process queue consumer, so it also registers the retention
+      # prune. Override to `stdout` via .env to disable persistence.
+      LOG_SINK: ${LOG_SINK:-db}
     ports:
       # `API_HOST_PORT` for the same reason `DATABASE_HOST_PORT` exists: `HTTP_PORT`
       # is the port the server binds inside its container and is fixed at 3000 above.
@@ -179,6 +191,10 @@ services:
     environment:
       <<: *app-env
       OPENBOOKS_ROLE: worker
+      # Persist logs to the `logs` table (OB-255), matching the api. Under `sqs`
+      # (not the in-process default) the worker is the queue consumer that runs the
+      # retention prune. Override to `stdout` via .env to disable persistence.
+      LOG_SINK: ${LOG_SINK:-db}
     volumes:
       - storage-data:/var/lib/openbooks/storage
     depends_on:
