@@ -57,7 +57,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                       | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
 | **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                            | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
 
-Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
+Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251) and [persist application logs to the DB, with a shipping seam](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future) (OB-255). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
 
 ---
 
@@ -2399,6 +2399,79 @@ Projects board, port open `OB-NNN` items to issues, and **update `README.md`/`CO
 (which point at `ROADMAP.md`) to point at the board and `docs/decisions/`. The provider-seam stubs
 (`smtp` above, the OCR extraction adapter — now targeted at **AWS Textract** rather than `anthropic`,
 see [that follow-up](#follow-up--replace-the-anthropic-ocr-extraction-adapter-with-aws-textract-unscheduled) — and `aws-secrets-manager`) make natural **good-first-issue** entries.
+
+### Operations — persist application logs to the DB, with a shipping seam (OB-255, future)
+
+**Placeholder — not scoped; owner-requested (2026-08-02).** Today the logger is **pino → stdout**
+(`src/logging/logger.ts`): structured JSON in prod, `pino-pretty` in dev, captured by
+`docker compose logs`. It attaches actor provenance on every line (the `mixin`, `logging/provenance.ts`,
+A13), redacts (`redact.ts`) and serializes (`serialize.ts`), across all three roles (`api`/`worker`/
+`migrate`). **Nothing is written to the database** — operational logs live only in the container's
+stdout. This is distinct from the DB-persisted _domain_ events (`event_log`, `security_events`, journal
+provenance, `period_close_events`), which are business records, not logger output.
+
+**Goal.** Persist operational logs to the DB so a self-host operator can query them in SQL without a
+separate log stack — and structure it behind a **seam** so the **cloud-host model can ship logs to an
+external service** (OpenTelemetry / CloudWatch / Datadog / an HTTP collector) instead of, or in addition
+to, the DB. The DB sink is the self-host answer; the external shipper is the hosted answer; the same
+interface serves both.
+
+**Forks to settle up front:**
+
+- **[D-255-1] A `LogSinkProvider` seam, mirroring the existing provider splits** (`EmailProvider`
+  `log`/`ses`, `StorageProvider` `local`/`s3`). `stdout` is always on and is the current behaviour; a
+  pluggable second sink is selected by config (`LOG_SINK=db`, later `otel`/`http`/`cloudwatch`). The DB
+  sink is **additive to stdout, never a replacement** — you must still be able to read logs when the DB
+  itself is the thing failing, so a DB outage cannot be logged to the DB.
+- **[D-255-2] Async, batched, off the hot path.** Implemented as a pino transport / destination that
+  **batches** (N lines or T ms) and writes on its own tick — **never synchronously per line, never inside
+  a request's business transaction** (a log write that opened or joined the posting transaction would let
+  a failed insert poison a rollback, violating the transaction-scope non-negotiable). Best-effort with a
+  **stdout fallback**: a failed DB write drops-or-buffers and falls back to stderr, and **never crashes
+  the app or fails the request**.
+- **[D-255-3 — the load-bearing fork] Retention vs. append-only.** Logs are high-volume and must be
+  pruned, but the append-only-table pattern grants the app no `DELETE` (`0999_app_grants`). Either (a) a
+  scheduled prune run by the **migrator/maintenance** role (not the app), (b) **time-partitioning** with
+  drop-partition, or (c) make `logs` a **mutable** table (breaks append-only purity, but a log line is not
+  a financial record). Recommend: **retention-bounded from day one** — a `registerDailyTask` prune (or
+  partition drop) with a 30/90-day default, matching the M5 event-log 90-day precedent — and decide (a)
+  vs. (b) vs. (c) at scoping.
+- **[D-255-4] Redaction-safe, no credentials, PII-aware.** The DB sink persists **redacted** output only,
+  and must never persist secrets/tokens or PII beyond what `redact.ts` already scrubs (the
+  [[openbooks-pii-at-rest-rule]] applies once it is at rest). Explicit trap: the `log` **EmailProvider**
+  deliberately writes invite **tokens** to the log (`providers/email/log.ts`) — those are credentials and
+  must **not** become queryable rows; either that path is excluded from the DB sink or token-bearing lines
+  stay stdout-only.
+- **[D-255-5] Volume guardrails.** A configurable **minimum level** for the DB sink (e.g. `info`+ to the
+  DB, `debug` stdout-only), batch inserts, and a **bounded in-memory buffer that drops oldest under
+  backpressure** — the sink degrades rather than blocking or growing without limit.
+- **[D-255-6 — hosted] The external shipper is a config swap under the same seam.** In the cloud model,
+  `LOG_SINK=otel|http|cloudwatch` ships to the managed log service; this couples to
+  [OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future) (where hosted logging lives)
+  and shares the durable-queue/worker seams. Ship the interface now; the concrete hosted adapter is a
+  stubbed slot (the `ses`/`sqs`/`s3` idiom) until the hosted plane is stood up.
+
+**Shape of the tickets (small):**
+
+- **OB-255a — `LogSinkProvider` seam + config** (`LOG_SINK`), `stdout` preserved as the always-on default;
+  the settable-seam idiom for the test harness (`providers/index.ts` pattern, since a runtime helper that
+  reads `getConfig()` breaks the harness).
+- **OB-255b — the `logs` table** (append-only or retention-bounded per D-255-3) + migration +
+  `generated.ts`/codegen + the pinned tripwires (`APPEND_ONLY_TABLES`/`MUTABLE_TABLES`, `grants`,
+  `harness`, `tenant-scope` — `logs` is **system-scoped**, `org_id` nullable and resolved outside
+  `tenantDb`, the `event_log`/`roles` precedent). Columns: `at`, `level`, `role`, `message`, nullable
+  `org_id`, and a JSON `fields` payload (provenance already on every line).
+- **OB-255c — the `db` sink**: the batched async pino transport, level threshold, bounded buffer, stdout
+  fallback, redaction-safe; plus the daily retention prune.
+- **OB-255d — hosted shipper slot** (`otel`/`http`/`cloudwatch`, stubbed/deferred, the cloud path) + docs.
+
+**Acceptance.** With `LOG_SINK=db`, `api`/`worker` log lines land in `logs` (level, role, provenance,
+JSON fields), queryable by SQL; a DB-sink failure never fails a request or crashes the process (falls back
+to stdout); retention prunes beyond the window; `stdout` stays the always-available default; no token/PII
+is persisted beyond redaction; and the seam accepts a future external sink by config alone. Related:
+the sibling observability gap [OB-248](#open-source--self-host-readiness-ob-229ob-231) (metrics/dashboards
+— logs are the other half), [OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future),
+and the M5 `event_log` retention precedent.
 
 ### Operations — evaluate AWS deployment architecture (OB-235, future)
 
