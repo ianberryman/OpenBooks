@@ -41,21 +41,21 @@ OB-192…199), and **M6 Automations** — the polled agent work queue, MCP-only 
 
 One placeholder per item on the [competitive gap analysis](#competitive-gap-analysis--candidate-initiatives-vs-quickbooks--xero-future) below. These are **not scoped or owner-sequenced** — the codes are provisional handles, not a commitment to build order (two, `TAX` and `PAYROLL`, are explicit _partner-not-build_ calls). Each links to its detail section; the tier is from the gap sweep.
 
-| Code          | Tier | Candidate                                        | Ticket(s)   | Status                                            | Detail                                                                                                                                                                                        |
-| ------------- | ---- | ------------------------------------------------ | ----------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**                            | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
-| **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**                            | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
-| **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**                     | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
-| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Built — gate-green**                            | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green)                                                                                             |
-| **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**                         | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
-| **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**                 | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
-| **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **BUILT** (gate-green; c1728c5+0887a97; unpushed) | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
-| **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**                      | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                       |
-| **ROLES**     | T2   | Custom role builder                              | OB-226      | **Placeholder — not scoped**                      | [custom role builder](#follow-up--custom-role-builder-ob-226-future)                                                                                                                          |
-| **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**                      | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                           |
-| **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**                      | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                            |
-| **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**               | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
-| **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                    | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
+| Code          | Tier | Candidate                                        | Ticket(s)   | Status                                                    | Detail                                                                                                                                                                                        |
+| ------------- | ---- | ------------------------------------------------ | ----------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**                                    | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
+| **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**                                    | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
+| **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**                             | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
+| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Built — gate-green**                                    | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green)                                                                                             |
+| **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**                                 | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
+| **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**                         | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
+| **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **BUILT** (gate-green; c1728c5+0887a97+de4f021; unpushed) | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
+| **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**                              | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                       |
+| **ROLES**     | T2   | Custom role builder                              | OB-226      | **Placeholder — not scoped**                              | [custom role builder](#follow-up--custom-role-builder-ob-226-future)                                                                                                                          |
+| **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**                              | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                           |
+| **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**                              | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                            |
+| **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                       | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
+| **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                            | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
 
 Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
 
@@ -1616,10 +1616,13 @@ parallel Sonnet worktree streams (efile adapters · `modules/ten99` · routes ·
 orchestrator integration + all tripwires (permission-matrix, routes, cross-org A7 with a real
 profile/run/form fixture, B11, catalog/grants/tenant/harness/resolution) + a rollup property suite
 (threshold boundary, cash-basis year, void exclusion, generate-snapshots-the-worksheet, TIN masked to
-last4). **Two flagged follow-ups:** the `accounts.excluded_from_1099` card-exclusion flag is respected
+last4). **Three flagged follow-ups:** the `accounts.excluded_from_1099` card-exclusion flag is respected
 by the rollup but not yet settable via the accounts API/editor (the human-reviewed worksheet +
-`contactIds` filter cover it meanwhile); and the `ten99.spec.ts` browser E2E is owed (authored-not-run,
-the PB/Q precedent). The original scope write-up follows.
+`contactIds` filter cover it meanwhile); the `ten99.spec.ts` browser E2E is owed (authored-not-run,
+the PB/Q precedent); and there is **no UI path to flag a vendor for 1099** — the worksheet lists only
+already-eligible vendors, so a fresh vendor can never reach the one control that sets the flag
+([OB-253](#follow-up--flag-a-vendor-for-1099-from-the-contact-card-ob-253-scoped), scoped below). The
+original scope write-up follows.
 
 Split out of OB-220 into its own milestone because, while it posts **no journals** (a reporting/
 compliance overlay, not a ledger change — low-risk, like budgets and the audit report), it carries
@@ -1791,6 +1794,46 @@ the `redact.test.ts:38-42` `toEqual`.
 parallelisable on the four Wave-1 streams; only a real transmit adapter is medium-large, and the seam
 keeps it off the critical path.
 
+### Follow-up — flag a vendor for 1099 from the contact card (OB-253, scoped)
+
+**The gap.** The 1099 Center's Worksheet is built _only_ from vendors that already carry an eligible
+profile — `selectEligibleVendorTaxProfiles` (`ten99.repository.ts`) is `WHERE is_1099_eligible = 1`,
+and `computeTen99Worksheet` returns `rows: []` when that set is empty. The **only** UI that sets the
+flag is the "Edit profile" button on a worksheet **row**, which exists only for vendors already on the
+worksheet. The Contacts screen has zero 1099 affordance (`contact-form.tsx` has a plain "Vendor"
+checkbox and no tax-profile link). Net: a freshly-created vendor can never reach the one control that
+would put it on the worksheet — a chicken-and-egg that reads to the user as "I have vendors but the
+1099 page is empty." Distinct from the `excluded_from_1099` follow-up above (that is a per-funding-
+account flag; this is per-vendor eligibility).
+
+**The fix (design decided).** On `contact-form.tsx`, **edit mode only**, when `values.isVendor` is
+checked, render a small "1099 reporting" block with a button that opens the existing
+`VendorTaxProfileDialog` for `contact.id`. Reuse the dialog rather than embedding fields — one write
+path (`useUpsertVendorTaxProfile`), and TIN / classification / W-9 come along for free.
+
+**Two real changes, not just wiring:**
+
+1. **The dialog's read 404s for a vendor with no profile.** `getVendorTaxProfile` does
+   `assertFound(...)` → 404 when none exists — a path never exercised today because the worksheet only
+   opens the dialog for vendors that already have one. From the contact card most vendors will have
+   none, and the dialog currently shows an `ErrorBanner` on that 404 while seeding the form with
+   defaults. **Fix:** treat a 404 (`ApiError.status === 404`) as a clean "new profile" — seed the
+   default form (`isEligible=true`, `1099_nec`, `nec_1`; the upsert `…RequestInput` type lets those be
+   omitted, server fills them) and suppress the banner. The default query retry already skips 4xx
+   (`query/client.ts#isRetryable`), so there is no loading flash. ~10 lines.
+2. **Create vs. edit.** The upsert needs a `contactId`, absent on the **New contact** path. Show the
+   1099 control edit-only, with a create-form hint ("Save the vendor first, then set up their 1099
+   profile") — avoids a fragile create-then-upsert chain in v1.
+
+**Scope boundaries.** Web-only. **No** migration, `generated.ts`, route, or `openapi.json`/`schema.d.ts`
+regen; **no** permission or tripwire changes — `ten99.read`/`ten99.write` already gate the endpoints, and
+the `screens/contacts` → `ten99` intra-web import is allowed (dep-cruiser's `web-uses-the-public-api-only`
+forbids only web → server/plugin-api). Files: `contact-form.tsx` (conditional block + dialog state),
+`vendor-tax-profile-dialog.tsx` (404 → new-profile), `contact-form.test.tsx` + `vendor-tax-profile-dialog.test.tsx`.
+
+**Effort:** **small** — one web session, fully within the existing gate. Once a vendor is flagged, the
+worksheet picks them up automatically (eligible-profile join + paid rollup), closing the loop.
+
 ### Follow-up — sales-tax automation via a pluggable tax provider (OB-221, future)
 
 Today tax is a **flat, org-maintained percentage rate table** (`modules/tax/tax-rates.service.ts`)
@@ -1869,16 +1912,20 @@ recommended default here too: **integrate, don't build.** Payroll is a complianc
 
 ### Milestone INVENTORY — tracked inventory & COGS (OB-224)
 
-**BUILT and gate-green** (commits `c1728c5` foundation + `0887a97`; unpushed — a redeploy is a
-D-15 reset since schema `0025_inventory` is new). Perpetual weighted-average COGS-on-sale +
-inventory-on-purchase, the void ripple (reverses the COGS/receipt journal **and** every separate
-true-up journal so Σ movements stays tied to the inventory-asset GL), stock adjustments against a
-nominated shrinkage account, and the valuation + reorder-alert reads — all verified end to end
-against real MySQL (`test/inventory/inventory.service.test.ts`), with the weighted-average
-arithmetic property-tested (`test/inventory/costing.test.ts`, which caught a real true-up zero-out
-bug). Two follow-ups deferred: **inventory-item creation from the catalog settings UI** (items are
-creatable via the API today; `itemType` is optional on the create schema), and an **inventory E2E
-narrative**. The design that follows is the record of how it was built.
+**BUILT and gate-green** (commits `c1728c5` foundation + `0887a97` + `de4f021` first-class UI;
+unpushed — a redeploy is a D-15 reset since schema `0025_inventory` is new). Perpetual
+weighted-average COGS-on-sale + inventory-on-purchase, the void ripple (reverses the COGS/receipt
+journal **and** every separate true-up journal so Σ movements stays tied to the inventory-asset GL),
+stock adjustments against a nominated shrinkage account, and the valuation + reorder-alert reads —
+all verified end to end against real MySQL (`test/inventory/inventory.service.test.ts`), with the
+weighted-average arithmetic property-tested (`test/inventory/costing.test.ts`, which caught a real
+true-up zero-out bug). The **first-class inventory screen** (`de4f021`) is the operational hub: a
+stock-list landing, a per-item **movement ledger** (`GET /v1/inventory/items/{id}/movements`,
+running on-hand per entry — the append-only audit trail made visible, at `/inventory/:itemId`), a
+"New tracked item" form, and a shrinkage-account settings panel. One follow-up deferred: an
+**inventory E2E narrative** (the app-driven browser walk-through; the flow is covered by the server
+integration test + the web component tests today). The design that follows is the record of how it
+was built.
 
 **ABSENT before OB-224** — invoice/bill lines were free-form-or-catalog-priced with no quantity-on-hand or
 COGS concept; the built **catalog** module is explicitly "the natural anchor for later
