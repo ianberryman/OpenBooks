@@ -41,21 +41,21 @@ OB-192…199), and **M6 Automations** — the polled agent work queue, MCP-only 
 
 One placeholder per item on the [competitive gap analysis](#competitive-gap-analysis--candidate-initiatives-vs-quickbooks--xero-future) below. These are **not scoped or owner-sequenced** — the codes are provisional handles, not a commitment to build order (two, `TAX` and `PAYROLL`, are explicit _partner-not-build_ calls). Each links to its detail section; the tier is from the gap sweep.
 
-| Code          | Tier | Candidate                                        | Ticket(s)   | Status                                                    | Detail                                                                                                                                                                                        |
-| ------------- | ---- | ------------------------------------------------ | ----------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**                                    | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built) |
-| **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**                                    | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                               |
-| **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **Backend done — UI pending**                             | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions)                                                                                        |
-| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Built — gate-green**                                    | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green)                                                                                             |
-| **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**                                 | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                           |
-| **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**                         | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
-| **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **BUILT** (gate-green; c1728c5+0887a97+de4f021; unpushed) | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
-| **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**                              | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                       |
-| **ROLES**     | T2   | Custom role builder                              | OB-226      | **BUILT — gate-green**                                    | [ROLES](#roles--custom-role-builder-ob-226-built--gate-green)                                                                                                                                 |
-| **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**                              | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                           |
-| **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**                              | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                            |
-| **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                       | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
-| **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                            | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                |
+| Code          | Tier | Candidate                                        | Ticket(s)   | Status                                                              | Detail                                                                                                                                                                                                                         |
+| ------------- | ---- | ------------------------------------------------ | ----------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **FEEDS**     | T1   | Live bank feeds + credit-card/liability recon    | OB-227/227b | **Built — gate-green**                                              | [feeds](#follow-up--live-bank-feeds-via-a-bankfeedprovider-seam-stripe-financial-connections-first-ob-227-built--gate-green) · [recon](#ob-227b--credit-card--liability-reconciliation-built)                                  |
+| **STMT**      | T1   | Customer statement of account + CSV/xlsx export  | OB-220      | **Built — gate-green**                                              | [statement & export](#follow-up--statement-of-account--report-export-table-stakes-ob-220-built)                                                                                                                                |
+| **DIM-UI**    | T1   | Per-line dimensions on the AR/AP editors         | —           | **AR/AP UI DONE (`2f0e95f`); presale carry-through pending (D-M7)** | [document-line dimensions](#follow-up--the-document-line-ui-redesign-must-restore-per-line-dimensions) · [presale carry-through](#follow-up--presale-docs-estimatespos-must-carry-dimensions-onto-promoted-invoicesbills-d-m7) |
+| **1099**      | T1   | 1099 contractor tax reporting (NEC/MISC, e-file) | OB-228      | **Built — gate-green**                                              | [Milestone 1099](#milestone-1099--contractor-tax-reporting-1099-necmisc-ob-228-built--gate-green)                                                                                                                              |
+| **TAX**       | T1   | Sales-tax automation (nexus/jurisdiction)        | OB-221      | **Placeholder — partner**                                           | [sales-tax automation](#follow-up--sales-tax-automation-via-a-pluggable-tax-provider-ob-221-future)                                                                                                                            |
+| **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**                                   | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                                                              |
+| **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **BUILT** (gate-green; c1728c5+0887a97+de4f021; unpushed)           | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                                                             |
+| **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**                                        | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                                                        |
+| **ROLES**     | T2   | Custom role builder                              | OB-226      | **BUILT — gate-green**                                              | [ROLES](#roles--custom-role-builder-ob-226-built--gate-green)                                                                                                                                                                  |
+| **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**                                        | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                                                            |
+| **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**                                        | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                                                             |
+| **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                                 | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                                                 |
+| **FX**        | T3   | Multi-currency                                   | OB-222      | **Placeholder — market-gated**                                      | [multi-currency](#multi-currency--a-community-contribution-candidate-not-a-core-milestone-ob-222-market-gated)                                                                                                                 |
 
 Two operational placeholders sit outside the competitive sweep: the [Self-host readiness milestone](#milestone-self-host--production-self-host-readiness-selfhost) (SELFHOST — OB-229…231 + OB-244…250, which umbrellas the [OSS & self-host readiness](#open-source--self-host-readiness-ob-229ob-231) items) and [evaluate AWS deployment architecture](#operations--evaluate-aws-deployment-architecture-ob-235-future) (OB-235), plus [at-rest key rotation via envelope encryption](#security--at-rest-key-rotation-via-envelope-encryption-ob-251-future) (OB-251) and [persist application logs to the DB, with a shipping seam](#operations--persist-application-logs-to-the-db-with-a-shipping-seam-ob-255-future) (OB-255), and a [generic audit log of all user actions](#security--operations--generic-audit-log-of-all-user-actions-ob-256-future) (OB-256, cloud-forensics + compliance self-hosters). One **vertical-expansion** placeholder also sits outside it — a market QuickBooks and Xero do not serve either: [fund accounting for government & nonprofit](#follow-up--fund-accounting-for-government--nonprofit-via-a-balancing-segment-ob-238-future-option) (OB-238), a **future option only if the need arises**.
 
@@ -254,6 +254,13 @@ between Capacitor and a fuller native/React-Native rewrite is itself deferred.
 
 ### Follow-up — the document-line UI redesign must restore per-line dimensions
 
+**DONE (committed `2f0e95f`, deployed).** Per-line dimension tagging was restored on all four AR/AP
+editors via a shared `packages/web/src/dimensions/` module and a "Dimensions (N)" expander — see
+[[dimensions-ui-followup]]. The remaining gap is the **non-posting presale documents** (estimates,
+purchase orders), which still carry no dimensions and drop them on conversion — scoped as its own
+follow-up: [presale carry-through](#follow-up--presale-docs-estimatespos-must-carry-dimensions-onto-promoted-invoicesbills-d-m7).
+The original scope, kept for the record:
+
 The AR/AP document-line editors (invoice, credit note, bill, vendor credit) are being
 redesigned. That redesign **must incorporate per-line dimension tagging** — the current editors
 omit it entirely (they send an empty `dimensionValueIds`), so all invoice/bill activity reaches
@@ -265,10 +272,66 @@ reads return `dimensionValueIds`, and approval propagates the tags onto the jour
 **"Details (N)"** expander pattern rather than inline columns (the subledger row is already wide,
 more so after the catalog picker). This holds **only if the redesign keeps dimensions per line**
 (D-18); a header-level or other-granularity model would need backend changes. POs/estimates
-(D-M7) and recurring-invoice templates carry no dimensions today — extending the redesign to
-either is a separate, well-patterned backend chunk (a `*_line_dimensions` table + wire + persist
+(D-M7) and recurring-invoice templates carry no dimensions today — extending them is scoped
+separately, next.
 
-- convert/materialize carry-through).
+### Follow-up — presale docs (estimates/POs) must carry dimensions onto promoted invoices/bills (D-M7)
+
+**Owner-requested (2026-08-02), scoped, not started.** Now that the AR/AP editors tag lines with
+dimensions, the **non-posting presale documents lose them at the moment of promotion**: an estimate
+converted to an invoice, or a purchase order converted to a bill, produces an **untagged** posting
+document — so any org that quotes/orders before it invoices/bills still reaches the ledger blind on
+those lines, defeating the DIM-UI work for exactly the workflow that plans ahead. The whole feature
+was deliberately deferred under the marker **`D-M7`** (grep it — every touch point is tagged), and
+the exploration confirms **all four layers are gaps; nothing is partially done:**
+
+1. **DB — no companion tag table.** Posting lines tag via a companion table
+   (`ar_document_line_dimensions` / `ap_document_line_dimensions`, `0005_subledger.ts:577`), never a
+   line column. `purchase_order_lines` (`0015_procure_to_pay.ts:139`) and `estimate_lines` (`:236`)
+   are column-for-column mirrors **minus** any `*_line_dimensions` companion — stated outright at
+   `0015_procure_to_pay.ts:51,136`.
+2. **Shared-types — the field is explicitly omitted.** `predocumentLineInputSchema` is
+   `documentLineInputSchema.omit({ dimensionValueIds: true })`
+   (`shared-types/src/procurement/purchase-orders.ts:49`), reused by both PO and estimate request
+   schemas (estimates imports it, `estimates.ts:15`).
+3. **Server — conversion actively drops tags.** `convertEstimateToInvoice`'s line mapper
+   `toDocumentLineInput` (`estimates.service.ts:506`) copies everything **but** dimensions;
+   `convertPurchaseOrderToBill` maps through a hard-coded empty `NO_LINE_TAGS`
+   (`purchase-orders.service.ts:124,446`). Notably the shared resolver **already resolves**
+   `dimensionValueIds` on presale writes today and **throws the result away**
+   (`resolvePurchaseOrderLines`, `purchase-orders.service.ts:154`) — so persistence is a small change,
+   not a new resolver.
+4. **Web — the module is wired into AR/AP only.** `packages/web/src/dimensions/` is imported by
+   `screens/sales/line-row.tsx:14` and `screens/purchases/line-row.tsx:15`; the estimate and PO
+   line-rows explicitly note the omission (`screens/estimates/line-row.tsx:29`,
+   `screens/purchase-orders/line-row.tsx:30`).
+
+**Shape of the work (dependency order — a well-patterned backend chunk + a UI mirror):**
+
+- **Schema:** add `estimate_line_dimensions` + `purchase_order_line_dimensions`, cloning
+  `ar_document_line_dimensions` (`0005_subledger.ts:577`), in a new migration; both are **mutable**,
+  so add them to `MUTABLE_TABLES` in `0999_app_grants` and the `harness` ordered list, and regenerate
+  `generated.ts` off a throwaway MySQL — the orchestrator's hand (schema changes are not a worktree
+  stream). They are tenant tables (`org_id NOT NULL`, composite `(org_id, …)`), so they **do** join
+  `TENANT_TABLES` + the `tenant-scope` set, unlike OB-255's `logs`.
+- **Shared-types:** stop omitting `dimensionValueIds` for presale lines — either drop the `.omit()`
+  (`purchase-orders.ts:49`) or give estimates/POs a schema that keeps it; regenerate `openapi.json` +
+  the web `schema.d.ts`.
+- **Server:** persist the already-resolved tags on estimate/PO line writes (stop discarding them at
+  `purchase-orders.service.ts:154` and the estimate-side `resolveLines`, `estimates.service.ts:527`),
+  and **carry them through conversion** — `toDocumentLineInput` (`estimates.service.ts:506`) and the
+  `NO_LINE_TAGS`/`linesAsInput` path (`purchase-orders.service.ts:124,446`). Approval already
+  propagates a posting line's tags onto the journal, so once the converted draft carries them the
+  reporting path is unchanged.
+- **Web:** wire `LineDimensionFields` / `useDimensionAxes` into `screens/estimates/line-row.tsx` +
+  editor and `screens/purchase-orders/line-row.tsx` + `order-editor.tsx`, mirroring `screens/sales` /
+  `screens/purchases` verbatim.
+
+**Acceptance.** An estimate line tagged with dimensions, converted to an invoice, yields an invoice
+line carrying the same tags, and on approval the journal line is dimension-tagged (same for
+PO→bill); the presale editors expose the "Dimensions (N)" expander; a tagged-then-converted document
+appears correctly in P&L / GL-by-dimension. Related but out: recurring-invoice **templates** carry no
+dimensions either (`D-M7`) — the same companion-table pattern, a separate follow-up if wanted.
 
 ### Follow-up — payment-processing screen needs the document-UI redesign treatment (UI-only, unscheduled)
 
@@ -2400,9 +2463,25 @@ Projects board, port open `OB-NNN` items to issues, and **update `README.md`/`CO
 (`smtp` above, the OCR extraction adapter — now targeted at **AWS Textract** rather than `anthropic`,
 see [that follow-up](#follow-up--replace-the-anthropic-ocr-extraction-adapter-with-aws-textract-unscheduled) — and `aws-secrets-manager`) make natural **good-first-issue** entries.
 
-### Operations — persist application logs to the DB, with a shipping seam (OB-255, future)
+### Operations — persist application logs to the DB, with a shipping seam (OB-255, BUILT — gate-green)
 
-**Placeholder — not scoped; owner-requested (2026-08-02).** Today the logger is **pino → stdout**
+**BUILT — gate-green (2026-08-02), committed `1f7a476` (foundation) + `7d32287` (sink + prune).**
+`LOG_SINK=db` now persists redacted operational log lines to a `logs` table, queryable in SQL,
+with stdout unconditionally on underneath it and a daily retention prune bounded by
+`LOG_RETENTION_DAYS` (default 30). D-255-3 was settled to **mutable + app-user prune** (the
+`purgeExpiredIdempotencyKeys` shape — no maintenance-role job exists to copy, and a log line is
+telemetry, not a ledger fact). `logs` is system-scoped (nullable `org_id`, the `roles`
+`SharedScopeTable` precedent — **not** `event_log`, which is `org_id NOT NULL`). Built to the
+parallel-execution plan below: the orchestrator owned the schema/config/seam trunk (`0026_logs`,
+`generated.ts`, `LogSinkProvider`, `LOG_SINK`/`LOG_RETENTION_DAYS`), two Sonnet streams authored the
+add-only `db` sink + batching destination and the retention prune against pinned contracts, and
+integration wired `createLogger`'s multistream + both entrypoints. Gate: server + all-package `tsc`
+clean, `lint:deps` no-circular (the `logging→providers/logsink` edge), drift clean, full server
+suite **205 files / 2,384 tests** incl. 3 new suites (10 tests). The hosted shippers
+(`otel`/`http`/`cloudwatch`, OB-255d) remain the deferred slot behind the same seam — not yet
+`LOG_SINK` members. The historical scope + the parallel-execution plan follow, for the record.
+
+Today the logger is **pino → stdout**
 (`src/logging/logger.ts`): structured JSON in prod, `pino-pretty` in dev, captured by
 `docker compose logs`. It attaches actor provenance on every line (the `mixin`, `logging/provenance.ts`,
 A13), redacts (`redact.ts`) and serializes (`serialize.ts`), across all three roles (`api`/`worker`/
@@ -2456,11 +2535,16 @@ interface serves both.
 - **OB-255a — `LogSinkProvider` seam + config** (`LOG_SINK`), `stdout` preserved as the always-on default;
   the settable-seam idiom for the test harness (`providers/index.ts` pattern, since a runtime helper that
   reads `getConfig()` breaks the harness).
-- **OB-255b — the `logs` table** (append-only or retention-bounded per D-255-3) + migration +
-  `generated.ts`/codegen + the pinned tripwires (`APPEND_ONLY_TABLES`/`MUTABLE_TABLES`, `grants`,
-  `harness`, `tenant-scope` — `logs` is **system-scoped**, `org_id` nullable and resolved outside
-  `tenantDb`, the `event_log`/`roles` precedent). Columns: `at`, `level`, `role`, `message`, nullable
-  `org_id`, and a JSON `fields` payload (provenance already on every line).
+- **OB-255b — the `logs` table** (retention-bounded per D-255-3 → **mutable**, see the parallel
+  block) + migration + `generated.ts`/codegen + the pinned tripwires (`MUTABLE_TABLES`, `grants`,
+  `harness`, `tenant-scope`). `logs` is **system-scoped**, `org_id` nullable and resolved outside
+  `tenantDb` via `systemDb` — the precedent is **`roles`** (the sole `SharedScopeTable`,
+  `tenant-tables.ts:29`), **not `event_log`**: `event_log.org_id` is `BINARY(16) NOT NULL` and
+  `event_log` **is** a tenant table (present in `TENANT_TABLES`), so it is the wrong model for a
+  nullable-org row. Columns: `id BINARY(16)`, `at DATETIME(3)`, `level`, `role`, `message`, nullable
+  `org_id`, and a JSON `fields` payload (provenance already on every line). No `BIGINT`/`DATE` column,
+  so **no `scripts/codegen.mjs` override** — `DATETIME(3)`→`Date` and `BINARY(16)`→`Buffer` map
+  natively.
 - **OB-255c — the `db` sink**: the batched async pino transport, level threshold, bounded buffer, stdout
   fallback, redaction-safe; plus the daily retention prune.
 - **OB-255d — hosted shipper slot** (`otel`/`http`/`cloudwatch`, stubbed/deferred, the cloud path) + docs.
@@ -2472,6 +2556,79 @@ is persisted beyond redaction; and the seam accepts a future external sink by co
 the sibling observability gap [OB-248](#open-source--self-host-readiness-ob-229ob-231) (metrics/dashboards
 — logs are the other half), [OB-235](#operations--evaluate-aws-deployment-architecture-ob-235-future),
 and the M5 `event_log` retention precedent.
+
+#### Parallel execution — dev-ready fan-out (seams pinned 2026-08-02)
+
+**D-255-3 settled (the load-bearing fork): `logs` is a MUTABLE table, pruned daily by the _app_
+identity.** The exploration found that the append-only-run-by-a-maintenance-role path has **no
+precedent to copy** — the only existing purge (`purgeExpiredIdempotencyKeys`,
+`modules/idempotency/service.ts:376`, a batched delete-loop run inside the worker as the app/tenant
+identity) works precisely because `idempotency_keys` is in `MUTABLE_TABLES` and the app holds `DELETE`
+on it. `event_log`'s "90-day retention" is a **documented constant with no job behind it**
+(`change-feed.service.ts:40`), so there is nothing to inherit. Rather than invent a whole
+migrator/maintenance-role scheduler for a table whose rows are **not financial records**, make `logs`
+mutable and prune it exactly like idempotency: a `registerDailyTask` handler running the batched
+delete as the app user. (Alternative — append-only + a new migrator-run prune — is recorded but
+**not** recommended: it is a net-new identity+job seam for no correctness gain.) This choice keeps the
+tripwire surface small: `logs` goes in `MUTABLE_TABLES` (auto-granted `UPDATE`/`DELETE` and
+auto-covered by `grants.test.ts:423`), the `harness.test.ts:57` ordered migration list, and the
+`SharedScopeTable` union (`tenant-tables.ts:29`, so it is _excluded_ from `TENANT_TABLES` — the
+`roles` precedent) — **not** `APPEND_ONLY_TABLES`, and **not** the `tenant-scope` derived set.
+
+**Pinned contracts (paste verbatim into each stream spec — worktrees branch from HEAD, so the
+uncommitted trunk is invisible to them; keep every stream ADD-ONLY):**
+
+- `LogSinkProvider` (new interface in `packages/plugin-api/src/providers.ts`, re-exported from that
+  package's `index.ts` barrel — the narrowest-surface rule; a provider type not re-exported is
+  unimportable):
+  ```ts
+  export interface LogRecord {
+    readonly at: string; // ISO-8601; the transport stamps it
+    readonly level: string; // 'info' | 'warn' | …
+    readonly role: string; // config.role — api | worker | migrate
+    readonly message: string;
+    readonly orgId: string | null;
+    readonly fields: Record<string, unknown>; // already redacted; see D-255-4
+  }
+  export interface LogSinkProvider {
+    write(batch: readonly LogRecord[]): Promise<void>; // best-effort; MUST NOT throw into the caller
+  }
+  ```
+- The `db`-sink Kysely row it inserts (system-scoped, via `systemDb()` — never `tenantDb`):
+  `{ id: Buffer; at: Date; level: string; role: string; message: string; org_id: Buffer | null; fields: <JSON> }`.
+- Config seam (non-provider scalars, the `LOG_LEVEL` idiom at `config/env.ts:55` → `config/config.ts`
+  `Config` interface + `shape()`): `LOG_SINK` (`stdout` default | `db` | later `otel`/`http`/`cloudwatch`)
+  and `LOG_RETENTION_DAYS` (default `30`). `stdout` is **always on**; a second sink is additive.
+- Provider wiring idiom (`providers/index.ts`): lazy singleton + `logSink()` getter + `setLogSink(v)`
+  test/host installer + a `selectLogSink(config)` exhaustive switch — the `storageProvider`/`setStorageProvider`
+  pattern (`providers/index.ts:205`). A runtime helper reading `getConfig()` breaks the harness, so
+  the settable seam is mandatory.
+
+**Orchestrator-owned trunk (sequential, first — schema + every shared/registry file):** the
+`0026_logs` migration + `migrations/index.ts` registration; `generated.ts` via a **throwaway** MySQL
+migrated fresh through `0026` (never the running `:13307` stack); the `MUTABLE_TABLES` /
+`harness` ordered-list / `SharedScopeTable`-union edits; the `LogSinkProvider` interface + barrel
+re-export; the `config/env.ts` + `config/config.ts` seam; the `providers/index.ts` getter/setter/select
+wiring; the `logging/logger.ts` edit that installs the sink as a batched pino transport/destination
+(the one shared-file logger touch); and the daily-task registration in both entrypoints. Then `yarn
+check` + integration. These are the files that _must_ stay off the streams.
+
+**ADD-ONLY parallel streams (Sonnet worktrees, cherry-picked; new files only):**
+
+| Stream                                               | Deliverable (new files only)                                                                                                                                                                                                                                                                                                                               | Pinned against                                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — `db` sink + batched transport** (OB-255c core) | `providers/logsink/db.ts` (the `LogSinkProvider` `db` impl — batched `INSERT` via `systemDb`) + the transport/destination that **batches** N-lines/T-ms, keeps a **bounded buffer that drops oldest under backpressure**, and on any DB-write failure **falls back to stderr and never throws / never crashes / never fails a request** (D-255-2, D-255-5) | `LogRecord`/`LogSinkProvider` + the `logs` row shape above                                                                                |
+| **B — retention prune job** (OB-255c prune)          | `modules/log-retention/*` — a `registerDailyTask` queue + handler running the batched `DELETE FROM logs WHERE at < :cutoff` delete-loop (the `purgeExpiredIdempotencyKeys` shape, `service.ts:376`) as the app identity, window = `LOG_RETENTION_DAYS`                                                                                                     | the `registerDailyTask(queue)` + `queue.subscribe` idiom (`recurring-journals/engine.ts:72`); `logs` is MUTABLE so the app holds `DELETE` |
+| **C — hosted shipper stub** (OB-255d)                | `providers/logsink/otel.ts` / `http.ts` / `cloudwatch.ts` — throwing stubs behind the same seam (the `ses`/`sqs`/`s3` deferred-adapter idiom) + operator docs                                                                                                                                                                                              | the `LogSinkProvider` interface + `selectLogSink` cases the orchestrator adds                                                             |
+| **D — property/best-effort suite**                   | new test files: a DB-sink failure never fails a request nor crashes the process (fault-injected), the bounded buffer drops-oldest under backpressure, **redaction-safety incl. the D-255-4 token trap**, and the prune deletes only beyond the window                                                                                                      | the same contracts; server project (testcontainers)                                                                                       |
+
+**D-255-4 resolution (pin into Stream A + D):** the `log` `EmailProvider` writes the invite **token**
+under an `email.text`/`html`/`subject` field, and the name-keyed redactor
+(`logging/redact.ts` — `SECRET_FIELD_SUBSTRINGS`) does **not** match those names, so the token would
+otherwise land in a queryable row. The `db` sink therefore **drops the whole `email` payload field
+before insert** (a persisted operational log has no business holding outbound email bodies), and
+Stream D asserts an emitted `email.text` never reaches a `logs` row. Everything else the sink persists
+is already redacted (the `formatters.log` walk, `serialize.ts:88`, runs before the transport).
 
 ### Security & operations — generic audit log of all user actions (OB-256, future)
 
