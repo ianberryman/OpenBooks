@@ -229,6 +229,9 @@ describe('applying a template nominates the control accounts', () => {
     expect(await getControlAccounts(actor.ctx)).toEqual({
       receivableControlAccountId: receivable === null ? null : byCode.get(receivable),
       payableControlAccountId: payable === null ? null : byCode.get(payable),
+      // A chart template nominates only the two control accounts, not a shrinkage
+      // account (OB-224) — that stays unset until the org tracks inventory.
+      inventoryShrinkageAccountId: null,
     });
   });
 

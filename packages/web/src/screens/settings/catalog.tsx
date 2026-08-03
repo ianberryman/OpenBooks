@@ -54,6 +54,7 @@ const STATUS_FILTER_OPTIONS = [
 const DIRECTION_LABELS: Readonly<Record<CatalogDirection, string>> = {
   sales: 'Sales',
   purchase: 'Purchase',
+  inventory: 'Inventory',
 };
 
 type CatalogDialog =

@@ -1,8 +1,11 @@
 import type {
   CatalogItem,
   CatalogItemDirection,
+  InventoryCostingMethod,
+  InventoryItemType,
   ListCatalogItemsQuery,
 } from '@openbooks/shared-types';
+import { quantityFromUnits, quantityToString } from '@openbooks/shared-types/tax';
 
 import type { RequestContext } from '../../context';
 import type { KeysetOrdering, KeysetPage, TenantDatabase } from '../../db';
@@ -34,15 +37,29 @@ import { ConflictError, InternalError } from '../../errors';
 /** The resource token every miss in this module reports (A7). */
 export const CATALOG_ITEM_RESOURCE = 'catalog_item';
 
+/**
+ * The `reorder_point_micros` column is a quantity scaled by 1,000,000 and a
+ * `Quantity` is one scaled by 10,000, so the two differ by a hundred — the
+ * `quantityToMicros` constant `purchase-orders.service.ts` states, restated here
+ * because the reorder point round-trips the same way a document line's quantity does.
+ */
+const MICROS_PER_QUANTITY_UNIT = 100n;
+
 /** The columns every read in this module selects, so one mapper covers them all. */
 const CATALOG_ITEM_COLUMNS = [
   'id',
   'direction',
+  'item_type',
   'name',
   'code',
   'account_id',
   'unit_amount_minor',
   'tax_rate_id',
+  'inventory_asset_account_id',
+  'cogs_account_id',
+  'costing_method',
+  'default_cost_minor',
+  'reorder_point_micros',
   'is_active',
   'created_at',
   'updated_at',
@@ -51,11 +68,17 @@ const CATALOG_ITEM_COLUMNS = [
 interface CatalogItemRow {
   readonly id: Buffer;
   readonly direction: string;
+  readonly item_type: string;
   readonly name: string;
   readonly code: string | null;
   readonly account_id: Buffer | null;
   readonly unit_amount_minor: bigint | null;
   readonly tax_rate_id: Buffer | null;
+  readonly inventory_asset_account_id: Buffer | null;
+  readonly cogs_account_id: Buffer | null;
+  readonly costing_method: string | null;
+  readonly default_cost_minor: bigint | null;
+  readonly reorder_point_micros: bigint | null;
   readonly is_active: number;
   readonly created_at: Date;
   readonly updated_at: Date;
@@ -63,11 +86,19 @@ interface CatalogItemRow {
 
 export interface NewCatalogItemRow {
   readonly direction: CatalogItemDirection;
+  readonly itemType: InventoryItemType;
   readonly name: string;
   readonly code: string | null;
   readonly accountId: Buffer | null;
   readonly unitAmountMinor: bigint | null;
   readonly taxRateId: Buffer | null;
+  // Inventory costing fields (OB-224). Present only for `item_type='inventory'`;
+  // the service enforces that invariant before this row is built.
+  readonly inventoryAssetAccountId: Buffer | null;
+  readonly cogsAccountId: Buffer | null;
+  readonly costingMethod: InventoryCostingMethod | null;
+  readonly defaultCostMinor: bigint | null;
+  readonly reorderPointMicros: bigint | null;
 }
 
 /**
@@ -81,6 +112,11 @@ export interface CatalogItemPatch {
   readonly accountId?: Buffer | null;
   readonly unitAmountMinor?: bigint | null;
   readonly taxRateId?: Buffer | null;
+  // The two costing fields safe to change on an existing item — they do not touch
+  // posted stock movements, unlike the asset/COGS accounts which are immutable
+  // (OB-224). `null` clears; absent leaves alone, the `code` shape.
+  readonly defaultCostMinor?: bigint | null;
+  readonly reorderPointMicros?: bigint | null;
   readonly isActive?: boolean;
 }
 
@@ -111,11 +147,17 @@ export async function insertCatalogItem(
       .values({
         id,
         direction: input.direction,
+        item_type: input.itemType,
         name: input.name,
         code: input.code,
         account_id: input.accountId,
         unit_amount_minor: input.unitAmountMinor,
         tax_rate_id: input.taxRateId,
+        inventory_asset_account_id: input.inventoryAssetAccountId,
+        cogs_account_id: input.cogsAccountId,
+        costing_method: input.costingMethod,
+        default_cost_minor: input.defaultCostMinor,
+        reorder_point_micros: input.reorderPointMicros,
       })
       .execute();
   } catch (error) {
@@ -194,6 +236,12 @@ export async function updateCatalogItemRow(
           ? {}
           : { unit_amount_minor: patch.unitAmountMinor }),
         ...(patch.taxRateId === undefined ? {} : { tax_rate_id: patch.taxRateId }),
+        ...(patch.defaultCostMinor === undefined
+          ? {}
+          : { default_cost_minor: patch.defaultCostMinor }),
+        ...(patch.reorderPointMicros === undefined
+          ? {}
+          : { reorder_point_micros: patch.reorderPointMicros }),
         ...(patch.isActive === undefined ? {} : { is_active: patch.isActive ? 1 : 0 }),
       })
       .where('id', '=', id)
@@ -250,6 +298,7 @@ export function toCatalogItem(row: CatalogItemRow): CatalogItem {
   return {
     id: bufferToUuid(row.id),
     direction: row.direction as CatalogItemDirection,
+    itemType: row.item_type as InventoryItemType,
     name: row.name,
     code: row.code,
     defaultAccountId: row.account_id === null ? null : bufferToUuid(row.account_id),
@@ -257,6 +306,19 @@ export function toCatalogItem(row: CatalogItemRow): CatalogItem {
     // item carries no standing price.
     defaultUnitAmount: row.unit_amount_minor === null ? null : row.unit_amount_minor.toString(),
     defaultTaxRateId: row.tax_rate_id === null ? null : bufferToUuid(row.tax_rate_id),
+    // Inventory costing fields (OB-224). Money as a cents-only string; the reorder
+    // point as a `Quantity` decimal string, converting from the `quantity_micros`
+    // column scale (the `toQuantity` idiom, `purchase-orders.service.ts`).
+    inventoryAssetAccountId:
+      row.inventory_asset_account_id === null ? null : bufferToUuid(row.inventory_asset_account_id),
+    cogsAccountId: row.cogs_account_id === null ? null : bufferToUuid(row.cogs_account_id),
+    costingMethod:
+      row.costing_method === null ? null : (row.costing_method as InventoryCostingMethod),
+    defaultCost: row.default_cost_minor === null ? null : row.default_cost_minor.toString(),
+    reorderPoint:
+      row.reorder_point_micros === null
+        ? null
+        : quantityToString(quantityFromUnits(row.reorder_point_micros / MICROS_PER_QUANTITY_UNIT)),
     isActive: row.is_active !== 0,
     // `timezone: 'Z'` on the pool and `DATETIME(3)` left as a `Date`
     // (`src/db/connection.ts`), so these are real instants.

@@ -706,6 +706,7 @@ describe('accounting settings', () => {
     expect(initial.json()).toEqual({
       receivableControlAccountId: books.receivable,
       payableControlAccountId: books.payable,
+      inventoryShrinkageAccountId: null,
     });
 
     const cleared = await app.inject({
@@ -718,6 +719,7 @@ describe('accounting settings', () => {
     expect(cleared.json()).toEqual({
       receivableControlAccountId: books.receivable,
       payableControlAccountId: null,
+      inventoryShrinkageAccountId: null,
     });
 
     // And what a cleared nomination costs is the next approval, loudly.

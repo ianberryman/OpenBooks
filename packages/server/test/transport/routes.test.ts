@@ -185,6 +185,13 @@ describe('the /v1 route table', () => {
         'getTen99FormPdf',
         'efileTen99Run',
         'getTen99RunStatus',
+        // Tracked inventory & COGS (OB-224): the valuation report (reports surface,
+        // inventory.read), reorder alerts (inventory.read), and the stock-adjustment
+        // POST (inventory.write). COGS-on-sale and receipt-on-bill ride the AR/AP
+        // approve hooks, so there is no route of their own here.
+        'getInventoryValuation',
+        'getReorderAlerts',
+        'createInventoryAdjustment',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',
         'updateControlAccounts',

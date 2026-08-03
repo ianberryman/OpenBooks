@@ -56,6 +56,11 @@ import {
   updateCatalogItem,
 } from '../../src/modules/catalog';
 import {
+  getInventoryValuation,
+  getReorderAlerts,
+  postInventoryAdjustment,
+} from '../../src/modules/inventory';
+import {
   createContact,
   deactivateContact,
   deleteContact,
@@ -588,6 +593,12 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   // Not the AP/AR clerks — their grants are explicit `IN(...)` lists that do not name ten99.
   'ten99.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
   'ten99.write': ['owner', 'bookkeeper', 'accountant'],
+  // Tracked inventory & COGS (OB-224, D-INV-8). read reaches every `%.read` holder
+  // (valuation, on-hand, reorder alerts); write is owner + bookkeeper only — a stock
+  // adjustment is a bookkeeping act the catch-all grants, and it is not a `%.read`
+  // nor on the accountant's or the AP/AR clerks' explicit `IN(...)` lists.
+  'inventory.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
+  'inventory.write': ['owner', 'bookkeeper'],
   'dimensions.read': [
     'owner',
     'bookkeeper',
@@ -1133,6 +1144,32 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'createCatalogItem',
     permission: 'catalog.write',
     call: (s) => createCatalogItem({ direction: 'sales', name: 'Widget' }, s.ctx),
+  },
+  // Tracked inventory & COGS (OB-224). The two reads gate on `inventory.read`; the
+  // stock adjustment on `inventory.write`. `requirePermission` runs before any
+  // business logic, so an unauthorized role is refused here regardless of whether the
+  // placeholder line resolves — the `judge` distinguishes `permission_denied` alone.
+  {
+    name: 'getInventoryValuation',
+    operationId: 'getInventoryValuation',
+    permission: 'inventory.read',
+    call: (s) => getInventoryValuation({}, s.ctx),
+  },
+  {
+    name: 'getReorderAlerts',
+    operationId: 'getReorderAlerts',
+    permission: 'inventory.read',
+    call: (s) => getReorderAlerts(s.ctx),
+  },
+  {
+    name: 'createInventoryAdjustment',
+    operationId: 'createInventoryAdjustment',
+    permission: 'inventory.write',
+    call: (s) =>
+      postInventoryAdjustment(
+        { adjustmentDate: s.date, lines: [{ catalogItemId: s.catalogItemId, quantityDelta: '1' }] },
+        s.ctx,
+      ),
   },
   {
     name: 'getCatalogItem',

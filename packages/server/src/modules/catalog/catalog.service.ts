@@ -12,6 +12,7 @@ import {
   updateCatalogItemRequestSchema,
 } from '@openbooks/shared-types';
 import { fromMinorString, toMinorUnits } from '@openbooks/shared-types/money';
+import { quantityFromString, quantityUnits } from '@openbooks/shared-types/tax';
 
 import type { RequestContext } from '../../context';
 import type { TenantDatabase } from '../../db';
@@ -76,9 +77,20 @@ export async function createCatalogItem(
     request.defaultAccountId == null ? null : await requireAccount(db, request.defaultAccountId);
   const taxRateId =
     request.defaultTaxRateId == null ? null : await requireTaxRate(db, request.defaultTaxRateId);
+  // The costing accounts, validated to exist like `defaultAccountId` (B11). The
+  // schema's refine has already enforced that an inventory item names both plus a
+  // costing method (parseInput ran it), so a present asset id here is required, not
+  // incidental — existence only, not type, the `requireAccount` convention.
+  const inventoryAssetAccountId =
+    request.inventoryAssetAccountId == null
+      ? null
+      : await requireAccount(db, request.inventoryAssetAccountId);
+  const cogsAccountId =
+    request.cogsAccountId == null ? null : await requireAccount(db, request.cogsAccountId);
 
   const row = await insertCatalogItem(db, {
     direction: request.direction,
+    itemType: request.itemType ?? 'non_inventory',
     name: request.name,
     code: request.code ?? null,
     accountId,
@@ -90,6 +102,12 @@ export async function createCatalogItem(
         ? null
         : toMinorUnits(fromMinorString(request.defaultUnitAmount)),
     taxRateId,
+    inventoryAssetAccountId,
+    cogsAccountId,
+    costingMethod: request.costingMethod ?? null,
+    defaultCostMinor:
+      request.defaultCost == null ? null : toMinorUnits(fromMinorString(request.defaultCost)),
+    reorderPointMicros: request.reorderPoint == null ? null : toReorderMicros(request.reorderPoint),
   });
 
   return toCatalogItem(row);
@@ -171,6 +189,20 @@ export async function updateCatalogItem(
               ? null
               : await requireTaxRate(db, request.defaultTaxRateId),
         }),
+    ...(request.defaultCost === undefined
+      ? {}
+      : {
+          defaultCostMinor:
+            request.defaultCost === null
+              ? null
+              : toMinorUnits(fromMinorString(request.defaultCost)),
+        }),
+    ...(request.reorderPoint === undefined
+      ? {}
+      : {
+          reorderPointMicros:
+            request.reorderPoint === null ? null : toReorderMicros(request.reorderPoint),
+        }),
   };
 
   await updateCatalogItemRow(db, id, patch);
@@ -220,6 +252,16 @@ async function requireTaxRate(db: TenantDatabase, taxRateId: string): Promise<Bu
   const bytes = uuidToBuffer(taxRateId);
   if (!(await taxRateExists(db, bytes))) throw new NotFoundError('tax_rate');
   return bytes;
+}
+
+/**
+ * A wire `Quantity` (scaled by 10,000) as `reorder_point_micros` (scaled by
+ * 1,000,000) — the `quantityToMicros` conversion, factor of a hundred
+ * (`purchase-orders.service.ts`). The string is `quantitySchema`-validated, so
+ * `quantityFromString` cannot throw on shape here.
+ */
+function toReorderMicros(reorderPoint: string): bigint {
+  return quantityUnits(quantityFromString(reorderPoint)) * 100n;
 }
 
 async function setActive(
@@ -284,13 +326,17 @@ export async function assertCatalogItemsUsable(
     // Absent means missing or cross-org: A7's one miss, a 404 (B11).
     if (direction === undefined) throw new NotFoundError(RESOURCE);
 
-    if (direction !== ref.expected) {
+    // A tracked `inventory` item is one stock record bought and sold, so it is
+    // usable on both a sales and a purchase document (D-INV-1) — it is the item the
+    // pickers union onto both sides. Only a `sales`/`purchase` item is confined to
+    // its own side.
+    if (direction !== ref.expected && direction !== 'inventory') {
       throw new PreconditionFailedError(
         'catalog_item_wrong_direction',
         `This catalog item is a ${direction} item and cannot be put on a ${ref.expected} ` +
           'document. A sales document takes only sales items and a purchase document only ' +
-          'purchase ones (D-CAT-1); a thing you both buy and sell is two items. Pick the ' +
-          `${ref.expected} item instead.`,
+          'purchase ones (D-CAT-1); a thing you both buy and sell is a tracked inventory item ' +
+          `or two items. Pick the ${ref.expected} item instead.`,
       );
     }
   }

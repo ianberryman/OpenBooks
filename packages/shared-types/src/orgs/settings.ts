@@ -69,6 +69,16 @@ export const controlAccountsSchema = z
           'The account an approved bill credits and an approved vendor credit debits. Null until ' +
           'the org nominates one.',
       }),
+    inventoryShrinkageAccountId: z
+      .uuid()
+      .nullable()
+      .meta({
+        description:
+          'The account a stock adjustment posts its offsetting entry to — a shrinkage/write-off ' +
+          'account (OB-224, D-INV-6). Null until the org nominates one; posting a stock ' +
+          'adjustment without it is a `precondition_failed`. Only stock adjustments read it; ' +
+          'perpetual COGS on a sale and inventory on a purchase do not.',
+      }),
   })
   .meta({
     id: 'ControlAccounts',
@@ -99,6 +109,7 @@ export const updateControlAccountsRequestSchema = z
   .strictObject({
     receivableControlAccountId: z.uuid().nullable().optional(),
     payableControlAccountId: z.uuid().nullable().optional(),
+    inventoryShrinkageAccountId: z.uuid().nullable().optional(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',

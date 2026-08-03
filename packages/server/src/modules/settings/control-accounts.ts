@@ -80,6 +80,10 @@ export async function getControlAccounts(
       row.receivableControlAccountId === null ? null : bufferToUuid(row.receivableControlAccountId),
     payableControlAccountId:
       row.payableControlAccountId === null ? null : bufferToUuid(row.payableControlAccountId),
+    inventoryShrinkageAccountId:
+      row.inventoryShrinkageAccountId === null
+        ? null
+        : bufferToUuid(row.inventoryShrinkageAccountId),
   };
 }
 
@@ -136,6 +140,14 @@ export async function updateControlAccounts(
               trx,
               'payable',
               input.payableControlAccountId,
+            ),
+          }),
+      ...(input.inventoryShrinkageAccountId === undefined
+        ? {}
+        : {
+            inventoryShrinkageAccountId: await resolveShrinkageNomination(
+              trx,
+              input.inventoryShrinkageAccountId,
             ),
           }),
     };
@@ -230,6 +242,10 @@ async function getControlAccountsIn(db: TenantDatabase): Promise<ControlAccounts
       row.receivableControlAccountId === null ? null : bufferToUuid(row.receivableControlAccountId),
     payableControlAccountId:
       row.payableControlAccountId === null ? null : bufferToUuid(row.payableControlAccountId),
+    inventoryShrinkageAccountId:
+      row.inventoryShrinkageAccountId === null
+        ? null
+        : bufferToUuid(row.inventoryShrinkageAccountId),
   };
 }
 
@@ -286,6 +302,36 @@ async function resolveNomination(
       `The nominated ${describe(side)} control account is deactivated, so nothing can post to ` +
         'it. Every approval in this subledger would fail at the moment somebody was waiting for ' +
         'a document rather than now. Reactivate the account, or nominate another.',
+    );
+  }
+
+  return bytes;
+}
+
+/**
+ * The inventory-shrinkage nomination (OB-224, D-INV-6), validated to exist and be
+ * active in this org. Unlike the two control accounts, its *type* is not
+ * constrained: a shrinkage/write-off account is conventionally an expense, but an
+ * org may post adjustments to a COGS or other-expense account of its own choosing,
+ * so this follows `catalog.service.ts`'s `requireAccount` — existence and activity
+ * only, with `postJournal` the backstop that refuses an unpostable account. A
+ * cross-org id is A7's 404 (read through `tenantDb`); a deactivated account is the
+ * shared `account_inactive` `precondition_failed`.
+ */
+async function resolveShrinkageNomination(
+  db: TenantDatabase,
+  accountId: string | null,
+): Promise<Buffer | null> {
+  if (accountId === null) return null;
+
+  const bytes = assertFound(accountIdBytes(accountId), ACCOUNT_RESOURCE);
+  const account = assertFound(await selectNominatedAccount(db, bytes), ACCOUNT_RESOURCE);
+
+  if (!account.isActive) {
+    throw new PreconditionFailedError(
+      'account_inactive',
+      'The nominated inventory-shrinkage account is deactivated, so a stock adjustment could not ' +
+        'post its offsetting entry. Reactivate the account, or nominate another.',
     );
   }
 

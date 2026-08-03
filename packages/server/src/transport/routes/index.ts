@@ -27,6 +27,7 @@ import { registerExpenseRoutes } from './expenses';
 import { registerExternalRefRoutes } from './external-refs';
 import { registerFixedAssetRoutes } from './fixed-assets';
 import { registerImportRoutes } from './imports';
+import { registerInventoryRoutes } from './inventory';
 import { registerInvoiceRoutes } from './invoices';
 import { registerJournalLineRoutes } from './journal-lines';
 import { registerJournalRoutes } from './journals';
@@ -689,4 +690,8 @@ export function registerV1Routes(app: App, config: Config): void {
   // cash-paid worksheet (card excluded), and immutable filing runs/forms + manual e-file.
   // Gated on `ten99.read`/`ten99.write` in the service.
   registerTen99Routes(app);
+  // Tracked inventory & COGS (OB-224): the valuation report, reorder alerts, and the
+  // stock-adjustment document. Inventory's GL effects (COGS on sale, receipt on bill)
+  // ride the AR/AP approve hooks, not a route here. Gated `inventory.read`/`.write`.
+  registerInventoryRoutes(app);
 }

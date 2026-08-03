@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { inventoryCostingMethodSchema, inventoryItemTypeSchema } from '../inventory';
+import { quantitySchema } from '../subledger';
 import { minorUnitsSchema, pageQueryShape, pageSchema } from '../wire';
 
 /**
@@ -44,7 +46,7 @@ export const CATALOG_ITEM_CODE_MAX_LENGTH = 64;
  * it citing the wrong kind, and the fix for a mis-directed item is to deactivate it
  * and make the other one — the `accounts.code` immutability argument.
  */
-export const CATALOG_ITEM_DIRECTIONS = ['sales', 'purchase'] as const;
+export const CATALOG_ITEM_DIRECTIONS = ['sales', 'purchase', 'inventory'] as const;
 
 export type CatalogItemDirection = (typeof CATALOG_ITEM_DIRECTIONS)[number];
 
@@ -52,7 +54,41 @@ const directionSchema = z.enum(CATALOG_ITEM_DIRECTIONS).meta({
   description:
     'Which side of the books this item seeds. `sales` items appear on invoices and estimates and ' +
     'carry an income account; `purchase` items on bills, purchase orders and expenses and carry ' +
-    'an expense account. A thing you both buy and sell is two items (D-CAT-1).',
+    'an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a ' +
+    'tracked `inventory` item (OB-224), which is one stock record the pickers union onto both ' +
+    'sides. Immutable after creation.',
+});
+
+/**
+ * The inventory costing fields (OB-224). Nullable on the response and optional on
+ * create, because only an `item_type='inventory'` item carries them — a
+ * `non_inventory`/`service` item posts the line's own account with no stock effect.
+ * `createCatalogItemRequestSchema` refines "an inventory item must name its asset
+ * and COGS accounts and a costing method"; the server enforces it too (a Zod refine
+ * is a convenience, not the authority — `catalog.service.ts`).
+ */
+const inventoryAssetAccountIdSchema = z.uuid().meta({
+  description:
+    'The asset account a tracked item’s stock is carried in. A purchase of the item debits it; a ' +
+    'sale credits it at the cost of the units sold (D-INV-1). Required for `inventory` items.',
+});
+
+const cogsAccountIdSchema = z.uuid().meta({
+  description:
+    'The cost-of-goods-sold account a tracked item’s sale posts against (Dr COGS / Cr inventory ' +
+    'asset). Required for `inventory` items.',
+});
+
+const defaultCostSchema = minorUnitsSchema.meta({
+  description:
+    'The fallback unit cost in minor units, used to cost a sale that runs the item negative before ' +
+    'it has ever held stock (the backorder accommodation, D-INV). Optional.',
+});
+
+const reorderPointSchema = quantitySchema.meta({
+  description:
+    'The on-hand quantity at or below which the item is flagged for reorder (the valuation report ' +
+    'and the reorder-alerts view). Optional.',
 });
 
 const nameSchema = z.string().trim().min(1).max(CATALOG_ITEM_NAME_MAX_LENGTH).meta({
@@ -99,11 +135,17 @@ export const catalogItemSchema = z
   .strictObject({
     id: z.uuid(),
     direction: directionSchema,
+    itemType: inventoryItemTypeSchema,
     name: nameSchema,
     code: codeSchema.nullable(),
     defaultAccountId: defaultAccountIdSchema.nullable(),
     defaultUnitAmount: defaultUnitAmountSchema.nullable(),
     defaultTaxRateId: defaultTaxRateIdSchema.nullable(),
+    inventoryAssetAccountId: inventoryAssetAccountIdSchema.nullable(),
+    cogsAccountId: cogsAccountIdSchema.nullable(),
+    costingMethod: inventoryCostingMethodSchema.nullable(),
+    defaultCost: defaultCostSchema.nullable(),
+    reorderPoint: reorderPointSchema.nullable(),
     isActive: z.boolean().meta({
       description:
         'Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) ' +
@@ -129,17 +171,36 @@ export type CatalogItem = z.infer<typeof catalogItemSchema>;
 export const createCatalogItemRequestSchema = z
   .strictObject({
     direction: directionSchema,
+    itemType: inventoryItemTypeSchema.optional(),
     name: nameSchema,
     code: codeSchema.nullish(),
     defaultAccountId: defaultAccountIdSchema.nullish(),
     defaultUnitAmount: defaultUnitAmountSchema.nullish(),
     defaultTaxRateId: defaultTaxRateIdSchema.nullish(),
+    inventoryAssetAccountId: inventoryAssetAccountIdSchema.nullish(),
+    cogsAccountId: cogsAccountIdSchema.nullish(),
+    costingMethod: inventoryCostingMethodSchema.nullish(),
+    defaultCost: defaultCostSchema.nullish(),
+    reorderPoint: reorderPointSchema.nullish(),
   })
+  .refine(
+    (input) =>
+      input.itemType !== 'inventory' ||
+      (input.inventoryAssetAccountId != null &&
+        input.cogsAccountId != null &&
+        input.costingMethod != null),
+    {
+      message:
+        'A tracked inventory item must name an inventory-asset account, a COGS account, and a ' +
+        'costing method.',
+    },
+  )
   .meta({
     id: 'CreateCatalogItemRequest',
     description:
-      'Creates one catalog item. Only `name` and `direction` are required; the defaults are ' +
-      'optional, since an item can be a reusable description on its own.',
+      'Creates one catalog item. Only `name` and `direction` are required; `itemType` defaults to ' +
+      '`non_inventory`. A tracked `inventory` item must also name its asset and COGS accounts and ' +
+      'a costing method (OB-224).',
   });
 
 export type CreateCatalogItemRequest = z.infer<typeof createCatalogItemRequestSchema>;
@@ -157,6 +218,8 @@ export const updateCatalogItemRequestSchema = z
     defaultAccountId: defaultAccountIdSchema.nullish(),
     defaultUnitAmount: defaultUnitAmountSchema.nullish(),
     defaultTaxRateId: defaultTaxRateIdSchema.nullish(),
+    defaultCost: defaultCostSchema.nullish(),
+    reorderPoint: reorderPointSchema.nullish(),
   })
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'Supply at least one field to change.',
@@ -164,8 +227,9 @@ export const updateCatalogItemRequestSchema = z
   .meta({
     id: 'UpdateCatalogItemRequest',
     description:
-      'Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` ' +
-      'is immutable and `isActive` is not here — deactivation is its own operation.',
+      'Partial update. An absent field is unchanged and an explicit `null` clears it. `direction`, ' +
+      '`itemType` and the asset/COGS/costing-method fields are immutable (posted stock movements ' +
+      'reference them); `isActive` is not here — deactivation is its own operation.',
   });
 
 export type UpdateCatalogItemRequest = z.infer<typeof updateCatalogItemRequestSchema>;

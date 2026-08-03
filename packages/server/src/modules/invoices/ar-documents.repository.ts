@@ -59,6 +59,7 @@ const DOCUMENT_COLUMNS = [
   'memo',
   'journal_id',
   'void_journal_id',
+  'cogs_journal_id',
   'created_at',
   'updated_at',
 ] as const;
@@ -90,6 +91,8 @@ export interface DocumentRow {
   readonly memo: string | null;
   readonly journal_id: Buffer | null;
   readonly void_journal_id: Buffer | null;
+  /** The COGS journal an inventory-carrying invoice posted, reversed on void (OB-224, D-INV-7). */
+  readonly cogs_journal_id: Buffer | null;
   readonly created_at: Date;
   readonly updated_at: Date;
 }
@@ -321,6 +324,30 @@ export async function markApproved(
     // of the draft state, so a row that already carries a journal is not updated
     // even if the lock above were somehow lost.
     .where('ar_documents.journal_id', 'is', null)
+    .executeTakeFirst();
+
+  return Number(result.numUpdatedRows);
+}
+
+/**
+ * Stamps the COGS journal an approved invoice's inventory lines posted (OB-224).
+ *
+ * A separate journal from the revenue `journal_id` so a void reverses both (D-INV-7).
+ * Guarded on `cogs_journal_id IS NULL` for `markApproved`'s belt-and-braces reason:
+ * the COGS journal is posted once, inside the same approve transaction that holds the
+ * document's row lock, so a second stamp cannot occur.
+ */
+export async function markCogsJournal(
+  db: TenantDatabase,
+  id: Buffer,
+  cogsJournalId: Buffer,
+  now: Date,
+): Promise<number> {
+  const result = await db
+    .updateTable('ar_documents')
+    .set({ cogs_journal_id: cogsJournalId, updated_at: now })
+    .where('ar_documents.id', '=', id)
+    .where('ar_documents.cogs_journal_id', 'is', null)
     .executeTakeFirst();
 
   return Number(result.numUpdatedRows);

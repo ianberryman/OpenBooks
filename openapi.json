@@ -8212,6 +8212,33 @@
               }
             ]
           },
+          "cogsAccountId": {
+            "anyOf": [
+              {
+                "description": "The cost-of-goods-sold account a tracked item’s sale posts against (Dr COGS / Cr inventory asset). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costingMethod": {
+            "anyOf": [
+              {
+                "description": "How units are costed. `weighted_average` is the only method in v1 — it maps onto the append-only movement log as a derived rational; FIFO is deferred (ROADMAP § Milestone INVENTORY).",
+                "enum": [
+                  "weighted_average"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
@@ -8224,6 +8251,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -8255,10 +8293,11 @@
             ]
           },
           "direction": {
-            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.",
             "enum": [
               "sales",
-              "purchase"
+              "purchase",
+              "inventory"
             ],
             "type": "string"
           },
@@ -8267,15 +8306,48 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
+          "inventoryAssetAccountId": {
+            "anyOf": [
+              {
+                "description": "The asset account a tracked item’s stock is carried in. A purchase of the item debits it; a sale credits it at the cost of the units sold (D-INV-1). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "isActive": {
             "description": "Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5).",
             "type": "boolean"
+          },
+          "itemType": {
+            "description": "What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).",
+            "enum": [
+              "inventory",
+              "non_inventory",
+              "service"
+            ],
+            "type": "string"
           },
           "name": {
             "description": "What the item is called, and what fills the line description when it is selected.",
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quantity",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "updatedAt": {
             "format": "date-time",
@@ -8286,11 +8358,17 @@
         "required": [
           "id",
           "direction",
+          "itemType",
           "name",
           "code",
           "defaultAccountId",
           "defaultUnitAmount",
           "defaultTaxRateId",
+          "inventoryAssetAccountId",
+          "cogsAccountId",
+          "costingMethod",
+          "defaultCost",
+          "reorderPoint",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -8314,6 +8392,33 @@
               }
             ]
           },
+          "cogsAccountId": {
+            "anyOf": [
+              {
+                "description": "The cost-of-goods-sold account a tracked item’s sale posts against (Dr COGS / Cr inventory asset). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costingMethod": {
+            "anyOf": [
+              {
+                "description": "How units are costed. `weighted_average` is the only method in v1 — it maps onto the append-only movement log as a derived rational; FIFO is deferred (ROADMAP § Milestone INVENTORY).",
+                "enum": [
+                  "weighted_average"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
@@ -8326,6 +8431,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -8357,10 +8473,11 @@
             ]
           },
           "direction": {
-            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.",
             "enum": [
               "sales",
-              "purchase"
+              "purchase",
+              "inventory"
             ],
             "type": "string"
           },
@@ -8369,15 +8486,48 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
+          "inventoryAssetAccountId": {
+            "anyOf": [
+              {
+                "description": "The asset account a tracked item’s stock is carried in. A purchase of the item debits it; a sale credits it at the cost of the units sold (D-INV-1). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "isActive": {
             "description": "Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5).",
             "type": "boolean"
+          },
+          "itemType": {
+            "description": "What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).",
+            "enum": [
+              "inventory",
+              "non_inventory",
+              "service"
+            ],
+            "type": "string"
           },
           "name": {
             "description": "What the item is called, and what fills the line description when it is selected.",
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantityInput",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "updatedAt": {
             "format": "date-time",
@@ -8388,11 +8538,17 @@
         "required": [
           "id",
           "direction",
+          "itemType",
           "name",
           "code",
           "defaultAccountId",
           "defaultUnitAmount",
           "defaultTaxRateId",
+          "inventoryAssetAccountId",
+          "cogsAccountId",
+          "costingMethod",
+          "defaultCost",
+          "reorderPoint",
           "isActive",
           "createdAt",
           "updatedAt"
@@ -9962,6 +10118,19 @@
         "additionalProperties": false,
         "description": "Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account.",
         "properties": {
+          "inventoryShrinkageAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account a stock adjustment posts its offsetting entry to — a shrinkage/write-off account (OB-224, D-INV-6). Null until the org nominates one; posting a stock adjustment without it is a `precondition_failed`. Only stock adjustments read it; perpetual COGS on a sale and inventory on a purchase do not."
+          },
           "payableControlAccountId": {
             "anyOf": [
               {
@@ -9991,7 +10160,8 @@
         },
         "required": [
           "receivableControlAccountId",
-          "payableControlAccountId"
+          "payableControlAccountId",
+          "inventoryShrinkageAccountId"
         ],
         "type": "object"
       },
@@ -9999,6 +10169,19 @@
         "additionalProperties": false,
         "description": "Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account.",
         "properties": {
+          "inventoryShrinkageAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account a stock adjustment posts its offsetting entry to — a shrinkage/write-off account (OB-224, D-INV-6). Null until the org nominates one; posting a stock adjustment without it is a `precondition_failed`. Only stock adjustments read it; perpetual COGS on a sale and inventory on a purchase do not."
+          },
           "payableControlAccountId": {
             "anyOf": [
               {
@@ -10028,7 +10211,8 @@
         },
         "required": [
           "receivableControlAccountId",
-          "payableControlAccountId"
+          "payableControlAccountId",
+          "inventoryShrinkageAccountId"
         ],
         "type": "object"
       },
@@ -10830,7 +11014,7 @@
       },
       "CreateCatalogItemRequest": {
         "additionalProperties": false,
-        "description": "Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own.",
+        "description": "Creates one catalog item. Only `name` and `direction` are required; `itemType` defaults to `non_inventory`. A tracked `inventory` item must also name its asset and COGS accounts and a costing method (OB-224).",
         "properties": {
           "code": {
             "anyOf": [
@@ -10845,6 +11029,33 @@
               }
             ]
           },
+          "cogsAccountId": {
+            "anyOf": [
+              {
+                "description": "The cost-of-goods-sold account a tracked item’s sale posts against (Dr COGS / Cr inventory asset). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costingMethod": {
+            "anyOf": [
+              {
+                "description": "How units are costed. `weighted_average` is the only method in v1 — it maps onto the append-only movement log as a derived rational; FIFO is deferred (ROADMAP § Milestone INVENTORY).",
+                "enum": [
+                  "weighted_average"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "defaultAccountId": {
             "anyOf": [
               {
@@ -10852,6 +11063,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -10883,10 +11105,33 @@
             ]
           },
           "direction": {
-            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.",
             "enum": [
               "sales",
-              "purchase"
+              "purchase",
+              "inventory"
+            ],
+            "type": "string"
+          },
+          "inventoryAssetAccountId": {
+            "anyOf": [
+              {
+                "description": "The asset account a tracked item’s stock is carried in. A purchase of the item debits it; a sale credits it at the cost of the units sold (D-INV-1). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itemType": {
+            "description": "What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).",
+            "enum": [
+              "inventory",
+              "non_inventory",
+              "service"
             ],
             "type": "string"
           },
@@ -10895,6 +11140,17 @@
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quantity",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -10905,7 +11161,7 @@
       },
       "CreateCatalogItemRequestInput": {
         "additionalProperties": false,
-        "description": "Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own.",
+        "description": "Creates one catalog item. Only `name` and `direction` are required; `itemType` defaults to `non_inventory`. A tracked `inventory` item must also name its asset and COGS accounts and a costing method (OB-224).",
         "properties": {
           "code": {
             "anyOf": [
@@ -10920,6 +11176,33 @@
               }
             ]
           },
+          "cogsAccountId": {
+            "anyOf": [
+              {
+                "description": "The cost-of-goods-sold account a tracked item’s sale posts against (Dr COGS / Cr inventory asset). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "costingMethod": {
+            "anyOf": [
+              {
+                "description": "How units are costed. `weighted_average` is the only method in v1 — it maps onto the append-only movement log as a derived rational; FIFO is deferred (ROADMAP § Milestone INVENTORY).",
+                "enum": [
+                  "weighted_average"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "defaultAccountId": {
             "anyOf": [
               {
@@ -10927,6 +11210,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -10958,10 +11252,33 @@
             ]
           },
           "direction": {
-            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).",
+            "description": "Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.",
             "enum": [
               "sales",
-              "purchase"
+              "purchase",
+              "inventory"
+            ],
+            "type": "string"
+          },
+          "inventoryAssetAccountId": {
+            "anyOf": [
+              {
+                "description": "The asset account a tracked item’s stock is carried in. A purchase of the item debits it; a sale credits it at the cost of the units sold (D-INV-1). Required for `inventory` items.",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "itemType": {
+            "description": "What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).",
+            "enum": [
+              "inventory",
+              "non_inventory",
+              "service"
             ],
             "type": "string"
           },
@@ -10970,6 +11287,17 @@
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantityInput",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -12578,6 +12906,112 @@
           "method",
           "usefulLifeMonths",
           "inServiceDate"
+        ],
+        "type": "object"
+      },
+      "CreateInventoryAdjustmentRequest": {
+        "additionalProperties": false,
+        "description": "Posts a stock adjustment — a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account (D-INV-6), plus one movement per line. Gated `inventory.write`.",
+        "properties": {
+          "adjustmentDate": {
+            "$ref": "#/components/schemas/CalendarDate",
+            "description": "The date the adjustment posts under. Must fall in an open period."
+          },
+          "lines": {
+            "description": "At least one item line. Each item may appear once.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "catalogItemId": {
+                  "description": "The tracked catalog item this figure is for.",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "quantityDelta": {
+                  "$ref": "#/components/schemas/Quantity",
+                  "description": "The signed change to on-hand units — negative for shrinkage or a write-off, positive for found stock. Its value is costed on the server at the item’s moving average."
+                }
+              },
+              "required": [
+                "catalogItemId",
+                "quantityDelta"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An optional note — the reason for the count or write-off."
+          }
+        },
+        "required": [
+          "adjustmentDate",
+          "lines"
+        ],
+        "type": "object"
+      },
+      "CreateInventoryAdjustmentRequestInput": {
+        "additionalProperties": false,
+        "description": "Posts a stock adjustment — a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account (D-INV-6), plus one movement per line. Gated `inventory.write`.",
+        "properties": {
+          "adjustmentDate": {
+            "$ref": "#/components/schemas/CalendarDateInput",
+            "description": "The date the adjustment posts under. Must fall in an open period."
+          },
+          "lines": {
+            "description": "At least one item line. Each item may appear once.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "catalogItemId": {
+                  "description": "The tracked catalog item this figure is for.",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                },
+                "quantityDelta": {
+                  "$ref": "#/components/schemas/QuantityInput",
+                  "description": "The signed change to on-hand units — negative for shrinkage or a write-off, positive for found stock. Its value is costed on the server at the item’s moving average."
+                }
+              },
+              "required": [
+                "catalogItemId",
+                "quantityDelta"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An optional note — the reason for the count or write-off."
+          }
+        },
+        "required": [
+          "adjustmentDate",
+          "lines"
         ],
         "type": "object"
       },
@@ -19065,6 +19499,568 @@
         },
         "required": [
           "address"
+        ],
+        "type": "object"
+      },
+      "InventoryAdjustment": {
+        "additionalProperties": false,
+        "description": "A posted stock adjustment: its lines, the journal it posted, and any reversal.",
+        "properties": {
+          "adjustmentDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The journal the adjustment posted, or null while it is still a draft."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustmentLine"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reversing journal, once the adjustment has been reversed (D-02)."
+          }
+        },
+        "required": [
+          "id",
+          "adjustmentDate",
+          "memo",
+          "journalId",
+          "reversedByJournalId",
+          "lines",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InventoryAdjustmentInput": {
+        "additionalProperties": false,
+        "description": "A posted stock adjustment: its lines, the journal it posted, and any reversal.",
+        "properties": {
+          "adjustmentDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The journal the adjustment posted, or null while it is still a draft."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustmentLineInput"
+            },
+            "type": "array"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reversedByJournalId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reversing journal, once the adjustment has been reversed (D-02)."
+          }
+        },
+        "required": [
+          "id",
+          "adjustmentDate",
+          "memo",
+          "journalId",
+          "reversedByJournalId",
+          "lines",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InventoryAdjustmentLine": {
+        "additionalProperties": false,
+        "description": "One posted adjustment line — its signed quantity and the value the server costed it at.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The signed value posted for this line, costed at the item’s moving average."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "quantityDelta",
+          "valueDelta"
+        ],
+        "type": "object"
+      },
+      "InventoryAdjustmentLineInput": {
+        "additionalProperties": false,
+        "description": "One posted adjustment line — its signed quantity and the value the server costed it at.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/QuantityInput"
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The signed value posted for this line, costed at the item’s moving average."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "quantityDelta",
+          "valueDelta"
+        ],
+        "type": "object"
+      },
+      "InventoryMovement": {
+        "additionalProperties": false,
+        "description": "One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "description": "The journal that carried this movement’s GL effect (never mutated; spec §2.2).",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "movementDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "movementType": {
+            "description": "What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).",
+            "enum": [
+              "receipt",
+              "sale",
+              "adjustment",
+              "true_up",
+              "reversal"
+            ],
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "Signed change in on-hand units. A receipt is positive; a sale is negative."
+          },
+          "sourceDocId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceDocType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which document produced the movement — `bill`, `invoice`, `adjustment`."
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Signed change in inventory value, in minor units. Its sign matches `quantityDelta`; the zero-out sweep sets it so a zero on-hand quantity has exactly zero value."
+          }
+        },
+        "required": [
+          "id",
+          "catalogItemId",
+          "movementType",
+          "quantityDelta",
+          "valueDelta",
+          "journalId",
+          "sourceDocType",
+          "sourceDocId",
+          "movementDate",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InventoryMovementInput": {
+        "additionalProperties": false,
+        "description": "One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "description": "The journal that carried this movement’s GL effect (never mutated; spec §2.2).",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "movementDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "movementType": {
+            "description": "What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).",
+            "enum": [
+              "receipt",
+              "sale",
+              "adjustment",
+              "true_up",
+              "reversal"
+            ],
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "Signed change in on-hand units. A receipt is positive; a sale is negative."
+          },
+          "sourceDocId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceDocType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which document produced the movement — `bill`, `invoice`, `adjustment`."
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Signed change in inventory value, in minor units. Its sign matches `quantityDelta`; the zero-out sweep sets it so a zero on-hand quantity has exactly zero value."
+          }
+        },
+        "required": [
+          "id",
+          "catalogItemId",
+          "movementType",
+          "quantityDelta",
+          "valueDelta",
+          "journalId",
+          "sourceDocType",
+          "sourceDocId",
+          "movementDate",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InventoryValuation": {
+        "additionalProperties": false,
+        "description": "On-hand quantity and value for every tracked item as at a date, with a total that ties to the inventory-asset GL account.",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryValuationRow"
+            },
+            "type": "array"
+          },
+          "totalValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "Every row’s value summed, in minor units. Ties to the inventory-asset account balance as at `asOf` — the subledger-agreement invariant the property suite asserts (spec §11, OB-088)."
+          }
+        },
+        "required": [
+          "asOf",
+          "rows",
+          "totalValue"
+        ],
+        "type": "object"
+      },
+      "InventoryValuationInput": {
+        "additionalProperties": false,
+        "description": "On-hand quantity and value for every tracked item as at a date, with a total that ties to the inventory-asset GL account.",
+        "properties": {
+          "asOf": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryValuationRowInput"
+            },
+            "type": "array"
+          },
+          "totalValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "Every row’s value summed, in minor units. Ties to the inventory-asset account balance as at `asOf` — the subledger-agreement invariant the property suite asserts (spec §11, OB-088)."
+          }
+        },
+        "required": [
+          "asOf",
+          "rows",
+          "totalValue"
+        ],
+        "type": "object"
+      },
+      "InventoryValuationRow": {
+        "additionalProperties": false,
+        "description": "One tracked item’s on-hand quantity, value, and derived unit cost as at `asOf`.",
+        "properties": {
+          "belowReorderPoint": {
+            "description": "True when a reorder point is set and on-hand quantity is at or below it.",
+            "type": "boolean"
+          },
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quantity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The item’s reorder point, or null when none is set."
+          },
+          "unitCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The derived moving-average unit cost (`value / quantity`) in minor units, rounded for display only. Null when on-hand quantity is zero — there is no meaningful average."
+          },
+          "value": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "The on-hand value in minor units — the sum of the item’s value deltas as at `asOf`."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "value",
+          "unitCost",
+          "reorderPoint",
+          "belowReorderPoint"
+        ],
+        "type": "object"
+      },
+      "InventoryValuationRowInput": {
+        "additionalProperties": false,
+        "description": "One tracked item’s on-hand quantity, value, and derived unit cost as at `asOf`.",
+        "properties": {
+          "belowReorderPoint": {
+            "description": "True when a reorder point is set and on-hand quantity is at or below it.",
+            "type": "boolean"
+          },
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantityInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The item’s reorder point, or null when none is set."
+          },
+          "unitCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The derived moving-average unit cost (`value / quantity`) in minor units, rounded for display only. Null when on-hand quantity is zero — there is no meaningful average."
+          },
+          "value": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "The on-hand value in minor units — the sum of the item’s value deltas as at `asOf`."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "value",
+          "unitCost",
+          "reorderPoint",
+          "belowReorderPoint"
         ],
         "type": "object"
       },
@@ -28464,6 +29460,120 @@
         ],
         "type": "object"
       },
+      "ReorderAlert": {
+        "additionalProperties": false,
+        "description": "A tracked item whose on-hand quantity is at or below its reorder point.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "The reorder point on-hand has fallen to or below."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "reorderPoint"
+        ],
+        "type": "object"
+      },
+      "ReorderAlertInput": {
+        "additionalProperties": false,
+        "description": "A tracked item whose on-hand quantity is at or below its reorder point.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "The reorder point on-hand has fallen to or below."
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "reorderPoint"
+        ],
+        "type": "object"
+      },
+      "ReorderAlerts": {
+        "additionalProperties": false,
+        "description": "Every tracked item currently at or below its reorder point.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/ReorderAlert"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts"
+        ],
+        "type": "object"
+      },
+      "ReorderAlertsInput": {
+        "additionalProperties": false,
+        "description": "Every tracked item currently at or below its reorder point.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/ReorderAlertInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts"
+        ],
+        "type": "object"
+      },
       "ReportGroupKey": {
         "additionalProperties": false,
         "description": "The dimension value one slice of a grouped report is for. A report grouped by an axis has one bucket per value plus an unassigned bucket, whose key is null.",
@@ -30651,7 +31761,7 @@
       },
       "UpdateCatalogItemRequest": {
         "additionalProperties": false,
-        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation.",
+        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction`, `itemType` and the asset/COGS/costing-method fields are immutable (posted stock movements reference them); `isActive` is not here — deactivation is its own operation.",
         "properties": {
           "code": {
             "anyOf": [
@@ -30673,6 +31783,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -30708,13 +31829,24 @@
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quantity",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
       },
       "UpdateCatalogItemRequestInput": {
         "additionalProperties": false,
-        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation.",
+        "description": "Partial update. An absent field is unchanged and an explicit `null` clears it. `direction`, `itemType` and the asset/COGS/costing-method fields are immutable (posted stock movements reference them); `isActive` is not here — deactivation is its own operation.",
         "properties": {
           "code": {
             "anyOf": [
@@ -30736,6 +31868,17 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "defaultCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput",
+                "description": "The fallback unit cost in minor units, used to cost a sale that runs the item negative before it has ever held stock (the backorder accommodation, D-INV). Optional."
               },
               {
                 "type": "null"
@@ -30771,6 +31914,17 @@
             "maxLength": 512,
             "minLength": 1,
             "type": "string"
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantityInput",
+                "description": "The on-hand quantity at or below which the item is flagged for reorder (the valuation report and the reorder-alerts view). Optional."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
@@ -31100,6 +32254,18 @@
         "additionalProperties": false,
         "description": "Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated.",
         "properties": {
+          "inventoryShrinkageAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "payableControlAccountId": {
             "anyOf": [
               {
@@ -31131,6 +32297,18 @@
         "additionalProperties": false,
         "description": "Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated.",
         "properties": {
+          "inventoryShrinkageAccountId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "payableControlAccountId": {
             "anyOf": [
               {
@@ -40039,7 +41217,8 @@
             "schema": {
               "enum": [
                 "sales",
-                "purchase"
+                "purchase",
+                "inventory"
               ],
               "type": "string"
             }
@@ -44760,6 +45939,92 @@
         "summary": "Preview a QuickBooks CSV import without writing",
         "tags": [
           "imports"
+        ]
+      }
+    },
+    "/v1/inventory/adjustments": {
+      "post": {
+        "description": "Posts a count or write-off: a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account, plus one movement per line, costed on the server at each item’s moving average (D-INV-6). A negative quantity is shrinkage; a positive one is found stock.",
+        "operationId": "createInventoryAdjustment",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryAdjustmentRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryAdjustment"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Post a stock adjustment",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/v1/inventory/reorder-alerts": {
+      "get": {
+        "description": "Every tracked item whose on-hand quantity is at or below its reorder point. A thin read over the same fold the valuation report uses.",
+        "operationId": "getReorderAlerts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderAlerts"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Reorder alerts",
+        "tags": [
+          "inventory"
         ]
       }
     },
@@ -51151,6 +52416,48 @@
         "summary": "General ledger for one account",
         "tags": [
           "reports"
+        ]
+      }
+    },
+    "/v1/reports/inventory-valuation": {
+      "get": {
+        "description": "On-hand quantity and value for every tracked item as at `asOf` (default today), with a total that ties to the inventory-asset account balance (the subledger-agreement invariant, spec §11). Each row carries the derived moving-average unit cost and a reorder flag.",
+        "operationId": "getInventoryValuation",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CalendarDateInput"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryValuation"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Inventory valuation",
+        "tags": [
+          "inventory"
         ]
       }
     },

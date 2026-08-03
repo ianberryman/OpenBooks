@@ -125,6 +125,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
         permission: 'recurring_journals.read',
       },
       { to: '/fixed-assets', label: 'Fixed assets', permission: 'fixed_assets.read' },
+      { to: '/inventory', label: 'Inventory', permission: 'inventory.read' },
     ],
   },
   {

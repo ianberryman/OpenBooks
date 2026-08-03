@@ -60,6 +60,7 @@ describe('reading the nominations', () => {
     expect(await getControlAccounts(actor.ctx)).toEqual({
       receivableControlAccountId: null,
       payableControlAccountId: null,
+      inventoryShrinkageAccountId: null,
     });
   });
 
@@ -83,6 +84,7 @@ describe('nominating', () => {
     expect(updated).toEqual({
       receivableControlAccountId: receivable.uuid,
       payableControlAccountId: null,
+      inventoryShrinkageAccountId: null,
     });
     expect(await getControlAccounts(actor.ctx)).toEqual(updated);
   });
@@ -110,6 +112,7 @@ describe('nominating', () => {
     expect(await updateControlAccounts({ payableControlAccountId: null }, actor.ctx)).toEqual({
       receivableControlAccountId: receivable.uuid,
       payableControlAccountId: null,
+      inventoryShrinkageAccountId: null,
     });
   });
 
@@ -166,6 +169,7 @@ describe('validating the account (A7)', () => {
     expect(await getControlAccounts(mine.ctx)).toEqual({
       receivableControlAccountId: null,
       payableControlAccountId: null,
+      inventoryShrinkageAccountId: null,
     });
   });
 

@@ -2438,6 +2438,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/inventory/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post a stock adjustment
+         * @description Posts a count or write-off: a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account, plus one movement per line, costed on the server at each item’s moving average (D-INV-6). A negative quantity is shrinkage; a positive one is found stock.
+         */
+        post: operations["createInventoryAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/inventory/reorder-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reorder alerts
+         * @description Every tracked item whose on-hand quantity is at or below its reorder point. A thin read over the same fold the valuation report uses.
+         */
+        get: operations["getReorderAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/invites": {
         parameters: {
             query?: never;
@@ -3936,6 +3976,26 @@ export interface paths {
          * @description The balance the account was carrying, one page of the lines that moved it, and the balance it ended on — `opening + movement = closing` (B4). Ordered oldest first by entry date, then the org’s own entry number, then the line, which is a total order and therefore a cursor that cannot skip or repeat a row. The three balances ride on every page rather than only the first, and are recomputed each time: a back-dated entry posted between two fetches moves `closing`, and a client comparing two pages’ headers can see that it did. `counterparty` names the accounts on the *opposite* debit/credit side of the same journal, with no amount apportioned to any of them — a journal records that its debits equal its credits, not which debit paid for which credit. There is no `groupBy`: dividing a list of individual lines into columns is a cross-tabulation and not a ledger.
          */
         get: operations["getGeneralLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/inventory-valuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inventory valuation
+         * @description On-hand quantity and value for every tracked item as at `asOf` (default today), with a total that ties to the inventory-asset account balance (the subledger-agreement invariant, spec §11). Each row carries the derived moving-average unit cost and a reorder flag.
+         */
+        get: operations["getInventoryValuation"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6749,44 +6809,64 @@ export interface components {
         /** @description A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2). */
         CatalogItem: {
             code: string | null;
+            cogsAccountId: string | null;
+            costingMethod: "weighted_average" | null;
             /** Format: date-time */
             createdAt: string;
             defaultAccountId: string | null;
+            defaultCost: components["schemas"]["MinorUnits"] | null;
             defaultTaxRateId: string | null;
             defaultUnitAmount: components["schemas"]["MinorUnits"] | null;
             /**
-             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.
              * @enum {string}
              */
-            direction: "sales" | "purchase";
+            direction: "sales" | "purchase" | "inventory";
             /** Format: uuid */
             id: string;
+            inventoryAssetAccountId: string | null;
             /** @description Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5). */
             isActive: boolean;
+            /**
+             * @description What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).
+             * @enum {string}
+             */
+            itemType: "inventory" | "non_inventory" | "service";
             /** @description What the item is called, and what fills the line description when it is selected. */
             name: string;
+            reorderPoint: components["schemas"]["Quantity"] | null;
             /** Format: date-time */
             updatedAt: string;
         };
         /** @description A reusable, priced item a document line can be selected from — a convenience that seeds the line’s description, account, price and tax, and never binds it (D-CAT-2). */
         CatalogItemInput: {
             code: string | null;
+            cogsAccountId: string | null;
+            costingMethod: "weighted_average" | null;
             /** Format: date-time */
             createdAt: string;
             defaultAccountId: string | null;
+            defaultCost: components["schemas"]["MinorUnitsInput"] | null;
             defaultTaxRateId: string | null;
             defaultUnitAmount: components["schemas"]["MinorUnitsInput"] | null;
             /**
-             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.
              * @enum {string}
              */
-            direction: "sales" | "purchase";
+            direction: "sales" | "purchase" | "inventory";
             /** Format: uuid */
             id: string;
+            inventoryAssetAccountId: string | null;
             /** @description Inactive items keep every line that already cited them (the FK is `ON DELETE RESTRICT`) and cannot be chosen for new ones. This is the only removal a referenced item allows (D-CAT-5). */
             isActive: boolean;
+            /**
+             * @description What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).
+             * @enum {string}
+             */
+            itemType: "inventory" | "non_inventory" | "service";
             /** @description What the item is called, and what fills the line description when it is selected. */
             name: string;
+            reorderPoint: components["schemas"]["QuantityInput"] | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -7172,6 +7252,8 @@ export interface components {
         };
         /** @description Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. */
         ControlAccounts: {
+            /** @description The account a stock adjustment posts its offsetting entry to — a shrinkage/write-off account (OB-224, D-INV-6). Null until the org nominates one; posting a stock adjustment without it is a `precondition_failed`. Only stock adjustments read it; perpetual COGS on a sale and inventory on a purchase do not. */
+            inventoryShrinkageAccountId: string | null;
             /** @description The account an approved bill credits and an approved vendor credit debits. Null until the org nominates one. */
             payableControlAccountId: string | null;
             /** @description The account an approved invoice debits and an approved credit note credits. Null until the org nominates one; approving an AR document without it is a `precondition_failed`. */
@@ -7179,6 +7261,8 @@ export interface components {
         };
         /** @description Which of the org’s own accounts its subledger posts through. Either may be null — the two sides are separately usable, and an org that only invoices never needs a payables control account. */
         ControlAccountsInput: {
+            /** @description The account a stock adjustment posts its offsetting entry to — a shrinkage/write-off account (OB-224, D-INV-6). Null until the org nominates one; posting a stock adjustment without it is a `precondition_failed`. Only stock adjustments read it; perpetual COGS on a sale and inventory on a purchase do not. */
+            inventoryShrinkageAccountId: string | null;
             /** @description The account an approved bill credits and an approved vendor credit debits. Null until the org nominates one. */
             payableControlAccountId: string | null;
             /** @description The account an approved invoice debits and an approved credit note credits. Null until the org nominates one; approving an AR document without it is a `precondition_failed`. */
@@ -7412,33 +7496,53 @@ export interface components {
              */
             taxMode: "exclusive" | "inclusive";
         };
-        /** @description Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own. */
+        /** @description Creates one catalog item. Only `name` and `direction` are required; `itemType` defaults to `non_inventory`. A tracked `inventory` item must also name its asset and COGS accounts and a costing method (OB-224). */
         CreateCatalogItemRequest: {
             code?: string | null;
+            cogsAccountId?: string | null;
+            costingMethod?: "weighted_average" | null;
             defaultAccountId?: string | null;
+            defaultCost?: components["schemas"]["MinorUnits"] | null;
             defaultTaxRateId?: string | null;
             defaultUnitAmount?: components["schemas"]["MinorUnits"] | null;
             /**
-             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.
              * @enum {string}
              */
-            direction: "sales" | "purchase";
+            direction: "sales" | "purchase" | "inventory";
+            inventoryAssetAccountId?: string | null;
+            /**
+             * @description What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).
+             * @enum {string}
+             */
+            itemType?: "inventory" | "non_inventory" | "service";
             /** @description What the item is called, and what fills the line description when it is selected. */
             name: string;
+            reorderPoint?: components["schemas"]["Quantity"] | null;
         };
-        /** @description Creates one catalog item. Only `name` and `direction` are required; the defaults are optional, since an item can be a reusable description on its own. */
+        /** @description Creates one catalog item. Only `name` and `direction` are required; `itemType` defaults to `non_inventory`. A tracked `inventory` item must also name its asset and COGS accounts and a costing method (OB-224). */
         CreateCatalogItemRequestInput: {
             code?: string | null;
+            cogsAccountId?: string | null;
+            costingMethod?: "weighted_average" | null;
             defaultAccountId?: string | null;
+            defaultCost?: components["schemas"]["MinorUnitsInput"] | null;
             defaultTaxRateId?: string | null;
             defaultUnitAmount?: components["schemas"]["MinorUnitsInput"] | null;
             /**
-             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1).
+             * @description Which side of the books this item seeds. `sales` items appear on invoices and estimates and carry an income account; `purchase` items on bills, purchase orders and expenses and carry an expense account. A thing you both buy and sell is two items (D-CAT-1) — unless it is a tracked `inventory` item (OB-224), which is one stock record the pickers union onto both sides. Immutable after creation.
              * @enum {string}
              */
-            direction: "sales" | "purchase";
+            direction: "sales" | "purchase" | "inventory";
+            inventoryAssetAccountId?: string | null;
+            /**
+             * @description What kind of catalog item this is. Only `inventory` items are stock-tracked (asset + COGS accounts, a costing method, perpetual COGS on sale and asset on purchase). `non_inventory` and `service` items post the line’s own account with no movement (D-INV-1).
+             * @enum {string}
+             */
+            itemType?: "inventory" | "non_inventory" | "service";
             /** @description What the item is called, and what fills the line description when it is selected. */
             name: string;
+            reorderPoint?: components["schemas"]["QuantityInput"] | null;
         };
         /** @description Creates one contact. Only `displayName` is required; all three subledger flags default to false, because a party named on a journal line need take part in no subledger at all. */
         CreateContactRequest: {
@@ -7851,6 +7955,40 @@ export interface components {
             salvageValueMinor: components["schemas"]["MinorUnitsInput"];
             /** @description How many monthly periods the schedule runs — `computeDepreciationSchedule`’s own period count. */
             usefulLifeMonths: number;
+        };
+        /** @description Posts a stock adjustment — a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account (D-INV-6), plus one movement per line. Gated `inventory.write`. */
+        CreateInventoryAdjustmentRequest: {
+            /** @description The date the adjustment posts under. Must fall in an open period. */
+            adjustmentDate: components["schemas"]["CalendarDate"];
+            /** @description At least one item line. Each item may appear once. */
+            lines: {
+                /**
+                 * Format: uuid
+                 * @description The tracked catalog item this figure is for.
+                 */
+                catalogItemId: string;
+                /** @description The signed change to on-hand units — negative for shrinkage or a write-off, positive for found stock. Its value is costed on the server at the item’s moving average. */
+                quantityDelta: components["schemas"]["Quantity"];
+            }[];
+            /** @description An optional note — the reason for the count or write-off. */
+            memo?: string | null;
+        };
+        /** @description Posts a stock adjustment — a Dr/Cr between the inventory-asset accounts and the org’s nominated shrinkage account (D-INV-6), plus one movement per line. Gated `inventory.write`. */
+        CreateInventoryAdjustmentRequestInput: {
+            /** @description The date the adjustment posts under. Must fall in an open period. */
+            adjustmentDate: components["schemas"]["CalendarDateInput"];
+            /** @description At least one item line. Each item may appear once. */
+            lines: {
+                /**
+                 * Format: uuid
+                 * @description The tracked catalog item this figure is for.
+                 */
+                catalogItemId: string;
+                /** @description The signed change to on-hand units — negative for shrinkage or a write-off, positive for found stock. Its value is costed on the server at the item’s moving average. */
+                quantityDelta: components["schemas"]["QuantityInput"];
+            }[];
+            /** @description An optional note — the reason for the count or write-off. */
+            memo?: string | null;
         };
         /** @description Creates a **draft** invoice. `dueDate` defaults to `issueDate` — due on receipt — and `lines` is optional, because “New invoice” produces an empty one and the arity and account checks belong at approval. `paymentTermId` overrides the contact’s default term and is create-only. */
         CreateInvoiceRequest: {
@@ -9599,6 +9737,172 @@ export interface components {
         InboundEmailAddressInput: {
             /** @description The mailbox address that, once real inbound receiving is wired to it, becomes captures (D-25’s "real MX/receipt-rule receiving is out of scope this wave" — this address is stable now so the UI can show it before that lands). */
             address: string;
+        };
+        /** @description A posted stock adjustment: its lines, the journal it posted, and any reversal. */
+        InventoryAdjustment: {
+            adjustmentDate: components["schemas"]["CalendarDate"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The journal the adjustment posted, or null while it is still a draft. */
+            journalId: string | null;
+            lines: components["schemas"]["InventoryAdjustmentLine"][];
+            memo: string | null;
+            /** @description The reversing journal, once the adjustment has been reversed (D-02). */
+            reversedByJournalId: string | null;
+        };
+        /** @description A posted stock adjustment: its lines, the journal it posted, and any reversal. */
+        InventoryAdjustmentInput: {
+            adjustmentDate: components["schemas"]["CalendarDateInput"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** @description The journal the adjustment posted, or null while it is still a draft. */
+            journalId: string | null;
+            lines: components["schemas"]["InventoryAdjustmentLineInput"][];
+            memo: string | null;
+            /** @description The reversing journal, once the adjustment has been reversed (D-02). */
+            reversedByJournalId: string | null;
+        };
+        /** @description One posted adjustment line — its signed quantity and the value the server costed it at. */
+        InventoryAdjustmentLine: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            name: string;
+            quantityDelta: components["schemas"]["Quantity"];
+            /** @description The signed value posted for this line, costed at the item’s moving average. */
+            valueDelta: components["schemas"]["MinorUnits"];
+        };
+        /** @description One posted adjustment line — its signed quantity and the value the server costed it at. */
+        InventoryAdjustmentLineInput: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            name: string;
+            quantityDelta: components["schemas"]["QuantityInput"];
+            /** @description The signed value posted for this line, costed at the item’s moving average. */
+            valueDelta: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement. */
+        InventoryMovement: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The journal that carried this movement’s GL effect (never mutated; spec §2.2).
+             */
+            journalId: string;
+            movementDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).
+             * @enum {string}
+             */
+            movementType: "receipt" | "sale" | "adjustment" | "true_up" | "reversal";
+            /** @description Signed change in on-hand units. A receipt is positive; a sale is negative. */
+            quantityDelta: components["schemas"]["Quantity"];
+            sourceDocId: string | null;
+            /** @description Which document produced the movement — `bill`, `invoice`, `adjustment`. */
+            sourceDocType: string | null;
+            /** @description Signed change in inventory value, in minor units. Its sign matches `quantityDelta`; the zero-out sweep sets it so a zero on-hand quantity has exactly zero value. */
+            valueDelta: components["schemas"]["MinorUnits"];
+        };
+        /** @description One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement. */
+        InventoryMovementInput: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The journal that carried this movement’s GL effect (never mutated; spec §2.2).
+             */
+            journalId: string;
+            movementDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).
+             * @enum {string}
+             */
+            movementType: "receipt" | "sale" | "adjustment" | "true_up" | "reversal";
+            /** @description Signed change in on-hand units. A receipt is positive; a sale is negative. */
+            quantityDelta: components["schemas"]["QuantityInput"];
+            sourceDocId: string | null;
+            /** @description Which document produced the movement — `bill`, `invoice`, `adjustment`. */
+            sourceDocType: string | null;
+            /** @description Signed change in inventory value, in minor units. Its sign matches `quantityDelta`; the zero-out sweep sets it so a zero on-hand quantity has exactly zero value. */
+            valueDelta: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description On-hand quantity and value for every tracked item as at a date, with a total that ties to the inventory-asset GL account. */
+        InventoryValuation: {
+            asOf: components["schemas"]["CalendarDate"];
+            rows: components["schemas"]["InventoryValuationRow"][];
+            /** @description Every row’s value summed, in minor units. Ties to the inventory-asset account balance as at `asOf` — the subledger-agreement invariant the property suite asserts (spec §11, OB-088). */
+            totalValue: components["schemas"]["MinorUnits"];
+        };
+        /** @description On-hand quantity and value for every tracked item as at a date, with a total that ties to the inventory-asset GL account. */
+        InventoryValuationInput: {
+            asOf: components["schemas"]["CalendarDateInput"];
+            rows: components["schemas"]["InventoryValuationRowInput"][];
+            /** @description Every row’s value summed, in minor units. Ties to the inventory-asset account balance as at `asOf` — the subledger-agreement invariant the property suite asserts (spec §11, OB-088). */
+            totalValue: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description One tracked item’s on-hand quantity, value, and derived unit cost as at `asOf`. */
+        InventoryValuationRow: {
+            /** @description True when a reorder point is set and on-hand quantity is at or below it. */
+            belowReorderPoint: boolean;
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["Quantity"];
+            /** @description The item’s reorder point, or null when none is set. */
+            reorderPoint: components["schemas"]["Quantity"] | null;
+            /** @description The derived moving-average unit cost (`value / quantity`) in minor units, rounded for display only. Null when on-hand quantity is zero — there is no meaningful average. */
+            unitCost: components["schemas"]["MinorUnits"] | null;
+            /** @description The on-hand value in minor units — the sum of the item’s value deltas as at `asOf`. */
+            value: components["schemas"]["MinorUnits"];
+        };
+        /** @description One tracked item’s on-hand quantity, value, and derived unit cost as at `asOf`. */
+        InventoryValuationRowInput: {
+            /** @description True when a reorder point is set and on-hand quantity is at or below it. */
+            belowReorderPoint: boolean;
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["QuantityInput"];
+            /** @description The item’s reorder point, or null when none is set. */
+            reorderPoint: components["schemas"]["QuantityInput"] | null;
+            /** @description The derived moving-average unit cost (`value / quantity`) in minor units, rounded for display only. Null when on-hand quantity is zero — there is no meaningful average. */
+            unitCost: components["schemas"]["MinorUnitsInput"] | null;
+            /** @description The on-hand value in minor units — the sum of the item’s value deltas as at `asOf`. */
+            value: components["schemas"]["MinorUnitsInput"];
         };
         /** @description An outstanding or settled invitation. The token is never returned — it is a credential, held only as a hash after the message is sent. */
         Invitation: {
@@ -12129,6 +12433,42 @@ export interface components {
             /** @description Why this finalised session is being reopened. Required, and kept on the event — the one part of E6’s record that cannot be reconstructed afterwards. */
             reason: string;
         };
+        /** @description A tracked item whose on-hand quantity is at or below its reorder point. */
+        ReorderAlert: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["Quantity"];
+            /** @description The reorder point on-hand has fallen to or below. */
+            reorderPoint: components["schemas"]["Quantity"];
+        };
+        /** @description A tracked item whose on-hand quantity is at or below its reorder point. */
+        ReorderAlertInput: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["QuantityInput"];
+            /** @description The reorder point on-hand has fallen to or below. */
+            reorderPoint: components["schemas"]["QuantityInput"];
+        };
+        /** @description Every tracked item currently at or below its reorder point. */
+        ReorderAlerts: {
+            alerts: components["schemas"]["ReorderAlert"][];
+        };
+        /** @description Every tracked item currently at or below its reorder point. */
+        ReorderAlertsInput: {
+            alerts: components["schemas"]["ReorderAlertInput"][];
+        };
         /** @description The dimension value one slice of a grouped report is for. A report grouped by an axis has one bucket per value plus an unassigned bucket, whose key is null. */
         ReportGroupKey: {
             code: string;
@@ -12757,23 +13097,27 @@ export interface components {
              */
             taxMode?: "exclusive" | "inclusive";
         };
-        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation. */
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction`, `itemType` and the asset/COGS/costing-method fields are immutable (posted stock movements reference them); `isActive` is not here — deactivation is its own operation. */
         UpdateCatalogItemRequest: {
             code?: string | null;
             defaultAccountId?: string | null;
+            defaultCost?: components["schemas"]["MinorUnits"] | null;
             defaultTaxRateId?: string | null;
             defaultUnitAmount?: components["schemas"]["MinorUnits"] | null;
             /** @description What the item is called, and what fills the line description when it is selected. */
             name?: string;
+            reorderPoint?: components["schemas"]["Quantity"] | null;
         };
-        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction` is immutable and `isActive` is not here — deactivation is its own operation. */
+        /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `direction`, `itemType` and the asset/COGS/costing-method fields are immutable (posted stock movements reference them); `isActive` is not here — deactivation is its own operation. */
         UpdateCatalogItemRequestInput: {
             code?: string | null;
             defaultAccountId?: string | null;
+            defaultCost?: components["schemas"]["MinorUnitsInput"] | null;
             defaultTaxRateId?: string | null;
             defaultUnitAmount?: components["schemas"]["MinorUnitsInput"] | null;
             /** @description What the item is called, and what fills the line description when it is selected. */
             name?: string;
+            reorderPoint?: components["schemas"]["QuantityInput"] | null;
         };
         /** @description Partial update. An absent field is unchanged and an explicit `null` clears it. `isActive` is not here — deactivation is its own operation. */
         UpdateContactRequest: {
@@ -12821,11 +13165,13 @@ export interface components {
         };
         /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated. */
         UpdateControlAccountsRequest: {
+            inventoryShrinkageAccountId?: string | null;
             payableControlAccountId?: string | null;
             receivableControlAccountId?: string | null;
         };
         /** @description Partial update. An omitted field is left as it is; an explicit `null` clears the nomination. Changing a nomination moves future postings only — journals already posted name the account they were posted to and are never restated. */
         UpdateControlAccountsRequestInput: {
+            inventoryShrinkageAccountId?: string | null;
             payableControlAccountId?: string | null;
             receivableControlAccountId?: string | null;
         };
@@ -16493,7 +16839,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Restrict to sales items or to purchase items. */
-                direction?: "sales" | "purchase";
+                direction?: "sales" | "purchase" | "inventory";
                 /** @description Omitted matches active and inactive items alike. */
                 isActive?: string;
                 /** @description Filters to items whose name or code contains this text. */
@@ -19422,6 +19768,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuickBooksImportPreview"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createInventoryAdjustment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInventoryAdjustmentRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryAdjustment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getReorderAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReorderAlerts"];
                 };
             };
             /** @description Default Response */
@@ -23102,6 +23513,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeneralLedger"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInventoryValuation: {
+        parameters: {
+            query?: {
+                asOf?: components["schemas"]["CalendarDateInput"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryValuation"];
                 };
             };
             /** @description Default Response */

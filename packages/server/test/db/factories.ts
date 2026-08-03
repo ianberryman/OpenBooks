@@ -209,6 +209,8 @@ export interface ControlAccountsInput {
   readonly orgId: Buffer;
   readonly receivableId?: Buffer;
   readonly payableId?: Buffer;
+  /** The inventory-shrinkage account a stock adjustment posts against (OB-224, D-INV-6). */
+  readonly inventoryShrinkageId?: Buffer;
 }
 
 export interface Factories {
@@ -576,6 +578,9 @@ export function createFactories(db: Kysely<DB>): Factories {
         ? {}
         : { receivable_control_account_id: input.receivableId }),
       ...(input.payableId === undefined ? {} : { payable_control_account_id: input.payableId }),
+      ...(input.inventoryShrinkageId === undefined
+        ? {}
+        : { inventory_shrinkage_account_id: input.inventoryShrinkageId }),
     };
 
     await db

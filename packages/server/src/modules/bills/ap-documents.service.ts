@@ -33,7 +33,7 @@ import {
 } from '@openbooks/shared-types/tax';
 
 import type { RequestContext } from '../../context';
-import { bufferToUuid, type TenantDatabase, tryUuidToBuffer } from '../../db';
+import { bufferToUuid, type TenantDatabase, tryUuidToBuffer, uuidToBuffer } from '../../db';
 import type { ValidationIssue } from '../../errors';
 import {
   InternalError,
@@ -44,6 +44,11 @@ import {
 } from '../../errors';
 import { assertCatalogItemsUsable } from '../catalog';
 import { resolveTagsForNewLine } from '../dimensions';
+import {
+  loadInventoryLineInfo,
+  recordReceiptMovements,
+  reverseInventoryMovements,
+} from '../inventory';
 import { postJournal, reverseJournal } from '../ledger';
 import { resolveControlAccount } from '../settings';
 
@@ -731,6 +736,27 @@ export async function approveDocument(
     lines.map((line) => line.id),
   );
 
+  // Inventory receiving (OB-224, D-INV-1): a bill line that cites a tracked item
+  // must debit that item's inventory-asset account, not the line's own account —
+  // buying stock raises the asset, it does not hit an expense. The redirect is a
+  // per-line override built here and applied when the journal is assembled; the line
+  // keeps its stored account as provenance. `assetByLineId` is empty for a bill with
+  // no inventory lines, so nothing changes for one.
+  const inventoryInfo = await loadInventoryLineInfo(
+    db,
+    lines.flatMap((line) =>
+      line.catalog_item_id === null ? [] : [bufferToUuid(line.catalog_item_id)],
+    ),
+  );
+  const assetByLineId = new Map<string, Buffer>();
+  for (const line of lines) {
+    if (line.catalog_item_id === null) continue;
+    const info = inventoryInfo.get(bufferToUuid(line.catalog_item_id));
+    if (info !== undefined) {
+      assetByLineId.set(line.id.toString(), uuidToBuffer(info.inventoryAssetAccountId));
+    }
+  }
+
   // `postJournal` joins this transaction ambiently (`transaction-scope.ts`), so
   // the posting, both sequence allocations, and the update below are one unit of
   // work on one connection. It is called, never re-implemented: balance
@@ -738,7 +764,16 @@ export async function approveDocument(
   // provenance all live in it, and it is the only path to the journal tables
   // (`openbooks/no-journal-writes`).
   const journal = await postJournal(
-    toPostJournalInput(row, lines, rates, tags, controlAccountId, sequenceNumber, ctx),
+    toPostJournalInput(
+      row,
+      lines,
+      rates,
+      tags,
+      controlAccountId,
+      sequenceNumber,
+      ctx,
+      assetByLineId,
+    ),
     ctx,
   );
 
@@ -756,6 +791,37 @@ export async function approveDocument(
       `Approving an AP document updated ${String(updated)} rows while holding its row lock. The ` +
         'document was read FOR UPDATE in this transaction, so it cannot have been approved by ' +
         'another one — the journal is posted and the document may not point at it (D-38).',
+    );
+  }
+
+  // Perpetual inventory receipt (OB-224): the bill's own journal already debited the
+  // inventory-asset account for the redirected lines above; here the subledger
+  // records the matching stock movement (+qty, +value) tied to that journal, and — if
+  // the item was on backorder (negative on hand) — the true-up that reconciles the
+  // earlier estimated COGS against this receipt's real cost. `assetByLineId`'s keys
+  // are exactly the inventory lines, so it identifies them without a second lookup.
+  const receiptLines = lines.flatMap((line) =>
+    assetByLineId.has(line.id.toString()) && line.line_amount_minor > 0n
+      ? [
+          {
+            catalogItemId: bufferToUuid(
+              line.catalog_item_id ?? raise('an inventory receipt line has no catalog item id'),
+            ),
+            quantityMicros: line.quantity_micros,
+            valueMinor: line.line_amount_minor,
+          },
+        ]
+      : [],
+  );
+  if (receiptLines.length > 0) {
+    await recordReceiptMovements(
+      {
+        lines: receiptLines,
+        journalId: journal.journalId,
+        date: row.issue_date,
+        sourceDocId: bufferToUuid(row.id),
+      },
+      ctx,
     );
   }
 
@@ -872,6 +938,10 @@ function toPostJournalInput(
   controlAccountId: Buffer,
   sequenceNumber: bigint,
   ctx: RequestContext,
+  // The inventory Dr redirect (OB-224): a line whose id is here debits the item's
+  // inventory-asset account instead of its own. Empty for a bill with no tracked
+  // items, so an ordinary bill posts exactly as before.
+  assetByLineId: ReadonlyMap<string, Buffer>,
 ): PostJournalInput {
   const { lineSide, controlSide } = journalSides(row.document_type);
   const contactId = bufferToUuid(row.contact_id);
@@ -880,8 +950,9 @@ function toPostJournalInput(
   for (const line of lines) {
     if (line.line_amount_minor > 0n) {
       const lineTags = tags.get(line.id.toString()) ?? [];
+      const postingAccountId = assetByLineId.get(line.id.toString()) ?? line.account_id;
       postingLines.push({
-        accountId: bufferToUuid(line.account_id),
+        accountId: bufferToUuid(postingAccountId),
         side: lineSide,
         amount: line.line_amount_minor,
         contactId,
@@ -1068,6 +1139,21 @@ export async function voidDocument(
         'reversal is posted and the document may not point at it (D-38).',
     );
   }
+
+  // The inventory void ripple (OB-224, D-INV-7): a voided bill that received tracked
+  // stock must undo those receipt movements. The bill journal reversal above already
+  // reverses the receipt's asset debit (it was a line in that journal); this emits
+  // the compensating stock movements tied to it, and reverses any separate `true_up`
+  // journal a backorder receipt posted. A no-op for a bill with no inventory lines.
+  await reverseInventoryMovements(
+    {
+      sourceDocId: bufferToUuid(row.id),
+      mainOriginalJournalId: bufferToUuid(row.journal_id),
+      mainReversalJournalId: reversal.journalId,
+      date: request.date,
+    },
+    ctx,
+  );
 
   return reversal;
 }

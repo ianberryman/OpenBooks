@@ -122,12 +122,9 @@ export const inventoryMovementSchema = z
     journalId: z.uuid().meta({
       description: 'The journal that carried this movement’s GL effect (never mutated; spec §2.2).',
     }),
-    sourceDocType: z
-      .string()
-      .nullable()
-      .meta({
-        description: 'Which document produced the movement — `bill`, `invoice`, `adjustment`.',
-      }),
+    sourceDocType: z.string().nullable().meta({
+      description: 'Which document produced the movement — `bill`, `invoice`, `adjustment`.',
+    }),
     sourceDocId: z.uuid().nullable(),
     movementDate: calendarDateSchema,
     createdAt: z.iso.datetime(),

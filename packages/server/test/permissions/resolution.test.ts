@@ -29,8 +29,9 @@ import { contextFor, useServiceDatabase } from './support';
  * the seeds changed and the change needs a reason — not a new number here.
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
-  // The entire catalog (75 since OB-228 added ten99.read/ten99.write).
-  ['owner', 75],
+  // The entire catalog (77 since OB-224 added inventory.read/inventory.write, atop
+  // OB-228's ten99.read/write which took it to 75).
+  ['owner', 77],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate,
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only), and now
@@ -43,8 +44,10 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // expenses.read/write/approve (M — all seven, none excluded), and N's
   // budgets.read/write (both — the catch-all grants them, no SoD gate to withhold),
   // and P's audit.read (the catch-all grants it — not an administration exclusion), and
-  // CAT's catalog.read/write (both — neither is an administration exclusion).
-  ['bookkeeper', 66],
+  // CAT's catalog.read/write (both — neither is an administration exclusion), and now
+  // OB-224's inventory.read/write (both — a stock adjustment is bookkeeping, not
+  // administration, so the catch-all grants the pair): 66 → 68.
+  ['bookkeeper', 68],
   // Every `.read` except api_keys.read (28, now including branding.read,
   // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,
   // M's purchase_orders.read/estimates.read/expenses.read, and N's budgets.read via
@@ -52,19 +55,22 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // is the expense-approval gate, the disbursements.issue split applied to expenses),
   // and P's audit.read via `%.read`, and CAT's catalog.read via `%.read` (not
   // catalog.write — the approver reads the catalog but does not maintain it), and OB-228's
-  // ten99.read via `%.read` (not ten99.write — the approver reads but does not file).
-  ['approver', 34],
+  // ten99.read via `%.read` (not ten99.write — the approver reads but does not file),
+  // and OB-224's inventory.read via `%.read` (not inventory.write): 34 → 35.
+  ['approver', 35],
   // Every `.read` except api_keys.read (now including branding.read, processing.read,
   // pending_payments.read, recurring_journals.read, fixed_assets.read, M's
   // purchase_orders.read/estimates.read/expenses.read, N's budgets.read, P's
-  // audit.read, CAT's catalog.read, and OB-228's ten99.read).
-  ['readOnly', 31],
+  // audit.read, CAT's catalog.read, OB-228's ten99.read, and OB-224's inventory.read):
+  // 31 → 32.
+  ['readOnly', 32],
   // Accountant (P, D-96): readOnly's read bundle (31, `%.read` minus api_keys.read,
   // audit.read, catalog.read and ten99.read included) plus journals.post/journals.reverse,
   // periods.close/periods.reopen, and OB-228's ten99.write (D-228-6 — 1099 filing is an
   // accountant's job) — the capabilities that make it an accountant rather than a reader
-  // (reports.read is already in the read bundle).
-  ['accountant', 36],
+  // (reports.read is already in the read bundle). Now +1 for OB-224's inventory.read via
+  // `%.read` (not inventory.write — a stock adjustment is not an accountant's act): 36 → 37.
+  ['accountant', 37],
   // 15 document/read codes plus journals.post and journals.reverse (OB-093), the Pay
   // Bills queue keys pending_payments.read/write (D-109 — the AP clerk builds the queue
   // but cannot issue), and M's purchase_orders.read/write + expenses.read/write (raise
@@ -272,11 +278,11 @@ describe('membership resolution', () => {
     if (!resolution.isMember) return;
     expect(resolution.roleId).toBe(SYSTEM_ROLE_UUIDS.approver);
     expect(resolution.roleCode).toBe('approver');
-    // 34 since OB-228: the `%.read` bundle now also picks up `ten99.read` (was 33 after
-    // CAT added `catalog.read`, itself after P added `audit.read`, N `budgets.read`, and M
-    // `purchase_orders.read`/`estimates.read`/`expenses.read` plus the approver's
-    // `expenses.approve`).
-    expect(resolution.permissions.size).toBe(34);
+    // 35 since OB-224: the `%.read` bundle now also picks up `inventory.read` (34 after
+    // OB-228's `ten99.read`, itself after CAT's `catalog.read`, P's `audit.read`, N's
+    // `budgets.read`, and M's `purchase_orders.read`/`estimates.read`/`expenses.read` plus
+    // the approver's `expenses.approve`).
+    expect(resolution.permissions.size).toBe(35);
     expect(resolution.permissions.has('agents.review')).toBe(true);
   });
 

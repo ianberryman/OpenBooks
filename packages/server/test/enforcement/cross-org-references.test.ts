@@ -34,6 +34,7 @@ import {
   updateVendorCredit,
 } from '../../src/modules/bills';
 import { createCatalogItem, updateCatalogItem } from '../../src/modules/catalog';
+import { postInventoryAdjustment } from '../../src/modules/inventory';
 import { createContact } from '../../src/modules/contacts';
 import {
   createDimension,
@@ -220,6 +221,14 @@ interface Org {
    */
   readonly salesCatalogItemId: string;
   readonly purchaseCatalogItemId: string;
+  /**
+   * Tracked inventory (OB-224): a real `item_type='inventory'` item, so the control
+   * pass of `createInventoryAdjustment.catalogItemId` resolves rather than 404-ing on
+   * its own id (the two non-inventory items above are filtered out by the adjustment's
+   * `item_type='inventory'` lookup). The scene also nominates a shrinkage account, so
+   * the adjustment reaches the item check rather than a `precondition_failed`.
+   */
+  readonly inventoryItemId: string;
   /** Cash application (OB-139): `createInvoice`/`createBill`'s `paymentTermId` field. */
   readonly paymentTermId: string;
   /**
@@ -626,6 +635,7 @@ type SubledgerFixtures = Pick<
   | 'disposableFixedAssetGainLossId'
   | 'disposableFixedAssetProceedsId'
   | 'taxRateId'
+  | 'inventoryItemId'
   | 'salesCatalogItemId'
   | 'purchaseCatalogItemId'
   | 'vendorCreditId'
@@ -649,6 +659,9 @@ async function subledgerFixtures(
     orgId,
     receivableId: uuidToBuffer(accounts.receivableId),
     payableId: uuidToBuffer(accounts.payableId),
+    // OB-224: a shrinkage account, so `createInventoryAdjustment`'s control pass posts
+    // rather than failing `inventory_shrinkage_account_not_set` before the item check.
+    inventoryShrinkageId: uuidToBuffer(accounts.expenseId),
   });
 
   const asOwner = <T>(body: () => Promise<T>): Promise<T> => runInContext(ctx, body);
@@ -675,6 +688,22 @@ async function subledgerFixtures(
   );
   const purchaseCatalogItem = await asOwner(() =>
     createCatalogItem({ direction: 'purchase', name: 'Raw material' }, ctx),
+  );
+  // A tracked inventory item, so `createInventoryAdjustment`'s own-id control pass
+  // resolves. Its asset is `bankId` (an asset account) and its COGS `expenseId` —
+  // both real and active, so the adjustment posts.
+  const inventoryItem = await asOwner(() =>
+    createCatalogItem(
+      {
+        direction: 'inventory',
+        itemType: 'inventory',
+        name: 'Tracked widget',
+        inventoryAssetAccountId: accounts.bankId,
+        cogsAccountId: accounts.expenseId,
+        costingMethod: 'weighted_average',
+      },
+      ctx,
+    ),
   );
 
   const arLines = [
@@ -805,6 +834,7 @@ async function subledgerFixtures(
     taxRateId: taxRate.id,
     salesCatalogItemId: salesCatalogItem.id,
     purchaseCatalogItemId: purchaseCatalogItem.id,
+    inventoryItemId: inventoryItem.id,
     paymentTermId: paymentTerm.id,
     recurringTemplateId,
     recurringJournalTemplateId,
@@ -2503,6 +2533,16 @@ const REFERENCES: readonly Reference[] = [
     subject: (o) => o.payableId,
     reach: (id, s) => updateControlAccounts({ payableControlAccountId: id }, s.caller.ctx),
   },
+  // Tracked inventory (OB-224): the shrinkage nomination, `resolveShrinkageNomination`'s
+  // `assertFound` through `tenantDb` — a stranger's account id is a 404, not the FK's
+  // 500. Re-nominates what the scene already holds (the shrinkage account is
+  // `expenseId`), so it resolves and moves nothing.
+  {
+    operationId: 'updateControlAccounts',
+    field: 'inventoryShrinkageAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) => updateControlAccounts({ inventoryShrinkageAccountId: id }, s.caller.ctx),
+  },
   /**
    * Cash application (OB-139): the two discount-account nominations,
    * `resolveNomination`'s own mirror of `resolveControlAccount` above — an
@@ -3481,6 +3521,23 @@ const REFERENCES: readonly Reference[] = [
       ),
   },
 
+  // Tracked inventory (OB-224): a stock adjustment's line names a `catalogItemId`,
+  // resolved through `tenantDb` (`loadInventoryItems`) before it is used, so a
+  // stranger's id is a 404 (B11) exactly as a document line's is. The control pass
+  // names the caller's own tracked item — a non-inventory one would 404 on the
+  // `item_type='inventory'` lookup, so `inventoryItemId` is a real inventory item and
+  // the scene nominates a shrinkage account so the adjustment reaches the item check.
+  {
+    operationId: 'createInventoryAdjustment',
+    field: 'catalogItemId',
+    subject: (o) => o.inventoryItemId,
+    reach: (id, s) =>
+      postInventoryAdjustment(
+        { adjustmentDate: DATE, lines: [{ catalogItemId: id, quantityDelta: '1' }] },
+        s.caller.ctx,
+      ),
+  },
+
   // The catalog item's own default references: the account and tax rate a line
   // inherits when the item is picked. Both are read through `tenantDb` before the
   // insert (`requireAccount`/`requireTaxRate`), so a stranger's id is a 404 rather
@@ -3499,6 +3556,44 @@ const REFERENCES: readonly Reference[] = [
     subject: (o) => o.taxRateId,
     reach: (id, s) =>
       createCatalogItem({ direction: 'sales', name: 'Item', defaultTaxRateId: id }, s.caller.ctx),
+  },
+  // Tracked inventory (OB-224): an inventory item's asset and COGS accounts, each
+  // `requireAccount`'d through `tenantDb` — a stranger's id is a 404. The refine
+  // requires all three costing fields, so the field not under test names a real
+  // caller account (`bankId` is an asset, `expenseId` an expense) and a costing method.
+  {
+    operationId: 'createCatalogItem',
+    field: 'inventoryAssetAccountId',
+    subject: (o) => o.bankId,
+    reach: (id, s) =>
+      createCatalogItem(
+        {
+          direction: 'inventory',
+          itemType: 'inventory',
+          name: 'Item',
+          inventoryAssetAccountId: id,
+          cogsAccountId: s.caller.expenseId,
+          costingMethod: 'weighted_average',
+        },
+        s.caller.ctx,
+      ),
+  },
+  {
+    operationId: 'createCatalogItem',
+    field: 'cogsAccountId',
+    subject: (o) => o.expenseId,
+    reach: (id, s) =>
+      createCatalogItem(
+        {
+          direction: 'inventory',
+          itemType: 'inventory',
+          name: 'Item',
+          inventoryAssetAccountId: s.caller.bankId,
+          cogsAccountId: id,
+          costingMethod: 'weighted_average',
+        },
+        s.caller.ctx,
+      ),
   },
   {
     operationId: 'updateCatalogItem',

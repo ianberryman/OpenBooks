@@ -17,6 +17,7 @@ import {
 import { assertCatalogItemsUsable } from '../catalog';
 import { resolveTagsForNewLine } from '../dimensions';
 import { emitEvent } from '../events';
+import { postSaleCogs, reverseInventoryMovements } from '../inventory';
 import { postJournal, reverseJournal } from '../ledger';
 import { computePaymentTerm, resolveDocumentTerm } from '../payment-terms';
 import { resolveControlAccount } from '../settings';
@@ -36,6 +37,7 @@ import {
   documentIdBytes,
   insertDocument,
   markApproved,
+  markCogsJournal,
   markVoided,
   newDocumentId,
   orgScope,
@@ -418,6 +420,35 @@ export async function approveArDocument(
       );
     }
 
+    // Perpetual COGS (OB-224): an invoice whose lines cite tracked inventory items
+    // posts a *second* journal — `Dr COGS / Cr inventory-asset` at the cost of the
+    // units sold — separate from the revenue journal above so a void reverses both
+    // (D-INV-7). `postSaleCogs` joins this transaction ambiently, filters to the
+    // inventory-type lines itself, and returns null when none cost anything. A credit
+    // note is deliberately excluded: it is not necessarily a physical return, so
+    // restocking is a stock adjustment rather than an automatic reverse-COGS.
+    if (kind.documentType === 'invoice') {
+      const saleLines = lines.flatMap((line) =>
+        line.catalog_item_id === null
+          ? []
+          : [
+              {
+                catalogItemId: bufferToUuid(line.catalog_item_id),
+                quantityMicros: line.quantity_micros,
+              },
+            ],
+      );
+      if (saleLines.length > 0) {
+        const cogsJournalId = await postSaleCogs(
+          { lines: saleLines, date: row.issue_date, sourceDocId: documentId },
+          ctx,
+        );
+        if (cogsJournalId !== null) {
+          await markCogsJournal(trx, id, uuidToBuffer(cogsJournalId), new Date());
+        }
+      }
+    }
+
     // The outbox append (OB-100, F7): same transaction as the write above, so an
     // event exists if and only if the approval committed. `total` is recomputed
     // rather than read back off `posted`, because `PostedJournal` carries per-line
@@ -545,6 +576,34 @@ export async function voidArDocument(
       throw new InternalError(
         `Voiding a ${kind.resource} updated ${String(updated)} rows while holding its row lock. ` +
           'The reversal is posted and the document may not record it.',
+      );
+    }
+
+    // The inventory void ripple (OB-224, D-INV-7): a voided invoice that posted COGS
+    // must also reverse that COGS journal and emit compensating stock movements, or
+    // Σ movements stops tying to the inventory-asset control account. The COGS
+    // reversal is a second reversing journal, discoverable via `reverses_journal_id`;
+    // `reverseInventoryMovements` appends the opposite deltas tied to it.
+    if (row.cogs_journal_id !== null) {
+      const cogsReversal = await reverseJournal(
+        {
+          journalId: bufferToUuid(row.cogs_journal_id),
+          date: request.date,
+          ...(request.memo === undefined || request.memo === null ? {} : { memo: request.memo }),
+          actorType: ctx.actorType,
+          actorId: ctx.actorId,
+          ...(ctx.invocationMode === undefined ? {} : { invocationMode: ctx.invocationMode }),
+        },
+        ctx,
+      );
+      await reverseInventoryMovements(
+        {
+          sourceDocId: documentId,
+          mainOriginalJournalId: bufferToUuid(row.cogs_journal_id),
+          mainReversalJournalId: cogsReversal.journalId,
+          date: request.date,
+        },
+        ctx,
       );
     }
 

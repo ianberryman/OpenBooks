@@ -35,6 +35,7 @@ export const ACCOUNT_RESOURCE = 'account';
 export interface ControlAccountsRow {
   readonly receivableControlAccountId: Buffer | null;
   readonly payableControlAccountId: Buffer | null;
+  readonly inventoryShrinkageAccountId: Buffer | null;
 }
 
 /** The early-pay discount nominations (OB-136; ROADMAP D-106, D-107). */
@@ -66,6 +67,7 @@ export interface NominatedAccountRow {
 export interface ControlAccountsPatch {
   readonly receivableControlAccountId?: Buffer | null;
   readonly payableControlAccountId?: Buffer | null;
+  readonly inventoryShrinkageAccountId?: Buffer | null;
 }
 
 /** The discount-nomination twin of `ControlAccountsPatch`, same two rules. */
@@ -105,12 +107,17 @@ export function accountIdBytes(id: string): Buffer | undefined {
 export async function selectControlAccounts(db: TenantDatabase): Promise<ControlAccountsRow> {
   const row = await db
     .selectFrom('org_accounting_settings')
-    .select(['receivable_control_account_id', 'payable_control_account_id'])
+    .select([
+      'receivable_control_account_id',
+      'payable_control_account_id',
+      'inventory_shrinkage_account_id',
+    ])
     .executeTakeFirst();
 
   return {
     receivableControlAccountId: row?.receivable_control_account_id ?? null,
     payableControlAccountId: row?.payable_control_account_id ?? null,
+    inventoryShrinkageAccountId: row?.inventory_shrinkage_account_id ?? null,
   };
 }
 
@@ -190,6 +197,9 @@ export async function upsertControlAccounts(
     ...(patch.payableControlAccountId === undefined
       ? {}
       : { payable_control_account_id: patch.payableControlAccountId }),
+    ...(patch.inventoryShrinkageAccountId === undefined
+      ? {}
+      : { inventory_shrinkage_account_id: patch.inventoryShrinkageAccountId }),
   };
 
   await db

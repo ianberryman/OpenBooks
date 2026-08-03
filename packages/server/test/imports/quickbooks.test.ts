@@ -175,6 +175,7 @@ describe('importQuickBooks', () => {
     expect(await getControlAccounts(actor.ctx)).toEqual({
       receivableControlAccountId: receivable?.id ?? null,
       payableControlAccountId: payable?.id ?? null,
+      inventoryShrinkageAccountId: null,
     });
   });
 

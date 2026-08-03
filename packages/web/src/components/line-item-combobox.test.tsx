@@ -19,10 +19,16 @@ type CatalogItem = components['schemas']['CatalogItem'];
 function item(overrides: Partial<CatalogItem> & { id: string; name: string }): CatalogItem {
   return {
     direction: 'sales',
+    itemType: 'non_inventory',
     code: null,
     defaultAccountId: null,
     defaultUnitAmount: null,
     defaultTaxRateId: null,
+    inventoryAssetAccountId: null,
+    cogsAccountId: null,
+    costingMethod: null,
+    defaultCost: null,
+    reorderPoint: null,
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
