@@ -3,23 +3,26 @@ import { useState } from 'react';
 
 import { Button } from '../../components';
 import { StockAdjustmentDialog } from './adjustment-form';
+import { ItemFormDialog } from './item-form';
 import { ReorderAlertsView } from './reorder';
-import { InventoryValuationView } from './valuation';
+import { InventorySettingsPanel } from './settings-panel';
+import { InventoryStockList } from './valuation';
 
 /**
- * Tracked inventory (OB-224) — on-hand quantity and value by catalog item, items at or
- * below their reorder point, and the one write this milestone offers: a signed stock
- * adjustment. `fixed-assets.tsx`'s composition shape: a heading and a primary action above
- * the read models the screen exists to show.
+ * Tracked inventory (OB-224) — the operational hub: on-hand quantity and value by catalog
+ * item (each a link into its own movement ledger, `item-detail.tsx`), items at or below
+ * their reorder point, and the two writes this milestone offers — registering a tracked
+ * item and posting a signed stock adjustment. `fixed-assets.tsx`'s composition shape: a
+ * heading and the screen's primary actions above the read models it exists to show.
  *
- * There is no list of raw stock movements here (D-M2's precedent for "no separate ledger
- * view" applies the same way it does on `fixed-assets`) — the valuation report is a
- * snapshot of the current position, `reorder.tsx` is the same position filtered to what
- * needs acting on, and an adjustment's effect is read back as its posted `valueDelta`
- * rather than accumulated client-side.
+ * Settings collapses below the operational content by default (`showSettings`) — the
+ * shrinkage-account nomination is configured once per org and read rarely, so it does not
+ * compete with the stock list and alerts for the first screenful.
  */
 export function InventoryScreen(): ReactElement {
   const [adjusting, setAdjusting] = useState(false);
+  const [creatingItem, setCreatingItem] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,23 +30,52 @@ export function InventoryScreen(): ReactElement {
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold text-text">Inventory</h1>
           <p className="max-w-form text-text-muted">
-            On-hand quantity and value by item, and the items that have fallen to or below their
-            reorder point.
+            On-hand quantity and value by item, the items that have fallen to or below their reorder
+            point, and each item's own movement history.
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => {
-            setAdjusting(true);
-          }}
-        >
-          Adjust stock
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => {
+              setCreatingItem(true);
+            }}
+          >
+            New tracked item
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAdjusting(true);
+            }}
+          >
+            Adjust stock
+          </Button>
+        </div>
       </div>
 
       <ReorderAlertsView />
 
-      <InventoryValuationView />
+      <InventoryStockList />
+
+      <div className="flex flex-col gap-3">
+        <Button
+          size="sm"
+          onClick={() => {
+            setShowSettings((current) => !current);
+          }}
+          aria-expanded={showSettings}
+        >
+          {showSettings ? 'Hide inventory settings' : 'Inventory settings'}
+        </Button>
+        {showSettings && <InventorySettingsPanel />}
+      </div>
+
+      <ItemFormDialog
+        open={creatingItem}
+        onOpenChange={(open) => {
+          setCreatingItem(open);
+        }}
+      />
 
       <StockAdjustmentDialog
         open={adjusting}

@@ -13,6 +13,7 @@ import {
 import { approveBill, createBill } from '../../src/modules/bills';
 import { createCatalogItem } from '../../src/modules/catalog';
 import {
+  getInventoryItemLedger,
   getInventoryValuation,
   getReorderAlerts,
   postInventoryAdjustment,
@@ -281,6 +282,27 @@ describe('perpetual inventory and COGS', () => {
     expect(await movementValue(s.orgId)).toBe(80000n);
     const report = await runInContext(s.ctx, () => getInventoryValuation({}, s.ctx));
     expect(report.rows.find((r) => r.catalogItemId === s.itemId)?.onHandQuantity).toBe('8');
+  });
+
+  it('returns a movement ledger with a running on-hand that ends at the current fold', async () => {
+    const s = await sceneIn();
+    await receive(s, '10', '10000');
+    await sell(s, '4', '15000');
+
+    const ledger = await runInContext(s.ctx, () => getInventoryItemLedger(s.itemId, s.ctx));
+
+    expect(ledger.onHandQuantity).toBe('6');
+    expect(ledger.value).toBe('60000');
+    expect(ledger.unitCost).toBe('10000');
+    // Oldest first: a receipt then a sale, and the last entry's running totals equal
+    // the header — the audit trail folds to the same on-hand three other reads report.
+    expect(ledger.entries.map((e) => e.movementType)).toEqual(['receipt', 'sale']);
+    expect(ledger.entries[0]?.runningQuantity).toBe('10');
+    expect(ledger.entries[0]?.runningValue).toBe('100000');
+    expect(ledger.entries[1]?.quantityDelta).toBe('-4');
+    expect(ledger.entries[1]?.valueDelta).toBe('-40000');
+    expect(ledger.entries[1]?.runningQuantity).toBe('6');
+    expect(ledger.entries[1]?.runningValue).toBe('60000');
   });
 
   it('flags an item at or below its reorder point', async () => {

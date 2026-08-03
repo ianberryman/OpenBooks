@@ -31,6 +31,7 @@ export {
   reverseInventoryMovements,
   postInventoryAdjustment,
   getInventoryValuation,
+  getInventoryItemLedger,
   getReorderAlerts,
 } from './inventory.service';
 

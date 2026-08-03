@@ -191,6 +191,7 @@ describe('the /v1 route table', () => {
         // approve hooks, so there is no route of their own here.
         'getInventoryValuation',
         'getReorderAlerts',
+        'getInventoryItemLedger',
         'createInventoryAdjustment',
         // OB-067 — the `/v1` surface for everything M3 adds.
         'getControlAccounts',

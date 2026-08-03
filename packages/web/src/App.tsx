@@ -33,6 +33,7 @@ import { PurchaseOrdersScreen } from './screens/purchase-orders';
 import { PurchasesScreen } from './screens/purchases';
 import { QuickBooksImportScreen } from './screens/quickbooks-import';
 import { FixedAssetsScreen } from './screens/fixed-assets';
+import { InventoryItemDetail } from './screens/inventory/item-detail';
 import { InventoryScreen } from './screens/inventory/inventory';
 import { RecurringInvoicesScreen } from './screens/recurring-invoices';
 import { RecurringJournalsScreen } from './screens/recurring-journals';
@@ -212,6 +213,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/recurring-journals" element={<RecurringJournalsScreen />} />
         <Route path="/fixed-assets" element={<FixedAssetsScreen />} />
         <Route path="/inventory" element={<InventoryScreen />} />
+        <Route path="/inventory/:itemId" element={<InventoryItemDetail />} />
         <Route path="/purchase-orders/*" element={<PurchaseOrdersScreen />} />
         <Route path="/purchases/*" element={<PurchasesScreen />} />
         <Route path="/expenses" element={<ExpensesScreen />} />

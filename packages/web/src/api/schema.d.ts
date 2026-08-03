@@ -2458,6 +2458,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/inventory/items/{itemId}/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A tracked item’s movement ledger
+         * @description Every stock movement for one item — receipts, sales, adjustments, true-ups and reversals — oldest first, each with the running on-hand quantity and value it leaves, and a link to its source document and journal. The append-only audit trail behind the item’s current on-hand.
+         */
+        get: operations["getInventoryItemLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/inventory/reorder-alerts": {
         parameters: {
             query?: never;
@@ -9788,6 +9808,86 @@ export interface components {
             name: string;
             quantityDelta: components["schemas"]["QuantityInput"];
             /** @description The signed value posted for this line, costed at the item’s moving average. */
+            valueDelta: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description A tracked item’s current on-hand and its complete movement ledger — every receipt, sale, adjustment, true-up and reversal with the running on-hand each leaves. */
+        InventoryItemLedger: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            /** @description Every movement for the item, oldest first. */
+            entries: components["schemas"]["InventoryLedgerEntry"][];
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["Quantity"];
+            reorderPoint: components["schemas"]["Quantity"] | null;
+            unitCost: components["schemas"]["MinorUnits"] | null;
+            value: components["schemas"]["MinorUnits"];
+        };
+        /** @description A tracked item’s current on-hand and its complete movement ledger — every receipt, sale, adjustment, true-up and reversal with the running on-hand each leaves. */
+        InventoryItemLedgerInput: {
+            /**
+             * Format: uuid
+             * @description The tracked catalog item this figure is for.
+             */
+            catalogItemId: string;
+            code: string | null;
+            /** @description Every movement for the item, oldest first. */
+            entries: components["schemas"]["InventoryLedgerEntryInput"][];
+            name: string;
+            /** @description Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV). */
+            onHandQuantity: components["schemas"]["QuantityInput"];
+            reorderPoint: components["schemas"]["QuantityInput"] | null;
+            unitCost: components["schemas"]["MinorUnitsInput"] | null;
+            value: components["schemas"]["MinorUnitsInput"];
+        };
+        /** @description A stock movement and the running on-hand quantity and value it leaves. */
+        InventoryLedgerEntry: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            journalId: string;
+            movementDate: components["schemas"]["CalendarDate"];
+            /**
+             * @description What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).
+             * @enum {string}
+             */
+            movementType: "receipt" | "sale" | "adjustment" | "true_up" | "reversal";
+            quantityDelta: components["schemas"]["Quantity"];
+            /** @description On-hand units after this movement — the fold up to and including it. */
+            runningQuantity: components["schemas"]["Quantity"];
+            /** @description On-hand value in minor units after this movement. */
+            runningValue: components["schemas"]["MinorUnits"];
+            sourceDocId: string | null;
+            sourceDocType: string | null;
+            valueDelta: components["schemas"]["MinorUnits"];
+        };
+        /** @description A stock movement and the running on-hand quantity and value it leaves. */
+        InventoryLedgerEntryInput: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            journalId: string;
+            movementDate: components["schemas"]["CalendarDateInput"];
+            /**
+             * @description What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).
+             * @enum {string}
+             */
+            movementType: "receipt" | "sale" | "adjustment" | "true_up" | "reversal";
+            quantityDelta: components["schemas"]["QuantityInput"];
+            /** @description On-hand units after this movement — the fold up to and including it. */
+            runningQuantity: components["schemas"]["QuantityInput"];
+            /** @description On-hand value in minor units after this movement. */
+            runningValue: components["schemas"]["MinorUnitsInput"];
+            sourceDocId: string | null;
+            sourceDocType: string | null;
             valueDelta: components["schemas"]["MinorUnitsInput"];
         };
         /** @description One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement. */
@@ -19804,6 +19904,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryAdjustment"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInventoryItemLedger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryItemLedger"];
                 };
             };
             /** @description Default Response */

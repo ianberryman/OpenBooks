@@ -56,6 +56,7 @@ import {
   updateCatalogItem,
 } from '../../src/modules/catalog';
 import {
+  getInventoryItemLedger,
   getInventoryValuation,
   getReorderAlerts,
   postInventoryAdjustment,
@@ -1160,6 +1161,12 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'getReorderAlerts',
     permission: 'inventory.read',
     call: (s) => getReorderAlerts(s.ctx),
+  },
+  {
+    name: 'getInventoryItemLedger',
+    operationId: 'getInventoryItemLedger',
+    permission: 'inventory.read',
+    call: (s) => getInventoryItemLedger(s.catalogItemId, s.ctx),
   },
   {
     name: 'createInventoryAdjustment',

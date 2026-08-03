@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { ErrorBanner, Pill, ResponsiveTable, formatMoney } from '../../components';
 import { cx } from '../../lib/cx';
@@ -8,75 +8,47 @@ import { useInventoryValuation } from './queries';
 import type { InventoryValuation, InventoryValuationRow } from './queries';
 
 /**
- * The inventory valuation report (OB-224) — every catalog item currently on hand, its
- * server-costed unit cost and value, and whether it has fallen to or below its reorder
- * point. `reports/balance-sheet.tsx`'s `asOf` shape: a position at a point in time, so this
- * screen owns a date control rather than always showing "now".
+ * The stock list — every tracked item's current on-hand quantity and value (OB-224), and
+ * the hub's route into an item's own movement ledger. `asOf` is always the server's default
+ * of today: this is the operational view of "what do we have right now", not a historical
+ * report, so unlike `reports/balance-sheet.tsx` this carries no date control of its own.
  *
  * Value and unit cost are read off the response, never recomputed here — the server owns
  * the costing method (D-13's discipline: money is a minor-unit string, arithmetic on it
  * belongs to whoever already validated it).
  */
+export function InventoryStockList(): ReactElement {
+  const report = useInventoryValuation(null);
 
-function today(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${String(now.getFullYear())}-${month}-${day}`;
+  if (report.isPending) {
+    return (
+      <p role="status" className="text-text-subtle">
+        Loading stock…
+      </p>
+    );
+  }
+
+  if (report.isError) {
+    return (
+      <ErrorBanner
+        error={report.error}
+        onRetry={() => {
+          void report.refetch();
+        }}
+      />
+    );
+  }
+
+  return <InventoryStockTable report={report.data} />;
 }
 
-export function InventoryValuationView(): ReactElement {
-  const [asOf, setAsOf] = useState<string>(today);
-  const report = useInventoryValuation(asOf);
+function InventoryStockTable({ report }: { readonly report: InventoryValuation }): ReactElement {
+  const navigate = useNavigate();
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-text">As of</span>
-          <input
-            type="date"
-            value={asOf}
-            onChange={(event) => {
-              setAsOf(event.target.value);
-            }}
-            className={cx(
-              'h-9 rounded-md border border-border bg-surface px-2 text-base text-text',
-              'font-mono tabular-nums',
-            )}
-          />
-        </label>
-      </div>
-
-      {report.isPending && (
-        <p role="status" className="text-text-subtle">
-          Running the valuation…
-        </p>
-      )}
-
-      {report.isError && (
-        <ErrorBanner
-          error={report.error}
-          onRetry={() => {
-            void report.refetch();
-          }}
-        />
-      )}
-
-      {report.data !== undefined && <InventoryValuationTable report={report.data} />}
-    </div>
-  );
-}
-
-function InventoryValuationTable({
-  report,
-}: {
-  readonly report: InventoryValuation;
-}): ReactElement {
   return (
     <ResponsiveTable>
       <table className={TABLE_CLASSES}>
-        <caption className="sr-only">{`Inventory valuation as of ${report.asOf}`}</caption>
+        <caption className="sr-only">{`Inventory stock as of ${report.asOf}`}</caption>
         <thead>
           <tr>
             <th scope="col" className={TH_CLASSES}>
@@ -101,10 +73,18 @@ function InventoryValuationTable({
         </thead>
         <tbody>
           {report.rows.length === 0 && (
-            <EmptyRow columns={6}>No inventory items are on hand as of this date.</EmptyRow>
+            <EmptyRow columns={6}>
+              No tracked items yet — create one to start counting stock.
+            </EmptyRow>
           )}
           {report.rows.map((row) => (
-            <InventoryValuationRowView key={row.catalogItemId} row={row} />
+            <InventoryStockRow
+              key={row.catalogItemId}
+              row={row}
+              onOpen={() => {
+                void navigate(`/inventory/${row.catalogItemId}`);
+              }}
+            />
           ))}
         </tbody>
         <tfoot>
@@ -123,10 +103,24 @@ function InventoryValuationTable({
   );
 }
 
-function InventoryValuationRowView({ row }: { readonly row: InventoryValuationRow }): ReactElement {
+function InventoryStockRow({
+  row,
+  onOpen,
+}: {
+  readonly row: InventoryValuationRow;
+  readonly onOpen: () => void;
+}): ReactElement {
   return (
     <tr>
-      <td className={TD_CLASSES}>{row.name}</td>
+      <td className={TD_CLASSES}>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="rounded-sm text-left text-text underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+        >
+          {row.name}
+        </button>
+      </td>
       <td className={cx(TD_CLASSES, 'font-mono text-xs text-text-subtle')}>{row.code ?? '—'}</td>
       <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>{row.onHandQuantity}</td>
       <td className={cx(TD_CLASSES, 'text-right font-mono tabular-nums')}>

@@ -19702,6 +19702,316 @@
         ],
         "type": "object"
       },
+      "InventoryItemLedger": {
+        "additionalProperties": false,
+        "description": "A tracked item’s current on-hand and its complete movement ledger — every receipt, sale, adjustment, true-up and reversal with the running on-hand each leaves.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entries": {
+            "description": "Every movement for the item, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLedgerEntry"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quantity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnits"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/MinorUnits"
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "value",
+          "unitCost",
+          "reorderPoint",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "InventoryItemLedgerInput": {
+        "additionalProperties": false,
+        "description": "A tracked item’s current on-hand and its complete movement ledger — every receipt, sale, adjustment, true-up and reversal with the running on-hand each leaves.",
+        "properties": {
+          "catalogItemId": {
+            "description": "The tracked catalog item this figure is for.",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entries": {
+            "description": "Every movement for the item, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/InventoryLedgerEntryInput"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "onHandQuantity": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "Units on hand — a signed decimal quantity folded over the movement log. Negative when a sale ran the item below zero (the backorder accommodation, allowed with a warning; D-INV)."
+          },
+          "reorderPoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantityInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitCost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinorUnitsInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "required": [
+          "catalogItemId",
+          "name",
+          "code",
+          "onHandQuantity",
+          "value",
+          "unitCost",
+          "reorderPoint",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "InventoryLedgerEntry": {
+        "additionalProperties": false,
+        "description": "A stock movement and the running on-hand quantity and value it leaves.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "movementDate": {
+            "$ref": "#/components/schemas/CalendarDate"
+          },
+          "movementType": {
+            "description": "What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).",
+            "enum": [
+              "receipt",
+              "sale",
+              "adjustment",
+              "true_up",
+              "reversal"
+            ],
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "runningQuantity": {
+            "$ref": "#/components/schemas/Quantity",
+            "description": "On-hand units after this movement — the fold up to and including it."
+          },
+          "runningValue": {
+            "$ref": "#/components/schemas/MinorUnits",
+            "description": "On-hand value in minor units after this movement."
+          },
+          "sourceDocId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceDocType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnits"
+          }
+        },
+        "required": [
+          "id",
+          "movementType",
+          "quantityDelta",
+          "valueDelta",
+          "runningQuantity",
+          "runningValue",
+          "journalId",
+          "sourceDocType",
+          "sourceDocId",
+          "movementDate",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "InventoryLedgerEntryInput": {
+        "additionalProperties": false,
+        "description": "A stock movement and the running on-hand quantity and value it leaves.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "journalId": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "movementDate": {
+            "$ref": "#/components/schemas/CalendarDateInput"
+          },
+          "movementType": {
+            "description": "What produced a movement: `receipt` (a bill), `sale` (an invoice’s COGS), `adjustment` (a count/shrinkage), `true_up` (a negative-inventory cost reconciliation), or `reversal` (a void).",
+            "enum": [
+              "receipt",
+              "sale",
+              "adjustment",
+              "true_up",
+              "reversal"
+            ],
+            "type": "string"
+          },
+          "quantityDelta": {
+            "$ref": "#/components/schemas/QuantityInput"
+          },
+          "runningQuantity": {
+            "$ref": "#/components/schemas/QuantityInput",
+            "description": "On-hand units after this movement — the fold up to and including it."
+          },
+          "runningValue": {
+            "$ref": "#/components/schemas/MinorUnitsInput",
+            "description": "On-hand value in minor units after this movement."
+          },
+          "sourceDocId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceDocType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueDelta": {
+            "$ref": "#/components/schemas/MinorUnitsInput"
+          }
+        },
+        "required": [
+          "id",
+          "movementType",
+          "quantityDelta",
+          "valueDelta",
+          "runningQuantity",
+          "runningValue",
+          "journalId",
+          "sourceDocType",
+          "sourceDocId",
+          "movementDate",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "InventoryMovement": {
         "additionalProperties": false,
         "description": "One append-only stock movement — a signed quantity and value delta tied to the journal that posted its GL effect. On-hand is a fold over these; a correction is a compensating movement.",
@@ -45991,6 +46301,50 @@
           }
         },
         "summary": "Post a stock adjustment",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/v1/inventory/items/{itemId}/movements": {
+      "get": {
+        "description": "Every stock movement for one item — receipts, sales, adjustments, true-ups and reversals — oldest first, each with the running on-hand quantity and value it leaves, and a link to its source document and journal. The append-only audit trail behind the item’s current on-hand.",
+        "operationId": "getInventoryItemLedger",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "itemId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryItemLedger"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "A tracked item’s movement ledger",
         "tags": [
           "inventory"
         ]

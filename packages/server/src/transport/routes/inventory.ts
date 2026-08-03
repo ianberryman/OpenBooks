@@ -1,14 +1,17 @@
 import {
   createInventoryAdjustmentRequestSchema,
   inventoryAdjustmentSchema,
+  inventoryItemLedgerSchema,
   inventoryValuationQuerySchema,
   inventoryValuationSchema,
   reorderAlertsSchema,
 } from '@openbooks/shared-types';
 import type { InventoryAdjustment } from '@openbooks/shared-types';
+import { z } from 'zod';
 
 import { getContext } from '../../context';
 import {
+  getInventoryItemLedger,
   getInventoryValuation,
   getReorderAlerts,
   postInventoryAdjustment,
@@ -68,6 +71,26 @@ export function registerInventoryRoutes(app: App): void {
         await getInventoryValuation({ ...(asOf === undefined ? {} : { asOf }) }, getContext()),
       );
     },
+  );
+
+  app.get(
+    '/v1/inventory/items/:itemId/movements',
+    {
+      onRequest: requireOrgScope,
+      schema: {
+        operationId: 'getInventoryItemLedger',
+        summary: 'A tracked item’s movement ledger',
+        description:
+          'Every stock movement for one item — receipts, sales, adjustments, true-ups and ' +
+          'reversals — oldest first, each with the running on-hand quantity and value it leaves, ' +
+          'and a link to its source document and journal. The append-only audit trail behind the ' +
+          'item’s current on-hand.',
+        tags: [TAG],
+        params: z.strictObject({ itemId: z.uuid() }),
+        response: { 200: inventoryItemLedgerSchema, ...ERROR_RESPONSES },
+      },
+    },
+    async (request) => wireValue(await getInventoryItemLedger(request.params.itemId, getContext())),
   );
 
   app.get(

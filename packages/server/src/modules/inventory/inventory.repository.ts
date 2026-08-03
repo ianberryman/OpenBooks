@@ -162,6 +162,59 @@ export async function selectMovementsForSourceDoc(
   }));
 }
 
+export interface LedgerMovementRow {
+  readonly id: Buffer;
+  readonly movementType: string;
+  readonly qtyDeltaMicros: bigint;
+  readonly valueDeltaMinor: bigint;
+  readonly journalId: Buffer;
+  readonly sourceDocType: string | null;
+  readonly sourceDocId: Buffer | null;
+  readonly movementDate: string;
+  readonly createdAt: Date;
+}
+
+/**
+ * Every movement for one item, oldest first — the item detail view's ledger. Ordered
+ * by `(movement_date, created_at, id)` so the running fold the service computes is
+ * deterministic and the last entry's running total equals the on-hand fold.
+ */
+export async function selectItemMovementsOrdered(
+  db: TenantDatabase,
+  catalogItemId: Buffer,
+): Promise<readonly LedgerMovementRow[]> {
+  const rows = await db
+    .selectFrom('inventory_movements')
+    .select([
+      'id',
+      'movement_type',
+      'qty_delta_micros',
+      'value_delta_minor',
+      'journal_id',
+      'source_doc_type',
+      'source_doc_id',
+      'movement_date',
+      'created_at',
+    ])
+    .where('catalog_item_id', '=', catalogItemId)
+    .orderBy('movement_date', 'asc')
+    .orderBy('created_at', 'asc')
+    .orderBy('id', 'asc')
+    .execute();
+
+  return rows.map((row) => ({
+    id: row.id,
+    movementType: row.movement_type,
+    qtyDeltaMicros: row.qty_delta_micros,
+    valueDeltaMinor: row.value_delta_minor,
+    journalId: row.journal_id,
+    sourceDocType: row.source_doc_type,
+    sourceDocId: row.source_doc_id,
+    movementDate: row.movement_date,
+    createdAt: row.created_at,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // inventory_adjustments
 // ---------------------------------------------------------------------------

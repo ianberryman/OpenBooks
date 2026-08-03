@@ -138,6 +138,67 @@ export const inventoryMovementSchema = z
 
 export type InventoryMovement = z.infer<typeof inventoryMovementSchema>;
 
+// ── Per-item movement ledger ─────────────────────────────────────────────────
+
+/**
+ * One entry in an item's movement ledger — a movement plus the running on-hand it
+ * leaves behind. The running totals are computed server-side by folding the
+ * movements in order (`movementDate`, then insertion order), so the client shows the
+ * audit trail without re-deriving the arithmetic the fold already owns.
+ */
+export const inventoryLedgerEntrySchema = z
+  .strictObject({
+    id: z.uuid(),
+    movementType: inventoryMovementTypeSchema,
+    quantityDelta: quantitySchema,
+    valueDelta: minorUnitsSchema,
+    runningQuantity: quantitySchema.meta({
+      description: 'On-hand units after this movement — the fold up to and including it.',
+    }),
+    runningValue: minorUnitsSchema.meta({
+      description: 'On-hand value in minor units after this movement.',
+    }),
+    journalId: z.uuid(),
+    sourceDocType: z.string().nullable(),
+    sourceDocId: z.uuid().nullable(),
+    movementDate: calendarDateSchema,
+    createdAt: z.iso.datetime(),
+  })
+  .meta({
+    id: 'InventoryLedgerEntry',
+    description: 'A stock movement and the running on-hand quantity and value it leaves.',
+  });
+
+export type InventoryLedgerEntry = z.infer<typeof inventoryLedgerEntrySchema>;
+
+/**
+ * A tracked item's full movement ledger — the append-only audit trail the item
+ * detail view is built on. The header restates the item's current on-hand so the
+ * page has it without a second call; `entries` are oldest first, so the last entry's
+ * running totals equal the header.
+ */
+export const inventoryItemLedgerSchema = z
+  .strictObject({
+    catalogItemId: catalogItemIdSchema,
+    name: z.string(),
+    code: z.string().nullable(),
+    onHandQuantity: onHandQuantitySchema,
+    value: minorUnitsSchema,
+    unitCost: minorUnitsSchema.nullable(),
+    reorderPoint: quantitySchema.nullable(),
+    entries: z.array(inventoryLedgerEntrySchema).meta({
+      description: 'Every movement for the item, oldest first.',
+    }),
+  })
+  .meta({
+    id: 'InventoryItemLedger',
+    description:
+      'A tracked item’s current on-hand and its complete movement ledger — every receipt, sale, ' +
+      'adjustment, true-up and reversal with the running on-hand each leaves.',
+  });
+
+export type InventoryItemLedger = z.infer<typeof inventoryItemLedgerSchema>;
+
 // ── Inventory valuation report ───────────────────────────────────────────────
 
 /**

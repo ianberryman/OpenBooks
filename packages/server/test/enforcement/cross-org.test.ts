@@ -73,6 +73,7 @@ interface Scene {
   readonly ten99FormId: string;
   readonly contactId: string;
   readonly catalogItemId: string;
+  readonly inventoryItemId: string;
   readonly dimensionId: string;
   readonly dimensionValueId: string;
   /** Posted by the control pass, which consumes it. */
@@ -301,6 +302,17 @@ async function scene(app: App): Promise<Scene> {
   const catalogItemId = await created('catalog', '/v1/catalog-items', {
     direction: 'sales',
     name: 'Consulting hour',
+  });
+  // A tracked inventory item, so the `getInventoryItemLedger` control pass resolves
+  // (a non-inventory item 404s on the `item_type='inventory'` lookup). Its ledger is
+  // empty, which still returns 200 — the item exists — so `ownerGetsNotFound` holds.
+  const inventoryItemId = await created('inventory-item', '/v1/catalog-items', {
+    direction: 'inventory',
+    itemType: 'inventory',
+    name: 'Tracked widget',
+    inventoryAssetAccountId: accountId,
+    cogsAccountId: revenueId,
+    costingMethod: 'weighted_average',
   });
   const dimensionId = await created('dimension', '/v1/dimensions', {
     code: 'DEPT',
@@ -629,6 +641,7 @@ async function scene(app: App): Promise<Scene> {
     ten99FormId,
     contactId,
     catalogItemId,
+    inventoryItemId,
     dimensionId,
     dimensionValueId,
     draftId,
@@ -1316,6 +1329,15 @@ const SURFACES: readonly Surface[] = [
     method: 'GET',
     path: '/v1/catalog-items/%s',
     id: (s) => s.catalogItemId,
+  },
+  // Tracked inventory (OB-224): the item movement ledger. A stranger's item id is a 404
+  // (the read goes through `tenantDb`); the control pass names the owner's own tracked
+  // item, whose empty ledger still returns 200 (`ownerGetsNotFound` holds).
+  {
+    operationId: 'getInventoryItemLedger',
+    method: 'GET',
+    path: '/v1/inventory/items/%s/movements',
+    id: (s) => s.inventoryItemId,
   },
   // 1099 reporting (OB-228). The six id-addressed routes; `listVendorTaxProfiles`,
   // `getTen99Worksheet`, `generateTen99Run` and `listTen99Runs` carry no resource id and are

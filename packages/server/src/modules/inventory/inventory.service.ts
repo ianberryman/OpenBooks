@@ -3,6 +3,8 @@ import type {
   CreateInventoryAdjustmentRequest,
   InventoryAdjustment,
   InventoryAdjustmentLine,
+  InventoryItemLedger,
+  InventoryLedgerEntry,
   InventoryValuation,
   InventoryValuationQuery,
   InventoryValuationRow,
@@ -43,6 +45,7 @@ import {
   orgScope,
   selectAdjustmentHeaderById,
   selectInventoryShrinkageAccountId,
+  selectItemMovementsOrdered,
   selectMovementsForSourceDoc,
   selectOnHandFold,
   stampAdjustmentJournal,
@@ -681,4 +684,61 @@ export async function getReorderAlerts(
   }
 
   return { alerts };
+}
+
+/**
+ * One tracked item's full movement ledger, oldest first, with the running on-hand
+ * each movement leaves (OB-224). The item detail view's data. A non-inventory or
+ * cross-org id is A7's 404 — `loadInventoryItems` returns nothing for it, and
+ * `assertFound` converts that to the miss.
+ */
+export async function getInventoryItemLedger(
+  catalogItemId: string,
+  ctx: RequestContext = getContext('getInventoryItemLedger()'),
+): Promise<InventoryItemLedger> {
+  await requirePermission(ctx, 'inventory.read');
+
+  const db = orgScope(ctx);
+  const itemBytes = assertFound(tryUuidToBuffer(catalogItemId), CATALOG_ITEM_RESOURCE);
+  const items = await loadInventoryItems(db, [itemBytes]);
+  const item = assertFound(items[0], CATALOG_ITEM_RESOURCE);
+
+  const movements = await selectItemMovementsOrdered(db, itemBytes);
+
+  let runningQty = 0n;
+  let runningValue = 0n;
+  const entries: InventoryLedgerEntry[] = movements.map((movement) => {
+    runningQty += movement.qtyDeltaMicros;
+    runningValue += movement.valueDeltaMinor;
+    return {
+      id: bufferToUuid(movement.id),
+      movementType: movement.movementType as InventoryLedgerEntry['movementType'],
+      quantityDelta: quantityToString(quantityFromMicros(movement.qtyDeltaMicros)),
+      valueDelta: movement.valueDeltaMinor.toString(),
+      runningQuantity: quantityToString(quantityFromMicros(runningQty)),
+      runningValue: runningValue.toString(),
+      journalId: bufferToUuid(movement.journalId),
+      sourceDocType: movement.sourceDocType,
+      sourceDocId: movement.sourceDocId === null ? null : bufferToUuid(movement.sourceDocId),
+      movementDate: movement.movementDate,
+      createdAt: movement.createdAt.toISOString(),
+    };
+  });
+
+  const onHand: OnHand = { qtyMicros: runningQty, valueMinor: runningValue };
+  const unitCost = deriveUnitCost(onHand);
+
+  return {
+    catalogItemId: bufferToUuid(item.id),
+    name: item.name,
+    code: item.code,
+    onHandQuantity: quantityToString(quantityFromMicros(runningQty)),
+    value: runningValue.toString(),
+    unitCost: unitCost === null ? null : unitCost.toString(),
+    reorderPoint:
+      item.reorderPointMicros === null
+        ? null
+        : quantityToString(quantityFromMicros(item.reorderPointMicros)),
+    entries,
+  };
 }
