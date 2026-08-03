@@ -161,6 +161,13 @@ import {
   revokeInvite,
 } from '../../src/modules/members';
 import {
+  createRole,
+  deleteRole,
+  getPermissionCatalog,
+  getRoleDetail,
+  updateRole,
+} from '../../src/modules/roles';
+import {
   allocateCreditNote,
   allocatePayment,
   allocateVendorCredit,
@@ -638,6 +645,9 @@ const GRANTED_TO: Readonly<Record<string, readonly SystemRoleName[]>> = {
   'periods.reopen': ['owner', 'bookkeeper', 'accountant'],
   'reports.read': ['owner', 'bookkeeper', 'apOnly', 'arOnly', 'readOnly', 'approver', 'accountant'],
   'roles.read': ['owner', 'bookkeeper', 'readOnly', 'approver', 'accountant'],
+  // The custom-role builder is an org-administration act, seeded owner-only like
+  // `members.write` (OB-226, D-226-5).
+  'roles.write': ['owner'],
 
   // ---------------------------------------------------------------------------
   // M3 — the sixteen codes OB-062 … OB-066 gave an enforcement point.
@@ -1427,6 +1437,49 @@ const OPERATIONS: readonly Operation[] = [
     operationId: 'revokeInvite',
     permission: 'members.write',
     call: (s) => revokeInvite({ inviteId: s.inviteId }, s.ctx),
+  },
+  // Custom role builder (OB-226). The write rows aim a placeholder id (a seeded
+  // system role) at the write path: an authorized owner gets a `not_found` (the
+  // strict `is_system = 0` match), an unauthorized caller `permission_denied` — which
+  // is all `judge()` distinguishes.
+  {
+    name: 'getPermissionCatalog',
+    operationId: 'getPermissionCatalog',
+    permission: 'roles.read',
+    call: (s) => getPermissionCatalog(s.ctx),
+  },
+  {
+    name: 'getRole',
+    operationId: 'getRole',
+    permission: 'roles.read',
+    call: (s) => getRoleDetail(SYSTEM_ROLE_UUIDS.readOnly, s.ctx),
+  },
+  {
+    name: 'createRole',
+    operationId: 'createRole',
+    permission: 'roles.write',
+    call: (s) =>
+      createRole(
+        { name: `Custom ${s.orgUuid}`, description: '', permissionKeys: ['contacts.read'] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'updateRole',
+    operationId: 'updateRole',
+    permission: 'roles.write',
+    call: (s) =>
+      updateRole(
+        SYSTEM_ROLE_UUIDS.readOnly,
+        { name: 'Renamed', description: '', permissionKeys: ['contacts.read'] },
+        s.ctx,
+      ),
+  },
+  {
+    name: 'deleteRole',
+    operationId: 'deleteRole',
+    permission: 'roles.write',
+    call: (s) => deleteRole(SYSTEM_ROLE_UUIDS.readOnly, s.ctx),
   },
   {
     name: 'generateFiscalYear',

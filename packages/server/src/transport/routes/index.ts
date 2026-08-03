@@ -46,6 +46,7 @@ import { registerRecurringInvoiceRoutes } from './recurring-invoices';
 import { registerRecurringJournalRoutes } from './recurring-journals';
 import { registerReportExportRoutes } from './report-export';
 import { registerReportRoutes } from './reports';
+import { registerRoleRoutes } from './roles';
 import { registerSchedulingRoutes } from './scheduling';
 import { registerSettingsRoutes } from './settings';
 import { registerStatementLineRoutes } from './statement-lines';
@@ -632,6 +633,7 @@ export function registerV1Routes(app: App, config: Config): void {
   registerJournalRoutes(app);
   registerDraftRoutes(app);
   registerMemberRoutes(app);
+  registerRoleRoutes(app);
   registerReportRoutes(app);
   // Report CSV/Excel export (OB-220 part 2): one GET that runs a named report and
   // streams it as a file. Registered by the reports it serves — it renders nothing new.

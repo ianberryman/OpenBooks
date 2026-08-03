@@ -3298,6 +3298,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every permission a custom role may include
+         * @description Takes `roles.read`. `group` is the key prefix before the dot, so a role-builder checklist can section itself without a second source of grouping. Sorted by group then code, so the body is stable across calls.
+         */
+        get: operations["getPermissionCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/processing/connections": {
         parameters: {
             query?: never;
@@ -4077,11 +4097,43 @@ export interface paths {
          */
         get: operations["listAssignableRoles"];
         put?: never;
-        post?: never;
+        /**
+         * Create a custom role in this organization
+         * @description Takes `roles.write`. `code` is minted from `name` and never resubmitted — it is a slug, unique per org, and stable once created. The full permission catalog is authorable with no key excluded: an org is entitled to combine its own permissions however it chooses.
+         */
+        post: operations["createRole"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/roles/{roleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a role and the permissions it grants
+         * @description Takes `roles.read`. Resolves a system role as well as a custom one, so an editor can show what a seeded role like Bookkeeper grants without being able to change it — `isSystem` is what tells the two apart. A role belonging to another org answers the same `not_found` as one that does not exist (A7).
+         */
+        get: operations["getRole"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a custom role
+         * @description Takes `roles.write`. Refused with `conflict` while any member or pending invitation still names the role — remove or re-role them first. Refused with `not_found` on a system role or another org’s role (A7).
+         */
+        delete: operations["deleteRole"];
+        options?: never;
+        head?: never;
+        /**
+         * Replace a custom role’s name, description, and permission set
+         * @description Takes `roles.write`. The permission set is replaced in full, not diffed against the stored one — the body is the role’s whole intended bundle. Refused on a system role or another org’s role with `not_found` (A7); `code` cannot be changed here.
+         */
+        patch: operations["updateRole"];
         trace?: never;
     };
     "/v1/scheduling/run-due-work": {
@@ -8408,6 +8460,18 @@ export interface components {
             /** @description The first run date. Seeds `nextRunDate`; not itself a stored field, so it never appears on the response. */
             startDate: components["schemas"]["CalendarDateInput"];
         };
+        /** @description Create a custom role in this organization from permission-catalog keys. */
+        CreateRoleRequest: {
+            description: string;
+            name: string;
+            permissionKeys: unknown;
+        };
+        /** @description Create a custom role in this organization from permission-catalog keys. */
+        CreateRoleRequestInput: {
+            description: string;
+            name: string;
+            permissionKeys: string[];
+        };
         /** @description Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5). */
         CreateStatementPackageRequest: {
             /**
@@ -11264,6 +11328,26 @@ export interface components {
             /** Format: uuid */
             periodId: string;
         };
+        /** @description Every permission a custom role may include, for the role builder. */
+        PermissionCatalog: {
+            permissions: components["schemas"]["PermissionCatalogEntry"][];
+        };
+        /** @description A single assignable permission. */
+        PermissionCatalogEntry: {
+            code: string;
+            description: string;
+            group: string;
+        };
+        /** @description A single assignable permission. */
+        PermissionCatalogEntryInput: {
+            code: string;
+            description: string;
+            group: string;
+        };
+        /** @description Every permission a custom role may include, for the role builder. */
+        PermissionCatalogInput: {
+            permissions: components["schemas"]["PermissionCatalogEntryInput"][];
+        };
         /** @description Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb. */
         PostJournalRequest: {
             /** @description The entry date. It must fall inside an open fiscal period — periods are never created as a side effect of posting (ROADMAP D-17), so the year has to be generated first. */
@@ -12607,6 +12691,26 @@ export interface components {
             date: components["schemas"]["CalendarDateInput"];
             memo?: string;
         };
+        /** @description A role and the permission keys it grants. */
+        RoleDetail: {
+            code: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            isSystem: boolean;
+            name: string;
+            permissionKeys: string[];
+        };
+        /** @description A role and the permission keys it grants. */
+        RoleDetailInput: {
+            code: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            isSystem: boolean;
+            name: string;
+            permissionKeys: string[];
+        };
         /** @description The outcome of a manual scheduler run: the date its sweeps were enqueued for. */
         RunDueWorkResult: {
             /**
@@ -13782,6 +13886,18 @@ export interface components {
             materializationMode?: "draft" | "posted";
             memo?: string | null;
             name?: string;
+        };
+        /** @description Replace a custom role’s name, description, and full permission set. */
+        UpdateRoleRequest: {
+            description: string;
+            name: string;
+            permissionKeys: unknown;
+        };
+        /** @description Replace a custom role’s name, description, and full permission set. */
+        UpdateRoleRequestInput: {
+            description: string;
+            name: string;
+            permissionKeys: string[];
         };
         /** @description Partial update. `percentage` is immutable — a rate that changed would restate the tax on documents already posted at the old one, so a new percentage is a new rate. `isActive` is not here either: archiving is its own operation. */
         UpdateTaxRateRequest: {
@@ -21930,6 +22046,35 @@ export interface operations {
             };
         };
     };
+    getPermissionCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionCatalog"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listProcessorConnections: {
         parameters: {
             query?: never;
@@ -23775,6 +23920,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssignableRoleList"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createRole: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignableRole"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleDetail"];
+                };
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteRole: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No content. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Default Response */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateRole: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`. */
+                "idempotency-key": string;
+            };
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRoleRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Default Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignableRole"];
                 };
             };
             /** @description Default Response */

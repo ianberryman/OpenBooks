@@ -14291,6 +14291,55 @@
         ],
         "type": "object"
       },
+      "CreateRoleRequest": {
+        "additionalProperties": false,
+        "description": "Create a custom role in this organization from permission-catalog keys.",
+        "properties": {
+          "description": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "permissionKeys": {}
+        },
+        "required": [
+          "name",
+          "description",
+          "permissionKeys"
+        ],
+        "type": "object"
+      },
+      "CreateRoleRequestInput": {
+        "additionalProperties": false,
+        "description": "Create a custom role in this organization from permission-catalog keys.",
+        "properties": {
+          "description": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "permissionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "permissionKeys"
+        ],
+        "type": "object"
+      },
       "CreateStatementPackageRequest": {
         "additionalProperties": false,
         "description": "Renders a branded P&L / Balance Sheet / Cash Flow bundle to a single PDF (P5).",
@@ -25118,6 +25167,80 @@
         ],
         "type": "object"
       },
+      "PermissionCatalog": {
+        "additionalProperties": false,
+        "description": "Every permission a custom role may include, for the role builder.",
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionCatalogEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "PermissionCatalogEntry": {
+        "additionalProperties": false,
+        "description": "A single assignable permission.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "group"
+        ],
+        "type": "object"
+      },
+      "PermissionCatalogEntryInput": {
+        "additionalProperties": false,
+        "description": "A single assignable permission.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "group"
+        ],
+        "type": "object"
+      },
+      "PermissionCatalogInput": {
+        "additionalProperties": false,
+        "description": "Every permission a custom role may include, for the role builder.",
+        "properties": {
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionCatalogEntryInput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "type": "object"
+      },
       "PostJournalRequest": {
         "additionalProperties": false,
         "description": "Posts one manual journal. At least two lines, and debits must equal credits exactly — there is no tolerance, because in minor units there is nothing for a tolerance to absorb.",
@@ -30000,6 +30123,82 @@
         ],
         "type": "object"
       },
+      "RoleDetail": {
+        "additionalProperties": false,
+        "description": "A role and the permission keys it grants.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "isSystem",
+          "permissionKeys"
+        ],
+        "type": "object"
+      },
+      "RoleDetailInput": {
+        "additionalProperties": false,
+        "description": "A role and the permission keys it grants.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "permissionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "isSystem",
+          "permissionKeys"
+        ],
+        "type": "object"
+      },
       "RunDueWorkResult": {
         "additionalProperties": false,
         "description": "The outcome of a manual scheduler run: the date its sweeps were enqueued for.",
@@ -34492,6 +34691,55 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "UpdateRoleRequest": {
+        "additionalProperties": false,
+        "description": "Replace a custom role’s name, description, and full permission set.",
+        "properties": {
+          "description": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "permissionKeys": {}
+        },
+        "required": [
+          "name",
+          "description",
+          "permissionKeys"
+        ],
+        "type": "object"
+      },
+      "UpdateRoleRequestInput": {
+        "additionalProperties": false,
+        "description": "Replace a custom role’s name, description, and full permission set.",
+        "properties": {
+          "description": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "permissionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "permissionKeys"
+        ],
         "type": "object"
       },
       "UpdateTaxRateRequest": {
@@ -49497,6 +49745,38 @@
         ]
       }
     },
+    "/v1/permissions": {
+      "get": {
+        "description": "Takes `roles.read`. `group` is the key prefix before the dot, so a role-builder checklist can section itself without a second source of grouping. Sorted by group then code, so the body is stable across calls.",
+        "operationId": "getPermissionCatalog",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionCatalog"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "List every permission a custom role may include",
+        "tags": [
+          "Roles"
+        ]
+      }
+    },
     "/v1/processing/connections": {
       "get": {
         "description": "Every connection the org holds, active and inactive, oldest first. Not a paged collection — see this file’s header for why.",
@@ -52981,6 +53261,209 @@
         "summary": "List the roles this organization may grant",
         "tags": [
           "members"
+        ]
+      },
+      "post": {
+        "description": "Takes `roles.write`. `code` is minted from `name` and never resubmitted — it is a slug, unique per org, and stable once created. The full permission catalog is authorable with no key excluded: an org is entitled to combine its own permissions however it chooses.",
+        "operationId": "createRole",
+        "parameters": [
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignableRole"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Create a custom role in this organization",
+        "tags": [
+          "Roles"
+        ]
+      }
+    },
+    "/v1/roles/{roleId}": {
+      "delete": {
+        "description": "Takes `roles.write`. Refused with `conflict` while any member or pending invitation still names the role — remove or re-role them first. Refused with `not_found` on a system role or another org’s role (A7).",
+        "operationId": "deleteRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content."
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Delete a custom role",
+        "tags": [
+          "Roles"
+        ]
+      },
+      "get": {
+        "description": "Takes `roles.read`. Resolves a system role as well as a custom one, so an editor can show what a seeded role like Bookkeeper grants without being able to change it — `isSystem` is what tells the two apart. A role belonging to another org answers the same `not_found` as one that does not exist (A7).",
+        "operationId": "getRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleDetail"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Read a role and the permissions it grants",
+        "tags": [
+          "Roles"
+        ]
+      },
+      "patch": {
+        "description": "Takes `roles.write`. The permission set is replaced in full, not diffed against the stored one — the body is the role’s whole intended bundle. Refused on a system role or another org’s role with `not_found` (A7); `code` cannot be changed here.",
+        "operationId": "updateRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required on every write (spec §12). Send one unique value per logical request and reuse it verbatim when retrying: the same key with the same request replays the original outcome, and the same key with a different request is refused with `idempotency_key_conflict`.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleRequestInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignableRole"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        },
+        "summary": "Replace a custom role’s name, description, and permission set",
+        "tags": [
+          "Roles"
         ]
       }
     },

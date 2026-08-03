@@ -51,7 +51,7 @@ One placeholder per item on the [competitive gap analysis](#competitive-gap-anal
 | **PAYROLL**   | T2   | Payroll                                          | OB-223      | **Placeholder — partner (Gusto)**                         | [payroll](#follow-up--payroll-via-a-pluggable-provider-integration-ob-223-future)                                                                                                             |
 | **INVENTORY** | T2   | Tracked inventory & COGS                         | OB-224      | **BUILT** (gate-green; c1728c5+0887a97+de4f021; unpushed) | [Milestone INVENTORY](#milestone-inventory--tracked-inventory--cogs-ob-224-future)                                                                                                            |
 | **PROJ**      | T2   | Projects / job costing / time tracking           | OB-225      | **Placeholder — not scoped**                              | [projects & job costing](#follow-up--projects-job-costing--time-tracking-ob-225-future)                                                                                                       |
-| **ROLES**     | T2   | Custom role builder                              | OB-226      | **Placeholder — not scoped**                              | [custom role builder](#follow-up--custom-role-builder-ob-226-future)                                                                                                                          |
+| **ROLES**     | T2   | Custom role builder                              | OB-226      | **BUILT — gate-green**                                    | [ROLES](#roles--custom-role-builder-ob-226-built--gate-green)                                                                                                                                 |
 | **MOBILE**    | T3   | Native mobile app (Capacitor shell)              | OB-232      | **Placeholder — not scoped**                              | [Milestone MOBILE](#milestone-mobile--native-app-shell-via-capacitor-ob-232-future)                                                                                                           |
 | **MULTI**     | T3   | Multi-entity consolidation                       | OB-233      | **Placeholder — not scoped**                              | [multi-entity consolidation](#follow-up--multi-entity-consolidation-ob-233-future)                                                                                                            |
 | **MILEAGE**   | T3   | Mileage tracking                                 | OB-234      | **Placeholder — folds into MOBILE**                       | [mileage tracking](#follow-up--mileage-tracking-ob-234-future)                                                                                                                                |
@@ -2010,17 +2010,173 @@ deliver it via QuickBooks Time / Xero Me, often a separate app). Recommend a **p
 profitability report** as the minimal parity slice, with standalone time-clock/scheduling as a later
 or partner-integrated addition.
 
-### Follow-up — custom role builder (OB-226, future)
+### ROLES — custom role builder (OB-226, BUILT — gate-green)
 
-Roles today are **7 fixed system bundles** over a 70-key permission catalog
-(`0001_tenancy`, `permissions/catalog.ts`); a **custom role builder is already deferred with the
-`roles.org_id` path reserved for it** ([Accountant access & period close](#accountant-access--period-close)
-decision). QBO Advanced and QBD Enterprise (115 granular permission points, data-level restriction
-by customer/class) both sell this as an up-market differentiator. The build is a UI + a per-org role
-row assembling existing catalog keys — no new enforcement primitive, since `requirePermission` is
-already the single service-layer gate; the harder, optional extension is **data-scoped** permissions
-(restrict a role to specific dimensions/customers), which QBD has and would be net-new. Recommend the
-key-assembly builder first (small, reuses everything), data-scoping as a separate later question.
+**BUILT — `yarn check`-green (server 2,372 + web/shared-types 672 tests; the +5 server ops and the
+78th catalog key ripple through every pinned tripwire, all updated).** An org admin composes a
+**per-org role** (`roles.org_id = <org>`, `is_system = 0`) by ticking existing catalog keys and
+assigns it through the existing invite/change-role flow — the reserved path made real. Delivered by
+the documented orchestration: the Opus orchestrator landed the two trunk contracts (the `roles.write`
+key + the shared-types `roles/` module) and owned every registry/tripwire edit; two Sonnet streams
+authored the disjoint server slice (`modules/roles/` + `transport/routes/roles.ts` + a real-MySQL
+round-trip suite) and web slice (`screens/roles/` builder + colocated test) against pinned contracts.
+What shipped, exactly as scoped below: `roles.write` (owner-only, D-226-5 — the permission-matrix
+caught that `bookkeeper`'s catch-all seed needed it added to the admin-exclusion list too), the five
+routes (`GET /v1/permissions`, `GET/POST/PATCH/DELETE /v1/roles[/:roleId]`), the full catalog
+assignable with no special-casing (D-226-4), a records-producing `getRole` given a real A7 fixture,
+and `role_in_use`/`role_code_conflict` 409s with 404-for-system/cross-org. Zero resolver change, zero
+grants change, zero new migration (the `roles.write` seed is an in-place `0001` edit, D-15). The
+original scope follows unchanged, for the record.
+
+Roles today are **7 fixed system bundles** over a **77-key** permission catalog
+(`0001_tenancy`, `modules/permissions/catalog.ts`). A **custom role builder** lets an org admin
+compose a **per-org role** by ticking existing catalog keys and assign it through the existing
+invite/change-role flow. QBO Advanced and QBD Enterprise sell this as an up-market differentiator.
+
+**The reserved path is real, and a seam sweep (three read-only Explore agents, 2026-08-02) confirmed
+it is more than reserved — it is largely pre-wired.** The findings that shape the whole ticket:
+
+- **Enforcement is DB-driven and needs zero change.** `requirePermission` → `hasPermission` →
+  `permissionsForContext` (per-request memoized) → `selectRolePermissionKeys` issues a live
+  `roles ⨝ role_permissions` join on every request (`permissions.repository.ts:99-112`). The role
+  bundles live in **SQL seeds, not a TS `Record<roleCode, key[]>`** (`0001_tenancy.ts:387-539`). The
+  visibility predicate `roleVisibleToOrg` is already `(r.org_id = <org> OR r.org_id IS NULL)`
+  (`permissions.repository.ts:77-79`) — its own comment says the `= <org>` half exists to admit
+  "the v2 role editor" custom role while barring another org's. **A `roles` row with
+  `org_id = ctx.orgId, is_system = 0` plus its `role_permissions` rows is enforced today with no
+  resolver edit.**
+- **Assignment needs zero change.** `GET /v1/roles` (`listAssignableRoles`, gated `roles.read`)
+  already returns custom roles via the same predicate, with an `isSystem` flag purpose-built to
+  distinguish them (`members/members.ts:82-98`). Every role picker in the web app (invite form,
+  API-key form) binds to this one list, so a custom role appears automatically. `changeMemberRole`,
+  `inviteMember`, `createApiKey` all resolve `roleId` through `roleVisibleTo` — a custom role slots
+  straight in.
+- **Grants need zero change.** `openbooks_app` already holds `SELECT, INSERT` on `openbooks.*` plus
+  `UPDATE, DELETE` on `roles` and `role_permissions` (both in `MUTABLE_TABLES`,
+  `0999_app_grants.ts:204-209`). The app can already write custom rows. `permissions` (the catalog)
+  stays `APPEND_ONLY` — new keys arrive by migration only, never from the app.
+- **Schema/codegen need zero change.** `roles.org_id` is nullable, `uq_roles_org_code (org_id, code)`
+  scopes custom codes per org, `role_permissions.role_id` FK is `ON DELETE CASCADE` (delete a role,
+  its keys vanish) and `permission_code` FK is `ON DELETE RESTRICT` into the fixed catalog. The
+  `Roles`/`RolePermissions`/`Permissions` generated types already exist; no new table, no override.
+- **Cross-org isolation is already tested.** `cross-org-references.test.ts` already seeds an
+  `is_system:0` custom role and uses its id as the B11 subject for `changeMemberRole`/`inviteMember`/
+  `createApiKey` (`:1107-1129`) — the "a custom-role id from another org 404s" property ships green.
+
+**So the net-new surface is small:** one permission key, one read endpoint that publishes the
+catalog, three write endpoints, a web screen, and the pinned-tripwire edits. No migration beyond a
+one-row catalog seed, no grants change, no codegen, no resolver change.
+
+**Forks settled up front:**
+
+- **[D-226-1] Reuse the reserved path; no new schema.** Custom role = a `roles` row
+  (`org_id = ctx.orgId, is_system = 0`) + `role_permissions` rows. The only DDL-adjacent change is a
+  **one-row catalog seed** (`roles.write`), edited **in place** into `0001_tenancy`'s `permissions`
+  INSERT (pre-release in-place, D-15) — so **no new migration file**, and `harness.test.ts`'s ordered
+  migration list is untouched.
+- **[D-226-2] Enforcement unchanged.** `requirePermission` resolves through `role_permissions`
+  already; the custom role is enforced with no edit to `permissions.service.ts`/`.repository.ts`.
+- **[D-226-3] Assignment unchanged.** Existing `GET /v1/roles` + invite/change-role/api-key flows
+  already admit custom roles. Nothing to build on the assign side — the builder only creates/edits
+  the role definition.
+- **[D-226-4] A custom role may draw from the FULL catalog, no special-casing.** Safe because only
+  **`owner`** holds `roles.write` (D-226-5) and `owner` holds every key — a custom role can never
+  grant more than its creator already has, so there is no privilege-escalation surface in v1. The UI
+  **flags** SoD-sensitive keys (`disbursements.issue`, `journals.reverse`, `periods.close`,
+  `api_keys.write`, `roles.write`) with a warning but does not forbid them. (Alternative — a curated
+  "safe subset" — rejected as paternalistic given owner-only authorship.)
+- **[D-226-5] `roles.write` is owner-only**, mirroring `members.write: ['owner']` — composing roles
+  is an org-administration act. It lands in `owner` automatically (the seed is a `CROSS JOIN
+permissions`, so a new key joins the whole-catalog owner bundle) and in no other seeded role.
+- **[D-226-6] System roles are immutable, by not-found not by a special error.** `updateRole`/
+  `deleteRole` match `WHERE id = ? AND org_id = ctx.orgId AND is_system = 0`; a system-role id (or
+  another org's id) simply isn't found → **404**, consistent with the indistinguishable-not-found
+  rule. No "cannot edit a system role" message surface.
+- **[D-226-7] `code` is `slugify(name)`, unique per org.** `uq_roles_org_code` enforces it; a
+  collision (or a slug equal to a reserved system code) → **409 `role_code_conflict`**, the admin
+  renames. No silent auto-suffix. `roleCode` branching in the web only ever tests system codes
+  (`OWNER_ROLE_CODE`), so a custom code is inert there.
+- **[D-226-8 — DEFERRED] Data-scoped permissions are OUT.** Restricting a role to specific
+  dimensions/customers/branches (QBD Enterprise) is a genuine net-new enforcement primitive — a
+  per-assignment scope filter threaded into every tenant read — not a catalog composition. Tracked as
+  a separate later question; this ticket is the key-assembly builder only.
+
+**Seam contracts (pin these before fan-out — every stream authors against them):**
+
+```
+# shared-types (new): packages/shared-types/src/roles/
+createRoleRequest  = { name: string(1..120), description: string(0..255), permissionKeys: string[] }
+updateRoleRequest  = { name, description, permissionKeys }          # full replace of the key set
+AssignableRole     = { id, code, name, description, isSystem }      # ALREADY EXISTS (members.ts:88)
+permissionCatalog  = { permissions: [{ code: string, description: string, group: string }] }
+                     # group = the key prefix before the dot (orgs, members, journals, banking, …)
+
+# server routes (new file transport/routes/roles.ts), all under /v1:
+GET    /v1/permissions        getPermissionCatalog   roles.read     # reads the `permissions` table
+POST   /v1/roles              createRole             roles.write    # -> AssignableRole (isSystem:false)
+PATCH  /v1/roles/:roleId      updateRole             roles.write    # -> AssignableRole ; 404 if system/other-org
+DELETE /v1/roles/:roleId      deleteRole             roles.write    # 204 ; 409 role_in_use if assigned
+
+# refusal vocabulary: 409 role_code_conflict, 409 role_in_use ; 404 everywhere a row isn't visibly the org's
+```
+
+`getPermissionCatalog` reads `permissions (code, description)` straight from the seeded table (the
+descriptions are already human-readable, e.g. `'Invite, remove, and re-role members'`) and groups by
+key prefix — no new label source. `deleteRole` relies on the `org_members.role_id → roles.id ON
+DELETE RESTRICT` FK to block a delete while assigned, and maps the FK error to `role_in_use`.
+
+**Ticket board** (Opus owns the trunk + registry + tripwires; Sonnet worktree streams author the
+ADD-ONLY new files against the pinned contracts, per the CLAUDE.md orchestration model):
+
+| ID          | Title                                                                              | Owner    | Size | Depends on |
+| ----------- | ---------------------------------------------------------------------------------- | -------- | ---- | ---------- |
+| **OB-226a** | `roles.write` key — catalog + `0001` seed (in place) + `AssertCatalogSize<78>`     | trunk    | S    | —          |
+| **OB-226b** | shared-types `roles/` — create/update requests + `permissionCatalog`               | trunk    | S    | —          |
+| **OB-226c** | `modules/roles/` service + repository (create/update/delete + catalog read)        | Stream A | M    | 226b       |
+| **OB-226d** | `transport/routes/roles.ts` — the 4 routes (GET catalog + 3 writes)                | Stream B | M    | 226b       |
+| **OB-226e** | server suite — real-MySQL round-trip (create → assign → enforce) + props           | Stream C | M    | 226c       |
+| **OB-226f** | web `screens/roles/` — list + create/edit/delete + grouped key checklist           | Stream D | L    | 226b       |
+| **OB-226g** | integration — wire route index/`App.tsx`/`nav.ts`, regen wire artifacts, tripwires | trunk    | M    | 226c,d,f   |
+| **OB-226h** | E2E `custom-roles.spec.ts` — create role → invite → login → assert keys            | Stream E | M    | 226g       |
+
+**Critical path:** 226a → 226b → (226c ∥ 226d) → 226g → 226h. 226f runs parallel to 226c/d once
+226b's contract is pinned. 226c/226d/226f are disjoint new directories — cherry-pick clean.
+
+**Pinned tripwires the trunk must move (226a + 226g)** — the streams can't run these:
+
+- `catalog.ts`: `PERMISSION_KEYS += 'roles.write'`; `AssertCatalogSize<77>` → `<78>`.
+- `0001_tenancy.ts`: add `('roles.write', 'Create and modify custom roles')` to the `permissions`
+  INSERT (right after `roles.read`); it auto-joins `owner` via the `CROSS JOIN`.
+- `catalog.test.ts:60-61`: both `toHaveLength(77)` → `78` (the drift test also set-compares vs. the DB).
+- `permission-matrix.test.ts`: `GRANTED_TO['roles.write'] = ['owner']`; add `OPERATIONS` rows for
+  `getPermissionCatalog` (roles.read), `createRole`/`updateRole`/`deleteRole` (roles.write) — the
+  coverage gate + the enforcement-scan gate both require them.
+- `cross-org.test.ts` (A7): path-id rows for `PATCH`/`DELETE /v1/roles/:roleId`.
+- `cross-org-references.test.ts` (B11): `createRole`/`updateRole` bodies carry `name`/`description`/
+  `permissionKeys` (string keys, **not** id-shaped) — no `REFERENCES` row needed; confirm the
+  id-field coverage gate stays green (no `*Id`/`*Ids` body field is introduced).
+- `routes.test.ts`: the 4 new route-table entries.
+- Wire: `yarn spec` → `openapi.json`, then `yarn workspace @openbooks/web codegen` → `schema.d.ts`;
+  `yarn drift` clean. **No** `generated.ts`/codegen, **no** `grants.test.ts`, **no** `harness.test.ts`,
+  **no** tenancy-scope edits (no new table, no new migration file, no new mutable/grant).
+
+**Acceptance:**
+
+| #   | Acceptance criterion                                                                          | Ticket     |
+| --- | --------------------------------------------------------------------------------------------- | ---------- |
+| R1  | An owner creates a per-org role by ticking catalog keys; it persists `org_id = ctx.orgId`     | 226c, 226d |
+| R2  | The new role appears in `GET /v1/roles` with `isSystem: false` and is assignable via invite   | 226e, 226h |
+| R3  | A member holding the custom role passes/fails `requirePermission` for exactly its ticked keys | 226e       |
+| R4  | Editing the role replaces its key set; the change is live on the assignee's next request      | 226c, 226e |
+| R5  | Deleting a role assigned to a member is refused (`409 role_in_use`); an unused one deletes    | 226c, 226e |
+| R6  | A system-role or cross-org role id returns `404` on edit/delete (indistinguishable)           | 226e       |
+| R7  | `GET /v1/permissions` publishes the 78-key catalog grouped for the builder checklist          | 226d, 226f |
+| R8  | Only `owner` may create/edit/delete a role; every other seeded role is denied                 | 226e       |
+
+**Shape of the work.** The whole ticket is a thin CRUD layer plus a UI over machinery that already
+resolves, assigns, grants, and isolation-tests custom roles. The load-bearing risk is not
+enforcement (proven) but the **pinned-tripwire choreography** of adding one permission key — the
+trunk owns that. Data-scoping (D-226-8) is the only genuinely hard extension and is deferred.
 
 ### Milestone MOBILE — native app shell via Capacitor (OB-232, future)
 

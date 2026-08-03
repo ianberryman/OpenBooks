@@ -40,6 +40,7 @@ export const PERMISSION_KEYS = [
   'members.read',
   'members.write',
   'roles.read',
+  'roles.write',
   'accounts.read',
   'accounts.write',
   'periods.read',
@@ -196,12 +197,12 @@ export type _CatalogKeysAreResourceAction = AssertShapedLikePluginApiKey<Permiss
 /**
  * The catalog size, pinned in the type system.
  *
- * Migration `0001` seeds 75 codes and the seven system roles are set operations
+ * Migration `0001` seeds these codes and the seven system roles are set operations
  * over that number (Owner is the whole catalog). An entry deleted here by an errant
  * edit would otherwise only surface as a database test failure; this makes it a
  * compile failure in the file that caused it.
  */
-type AssertCatalogSize<_N extends 77> = true;
+type AssertCatalogSize<_N extends 78> = true;
 export type _CatalogSize = AssertCatalogSize<(typeof PERMISSION_KEYS)['length']>;
 
 const PERMISSION_KEY_SET: ReadonlySet<string> = new Set(PERMISSION_KEYS);

@@ -29,9 +29,9 @@ import { contextFor, useServiceDatabase } from './support';
  * the seeds changed and the change needs a reason — not a new number here.
  */
 const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number]> = [
-  // The entire catalog (77 since OB-224 added inventory.read/inventory.write, atop
-  // OB-228's ten99.read/write which took it to 75).
-  ['owner', 77],
+  // The entire catalog (78 since OB-226 added roles.write, atop OB-224's
+  // inventory.read/inventory.write which took it to 77).
+  ['owner', 78],
   // Everything except organization administration: orgs.write, members.write,
   // api_keys.*, integrations.write, processing.write, workflows.activate,
   // disbursements.issue (D-109 — the Pay Bills release key is owner-only), and now
@@ -46,7 +46,9 @@ const EXPECTED_PERMISSION_COUNTS: ReadonlyArray<readonly [SystemRoleName, number
   // and P's audit.read (the catch-all grants it — not an administration exclusion), and
   // CAT's catalog.read/write (both — neither is an administration exclusion), and now
   // OB-224's inventory.read/write (both — a stock adjustment is bookkeeping, not
-  // administration, so the catch-all grants the pair): 66 → 68.
+  // administration, so the catch-all grants the pair): 66 → 68. OB-226 adds roles.write
+  // to the catalog *and* to the administration exclusions (D-226-5 — composing roles is
+  // owner-only), so the count holds at 68 as the catalog grows to 78.
   ['bookkeeper', 68],
   // Every `.read` except api_keys.read (28, now including branding.read,
   // processing.read, pending_payments.read, recurring_journals.read, fixed_assets.read,

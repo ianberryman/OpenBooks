@@ -38,6 +38,7 @@ import { InventoryScreen } from './screens/inventory/inventory';
 import { RecurringInvoicesScreen } from './screens/recurring-invoices';
 import { RecurringJournalsScreen } from './screens/recurring-journals';
 import { ReportsScreen } from './screens/reports';
+import { RolesScreen } from './screens/roles';
 import { SalesScreen } from './screens/sales';
 import { SettingsScreen } from './screens/settings';
 import { CustomerStatementsScreen } from './screens/customer-statements';
@@ -230,6 +231,7 @@ function SignedInRoutes({ identity }: { readonly identity: CallerIdentity }): Re
         <Route path="/ten99/*" element={<Ten99CenterScreen />} />
         <Route path="/budgets" element={<BudgetsScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
+        <Route path="/roles" element={<RolesScreen />} />
         <Route path="/quickbooks-import" element={<QuickBooksImportScreen />} />
         <Route path="/api-keys" element={<ApiKeysScreen />} />
         <Route path="/oauth-clients" element={<OAuthClientsScreen />} />

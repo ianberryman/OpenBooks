@@ -39,6 +39,7 @@ export * from './platform';
 export * from './procurement';
 export * from './recurring-journals';
 export * from './reports';
+export * from './roles';
 export * from './subledger';
 export * from './tax';
 export * from './ten99';

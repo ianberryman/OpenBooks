@@ -96,7 +96,7 @@ describe('test database harness', () => {
   });
 
   describe('seeds', () => {
-    it('has the fixed 73-permission catalog', async () => {
+    it('has the fixed 78-permission catalog', async () => {
       const row = await db.app
         .selectFrom('permissions')
         .select(({ fn }) => fn.countAll<number>().as('count'))
@@ -112,7 +112,8 @@ describe('test database harness', () => {
       // 73 since OB-227 (live bank feeds) added banking.connect.
       // 75 since OB-228 (1099 reporting) added ten99.read/write.
       // 77 since OB-224 (tracked inventory) added inventory.read/write.
-      expect(Number(row.count)).toBe(77);
+      // 78 since OB-226 (custom role builder) added roles.write.
+      expect(Number(row.count)).toBe(78);
     });
 
     it('has the seven system roles at their reserved ids', async () => {

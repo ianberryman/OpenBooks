@@ -278,6 +278,7 @@ async function seedPermissions(db: MigrationDb): Promise<void> {
       ('members.read',           'View organization members'),
       ('members.write',          'Invite, remove, and re-role members'),
       ('roles.read',             'View roles and their permissions'),
+      ('roles.write',            'Create, modify, and delete custom roles'),
       ('accounts.read',          'View the chart of accounts'),
       ('accounts.write',         'Create and modify accounts'),
       ('periods.read',           'View fiscal periods'),
@@ -438,7 +439,7 @@ async function seedSystemRoles(db: MigrationDb): Promise<void> {
     SELECT r.id, p.code FROM roles r CROSS JOIN permissions p
     WHERE r.is_system = 1 AND r.code = 'bookkeeper'
       AND p.code NOT IN (
-        'orgs.write', 'members.write', 'api_keys.read', 'api_keys.write',
+        'orgs.write', 'members.write', 'roles.write', 'api_keys.read', 'api_keys.write',
         'integrations.write', 'processing.write', 'workflows.activate',
         'disbursements.issue', 'banking.connect'
       )

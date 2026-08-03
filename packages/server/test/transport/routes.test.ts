@@ -153,6 +153,12 @@ describe('the /v1 route table', () => {
         'listInvites',
         'revokeInvite',
         'acceptInvite',
+        // Custom role builder (OB-226).
+        'getPermissionCatalog',
+        'getRole',
+        'createRole',
+        'updateRole',
+        'deleteRole',
         'getProfitAndLoss',
         'getBalanceSheet',
         'getGeneralLedger',

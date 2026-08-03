@@ -92,6 +92,13 @@ interface Scene {
   readonly fixedAssetId: string;
   /** Budgets (N, OB-183): a stored budget figure, for `deleteBudget`'s id-addressed route. */
   readonly budgetId: string;
+  /**
+   * Custom roles (OB-226): a per-org role for `getRole`/`updateRole`, and a second one
+   * `deleteRole` consumes — a system role would answer the owner `404` on the write path
+   * (the strict `is_system = 0` match), tripping `ownerGetsNotFound`.
+   */
+  readonly customRoleId: string;
+  readonly deletableRoleId: string;
   /** Q (M6): an automation and the work item running it enqueues, for the A7 rows. */
   readonly automationId: string;
   readonly workItemId: string;
@@ -461,6 +468,21 @@ async function scene(app: App): Promise<Scene> {
     roleId: OWNER_ROLE_ID,
   });
 
+  // Custom role builder (OB-226). A records-producing `getRole` needs an
+  // owner-accessible custom role so its control pass returns 200 rather than the 404
+  // `ownerGetsNotFound` would catch — and `deleteRole` consumes its target, so it gets
+  // its own second role the way `discardableDraftId` does.
+  const customRoleId = await created('custom-role', '/v1/roles', {
+    name: 'A7 Custom Role',
+    description: 'A7 fixture',
+    permissionKeys: ['contacts.read'],
+  });
+  const deletableRoleId = await created('deletable-role', '/v1/roles', {
+    name: 'A7 Deletable Role',
+    description: 'consumed by the deleteRole control pass',
+    permissionKeys: [],
+  });
+
   const oauthClientResponse = await app.inject({
     method: 'POST',
     url: '/v1/oauth-clients',
@@ -652,6 +674,8 @@ async function scene(app: App): Promise<Scene> {
     recurringJournalTemplateId,
     fixedAssetId,
     budgetId,
+    customRoleId,
+    deletableRoleId,
     automationId,
     workItemId,
     apiKeyId,
@@ -1480,6 +1504,34 @@ const SURFACES: readonly Surface[] = [
     method: 'DELETE',
     path: '/v1/budgets/%s',
     id: (s) => s.budgetId,
+  },
+  // Custom role builder (OB-226). `getRole` and `updateRole` name the org's real custom
+  // role and leave it in place; `deleteRole` names its own second role, which it consumes
+  // (a system-role id would answer the owner a `404` on the write, the strict
+  // `is_system = 0` match — `discardableDraftId`'s reason). The stranger 404s at the row
+  // load: `getRole` scopes by the visible predicate, the writes by the strict one.
+  {
+    operationId: 'getRole',
+    method: 'GET',
+    path: '/v1/roles/%s',
+    id: (s) => s.customRoleId,
+  },
+  {
+    operationId: 'updateRole',
+    method: 'PATCH',
+    path: '/v1/roles/%s',
+    id: (s) => s.customRoleId,
+    payload: () => ({
+      name: 'A7 Renamed Role',
+      description: '',
+      permissionKeys: ['contacts.read'],
+    }),
+  },
+  {
+    operationId: 'deleteRole',
+    method: 'DELETE',
+    path: '/v1/roles/%s',
+    id: (s) => s.deletableRoleId,
   },
   // Procure-to-pay (M, OB-177). Purchase orders and estimates are non-posting
   // pre-documents that convert into a bill/invoice; an employee expense is an

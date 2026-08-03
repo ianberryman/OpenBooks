@@ -186,6 +186,12 @@ const NAV_GROUPS: readonly NavGroup[] = [
        */
       { to: '/quickbooks-import', label: 'Import from QuickBooks', permission: 'accounts.write' },
       /**
+       * `roles.read`: the custom-role builder (OB-226). The seeded roles that can view roles
+       * (owner, bookkeeper, read-only, approver, accountant) see the link; only `owner` holds
+       * `roles.write` and can actually compose one, but the screen is a viewer for the rest.
+       */
+      { to: '/roles', label: 'Roles', permission: 'roles.read' },
+      /**
        * `api_keys.read`, `integrations.read` (twice) and `agents.review` were OB-105's
        * management screens, each gated on the read half of the permission its own writes sit
        * under (D-25). `/oauth/consent` gets no entry anywhere — it is reached only by the 302
