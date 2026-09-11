@@ -54,7 +54,7 @@
     "tsx": "^4.23.1",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.65.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "packageManager": "yarn@4.17.1"
 }
